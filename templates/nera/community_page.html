@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+comm_id={{community_view.as_ref().unwrap().id}}
+<a href="/community/{{community_view.as_ref().unwrap().id}}/access-rule">edit access routes</a>
+
+{{community_view|display_some|safe}}
+
+{% endblock %}

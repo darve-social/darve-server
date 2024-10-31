@@ -1,0 +1,32 @@
+[package]
+name = "sb_user_auth"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.7", features = ["multipart", "http2" ] }
+sb_middleware={path = "../sb_middleware"}
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+tokio = { version = "1.40.0", features = ["full", "io-util"] }
+tower-cookies = "0.10.0"
+tower-http = { version = "0.6.1", features = ["fs"] }
+webauthn-rs = { version="0.5.0", features=["danger-allow-state-serialisation"]}
+tower-sessions = "0.13.0"
+tower = { version = "0.5.1"}
+rand = "0.8.5"
+validator = { version = "0.18.1", features = ["derive"] }
+base64 = "0.22.1"
+surrealdb = { version = "2.0.3", features = ["kv-mem"] }
+log = "0.4.22"
+uuid = { version = "1.10.0", features = ["v4"] }
+chrono = { version = "0.4.38", features = ["serde"] }
+strum = { version = "0.26.3", features = ["derive"] }
+askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
+once_cell = "1.19.0"
+regex = "1.10.6"
+axum-htmx = { version = "0.6.0", features = ["auto-vary"] }
+futures = "0.3.30"
+tokio-stream = "0.1.16"
+thiserror = "1.0.63"
+askama = { git = "https://github.com/djc/askama.git", branch = "main" }

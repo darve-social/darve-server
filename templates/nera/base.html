@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <link rel="icon" type="image/svg+xml" href="/img/vite.svg"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Hello, world!</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sanchez&display=swap" rel="stylesheet">
+
+
+  <script type="module" crossorigin src="/assets/built/index-Dm89BNC0.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/built/index-JsIsyg3C.css">
+</head>
+<body>
+
+<div class="flex-row flex">
+    {% include "vertical-menu.html" %}
+    <div class="grow md:ml-20 lg:ml-40 mb-24 md:mb-0 flex flex-col ">
+        {% include "top-menu.html" %}
+        {% block content %}
+            {% include "default-content.html" %}
+        {% endblock %}
+    </div>
+    {% include "mobile-menu.html" %}
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,108 @@
+<div id="hx_access_rule_form">
+    <h5>Edit Access Rules:</h5>
+
+    <ul>
+        {% for ar in access_rules %}
+        <li hx-trigger="click" hx-get="/api/community/{{access_rule.community.to_raw()}}/access-rule?id={{ar.id|display_some}}"
+            hx-target-*="#errorTopic"
+            hx-target="#hx_access_rule_form" hx-swap="innerHTML">{{ar.title}}
+        </li>
+        <a href="/api/stripe/access-rule/{{ar.id|display_some}}">test</a>
+        {% endfor %}
+        <li hx-trigger="click" hx-get="/api/community/{{access_rule.community.to_raw()}}/access-rule"
+            hx-target-*="#errorTopic"
+            hx-target="#hx_access_rule_form" hx-swap="innerHTML">create new
+        </li>
+    </ul>
+
+
+
+    <ul class="space-y-4 text-left text-gray-500 dark:text-gray-400">
+        {% for ar in access_rules %}
+        <li class="flex items-center space-x-3 rtl:space-x-reverse"
+            hx-trigger="click" hx-get="/api/community/{{access_rule.community.to_raw()}}/access-rule?id={{ar.id|display_some}}"
+            hx-target-*="#errorTopic"
+            hx-target="#hx_access_rule_form" hx-swap="innerHTML">
+
+            <svg class="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/>
+            </svg>
+            <span>{{ar.title}}</span>
+        </li>
+        {% endfor %}
+        <li class="flex items-center space-x-3 rtl:space-x-reverse"
+            hx-trigger="click" hx-get="/api/community/{{access_rule.community.to_raw()}}/access-rule"
+            hx-target-*="#errorTopic"
+            hx-target="#hx_access_rule_form" hx-swap="innerHTML">
+
+            <svg class="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 16 12">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5.917 5.724 10.5 15 1.5"/>
+            </svg>
+            <span>new</span>
+        </li>
+    </ul>
+
+    <hr/>
+
+    <div>
+        <form>
+            <input type="hidden" name="id" value="{% if access_rule.id.as_ref().is_some() %}{{access_rule.id.as_ref().unwrap().to_raw()}} {% endif %}">
+            <input type="hidden" name="community_id" value="{{access_rule.community.to_raw()}}">
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Title</span>
+                    <input name="title" type="text" value="{{access_rule.title}}"/>
+                </label>
+            </div>
+
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Require Join Confirmation</span>
+                    <input name="join_confirmation" type="text" value="{{access_rule.join_confirmation|display_some}}"/>
+                </label>
+            </div>
+
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">price</span>
+                    <input name="price_amount" type="text" value="{% if access_rule.price_amount.as_ref().is_some() %}{{access_rule.price_amount.as_ref().unwrap()}}{% endif %}"/>
+                </label>
+            </div>
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Auth Id</span>
+                    <input name="authorize_record_id_required" type="text" value="{{access_rule.authorization_required.authorize_record_id}}"/>
+                </label>
+            </div>
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Auth Activity</span>
+                    <input name="authorize_activity_required" type="text" value="{{access_rule.authorization_required.authorize_activity}}"/>
+                </label>
+            </div>
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Auth height</span>
+                    <input name="authorize_height_required" type="text" value="{{access_rule.authorization_required.authorize_height}}"/>
+                </label>
+            </div>
+
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text">Valid Nr. Days Period</span>
+                    <input name="available_period_days" type="text" value="{% if access_rule.available_period_days.as_ref().is_some() %}{{access_rule.available_period_days.as_ref().unwrap()}}{%endif%}"/>
+                </label>
+            </div>
+
+            <div id="errorTopic"></div>
+            <div class="flex flex-col md:flex-row gap-2 md:gap-4 justify-center items-center">
+                <button hx-post="/api/access-rule" hx-target="#hx_access_rule_form"
+                        hx-swap="outerHTML"
+                        hx-target-*="#errorTopic"
+                        class="btn btn-active btn-primary btn-block max-w-[200px]">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

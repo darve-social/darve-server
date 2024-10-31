@@ -1,0 +1,581 @@
+use std::collections::HashMap;
+use std::str::FromStr;
+use std::time::Duration;
+
+use askama_axum::axum_core::response::IntoResponse;
+use askama_axum::Template;
+use axum::extract::{Path, Query, State};
+use axum::response::sse::Event;
+use axum::response::{Response, Sse};
+use axum::routing::{get, post};
+use axum::Router;
+use axum_htmx::HX_REDIRECT;
+use futures::stream::Stream as FStream;
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
+use surrealdb::Notification as SdbNotification;
+use tokio_stream::StreamExt as _;
+use validator::Validate;
+
+use sb_user_auth::entity::access_rule_entity::{AccessRule, AccessRuleDbService};
+use sb_user_auth::entity::authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
+use crate::entity::community_entitiy::CommunityDbService;
+use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::notification_entitiy::Notification;
+use crate::entity::post_entitiy::PostDbService;
+use crate::routes::discussion_topic_routes::{DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView};
+use sb_user_auth::utils::askama_filter_util::filters;
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
+use sb_middleware::utils::request_utils::CreatedResponse;
+use sb_user_auth::utils::template_utils::ProfileFormPage;
+use sb_middleware::ctx::Ctx;
+use sb_middleware::db::Db;
+use sb_middleware::error::{CtxResult, AppError};
+use sb_middleware::mw_ctx::CtxState;
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
+use sb_user_auth::entity::notification_entitiy;
+use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
+
+pub fn routes(state: CtxState) -> Router {
+    let view_routes = Router::new()
+        .route("/community/:community_id/discussion", get(create_update_form));
+    // .route("/discussion/:discussion_id", get(display_discussion));
+
+    Router::new()
+        .merge(view_routes)
+        .route("/api/discussion", post(create_update))
+        .route("/api/discussion/:discussion_id/sse", get(discussion_sse))
+        .with_state(state)
+}
+
+pub struct SseEventName {}
+
+impl SseEventName {
+    pub fn get_discussion_post_added_event_name() -> String {
+        CommunityNotificationEvent::Discussion_PostAdded.to_string()
+    }
+
+    pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
+        CommunityNotificationEvent::DiscussionPost_ReplyAdded.to_string() + "@" + reply_ident.to_raw().as_str()
+    }
+    pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
+        CommunityNotificationEvent::DiscussionPost_ReplyNrIncreased.to_string() + "@" + post_ident.to_raw().as_str()
+    }
+    pub fn get_error() -> String {
+        "Error".to_string()
+    }
+}
+
+#[derive(Template, Serialize)]
+#[template(path = "nera2/discussion_form.html")]
+struct DiscussionForm {
+    discussion_view: DiscussionView,
+    topic_form: DiscussionTopicItemsEdit,
+}
+
+#[derive(Deserialize, Serialize, Validate)]
+pub struct DiscussionInput {
+    pub id: String,
+    pub community_id: String,
+    #[validate(length(min = 5, message = "Min 5 characters"))]
+    pub title: String,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub topics: Option<String>,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/discussion_page.html")]
+pub struct DiscussionPage {
+    theme_name: String,
+    window_title: String,
+    nav_top_title: String,
+    header_title: String,
+    footer_text: String,
+    discussion_view: DiscussionView,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/discussion_view_1.html")]
+pub struct DiscussionView {
+    id: Option<Thing>,
+    title: Option<String>,
+    belongs_to: Thing,
+    pub(crate) posts: Vec<DiscussionPostView>,
+    pub(crate) topics: Option<Vec<DiscussionTopicView>>,
+    display_topic: Option<DiscussionTopicView>,
+}
+
+impl ViewFieldSelector for DiscussionView {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, title, [] as posts, topics.*.{id, title}, belongs_to".to_string()
+    }
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/post-1-popup.html")]
+pub struct DiscussionPostView {
+    pub id: Thing,
+    pub created_by_name: String,
+    // belongs_to = discussion
+    pub belongs_to_uri: Option<String>,
+    pub belongs_to_id: Thing,
+    pub title: String,
+    pub r_title_uri: Option<String>,
+    pub content: String,
+    pub media_links: Option<Vec<String>>,
+    pub r_created: String,
+    pub replies_nr: i64,
+    pub topic: Option<DiscussionTopicView>,
+    pub access_rule: Option<AccessRule>,
+    pub viewer_access_rights: Vec<Authorization>,
+    pub has_view_access: bool,
+}
+
+impl ViewFieldSelector for DiscussionPostView {
+    // post fields selct qry for view
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
+    }
+}
+
+#[derive(Debug)]
+struct DiscussionFormParams {
+    id: Option<String>,
+}
+
+async fn display_discussion(State(CtxState { _db, .. }): State<CtxState>,
+                            ctx: Ctx,
+                            Path(discussion_id): Path<String>,
+                            q_params: DiscussionParams,
+) -> CtxResult<DiscussionPage> {
+    println!("->> {:<12} - get discussion", "HANDLER");
+
+    let dis_view = get_discussion_view(&_db, &ctx, discussion_id, q_params).await?;
+    let dis_template = DiscussionPage { nav_top_title: "top nav".to_string(), header_title: "headdd".to_string(), footer_text: "foo".to_string(), theme_name: "emerald".to_string(), window_title: "hello wind".to_string(), discussion_view: dis_view };
+    Ok(dis_template)
+}
+
+pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: String, q_params: DiscussionParams) -> CtxResult<DiscussionView> {
+    let mut dis_template = DiscussionDbService { db: &_db, ctx: &ctx }.get_view::<DiscussionView>(IdentIdName::Id(discussion_id.clone())).await?;
+    let disc_id = dis_template.id.clone().ok_or(ctx.to_api_error(AppError::EntityFailIdNotFound { ident: discussion_id }))?;
+    dis_template.display_topic = if let Some(t_id) = q_params.topic_id.clone() {
+        dis_template.topics.clone().unwrap_or(vec![]).into_iter().find(|t| t.id.eq(&t_id))
+    } else { None };
+
+    let user_auth = match ctx.user_id() {
+        Ok(user_id) => {
+            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
+        }
+        Err(_) => vec![]
+    };
+    // TODO optimize with one qry
+    let mut discussion_posts = PostDbService { db: &_db, ctx: &ctx }
+        .get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), q_params.clone()).await?;
+    discussion_posts.iter_mut().for_each(|mut discussion_post_view: &mut DiscussionPostView| {
+        discussion_post_view.viewer_access_rights = user_auth.clone();
+        discussion_post_view.has_view_access = match &discussion_post_view.access_rule {
+            None => true,
+            Some(ar) =>  is_any_ge_in_list(&ar.authorization_required, &discussion_post_view.viewer_access_rights).unwrap_or(false)
+        };
+    });
+    dis_template.posts = discussion_posts;
+    Ok(dis_template)
+}
+
+async fn create_update_form(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(community_id): Path<String>,
+    Query(mut qry): Query<HashMap<String, String>>,
+) -> CtxResult<ProfileFormPage> {
+    let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+
+    let comm_id = Thing::try_from(community_id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error community id into Thing".to_string() }))?;
+    let mut topics = vec![];
+    let disc_id: Option<&String> = match qry.get("id").unwrap_or(&String::new()).len() > 0 {
+        true => Some(qry.get("id").unwrap()),
+        false => None
+    };
+
+    let discussion_view = match disc_id {
+        Some(id) => {
+            let id = Thing::try_from(id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error discussion id into Thing".to_string() }))?;
+            // auth discussion
+            let required_disc_auth = Authorization { authorize_record_id: id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
+            AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_disc_auth).await?;
+
+            topics = DiscussionDbService { db: &_db, ctx: &ctx }.get_topics(id.clone()).await?;
+            get_discussion_view(&_db, &ctx, id.to_raw(), DiscussionParams {
+                topic_id: None,
+                start: None,
+                count: None,
+            }).await?
+        }
+        None => {
+            // auth community
+            let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
+            AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
+            DiscussionView {
+                id: None,
+                title: None,
+                belongs_to: comm_id.clone(),
+                posts: vec![],
+                topics: None,
+                display_topic: None,
+            }
+        }
+    };
+
+    let access_rules = AccessRuleDbService { db: &_db, ctx: &ctx }.get_list(comm_id.clone()).await?;
+
+    Ok(ProfileFormPage::new(Box::new(
+        DiscussionForm {
+            discussion_view,
+            topic_form: DiscussionTopicItemsEdit {
+                community_id: comm_id,
+                edit_topic: DiscussionTopicItemForm {
+                    id: String::new(),
+                    discussion_id: match disc_id {
+                        None => String::new(),
+                        Some(id) => id.clone()
+                    },
+                    title: String::new(),
+                    hidden: false,
+                    access_rule: None,
+                    access_rules,
+                },
+                topics,
+            },
+        }), None, None))
+}
+
+async fn discussion_sse(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(discussion_id): Path<String>,
+    q_params: DiscussionParams,
+) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
+    let discussion_id = Thing::try_from(discussion_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let discussion_id = DiscussionDbService { db: &_db, ctx: &ctx }.must_exist(IdentIdName::Id(discussion_id.to_raw())).await?;
+
+    let user_auth = match ctx.user_id() {
+        Ok(user_id) => {
+            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
+        }
+        Err(_) => vec![]
+    };
+
+    let mut stream = _db.select(notification_entitiy::TABLE_NAME).live().await?
+        .filter(move |r: &Result<SdbNotification<Notification>, surrealdb::Error>| {
+            // TODO check if user still logged in
+            // filter out events from other discussion - TODO make last events sub table for each discussion, delete all events older than ~5days
+            let notification = r.as_ref().unwrap().data.clone();
+            let notification_discussion_ident = PostNotificationEventIdent::try_from(notification.event_ident.unwrap_or("".to_string())).ok();
+            if notification_discussion_ident.is_none() || notification_discussion_ident.clone().unwrap().discussion_id.ne(&discussion_id) {
+                return false;
+            }
+
+            let event_ident = notification_discussion_ident.unwrap();
+            if q_params.topic_id.is_some() && q_params.topic_id.ne(&event_ident.topic_id) {
+                return false;
+            }
+            event_ident.discussion_id.eq(&discussion_id)
+        })
+        .map(move |n: Result<SdbNotification<Notification>, surrealdb::Error>| {
+            n.map(|n: surrealdb::Notification<Notification>| {
+                let n_event = CommunityNotificationEvent::from_str(n.data.event.as_str());
+                if n_event.is_ok() {
+                    match n_event.unwrap() {
+                        CommunityNotificationEvent::Discussion_PostAdded => {
+                            match serde_json::from_str::<DiscussionPostView>(&n.data.content) {
+                                Ok(mut dpv) => {
+
+                                    dpv.viewer_access_rights = user_auth.clone();
+                                    dpv.has_view_access = match &dpv.access_rule {
+                                        None => true,
+                                        Some(ar) =>  is_any_ge_in_list(&ar.authorization_required, &dpv.viewer_access_rights).unwrap_or(false)
+                                    };
+                                    // dbg!(&dpv);
+                                    match dpv.render() {
+                                        Ok(post_html) => Event::default().data(post_html).event(SseEventName::get_discussion_post_added_event_name()),
+                                        Err(err) => {
+                                            let msg = "ERROR rendering DiscussionPostView";
+                                            println!("{} ERR={err}", &msg);
+                                            Event::default().data(msg).event(SseEventName::get_error())
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    let msg = "ERROR converting NotificationEvent content to DiscussionPostView";
+                                    println!("{} ERR={err}", &msg);
+                                    Event::default().data(msg).event(SseEventName::get_error())
+                                }
+                            }
+                        }
+                        CommunityNotificationEvent::DiscussionPost_ReplyNrIncreased => {
+                            let ident = PostNotificationEventIdent::try_from( n.data.event_ident);
+                            Event::default().data(n.data.content).event(SseEventName::get_discussion_post_reply_nr_increased(&ident.unwrap().post_id))
+                        }
+                        CommunityNotificationEvent::DiscussionPost_ReplyAdded => {
+                            let ident = PostNotificationEventIdent::try_from( n.data.event_ident);
+                            Event::default().data(n.data.content).event(SseEventName::get_discussion_post_reply_added(&ident.unwrap().post_id))
+                        }
+                    }
+                } else {
+                    Event::default().data("test").event("ERR")
+                }
+            })
+        }
+        );
+    // println!("GOT LIVE QRY STREAM");
+    Ok(Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(10))
+            .text("keep-alive-text"),
+    ))
+}
+
+async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
+                       ctx: Ctx,
+                       JsonOrFormValidated(form_value): JsonOrFormValidated<DiscussionInput>,
+) -> CtxResult<Response> {
+    println!("->> {:<12} - create_update_disc", "HANDLER");
+    let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };
+    let aright_db_service = AccessRightDbService { db: &_db, ctx: &ctx };
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+
+    let disc_db_ser = DiscussionDbService { db: &_db, ctx: &ctx };
+    let community_db_service = CommunityDbService { db: &_db, ctx: &ctx };
+
+    let mut update_discussion = match form_value.id.len() > 0 {
+        false => {
+            // check if provided community id exists and has permissions on provided community id
+            let comm_id_str = form_value.community_id.clone();
+            let comm_id = Thing::try_from(comm_id_str.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into community_id Thing".to_string() }))?;
+            community_db_service.must_exist(IdentIdName::Id(comm_id_str)).await?;
+            let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
+            aright_db_service.is_authorized(&user_id, &required_comm_auth).await?;
+            Discussion {
+                id: None,
+                belongs_to: comm_id,
+                title: None,
+                topics: None,
+                chat_room_user_ids: None,
+                r_created: None,
+                created_by: user_id,
+            }
+        }
+        true => {
+            // check permissions in discussion and get community id from existing discussion in db
+            let disc_id = Thing::try_from(form_value.id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into discussion id Thing".to_string() }))?;
+            let required_diss_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
+            aright_db_service.is_authorized(&user_id, &required_diss_auth).await?;
+            disc_db_ser.get(IdentIdName::Id(disc_id.to_raw())).await?
+        }
+    };
+
+    /* let topics = match form_value.topics {
+         None => None,
+         Some(topics_str) => {
+             let t_str = topics_str.trim();
+             match t_str.len() {
+                 0 => None,
+                 _ => {
+                     let titles = t_str.split(",").into_iter().map(|s| s.trim().to_string()).collect();
+                     let res = DiscussionTopicDbService { db: &_db, ctx: &ctx }.create_titles(titles).await?;
+                     Some(res.into_iter().map(|dt| dt.id.unwrap()).collect())
+                 }
+             }
+         }
+     };*/
+
+    if form_value.title.len() > 0 {
+        update_discussion.title = Some(form_value.title);
+    } else {
+        return Err(ctx.to_api_error(AppError::Generic { description: "title must have value".to_string() }));
+    };
+
+    let disc = disc_db_ser
+        .create_update(update_discussion)
+        .await?;
+    let res = CreatedResponse { success: true, id: disc.id.unwrap().to_raw(), uri: None };
+    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res).into_response();
+    let comm = community_db_service.get(IdentIdName::Id(disc.belongs_to.to_raw())).await?;
+
+    res.headers_mut().append(HX_REDIRECT, format!("/community/{}", comm.name_uri).as_str().parse().unwrap());
+    Ok(res)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum_test::multipart::MultipartForm;
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
+
+    use sb_middleware::ctx::Ctx;
+    use crate::entity::community_entitiy::CommunityDbService;
+    use crate::entity::discussion_entitiy::DiscussionDbService;
+    use crate::entity::post_entitiy::PostDbService;
+    use crate::routes::community_routes::CommunityInput;
+    use crate::routes::discussion_routes::{DiscussionInput, DiscussionPostView};
+    use crate::routes::discussion_topic_routes::TopicInput;
+    use sb_middleware::utils::db_utils::IdentIdName;
+    use sb_middleware::utils::extractor_utils::DiscussionParams;
+    use sb_middleware::utils::request_utils::CreatedResponse;
+    use sb_user_auth::entity::access_right_entity::AccessRightDbService;
+    use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
+    use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+    use crate::utils::test_utils::{create_login_test_user, create_test_server};
+
+    #[tokio::test]
+    async fn get_discussion_view() {
+        let (server, ctx_state) = create_test_server().await;
+        let server = server.unwrap();
+        let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+        let disc_name = "discName1".to_lowercase();
+
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
+        let created = &create_response.json::<CreatedResponse>();
+        // dbg!(&created);
+
+        let comm_id = Thing::try_from(created.id.clone()).unwrap();
+        let comm_name = created.uri.clone().unwrap();
+
+        &create_response.assert_status_success();
+
+        let create_response = server.post("/api/discussion").json(&DiscussionInput { id: "".to_string(), community_id: comm_id.to_raw(), title: "The Discussion".to_string()} ).await;
+        let created = &create_response.json::<CreatedResponse>();
+        // dbg!(&created);
+
+        let disc_id = Thing::try_from(created.id.clone()).unwrap();
+        // let disc_name = created.uri.clone();
+
+        &create_response.assert_status_success();
+
+        let topic_resp = server.post(format!("/api/discussion/{}/topic", created.id.clone()).as_str()).json(&TopicInput{id:"".to_string(), title: "topic1".to_string(), hidden: None, access_rule_id: "".to_string() }).await;
+        dbg!(&topic_resp);
+        &topic_resp.assert_status_success();
+
+        let disc_rec = DiscussionDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok(user_ident), Uuid::new_v4(), false) }.get(IdentIdName::Id(disc_id.to_raw())).await;
+        assert_eq!(disc_rec.clone().unwrap().topics.unwrap().len(), 1);
+        let topics = disc_rec.unwrap().topics.unwrap();
+        let topic_id = topics[0].clone();
+
+
+        let post_name = "post title Name 1".to_string();
+        let create_post = server.post(format!("/api/discussion/{disc_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name.clone()).add_text("content", "contentttt111").add_text("topic_id", "")).await;
+        &create_post.assert_status_success();
+
+        let post_name2 = "post title Name 2?&$^%! <>end".to_string();
+        let create_response2 = server.post(format!("/api/discussion/{disc_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name2.clone()).add_text("content", "contentttt222").add_text("topic_id", topic_id.clone().to_raw())).await;
+        &create_response2.assert_status_success();
+
+        let disc_posts = PostDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false) }.get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), DiscussionParams { topic_id: None, start: None, count: None }).await;
+        let disc_posts_top1 = PostDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false) }.get_by_discussion_desc_view::<DiscussionPostView>(disc_id, DiscussionParams { topic_id: Some(topic_id), start: None, count: None }).await;
+        assert_eq!(disc_posts.is_ok(), true);
+        assert_eq!(disc_posts.unwrap().len(), 2);
+        assert_eq!(disc_posts_top1.is_ok(), true);
+        assert_eq!(disc_posts_top1.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn create_discussion() {
+        let (server, ctx_state) = create_test_server().await;
+        let server = server.unwrap();
+        let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+        let disc_name = "discName1".to_lowercase();
+        let disc_name2 = "discName2".to_lowercase();
+
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
+        let created = &create_response.json::<CreatedResponse>();
+        // dbg!(&created);
+
+        let comm_id = Thing::try_from(created.id.clone()).unwrap();
+        let comm_name = created.uri.clone().unwrap();
+
+        &create_response.assert_status_success();
+
+
+        let create_response = server.post("/api/discussion").json(&DiscussionInput { id: "".to_string(), community_id: comm_id.to_raw(), title: "The Discussion".to_string() }).await;
+        let created = &create_response.json::<CreatedResponse>();
+        // dbg!(&created);
+        let disc_name = created.uri.clone();
+        assert_eq!(disc_name, None);
+        let disc_id = created.id.clone();
+
+        &create_response.assert_status_success();
+
+        // same username should return error
+        // let create_response2 = server.post("/api/discussion").json(&DiscussionInput { id: None, community_id: comm_id.to_raw(), title: "The Discussion2".to_string(), topics: None }).await;
+
+        // dbg!(&create_response2);
+        // &create_response2.assert_status_bad_request();
+
+        // let create_response2 = server.post("/api/discussion").json(&DiscussionInput { id: None, community_id: comm_id.to_raw(), title: "The Discussion22".to_string(), topics: None }).await;
+        // &create_response2.assert_status_success();
+        // let created2 = &create_response2.json::<CreatedResponse>();
+        // let disc2_id = created2.id.clone();
+
+        let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+        let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
+        let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
+        let comm_disc_id = comm.unwrap().main_discussion.unwrap();
+
+        let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
+
+        let disc = disc_db.get(IdentIdName::Id(created.id.clone()).into()).await;
+        let comm_disc = disc_db.get(IdentIdName::Id(comm_disc_id.to_raw()).into()).await;
+        assert_eq!(comm_disc.unwrap().belongs_to.eq(&comm_id.clone()), true);
+        // let disc_by_uri = disc_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: disc_name.to_string(), rec: false}).await;
+        let discussion = disc.unwrap();
+        // let discussion_by_uri = disc_by_uri.unwrap();
+        assert_eq!(discussion.clone().topics, None);
+        // assert_eq!(discussion.clone().name_uri.unwrap(), disc_name.clone());
+        // assert_eq!(discussion_by_uri.clone().name_uri.unwrap(), disc_name.clone());
+
+        let db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
+        let aright_db_service = AccessRightDbService { db: &ctx_state._db, ctx: &ctx };
+        let user = db_service.get(IdentIdName::Id(user_ident.clone()).into()).await;
+        let user = user.unwrap();
+
+        let smaller_auth = Authorization { authorize_record_id: discussion.clone().id.unwrap(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 98 };
+        let higher_auth = Authorization { authorize_record_id: discussion.id.unwrap(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 100 };
+
+        assert_eq!(smaller_auth.ge(&higher_auth, ctx, &ctx_state._db).await.is_err(), false);
+
+        let mut found: Vec<Authorization> = vec![];
+        let user_auth = aright_db_service.get_authorizations(&Thing::try_from(user_ident).unwrap()).await.expect("user authorizations");
+        for v in user_auth.clone() {
+            let is_ge = v.ge(&smaller_auth, ctx, &ctx_state._db).await;
+            if is_ge.is_ok() {
+                found.push(v);
+            }
+        }
+        assert_eq!(found.len(), 1);
+
+        let mut found: Vec<Authorization> = vec![];
+        for v in user_auth.clone() {
+            let is_ge = v.ge(&higher_auth, ctx, &ctx_state._db).await;
+            if is_ge.unwrap() {
+                found.push(v);
+            }
+        }
+        assert_eq!(found.len(), 0);
+
+        // let discussion_resp = server.get(format!("/discussion/{disc_name}").as_str()).add_header(HX_REQUEST, HeaderValue::from_static("true")).await;
+        // let discussion_resp = server.get(format!("/discussion/{disc_id}").as_str()).add_header(HX_REQUEST, HeaderValue::from_static("true")).await;
+
+        // dbg!(&discussion_resp);
+        // &discussion_resp.assert_status_success();
+
+        // let discussion_resp = server.get(format!("/discussion/{disc_id}?topic_id=discussion_topic:345").as_str()).add_header(HX_REQUEST, HeaderValue::from_static("true")).await;
+
+        // dbg!(&discussion_resp);
+        // &discussion_resp.assert_status_success();
+    }
+}
+

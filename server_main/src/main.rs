@@ -1,0 +1,141 @@
+extern crate dotenv;
+
+use std::net::{Ipv4Addr, SocketAddr};
+
+use askama_axum::Template;
+use axum::handler::Handler;
+use axum::{middleware, Router};
+use axum_htmx::AutoVaryLayer;
+use dotenv::dotenv;
+use error::AppResult;
+use surrealdb::engine::local::Db;
+use surrealdb::Surreal;
+use tokio;
+use tower_cookies::CookieManagerLayer;
+use tower_http::services::ServeDir;
+use uuid::Uuid;
+
+use sb_user_auth::routes::webauthn::webauthn_routes;
+use sb_community::utils::test_utils::create_dev_env;
+
+use sb_community::entity::community_entitiy::CommunityDbService;
+use sb_community::entity::discussion_entitiy::DiscussionDbService;
+use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
+use sb_community::entity::post_entitiy::PostDbService;
+use sb_community::entity::reply_entitiy::ReplyDbService;
+use sb_community::routes::{community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes, reply_routes, stripe_routes};
+use sb_middleware::ctx::Ctx;
+use sb_middleware::mw_ctx::CtxState;
+use sb_middleware::{db, error, mw_ctx, mw_req_logger};
+use sb_task::routes::task_request_routes;
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
+use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
+use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
+use sb_user_auth::entity::notification_entitiy::NotificationDbService;
+use sb_user_auth::entity::payment_action_entitiy::JoinActionDbService;
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
+use sb_user_auth::routes::{access_rule_routes, init_server_routes, join_routes, login_routes, register_routes};
+
+mod mw_response_transformer;
+
+#[tokio::main]
+async fn main() -> AppResult<()> {
+    dotenv().ok();
+    let db= db::start(None).await?;
+    runMigrations(db).await?;
+
+    let is_dev = std::env::var("DEVELOPMENT").expect("set DEVELOPMENT env var").eq("true");
+    let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
+    let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
+    let stripe_wh_secret = std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
+    let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
+    let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
+
+    let ctx_state = mw_ctx::create_ctx_state(init_server_password, is_dev, jwt_secret, stripe_key, stripe_wh_secret, uploads_dir );
+    let wa_config = webauthn_routes::create_webauth_config();
+    let routes_all = main_router(&ctx_state, wa_config).await;
+
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, 8080));
+    println!("->> LISTENING on {addr}\n");
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
+    println!("DEVELOPMENT={}", is_dev);
+    if ctx_state.is_development {
+        let username = "userrr".to_string();
+        let password = "password".to_string();
+        create_dev_env(&ctx_state.clone(), username.clone(), password.clone()).await;
+        open::that(format!("http://localhost:8080/login?u={username}&p={password}")).expect("browser opens");
+    }
+
+    axum::serve(listener, routes_all.into_make_service())
+        .await
+        .unwrap();
+
+    // fallback fs
+    // fn routes_static() -> Router {
+    //     Router::new().nest_service("/", get_service(ServeDir::new("./")))
+    // }
+
+
+    Ok(())
+}
+
+async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
+    let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
+    // let ts= TicketDbService {db: &db, ctx: &c };
+    // ts.mutate_db().await?;
+
+    LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AuthenticationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    DiscussionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    DiscussionTopicDbService { db: &db, ctx: &c }.mutate_db().await?;
+    PostDbService { db: &db, ctx: &c }.mutate_db().await?;
+    ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
+    NotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
+    JoinActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    Ok(())
+}
+
+pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Router {
+    Router::new()
+        .nest_service("/assets", ServeDir::new("./server_main/src/assets"))
+        // No requirements
+        // Also behind /api, but no auth requirement on this route
+        .merge(init_server_routes::routes(ctx_state.clone()))
+        .merge(login_routes::routes(ctx_state.clone()))
+        .merge(register_routes::routes(ctx_state.clone()))
+        .merge(discussion_routes::routes(ctx_state.clone()))
+        .merge(discussion_topic_routes::routes(ctx_state.clone()))
+        .merge(community_routes::routes(ctx_state.clone()))
+        .merge(access_rule_routes::routes(ctx_state.clone()))
+        .merge(post_routes::routes(ctx_state.clone()))
+        .merge(reply_routes::routes(ctx_state.clone()))
+        .merge(webauthn_routes::routes(ctx_state.clone(), wa_config, "./server_main/src/assets/wasm"))
+        .merge(stripe_routes::routes(ctx_state.clone()))
+        .merge(join_routes::routes(ctx_state.clone()))
+        .merge(profile_routes::routes(ctx_state.clone()))
+        .merge(task_request_routes::routes(ctx_state.clone()))
+        // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
+        .layer(AutoVaryLayer)
+        .layer(middleware::map_response(mw_req_logger::mw_req_logger))
+        // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))
+        /*.layer(middleware::from_fn_with_state(
+            ctx_state.clone(),
+            mw_ctx::mw_require_login,
+        ))*/
+        // This is where Ctx gets created, with every new request
+        .layer(middleware::from_fn_with_state(
+            ctx_state.clone(),
+            mw_ctx::mw_ctx_constructor,
+        )
+        )
+        // Layers are executed from bottom up, so CookieManager has to be under ctx_constructor
+        .layer(CookieManagerLayer::new())
+    // .layer(Extension(ctx_state.clone()))
+    // .fallback_service(routes_static());
+}

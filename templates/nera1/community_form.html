@@ -1,0 +1,41 @@
+<div class="mx-auto w-full lg:w-1/2 md:p-10 py-5 md:py-0">
+    <h1 class="text-center text-2xl sm:text-3xl font-semibold text-[#4a07da]">
+        Create Community
+    </h1>
+    <div class="w-full mt-5 sm:mt-8">
+        <div class="mx-auto w-full sm:max-w-md md:max-w-lg flex flex-col gap-5" hx-ext="response-targets">
+            {% if community_view.is_some() %} View exists {% endif %}
+            <form>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input
+                            type="hidden"
+                            name="id"
+                            value="{% if community_view.is_some() %}{{community_view.as_ref().unwrap().id}}{% endif %}"
+                    />
+                    <input
+                            type="text"
+                            name="title"
+                            value="{% if community_view.is_some() %}{{community_view.as_ref().unwrap().title}}{% endif %}"
+                            placeholder="Title"
+                            class="input input-bordered input-primary w-full max-w-xs"
+                    />
+                    <input
+                            type="text"
+                            name="name_uri"
+                            value="{% if community_view.is_some() %}{{community_view.as_ref().unwrap().name_uri}}{% endif %}"
+                            placeholder="Uri"
+                            class="input input-bordered input-primary w-full max-w-xs"
+                    />
+                </div>
+                <div id="error"></div>
+                <div class="flex flex-col md:flex-row gap-2 md:gap-4 justify-center items-center">
+                    <button hx-post="/api/community" hx-target="closest div" hx-target-*="#error"
+                            class="btn btn-active btn-primary btn-block max-w-[200px]">
+                        Create
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+

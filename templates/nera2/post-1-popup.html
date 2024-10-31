@@ -1,0 +1,158 @@
+{% let modal_id = id.id|keep_alphanumeric %}
+<div id="d_{{modal_id}}" class="cursor-pointer" onclick="m_{{modal_id}}.showModal()">
+    <div class="flex flex-col">
+        <div class=" relative flex flex-col sm:gap-9 sm:flex-row justify-between pl-9">
+            <div class="flex flex-row items-center gap-3 ">
+                <div class="avatar">
+                    <div class="mask mask-circle w-10">
+                        <img src="/assets/img/vite.svg"/>
+                        <!--                            <img src="{created_by.profile_url}"/>-->
+                    </div>
+                </div>
+                <div>
+                    <p class="text-neutral-content">{{created_by_name}}</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex divider flex-grow "></div>
+            <div class="badge-ghost badge ml-10 sm:ml-0 sm:mt-3.5 text-sm font-thin text-gray-600">In {% if topic.is_some() %}{{ topic.as_ref().unwrap().title }} {{viewer_access_rights.len()}}{% endif %}
+                <!--{topic_name}}, {time_passed}}-->
+            </div>
+        </div>
+    </div>
+    <div class="mt-4 sm:flex-row-reverse flex flex-col sm:flex-row items-center bg-base-100 ">
+        <figure class="flex flex-1 flex-col rounded-none max-h-full max-w-32 !_justify-start">
+            {% if media_links.is_some() %}
+            {% for url in media_links.as_ref().unwrap() %}
+            <img class="w-fit mask mask-squircle"
+                 src="{{url}}"
+                 alt=""/>
+            {% endfor %}
+            {% endif %}
+        </figure>
+        <div class="card-body flex-[2] pt-2 sm:pt-0">
+
+            <h2 class="font-display md:text-2xl lg:text-3xl card-title line-clamp-1 relative mb-3 md:mb-6">
+                {{title|truncate(300)|if_view_access(" ", has_view_access)}}</h2>
+            <div class="text-gray-500  line-clamp-4 sm:line-clamp-3 md:line-clamp-2 relative top-[-1em]">
+                {{content|truncate(500)|if_view_access("", has_view_access)}}
+            </div>
+            <div class="card-actions w-full flex-col flex">
+                <div class="sm:divider flex flex-row text-neutral-content !sm:gap-12">
+
+                    <div class="text-red-400 flex flex-row items-center">
+                        <div>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                 stroke-width="1.5"
+                                 stroke="currentColor" class="size-7 sm:size-9 stroke-2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
+                                <text class=" stroke-0 fill-red-300" font-size="9" x="50%" y="53%"
+                                      dominant-baseline="middle" text-anchor="middle">
+                                    11
+                                    <!--                                        {likes}}-->
+                                </text>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="avatar-group -space-x-3 rtl:space-x-reverse">
+                            <!--<div class="avatar">
+                                <div class="w-7">
+                                    <img src="{reply_profile_1}}"/>
+                                </div>
+                            </div>
+                            <div class="avatar">
+                                <div class="w-7">
+                                    <img src="{reply_profile_2}}"/>
+                                </div>
+                            </div>
+                            <div class="avatar">
+                                <div class="w-7">
+                                    <img src="{reply_profile_3}}"/>
+                                </div>
+                            </div>
+                            <div class="avatar">
+                                <div class="w-7">
+                                    <img src="{reply_profile_4}}"/>
+                                </div>
+                            </div>-->
+                            <div class="avatar">
+                                <div class="w-7">
+                                    <img src="/assets/img/vite.svg"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-blue-200 flex flex-row items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                             stroke="currentColor" class="size-7 sm:size-9 stroke-2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 21c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z"/>
+                            <text class="stroke-0 fill-blue-200" font-size="9" x="50%" y="53%"
+                                  dominant-baseline="middle" text-anchor="middle" hx-swap="innerHTML"
+                                sse-swap="{{SseEventName::get_discussion_post_reply_nr_increased( id )}}">
+                                    {{replies_nr}}
+                            </text>
+                        </svg>
+                        <span class="font-thin text-sm">last <!--{reply_time_ago}}--> ago</span>
+                    </div>
+
+                </div>
+            </div>
+            <dialog id="m_{{modal_id}}" class="modal">
+                <div class="modal-box h-full max-w-2xl">
+                    {% if has_view_access %}
+                    <h3 class="text-lg font-bold">{{title}}</h3>
+                    <p class="py-4">{{content}}</p>
+                    <div hx-ext="response-targets">
+                        <h5>new reply</h5>
+                        <form>
+                            <input name="title"></input>
+                            <textarea name="content"></textarea>
+                            <div id="e_{{modal_id}}"></div>
+                            <button hx-post="/api/discussion/{{belongs_to_id}}/post/{{r_title_uri|display_some}}/reply"
+                                    hx-target="#e_{{modal_id}}" hx-target-*="#e_{{modal_id}}" hx-swap="innerHTML"
+                                    class="btn btn-active btn-primary btn-block max-w-[200px]">
+                                Create
+                            </button>
+                        </form>
+                    </div>
+                    <div sse-swap="{{SseEventName::get_discussion_post_reply_added( id )}}"
+                         hx-swap="afterbegin" hx-target="#l_{{modal_id}} ul">
+                    </div>
+                    <div id="l_{{modal_id}}" hx-trigger="click once from:#d_{{modal_id}}"
+                         hx-get="/api/discussion/{{belongs_to_id}}/post/{{id.to_raw()}}/replies" hx-swap="innerHTML"
+                         class="post-replies">
+                        <ul></ul>
+                    </div>
+                    {% else %}
+                        {% if access_rule.as_ref().unwrap().price_amount.is_none() %}
+
+                    <div hx-trigger="click once from:#d_{{modal_id}}"
+                         hx-get="/api/access-rule/{{access_rule.as_ref().unwrap().id|display_some}}/join" hx-swap="innerHTML"
+                         >
+                        loading...
+                    </div>
+
+                        {% else %}
+                        We have
+                        {% if access_rule.as_ref().unwrap().available_period_days.is_none() %}
+                        one time payment
+                        {% else %}
+                        {{access_rule.as_ref().unwrap().available_period_days.as_ref().unwrap()}} days subscription
+                        {% endif %}
+                    membership access for ${{access_rule.as_ref().unwrap().price_amount.as_ref().unwrap()}}.
+                        <a href="/register?next=/api/stripe/access-rule/{{access_rule.as_ref().unwrap().id.as_ref().unwrap()}}">Get it now.</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <div class="fixed right-0 text-white pointer-events-none p-6 font-thin text-sm">Close</div>
+                    <button>close</button>
+                </form>
+            </dialog>
+        </div>
+
+    </div>
+</div>

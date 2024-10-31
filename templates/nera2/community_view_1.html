@@ -1,0 +1,8 @@
+<h1>community= {{title}} topics: {% if main_discussion_view.as_ref().unwrap().topics.is_some() %} {% for topic in main_discussion_view.as_ref().unwrap().topics.as_ref().unwrap() %} <a href="?topic_id={{topic.id}}">{{topic.title}}</a>, {% endfor %} {% endif %} </h1>
+discussion=<a href="/community/{{id.to_raw()}}/discussion?id={{ main_discussion.to_raw() }}">edit {{main_discussion.to_raw()}}</a>
+<a href="/discussion/{{main_discussion.to_raw()}}/topic">add topic</a>
+<a href="/discussion/{{main_discussion.to_raw()}}/post">add post</a>
+
+
+{{main_discussion_view.as_ref().unwrap()|safe}}
+

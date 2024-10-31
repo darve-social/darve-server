@@ -1,0 +1,21 @@
+
+<h1>profile discussion= {{id|display_some}}</h1>
+
+{% include "profile_post-list-1-popup.html" %}
+
+<div hx-ext="response-targets">
+    <h5>new post</h5>
+    <form hx-encoding='multipart/form-data' hx-post="/api/discussion/{{id|display_some}}/post" hx-target="#e_post_form" hx-target-*="#e_post_form">
+        <input name="title"></input>
+        <textarea name="content"></textarea>
+        <input type="hidden" name="topic_id" value=""/>
+
+        <input type='file' name='file_1' accept=".jpg,.jpeg,.png,image/*">
+
+        <div id="e_post_form"></div>
+        <button class="btn btn-active btn-primary btn-block max-w-[200px]">
+            Create
+        </button>
+    </form>
+</div>
+

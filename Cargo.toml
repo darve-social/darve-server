@@ -1,0 +1,3 @@
+[workspace]
+members = ["server_main", "sb_middleware", "sb_community", "sb_user_auth", "sb_task"]
+resolver = "2"

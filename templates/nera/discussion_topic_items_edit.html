@@ -1,0 +1,17 @@
+<div id="discussion_topic_items_edit">
+    <h5>Edit Topics:</h5>
+
+    <ul>
+        {% for topic in topics %}
+        <li hx-trigger="click" hx-get="/api/discussion/{{edit_topic.discussion_id}}/topic?id={{topic.id|display_some}}"
+            hx-target-*="#errorTopic"
+            hx-target="#topicForm" hx-swap="innerHTML">{{topic.title}}
+        </li>
+        {% endfor %}
+        <li hx-trigger="click" hx-get="/api/discussion/{{edit_topic.discussion_id}}/topic"
+            hx-target-*="#errorTopic"
+        hx-target="#topicForm" hx-swap="innerHTML">create new</li>
+    </ul>
+    <hr/>
+   {{edit_topic|safe}}
+</div>

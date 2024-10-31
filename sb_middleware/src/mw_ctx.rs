@@ -1,0 +1,218 @@
+use crate::db;
+use crate::{ctx::Ctx, error::CtxResult, error::AppError, error::AppResult};
+use axum::body::Body;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::{extract::State, http::Request, middleware::Next, response::Response};
+use axum_htmx::HxRequest;
+use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
+use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Formatter};
+use tower_cookies::{Cookie, Cookies};
+use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct CtxState {
+    pub _db: db::Db,
+    pub key_enc: EncodingKey,
+    pub key_dec: DecodingKey,
+    pub start_password: String,
+    pub is_development: bool,
+    pub stripe_key: String,
+    pub stripe_wh_secret: String,
+    pub min_platform_fee_abs_2dec: i64,
+    pub platform_fee_rel: f64,
+    pub uploads_dir: String,
+}
+
+impl Debug for CtxState{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CTX STATE HERE :)")
+    }
+}
+
+pub fn create_ctx_state(start_password: String, is_development: bool, jwt_secret: String, stripe_key: String, stripe_wh_secret: String, uploads_dir: String) -> CtxState {
+
+    let secret = jwt_secret.as_bytes();
+    let key_enc = EncodingKey::from_secret(secret);
+    let key_dec = DecodingKey::from_secret(secret);
+    let ctx_state = CtxState {
+        _db: db::DB.clone(),
+        key_enc,
+        key_dec,
+        start_password,
+        is_development,
+        stripe_key,
+        stripe_wh_secret,
+        min_platform_fee_abs_2dec: 500,
+        platform_fee_rel: 0.05,
+        uploads_dir,
+    };
+    ctx_state
+}
+
+pub const JWT_KEY: &str = "jwt";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub exp: usize,
+    pub auth: String,
+}
+
+pub async fn mw_require_auth(ctx: Ctx, req: Request<Body>, next: Next) -> CtxResult<Response> {
+    println!("->> {:<12} - mw_require_auth - {ctx:?}", "MIDDLEWARE");
+    ctx.user_id()?;
+    Ok(next.run(req).await)
+}
+
+pub async fn mw_ctx_constructor(
+    State(CtxState { _db, key_dec, .. }): State<CtxState>,
+    cookies: Cookies,
+    HxRequest(is_htmx): HxRequest,
+    mut req: Request<Body>,
+    next: Next,
+) -> Response {
+    // println!("->> {:<12} - mw_ctx_constructor", "MIDDLEWARE");
+
+    let uuid = Uuid::new_v4();
+    let jwt_user_id: AppResult<String> = get_jwt_user_id(key_dec, &cookies);
+
+    // Store Ctx in the request extension, for extracting in rest handlers
+    let ctx = Ctx::new(jwt_user_id.clone(), uuid, is_htmx);
+    /* removed dep to LocalUserDbService and moved to each handler
+    let user_id: Option<String> = jwt_user_id.ok();
+    if let Some(uid) = user_id {
+        // TODO create check against cache first or remove for each request - maybe add to login request or save local_user to ctx
+        let exists = LocalUserDbService { db: &_db, ctx: &ctx }.exists(IdentIdName::Id(uid)).await;
+        // dbg!(&exists);
+        if !exists.is_ok() || exists.unwrap_or(None).is_none() {
+            cookies.remove(Cookie::from(JWT_KEY));
+            return (StatusCode::NOT_FOUND, "User not found").into_response();
+        }
+    }*/
+
+    req.extensions_mut().insert(ctx);
+
+    next.run(req).await
+}
+
+pub async fn mw_require_login(
+    State(CtxState { _db,.. }): State<CtxState>,
+    ctx: Ctx,
+    mut req: Request<Body>,
+    next: Next,) ->Response {
+    if ctx.user_id().is_err() {
+        return (StatusCode::FORBIDDEN, "Login required").into_response();
+    };
+    next.run(req).await
+}
+
+pub async fn mw_host_site_id(
+    State(CtxState { _db,.. }): State<CtxState>,
+    ctx: Ctx,
+    mut req: Request<Body>,
+    next: Next,) ->Response {
+
+    next.run(req).await
+}
+
+pub fn get_jwt_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String>{
+    extract_token_user_id(key, cookies ).map_err(|err| {
+        // Remove an invalid cookie
+        if let AppError::AuthFailJwtInvalid { .. } = err {
+            cookies.remove(Cookie::from(JWT_KEY))
+        }
+        return err;
+    })
+}
+
+fn verify_token(key: DecodingKey, token: &str) -> AppResult<String> {
+    Ok(decode::<Claims>(token, &key, &Validation::default())?
+        .claims
+        .auth)
+}
+
+fn extract_token_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String> {
+    cookies
+        .get(JWT_KEY)
+        .ok_or(AppError::AuthFailNoJwtCookie)
+        .and_then(|cookie| verify_token(key, cookie.value()))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mw_ctx::Claims;
+    use chrono::{Duration, Utc};
+    use jsonwebtoken::{
+        decode, encode, errors::ErrorKind, DecodingKey, EncodingKey, Header, Validation,
+    };
+
+    const SECRET: &[u8] = b"some-secret";
+    const SOMEONE: &str = "someone";
+    // cspell:disable-next-line
+    const TOKEN_EXPIRED: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjEsImF1dGgiOiJzb21lb25lIn0.XXHVHu2IsUPA175aQ-noWbQK4Wu-2prk3qTXjwaWBvE";
+
+    #[test]
+    fn jwt_sign_expired() {
+        let my_claims = Claims {
+            exp: 1,
+            auth: SOMEONE.to_string(),
+        };
+        let token_str = encode(
+            &Header::default(),
+            &my_claims,
+            &EncodingKey::from_secret(SECRET),
+        )
+            .unwrap();
+        assert_eq!(token_str, TOKEN_EXPIRED);
+    }
+
+    #[test]
+    fn jwt_verify_expired_ignore() {
+        let mut validation = Validation::default();
+        validation.validate_exp = false;
+        let token = decode::<Claims>(
+            TOKEN_EXPIRED,
+            &DecodingKey::from_secret(SECRET),
+            &validation,
+        )
+            .unwrap();
+        assert_eq!(token.claims.auth, SOMEONE);
+    }
+
+    #[test]
+    fn jwt_verify_expired_fail() {
+        let token_result = decode::<Claims>(
+            TOKEN_EXPIRED,
+            &DecodingKey::from_secret(SECRET),
+            &Validation::default(),
+        );
+        assert!(token_result.is_err());
+        let kind = token_result.map_err(|e| e.into_kind()).err();
+        assert_eq!(kind, Some(ErrorKind::ExpiredSignature));
+    }
+
+    #[test]
+    fn jwt_sign_and_verify_with_chrono() {
+        let exp = Utc::now() + Duration::minutes(1);
+        let my_claims = Claims {
+            exp: exp.timestamp() as usize,
+            auth: SOMEONE.to_string(),
+        };
+        // Sign
+        let token_str = encode(
+            &Header::default(),
+            &my_claims,
+            &EncodingKey::from_secret(SECRET),
+        )
+            .unwrap();
+        // Verify
+        let token_result = decode::<Claims>(
+            &token_str,
+            &DecodingKey::from_secret(SECRET),
+            &Validation::default(),
+        )
+            .unwrap();
+        assert_eq!(token_result.claims.auth, SOMEONE);
+    }
+}

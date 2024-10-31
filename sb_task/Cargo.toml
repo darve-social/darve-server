@@ -1,0 +1,14 @@
+[package]
+name = "sb_task"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sb_community={path = "../sb_community"}
+sb_middleware={path = "../sb_middleware"}
+sb_user_auth={path = "../sb_user_auth"}
+surrealdb = "2.0.4"
+serde = { version = "1.0.214", features = ["derive"] }
+serde_json = "1.0.132"
+axum = { version = "0.7.7", features = ["multipart", "http2"] }
+validator = { version = "0.18.1", features = ["derive"] }

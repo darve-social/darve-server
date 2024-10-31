@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex justify-center items-center w-full  min-h-screen px-5 py-5">
+    <div class="xl:max-w-7xl drop-shadow-xl border border-black/20 w-full rounded-md flex justify-between items-stretch px-5 xl:px-5 py-5">
+        <div class="sm:w-[60%] lg:w-[50%] bg-cover bg-center items-center justify-center hidden md:flex ">
+            <!--            <a href="https://www.freepik.com/free-vector/selfisolation-party-abstract-concept-vector-illustration-celebration-online-video-call-happy-friend-quarantine-fun-coronavirus-outbreak-zoom-videoconference-virtual-chat-abstract-metaphor_24122393.htm#from_view=detail_alsolike">image by vectorjuice on freepik</a>-->
+            <img
+                    src="/assets/img/discussion.jpg"
+                    alt="discussion"
+                    class="h-[500px]"
+            />
+        </div>
+        <div class="mx-auto w-full lg:w-1/2 md:p-10 py-5 md:py-0">
+        {{form|safe}}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+

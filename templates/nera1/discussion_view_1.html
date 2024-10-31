@@ -1,0 +1,30 @@
+
+<h1>discussion: {{title|display_some}} topics: {% if topics.is_some() %} {% for topic in topics.as_ref().unwrap() %} <a href="?topic_id={{topic.id}}">{{topic.title}}</a>, {% endfor %} {% endif %} </h1>
+
+{% include "post-list-1-popup.html" %}
+
+<div hx-ext="response-targets">
+    <h5>new post</h5>
+    <form hx-encoding='multipart/form-data' hx-post="/api/discussion/{{id|display_some}}/post" hx-target="#e_post_form" hx-target-*="#e_post_form">
+        <input name="title"></input>
+        <textarea name="content"></textarea>
+        <select name="topic_id">
+            <option value="" label="general topic"/>
+            {% if topics.is_some() %}
+
+            {% for topic in topics.as_ref().unwrap() %}
+            <option value="{{topic.id}}" label="{{topic.title}}"/>
+            {% endfor %}
+
+            {% endif %}
+
+        </select>
+
+        <input type='file' name='file_1' accept=".jpg,.jpeg,.png,image/*">
+
+        <div id="e_post_form"></div>
+        <button class="btn btn-active btn-primary btn-block max-w-[200px]">
+            Create
+        </button>
+    </form>
+</div>

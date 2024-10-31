@@ -1,0 +1,43 @@
+[package]
+name = "sb_community"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.87"
+axum = { version = "0.7.7", features = ["multipart", "http2"] }
+jsonwebtoken = "9.3.0"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+tokio = { version = "1.40.0", features = ["full", "io-util"] }
+log = "0.4.22"
+uuid = { version = "1.10.0", features = ["v4"] }
+once_cell = "1.19.0"
+tower-cookies = "0.10.0"
+chrono = { version = "0.4.38", features = ["serde"] }
+blake2 = "0.10.6"
+tower-http = { version = "0.6.1", features = ["fs"] }
+tower-sessions = "0.13.0"
+tower = { version = "0.5.1" }
+webauthn-rs = { version = "0.5.0", features = ["danger-allow-state-serialisation"] }
+thiserror = "1.0.63"
+base64 = "0.22.1"
+axum-test = "16.1.0"
+askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
+askama = { git = "https://github.com/djc/askama.git", branch = "main", features = ["serde-json"] }
+dotenv = "0.15.0"
+axum-htmx = { version = "0.6.0", features = ["auto-vary"] }
+validator = { version = "0.18.1", features = ["derive"] }
+regex = "1.10.6"
+open = "5.3.0"
+futures = "0.3.30"
+tokio-stream = "0.1.16"
+strum = { version = "0.26.3", features = ["derive"] }
+rand = "0.8.5"
+async-stripe = { version = "0.39.1", features = ["checkout", "runtime-tokio-hyper"] }
+surrealdb = { version = "2.0.3", features = ["kv-mem"] }
+tokio-util = { version = "0.7.12", features = ["io", "futures-io"] }
+axum_typed_multipart = "0.13.0"
+tempfile = "3.13.0"
+sb_middleware = { path = "../sb_middleware" }
+sb_user_auth = { path = "../sb_user_auth" }

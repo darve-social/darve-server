@@ -1,0 +1,30 @@
+<div>
+    <h1>Initialize server</h1>
+    <div class="preview border-base-300 bg-base-100 rounded-b-box rounded-se-box flex min-h-[6rem] min-w-[18rem] max-w-4xl flex-wrap items-center justify-center gap-2 overflow-x-hidden bg-cover bg-top p-4 [border-width:var(--tab-border)]">
+        <div class="flex flex-col gap-4" hx-ext="response-targets">
+            <form>
+                <label class="input input-bordered flex items-center gap-2">
+                    Init pass
+                    <input type="text" class="grow" name="init_pass" placeholder="init pass">
+                </label>
+                <label class="input input-bordered flex items-center gap-2">
+                    Username
+                    <input type="text" class="grow" name="username" placeholder="username">
+                </label>
+                <label class="input input-bordered flex items-center gap-2">
+                    Email
+                    <input type="text" class="grow" name="email" placeholder="email">
+                </label>
+                <label class="input input-bordered flex items-center gap-2">
+                    Password
+                    <input type="text" class="grow" name="password" placeholder="password">
+                </label>
+                <div id="error"></div>
+
+                <button class="btn" hx-post="/init" hx-target="closest div" hx-target-*="#error">
+                    Submit
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
