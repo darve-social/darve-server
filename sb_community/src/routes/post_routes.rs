@@ -176,7 +176,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
                        ctx: Ctx,
                        Path(discussion_id): Path<String>,
                        State(ctx_state): State<CtxState>,
-                       TypedMultipart(body_value): TypedMultipart<PostInput>,
+                       TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - create_post ", "HANDLER");
     let created_by = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
@@ -192,15 +192,15 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&created_by, &min_authorisation).await?;
 
     let post_db_service = PostDbService { db: &_db, ctx: &ctx };
-    let topic_val: Option<Thing> = if body_value.topic_id.trim().len() > 0 {
-        Thing::try_from(body_value.topic_id).ok()
+    let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
+        Thing::try_from(input_value.topic_id).ok()
     } else { None };
 
     let post = post_db_service
-        .create(Post { id: None, belongs_to: disc_id.clone(), discussion_topic: topic_val.clone(), title: body_value.title, r_title_uri: None, content: body_value.content, media_links: None, r_created: None, created_by, r_updated: None, r_replies: None, likes_nr: 0, replies_nr: 0 })
+        .create(Post { id: None, belongs_to: disc_id.clone(), discussion_topic: topic_val.clone(), title: input_value.title, r_title_uri: None, content: input_value.content, media_links: None, r_created: None, created_by, r_updated: None, r_replies: None, likes_nr: 0, replies_nr: 0 })
         .await?;
 
-    if let Some(files) = body_value.file_1 {
+    if let Some(files) = input_value.file_1 {
         let file_name = files.metadata.file_name.unwrap();
         let ext = file_name.split(".").last().ok_or(AppError::Generic {description:"File has no extension".to_string()})?;
 

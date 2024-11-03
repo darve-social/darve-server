@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 use surrealdb::sql::Thing;
 
 use sb_middleware::{
@@ -22,7 +23,14 @@ pub struct TaskRequest {
     pub r_created: Option<String>,
     // #[serde(skip_serializing)]
     pub r_updated: Option<String>,
+}
 
+#[derive(EnumString, Display)]
+pub enum TaskStatus{
+    Requested,
+    Accepted,
+    Delivered,
+    // Complete,
 }
 
 pub struct TaskRequestDbService<'a> {
@@ -37,16 +45,22 @@ const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME
 impl<'a> TaskRequestDbService<'a> {
 
     pub async fn mutate_db(&self) -> Result<(), AppError> {
+        let t_stat_req = TaskStatus::Requested.to_string();
+        let t_stat_acc = TaskStatus::Accepted.to_string();
+        let t_stat_del = TaskStatus::Delivered.to_string();
+
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD post ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_POST}>;
+    DEFINE FIELD post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
     DEFINE INDEX post_idx ON TABLE {TABLE_NAME} COLUMNS post;
     DEFINE FIELD from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
     DEFINE FIELD to_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
+        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_del}'];
+    DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE FIELD offer_amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
