@@ -7,7 +7,9 @@ use sb_middleware::{
     error::{CtxError, CtxResult, AppError},
 };
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity_list_view, get_entity_view, IdentIdName, Pagination, QryOrder, ViewFieldSelector, with_not_found_err};
+use sb_middleware::utils::db_utils::{get_entity_list_view, get_entity_view, IdentIdName, Pagination, QryOrder, ViewFieldSelector, with_not_found_err, get_entity, get_entity_list};
+use sb_user_auth::entity::access_rule_entity::AccessRule;
+use sb_user_auth::entity::local_user_entity::LocalUser;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
@@ -85,6 +87,19 @@ impl<'a> TaskRequestDbService<'a> {
         // let things: Vec<Domain> = self.db.select(TABLE_NAME).await.ok().unwrap();
         // dbg!(things);
         res
+    }
+
+    pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+
+    pub async fn get_to_user_task_list(&self, to_user: Thing) -> CtxResult<Vec<AccessRule>> {
+        get_entity_list::<AccessRule>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {column:"to_user".to_string(), val:to_user.to_raw(), rec:true}, None).await
+    }
+
+    pub async fn get_from_user_task_list(&self, to_user: Thing) -> CtxResult<Vec<AccessRule>> {
+        get_entity_list::<AccessRule>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {column:"from_user".to_string(), val:to_user.to_raw(), rec:true}, None).await
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, ident_id_name: &IdentIdName) -> CtxResult<T> {
