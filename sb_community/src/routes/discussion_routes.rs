@@ -159,14 +159,14 @@ async fn display_discussion(State(CtxState { _db, .. }): State<CtxState>,
 
 pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: String, q_params: DiscussionParams) -> CtxResult<DiscussionView> {
     let mut dis_template = DiscussionDbService { db: &_db, ctx: &ctx }.get_view::<DiscussionView>(IdentIdName::Id(discussion_id.clone())).await?;
-    let disc_id = dis_template.id.clone().ok_or(ctx.to_api_error(AppError::EntityFailIdNotFound { ident: discussion_id }))?;
+    let disc_id = dis_template.id.clone().ok_or(ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: discussion_id }))?;
     dis_template.display_topic = if let Some(t_id) = q_params.topic_id.clone() {
         dis_template.topics.clone().unwrap_or(vec![]).into_iter().find(|t| t.id.eq(&t_id))
     } else { None };
 
     let user_auth = match ctx.user_id() {
         Ok(user_id) => {
-            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
             AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
         }
         Err(_) => vec![]
@@ -193,7 +193,7 @@ async fn create_update_form(
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let comm_id = Thing::try_from(community_id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error community id into Thing".to_string() }))?;
+    let comm_id = Thing::try_from(community_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error community id into Thing".to_string() }))?;
     let mut topics = vec![];
     let disc_id: Option<&String> = match qry.get("id").unwrap_or(&String::new()).len() > 0 {
         true => Some(qry.get("id").unwrap()),
@@ -202,7 +202,7 @@ async fn create_update_form(
 
     let discussion_view = match disc_id {
         Some(id) => {
-            let id = Thing::try_from(id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error discussion id into Thing".to_string() }))?;
+            let id = Thing::try_from(id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error discussion id into Thing".to_string() }))?;
             // auth discussion
             let required_disc_auth = Authorization { authorize_record_id: id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
             AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_disc_auth).await?;
@@ -258,12 +258,12 @@ async fn discussion_sse(
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
 ) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
-    let discussion_id = Thing::try_from(discussion_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let discussion_id = Thing::try_from(discussion_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
     let discussion_id = DiscussionDbService { db: &_db, ctx: &ctx }.must_exist(IdentIdName::Id(discussion_id.to_raw())).await?;
 
     let user_auth = match ctx.user_id() {
         Ok(user_id) => {
-            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
             AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
         }
         Err(_) => vec![]
@@ -355,7 +355,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
         false => {
             // check if provided community id exists and has permissions on provided community id
             let comm_id_str = form_value.community_id.clone();
-            let comm_id = Thing::try_from(comm_id_str.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into community_id Thing".to_string() }))?;
+            let comm_id = Thing::try_from(comm_id_str.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community_id Thing".to_string() }))?;
             community_db_service.must_exist(IdentIdName::Id(comm_id_str)).await?;
             let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
             aright_db_service.is_authorized(&user_id, &required_comm_auth).await?;
@@ -371,7 +371,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
         }
         true => {
             // check permissions in discussion and get community id from existing discussion in db
-            let disc_id = Thing::try_from(form_value.id).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into discussion id Thing".to_string() }))?;
+            let disc_id = Thing::try_from(form_value.id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion id Thing".to_string() }))?;
             let required_diss_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
             aright_db_service.is_authorized(&user_id, &required_diss_auth).await?;
             disc_db_ser.get(IdentIdName::Id(disc_id.to_raw())).await?
@@ -396,7 +396,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
     if form_value.title.len() > 0 {
         update_discussion.title = Some(form_value.title);
     } else {
-        return Err(ctx.to_api_error(AppError::Generic { description: "title must have value".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "title must have value".to_string() }));
     };
 
     let disc = disc_db_ser

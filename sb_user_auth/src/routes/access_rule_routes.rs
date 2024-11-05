@@ -117,7 +117,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
     println!("->> {:<12} - create_update_arule", "HANDLER");
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let comm_id = Thing::try_from(form_value.target_entity_id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
+    let comm_id = Thing::try_from(form_value.target_entity_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
     record_exists(&ctx_state._db, comm_id.clone()).await?;
     let required_diss_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
     AccessRightDbService { db: &ctx_state._db, ctx: &ctx }.is_authorized(&user_id, &required_diss_auth).await?;
@@ -144,7 +144,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
             }
         }
         true => {
-            Thing::try_from(form_value.id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into access_rule Thing".to_string() }))?;
+            Thing::try_from(form_value.id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into access_rule Thing".to_string() }))?;
             access_r_db_ser.get(IdentIdName::Id(form_value.id)).await?
         }
     };
@@ -152,7 +152,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
     if form_value.title.len() > 0 {
         update_access_rule.title = form_value.title;
     } else {
-        return Err(ctx.to_api_error(AppError::Generic { description: "title must have value".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "title must have value".to_string() }));
     };
 
     if form_value.join_confirmation.trim().len() > 0 {
@@ -164,13 +164,13 @@ async fn create_update(State(ctx_state): State<CtxState>,
     } else { update_access_rule.join_redirect_url = None }
 
     if form_value.authorize_record_id_required.len() > 0 {
-        let rec_id = Thing::try_from(form_value.authorize_record_id_required).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into rec_id Thing".to_string() }))?;
+        let rec_id = Thing::try_from(form_value.authorize_record_id_required).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into rec_id Thing".to_string() }))?;
         let required_rec_auth = Authorization { authorize_record_id: rec_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
         AccessRightDbService { db: &ctx_state._db, ctx: &ctx }.is_authorized(&user_id, &required_rec_auth).await?;
         update_access_rule.authorization_required = Authorization { authorize_record_id: rec_id, authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(), authorize_height: form_value.authorize_height_required }
     }
     if update_access_rule.id.is_none() && update_access_rule.authorization_required.authorize_record_id.tb == empty_auth_tb {
-        return Err(ctx.to_api_error(AppError::Generic { description: "no authorization set".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "no authorization set".to_string() }));
     }
 
     update_access_rule.price_amount = match form_value.price_amount.len() > 0 {

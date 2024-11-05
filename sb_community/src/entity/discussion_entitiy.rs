@@ -85,7 +85,7 @@ impl<'a> DiscussionDbService<'a> {
             return Ok(None);
         }
         if  user_ids.len() < 2 {
-            return Err(self.ctx.to_api_error(AppError::Generic { description: "Need at least 2 users".to_string() }));
+            return Err(self.ctx.to_ctx_error(AppError::Generic { description: "Need at least 2 users".to_string() }));
         }
 
         let qry = format!("SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];",discussions.iter().map(|t|t.to_raw()).collect::<Vec<String>>().join(","), user_ids.iter().map(|t|t.to_raw()).collect::<Vec<String>>().join(","));
@@ -93,7 +93,7 @@ impl<'a> DiscussionDbService<'a> {
         match res.len() {
             0=>Ok(None),
             1=>Ok(Some(res[0].clone())),
-            _=>Err(self.ctx.to_api_error(AppError::Generic {description:format!("Expected 1 result, found {}", res.len())}))
+            _=>Err(self.ctx.to_ctx_error(AppError::Generic {description:format!("Expected 1 result, found {}", res.len())}))
         }
     }
 
@@ -123,7 +123,7 @@ impl<'a> DiscussionDbService<'a> {
             .bind(("ident", discussion_id.clone()))
             .bind(("new_topic", topic_id))
             .await?.take(0)?;
-        disc.ok_or(self.ctx.to_api_error(AppError::EntityFailIdNotFound { ident: discussion_id.to_raw() }))
+        disc.ok_or(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: discussion_id.to_raw() }))
     }
 
     pub async fn get_topics(&self, discussion_id: Thing) -> CtxResult<Vec<DiscussionTopic>> {

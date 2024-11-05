@@ -72,8 +72,8 @@ pub async fn get_parent_ids(child_rec_id: &Thing, up_to_parent_level_id: Option<
     if tb1 == tb2 && tb1 != AUTH_REC_NAME_COMMUNITY {
         return Ok(vec![]);
     }
-    let parent_index = get_auth_record_index(&tb1).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
-    let child_index = get_auth_record_index(&tb2).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
+    let parent_index = get_auth_record_index(&tb1).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
+    let child_index = get_auth_record_index(&tb2).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
 
     if parent_index < child_index {
         return Ok(vec![]);
@@ -102,7 +102,7 @@ async fn get_parent_ids_qry(lower_rec_id: &Thing, ctx: &Ctx, db: &Db, higher_ind
     let mut res_list = vec![];
     while c < queries.len() {
         let res: Option<RecordWithId> = res.take(c)?;
-        let res = res.ok_or(ctx.to_api_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
+        let res = res.ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
         res_list.push(res.id);
         c += 1;
     }
@@ -116,8 +116,8 @@ pub async fn is_child_record(parent_rec_id: &Thing, child_rec_id: &Thing, ctx: &
     if tb1 == tb2 {
         return Ok(false);
     }
-    let parent_index = get_auth_record_index(&tb1).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
-    let child_index = get_auth_record_index(&tb2).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
+    let parent_index = get_auth_record_index(&tb1).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
+    let child_index = get_auth_record_index(&tb2).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
 
     if parent_index < child_index {
         return Ok(false);
@@ -133,8 +133,8 @@ pub async fn get_same_level_record_ids(rec_id_1: &Thing, rec_id_2: &Thing, ctx: 
         return Ok((rec_id_1.clone(), rec_id_2.clone()));
     }
 
-    let hierarchy_index1 = get_auth_record_index(&tb1).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
-    let hierarchy_index2 = get_auth_record_index(&tb2).ok_or(ctx.to_api_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
+    let hierarchy_index1 = get_auth_record_index(&tb1).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb1) }))?;
+    let hierarchy_index2 = get_auth_record_index(&tb2).ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("record tb({}) not found in hierarchy", tb2) }))?;
 
     if hierarchy_index1 > hierarchy_index2 {
         // get parent for #2
@@ -151,7 +151,7 @@ async fn get_higher_parent_record_id(lower_rec_id: &Thing, ctx: &Ctx, db: &Db, h
     // println!("qqq={qry}");
     let res: Option<RecordWithId> = db.query(qry).await?.take(0)?;
 
-    let res = res.ok_or(ctx.to_api_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
+    let res = res.ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
     Ok(res.id)
 }
 

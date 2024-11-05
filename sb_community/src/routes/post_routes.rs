@@ -154,7 +154,7 @@ async fn create_form(
     Path(discussion_id): Path<String>,
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let disc_id = Thing::try_from(discussion_id.clone()).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let disc_id = Thing::try_from(discussion_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
 
     let required_comm_auth = Authorization { authorize_record_id: disc_id, authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
@@ -214,7 +214,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 
     let post_comm_view = post_db_service.get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap().to_raw())).await?;
     let notif_db_ser = NotificationDbService { db: &_db, ctx: &ctx };
-    let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_api_error(AppError::Generic {description:"Post to json error for notification event".to_string()}))?;
+    let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_ctx_error(AppError::Generic {description:"Post to json error for notification event".to_string()}))?;
 
     let event_ident = String::try_from(&PostNotificationEventIdent::from(&post_comm_view)).ok();
     notif_db_ser.create(

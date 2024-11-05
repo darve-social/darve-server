@@ -163,7 +163,7 @@ async fn profile_save(
     let mut user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user().await?;
 
     let local_user_db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
-    body_value.validate().map_err(|e1| ctx.to_api_error(AppError::Generic { description: e1.to_string() }))?;
+    body_value.validate().map_err(|e1| ctx.to_ctx_error(AppError::Generic { description: e1.to_string() }))?;
     user.email = if body_value.email.trim().len() > 0 {
         Some(body_value.email.trim().to_string())
     } else { user.email };

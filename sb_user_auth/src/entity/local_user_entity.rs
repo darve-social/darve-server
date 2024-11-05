@@ -72,33 +72,33 @@ impl<'a> LocalUserDbService<'a> {
 
     pub async fn get_ctx_user_id(&self) -> CtxResult<String> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_api_error(AppError::Generic { description: "error into Thing".to_string() }))?;
+        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into Thing".to_string() }))?;
         let existing_id = self.exists(IdentIdName::Id(user_id.to_raw())).await?;
         match existing_id {
-            None => Err(self.ctx.to_api_error(EntityFailIdNotFound { ident: created_by })),
+            None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
             Some(uid) => Ok(uid)
         }
     }
 
     pub async fn get_ctx_user_thing(&self) -> CtxResult<Thing> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
         let existing_id = self.exists(IdentIdName::Id(user_id.to_raw())).await?;
         match existing_id {
-            None => Err(self.ctx.to_api_error(EntityFailIdNotFound { ident: created_by })),
+            None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
             Some(_uid) => Ok(user_id)
         }
     }
 
     pub async fn is_ctx_user_authorised(&self, authorization: &Authorization) -> CtxResult<()> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
         AccessRightDbService{ db: self.db, ctx: self.ctx }.is_authorized(&user_id, authorization).await
     }
 
     pub async fn get_ctx_user(&self) -> CtxResult<LocalUser> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_api_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
         self.get(IdentIdName::Id(user_id.to_raw())).await
     }
 

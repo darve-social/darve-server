@@ -47,7 +47,7 @@ async fn get_init_form(
     println!("->> {:<12} - init _server_display - ", "HANDLER");
 
     if !can_init(&_db, &ctx).await {
-        Err(ctx.to_api_error(AppError::Generic { description: "Already initialized".to_string() }))
+        Err(ctx.to_ctx_error(AppError::Generic { description: "Already initialized".to_string() }))
     }else {
         Ok(ProfileFormPage::new(Box::new(InitServerForm {}), None, None).into_response())
     }
@@ -100,7 +100,7 @@ async fn post_init_form(
     println!("->> {:<12} - init save user {:#?}- {}", "HANDLER", payload, ctx.is_htmx);
 
     if !can_init(&_db, &ctx).await {
-        return Err(ctx.to_api_error(AppError::Generic { description: "Already initialized".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "Already initialized".to_string() }));
     }
 
     let reg_input = RegisterInput { username: payload.0.username, password: payload.0.password.clone(), password1: payload.0.password.clone(), email: Some(payload.0.email), next: None };
@@ -110,7 +110,7 @@ async fn post_init_form(
     let authorization = Authorization::new(authThing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99).unwrap();
 
     let aright_db_service = &AccessRightDbService { db: &_db, ctx: &ctx };
-    let user_rec_id = Thing::try_from(created_user.clone().id).map_err(|e| { ctx.to_api_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
+    let user_rec_id = Thing::try_from(created_user.clone().id).map_err(|e| { ctx.to_ctx_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
     aright_db_service.authorize(user_rec_id, authorization, None).await?;
     ctx.to_htmx_or_json_res(&created_user)
 }

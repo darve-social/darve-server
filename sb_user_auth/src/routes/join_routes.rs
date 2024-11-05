@@ -116,7 +116,7 @@ async fn join_form(
         access_rule,
         next: qry.remove("next"),
         email: user.email,
-    }.render().map_err(|e| ctx.to_api_error(AppError::Generic { description: e.to_string() }))?;
+    }.render().map_err(|e| ctx.to_ctx_error(AppError::Generic { description: e.to_string() }))?;
     Ok((StatusCode::OK, Html(response_str)).into_response())
 }
 
@@ -134,7 +134,7 @@ async fn save_join(
         user = local_user_db_service.update(user).await?;
     }
     if user.email.is_none() || user.email.unwrap().to_lowercase().ne(&form_value.email.to_lowercase()) {
-        return Err(ctx.to_api_error(AppError::Generic { description: "Profile email different than provided".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "Profile email different than provided".to_string() }));
     }
 
     let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleView>(IdentIdName::Id(form_value.access_rule_id)).await?;

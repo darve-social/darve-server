@@ -117,13 +117,13 @@ async fn get_link_start_page(
                                                    }),
                                                    ..Default::default()
                                                })
-                .map_err(|e| ctx.to_api_error(e.into()))
+                .map_err(|e| ctx.to_ctx_error(e.into()))
                 .await?;
             comm.stripe_connect_account_id = Some(acc.id.clone().to_string());
             comm = CommunityDbService { ctx: &ctx, db: &ctx_state._db }.create_update(comm).await?;
             acc.id
         }
-        Some(id) => AccountId::from_str(id.as_str()).map_err(|e1| ctx.to_api_error(AppError::Stripe { source: e1.to_string() }))?
+        Some(id) => AccountId::from_str(id.as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?
     };
 
     let requirements_due = get_account_requirements_due(&client, &ctx, &connect_account_id).await?;
@@ -141,7 +141,7 @@ async fn get_link_start_page(
                 return_url: Some(format!("http://localhost:8080/community/{}/stripe/link-complete", comm_id.to_raw()).as_str()),
                 collection_options: None,
             }, )
-            .map_err(|e| ctx.to_api_error(e.into()))
+            .map_err(|e| ctx.to_ctx_error(e.into()))
             .await?.url;
     } else {
         if comm.stripe_connect_complete == false {
@@ -179,7 +179,7 @@ async fn get_link_complete_page(
         // return Err(ctx.to_api_error(Error::Generic { description: "No Stripe account conncted".to_string() }));
         format!("/community/{}/stripe/link-start", comm_id.clone().to_raw())
     } else {
-        let acc_id = AccountId::from_str(comm.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_api_error(AppError::Stripe { source: e1.to_string() }))?;
+        let acc_id = AccountId::from_str(comm.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?;
         let requirements_due = get_account_requirements_due(&Client::new(ctx_state.stripe_key), &ctx, &acc_id).await?;
 
         if requirements_due {
@@ -247,15 +247,15 @@ async fn access_rule_payment(
     }
 
     if charge_access_rule.price_amount.is_none() {
-        return Err(ctx.to_api_error(AppError::Generic { description: "Price not defined".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "Price not defined".to_string() }));
     }
 
 
     if !ctx_state.is_development && (charge_access_rule.stripe_connect_account_id.is_none() || !charge_access_rule.stripe_connect_complete) {
-        return Err(ctx.to_api_error(AppError::Generic { description: "No Stripe account conncted".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "No Stripe account conncted".to_string() }));
     }
 
-    let acc_id = AccountId::from_str(charge_access_rule.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_api_error(AppError::Stripe { source: e1.to_string() }))?;
+    let acc_id = AccountId::from_str(charge_access_rule.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?;
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
@@ -386,7 +386,7 @@ async fn access_rule_payment(
         &client,
         create_pl,
     )
-        .await.map_err(|e| ctx.to_api_error(AppError::Stripe { source: e.to_string() }))?;
+        .await.map_err(|e| ctx.to_ctx_error(AppError::Stripe { source: e.to_string() }))?;
 
     /*let action_id =
         PaymentActionDbService { ctx: &ctx, db: &ctx_state._db }.create_update(PaymentAction {
@@ -587,13 +587,13 @@ async fn extract_invoice_data(_ctx_state: &CtxState, ctx: &Ctx, invoice: Invoice
     };
 
     if user_access_rules.len() == 0 {
-        Err(ctx.to_api_error(AppError::Generic { description: "extract invoice data err".to_string() }))
+        Err(ctx.to_ctx_error(AppError::Generic { description: "extract invoice data err".to_string() }))
     } else { Ok(user_access_rules) }
 }
 
 async fn get_account_requirements_due(client: &Client, ctx: &Ctx, connect_account_id: &AccountId) -> CtxResult<bool> {
     let acc: Account = Account::retrieve(client, &connect_account_id, Default::default())
-        .map_err(|e| ctx.to_api_error(e.into())).await?;
+        .map_err(|e| ctx.to_ctx_error(e.into())).await?;
     // dbg!(&acc);
 
     let mut requirements_due = false;

@@ -224,7 +224,7 @@ pub async fn record_exists(db: &Db, record_id: Thing) -> AppResult<()> {
 
 pub fn with_not_found_err<T>(opt: Option<T>, ctx: &Ctx, ident: &str) -> CtxResult<T> {
     match opt {
-        None => Err(ctx.to_api_error(AppError::EntityFailIdNotFound { ident: ident.to_string() })),
+        None => Err(ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: ident.to_string() })),
         Some(res) => Ok(res)
     }
 }

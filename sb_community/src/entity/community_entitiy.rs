@@ -113,7 +113,7 @@ impl<'a> CommunityDbService<'a> {
                 .patch(PatchOp::replace("/main_discussion", disc.id.clone()))
                 .await
                 .map_err(CtxError::from(self.ctx));
-            comm=comm_upd?.ok_or(self.ctx.to_api_error(AppError::EntityFailIdNotFound {ident:comm_id.to_raw()}))?;
+            comm=comm_upd?.ok_or(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {ident:comm_id.to_raw()}))?;
         }
 
         let auth1 = Authorization { authorize_record_id: comm_id, authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };

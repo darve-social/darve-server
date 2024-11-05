@@ -57,11 +57,11 @@ pub struct RegisterInput {
 impl RegisterInput {
     pub fn passwords_valid_auth_type(&self, ctx: &Ctx) -> CtxResult<AuthType> {
         if self.password != self.password1 {
-            return Err(ctx.to_api_error(AppError::Generic { description: "Passwords must match".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic { description: "Passwords must match".to_string() }));
         }
 
         if self.password1.len() < 6 {
-            return Err(ctx.to_api_error(AppError::Generic { description: "Password minimum 6 characters".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic { description: "Password minimum 6 characters".to_string() }));
         }
 
         Ok(AuthType::PASSWORD(Some(self.password.clone())))

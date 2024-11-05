@@ -43,7 +43,7 @@ impl Ctx {
         Ok(self.to_htmx_or_json(object))
     }
 
-    pub fn to_api_error(&self, error: AppError) -> CtxError {
+    pub fn to_ctx_error(&self, error: AppError) -> CtxError {
         CtxError {is_htmx:self.is_htmx, req_id: self.req_id, error}
     }
 }

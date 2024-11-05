@@ -68,9 +68,9 @@ async fn get_post_replies(State(CtxState { _db, .. }): State<CtxState>,
     let diss_db = DiscussionDbService { db: &_db, ctx: &ctx };
     diss_db.must_exist(IdentIdName::Id(discussion_id__post_ident.0)).await?;
 
-    let ident = Thing::try_from(discussion_id__post_ident.1).map_err(|e| { ctx.to_api_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
+    let ident = Thing::try_from(discussion_id__post_ident.1).map_err(|e| { ctx.to_ctx_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
     if ident.tb != PostDbService::get_table_name() {
-        return Err(ctx.to_api_error(AppError::Generic { description: "Post ident wrong".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic { description: "Post ident wrong".to_string() }));
     }
 
     let post_replies = ReplyDbService { db: &_db, ctx: &ctx }.get_by_post_desc_view::<PostReplyView>(ident, 0, 120).await?;
@@ -85,7 +85,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     println!("->> {:<12} - create_post ", "HANDLER");
     let created_by = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let discussion = Thing::try_from(discussion_id__post_uri.0).map_err(|e| ctx.to_api_error(AppError::Generic { description: "error discussion id into Thing".to_string() }))?;
+    let discussion = Thing::try_from(discussion_id__post_uri.0).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error discussion id into Thing".to_string() }))?;
 
     let post_db_service = PostDbService { db: &_db, ctx: &ctx };
     let post_id = post_db_service

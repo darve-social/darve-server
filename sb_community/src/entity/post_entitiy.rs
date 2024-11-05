@@ -142,7 +142,7 @@ impl<'a> PostDbService<'a> {
                 match e {
                     ErrorSrl::Db(err) => {
                         match err {
-                            IndexExists { index, .. } if index == INDEX_BELONGS_TO_URI =>self.ctx.to_api_error(AppError::Generic {description:"Title already exists".to_string()}),
+                            IndexExists { index, .. } if index == INDEX_BELONGS_TO_URI =>self.ctx.to_ctx_error(AppError::Generic {description:"Title already exists".to_string()}),
                             _ => CtxError::from(self.ctx)(ErrorSrl::Db(err))
                         }
                     }
@@ -158,7 +158,7 @@ impl<'a> PostDbService<'a> {
             .patch(PatchOp::add("/media_links", [url]))
             .await
             .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| self.ctx.to_api_error( AppError::EntityFailIdNotFound { ident: post_id.to_raw() } ))
+        res.ok_or_else(|| self.ctx.to_ctx_error( AppError::EntityFailIdNotFound { ident: post_id.to_raw() } ))
 
     }
 
@@ -166,13 +166,13 @@ impl<'a> PostDbService<'a> {
         let curr_nr = self.db.query(format!("SELECT replies_nr FROM {}", record.clone().to_raw()))
             .await?
             .take::<Option<i64>>("replies_nr")?
-            .ok_or_else(||self.ctx.to_api_error(AppError::EntityFailIdNotFound {ident:record.clone().to_raw()}))?;
+            .ok_or_else(||self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {ident:record.clone().to_raw()}))?;
 
         let res:Option<Post> = self.db.update((record.tb.clone(), record.id.clone().to_raw()))
             .patch(PatchOp::replace("/replies_nr", curr_nr+1))
             .await
             .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| self.ctx.to_api_error( AppError::EntityFailIdNotFound { ident: record.to_raw() } ))
+        res.ok_or_else(|| self.ctx.to_ctx_error( AppError::EntityFailIdNotFound { ident: record.to_raw() } ))
 
     }
 }

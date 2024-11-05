@@ -200,7 +200,7 @@ impl<'a> AuthenticationDbService<'a> {
         let recFound: Option<Thing> = selectAuthentication.take("id")?;
         // dbg!(&selectAuthentication.check());
         match recFound {
-            None => Err(ctx.to_api_error(AppError::AuthenticationFail { })),
+            None => Err(ctx.to_ctx_error(AppError::AuthenticationFail { })),
             Some(_) => Ok(local_user_id)
         }
     }

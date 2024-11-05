@@ -64,11 +64,11 @@ async fn upload(
             continue;
         };
         if !path_is_valid(&file_name) {
-            return Err(ctx.to_api_error(AppError::Generic { description: "path not valid".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic { description: "path not valid".to_string() }));
         }
         let path = std::path::Path::new(ctx_state.uploads_dir.as_str()).join(&file_name);
         let saved = stream_to_file(path.clone(), field)
-            .map_err(|e| ctx.to_api_error(e))
+            .map_err(|e| ctx.to_ctx_error(e))
             .await?;
         dbg!(saved);
     }
