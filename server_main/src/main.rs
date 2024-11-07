@@ -56,7 +56,7 @@ async fn main() -> AppResult<()> {
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = main_router(&ctx_state, wa_config).await;
 
-    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, 8080));
+    let addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     println!("->> LISTENING on {addr}\n");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();

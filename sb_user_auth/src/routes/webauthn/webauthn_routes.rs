@@ -63,13 +63,14 @@ pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -
 
 // #[cfg(feature = "wasm")]
     if !PathBuf::from(wasm_dir_path).exists() {
-        panic!("Can't find WASM files to serve!")
+        // panic!("Can't find WASM files to serve!")
+        println!("Can't find WASM files to serve!");
     }
 
 // #[cfg(feature = "wasm")]
     let webauthn_app_routes = Router::new()
         .merge(webauthn_app_routes)
-        .nest_service("/passkey", tower_http::services::ServeDir::new("./server_main/src/assets/wasm"));
+        .nest_service("/passkey", tower_http::services::ServeDir::new(wasm_dir_path));
 
     webauthn_app_routes.with_state(state)
 }
