@@ -30,6 +30,7 @@ use sb_user_auth::routes::*;
 use sb_user_auth::routes::webauthn::webauthn_routes;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_middleware::error::{AppError, AppResult};
+use sb_user_auth::entity::follow_entitiy::FollowDbService;
 
 pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
     let db = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().to_string());
@@ -128,6 +129,8 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
     JoinActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
+
     /*
             // ts.create_ticket(CreateTicketInput{title: "iiiii".parse().unwrap()}).await;
             let vec = ts.list_tickets().await?.unwrap();

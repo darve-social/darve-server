@@ -67,6 +67,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE FIELD offer_amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db

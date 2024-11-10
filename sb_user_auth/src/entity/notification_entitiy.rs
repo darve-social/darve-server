@@ -33,7 +33,7 @@ pub struct NotificationDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "notification";
-const TABLE_COL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
+// const TABLE_COL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
 
 impl<'a> NotificationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -53,11 +53,11 @@ impl<'a> NotificationDbService<'a> {
 
         Ok(())
     }
-    pub async fn get_by_user(&self, user_id: Thing, from: i32, count: i8) -> CtxResult<Vec<Notification>> {
+    /*pub async fn get_by_user(&self, user_id: Thing, from: i32, count: i8) -> CtxResult<Vec<Notification>> {
         get_entity_list::<Notification>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent { column: TABLE_COL_USER.to_string(), val: user_id.to_raw(), rec: true},
                                         Some(Pagination { order_by: Option::from("r_created".to_string()),order_dir:Some(QryOrder::DESC), count: 20, start: 0 }
                                         )).await
-    }
+    }*/
 
     pub async fn create(&self, record: Notification) -> CtxResult<Notification> {
         let notification = self.db

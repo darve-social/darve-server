@@ -31,6 +31,7 @@ use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
+use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::notification_entitiy::NotificationDbService;
 use sb_user_auth::entity::payment_action_entitiy::JoinActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
@@ -98,6 +99,7 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
     JoinActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
 
