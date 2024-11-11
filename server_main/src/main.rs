@@ -36,7 +36,7 @@ use sb_user_auth::entity::notification_entitiy::NotificationDbService;
 use sb_user_auth::entity::payment_action_entitiy::JoinActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{access_rule_routes, init_server_routes, join_routes, login_routes, register_routes};
+use sb_user_auth::routes::{access_rule_routes, follow_routes, init_server_routes, join_routes, login_routes, register_routes};
 
 mod mw_response_transformer;
 
@@ -122,6 +122,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Ro
         .merge(join_routes::routes(ctx_state.clone()))
         .merge(profile_routes::routes(ctx_state.clone()))
         .merge(task_request_routes::routes(ctx_state.clone()))
+        .merge(follow_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
         .layer(middleware::map_response(mw_req_logger::mw_req_logger))

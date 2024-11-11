@@ -66,15 +66,17 @@ struct InitServerData {
 }
 
 async fn backup(
-    State(CtxState { _db, key_enc, .. }): State<CtxState>,
+    State(CtxState { _db, is_development, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> Response {
-
+if !is_development {
+    return (StatusCode::OK, "not development").into_response();
+}
     let mut backup = _db.export(()).await.unwrap();
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
         .create(true)
-        .open("/Users/mac02/dev/DB_BACKUP")
+        .open("/Users/mac02/dev/DB_BACKUP.surql")
         .await
         .unwrap();
     // println!("DB BBACC={:?}", file.metadata().unwrap());

@@ -3,11 +3,11 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
+use crate::entity::local_user_entity::LocalUser;
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity_list, IdentIdName, Pagination, QryOrder};
 use sb_middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -16,6 +16,7 @@ pub struct Follow {
     pub id: Option<Thing>,
     pub r#in: Thing,
     pub out: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
 }
 
@@ -33,8 +34,6 @@ impl<'a> FollowDbService<'a> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} TYPE RELATION FROM {TABLE_USER} TO {TABLE_USER} SCHEMAFULL PERMISSIONS none;
     DEFINE INDEX follow_idx ON TABLE {TABLE_NAME} COLUMNS in, out UNIQUE;
-    // DEFINE FIELD in ON TABLE {TABLE_NAME} TYPE record<{TABLE_USER}>;
-    // DEFINE FIELD out ON TABLE {TABLE_NAME} TYPE record<{TABLE_USER}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
 ");
 
@@ -45,20 +44,27 @@ impl<'a> FollowDbService<'a> {
 
         Ok(())
     }
-    /*pub async fn get_by_user(&self, user_id: Thing, from: i32, count: i8) -> CtxResult<Vec<Follow>> {
-        get_entity_list::<Follow>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent { column: TABLE_COL_USER.to_string(), val: user_id.to_raw(), rec: true},
-                                        Some(Pagination { order_by: Option::from("r_created".to_string()),order_dir:Some(QryOrder::DESC), count: 20, start: 0 }
-                                        )).await
-    }*/
 
-    pub async fn create(&self, record: Follow) -> CtxResult<Follow> {
-        let follow = self.db
-            .create(TABLE_NAME)
-            .content(record)
-            .await
-            .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<Follow>| v.unwrap())?;
-        Ok(follow)
+    pub async fn create_follow(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
+        let qry = format!("RELATE $in->{TABLE_NAME}->$out");
+        self.db.query(qry)
+            .bind(("in", user))
+            .bind(("out", follows)).await?;
+        Ok(true)
+    }
+
+    pub async fn user_followers(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
+        let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER}.* as followers FROM <record>$user;");
+        let mut res = self.db.query(qry).bind(("user", user.to_raw())).await?;
+        let res: Option<Vec<LocalUser>> = res.take("followers")?;
+        Ok(res.unwrap_or(vec![]))
+    }
+
+    pub async fn user_following(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
+        let qry = format!("SELECT ->{TABLE_NAME}->{TABLE_USER}.* as following FROM <record>$user;");
+        let mut res = self.db.query(qry).bind(("user", user.to_raw())).await?;
+        let res: Option<Vec<LocalUser>> = res.take("following")?;
+        Ok(res.unwrap_or(vec![]))
     }
 }
 
