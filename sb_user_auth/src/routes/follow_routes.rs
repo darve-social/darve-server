@@ -5,7 +5,7 @@ use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use futures::stream::Stream as FStream;
 use futures::{FutureExt, TryFutureExt};
@@ -26,6 +26,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/user/:user_id/followers", get(get_followers))
         .route("/api/user/:user_id/following", get(get_following))
         .route("/api/follow/:follow_user_id", post(follow_user))
+        .route("/api/follow/:follow_user_id", delete(unfollow_user))
         .with_state(state)
 }
 
@@ -85,6 +86,17 @@ async fn follow_user(
     let follow = get_string_thing(follow_user_id.clone())?;
     let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.create_follow(user_id, follow).await?;
     ctx.to_htmx_or_json_res(CreatedResponse { id: follow_user_id, success, uri: None })
+}
+
+async fn unfollow_user(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path(unfollow_user_id): Path<String>,
+) -> CtxResult<Html<String>> {
+    let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let follow = get_string_thing(unfollow_user_id.clone())?;
+    let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.remove_follow(user_id, follow).await?;
+    ctx.to_htmx_or_json_res(CreatedResponse { id: unfollow_user_id, success, uri: None })
 }
 
 #[cfg(test)]

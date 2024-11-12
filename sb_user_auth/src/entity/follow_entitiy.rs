@@ -53,6 +53,14 @@ impl<'a> FollowDbService<'a> {
         Ok(true)
     }
 
+    pub async fn remove_follow(&self, user: Thing, unfollow: Thing) -> CtxResult<bool> {
+        let qry = format!("DELETE $in->{TABLE_NAME} WHERE out=$out");
+        self.db.query(qry)
+            .bind(("in", user))
+            .bind(("out", unfollow)).await?;
+        Ok(true)
+    }
+
     pub async fn user_followers(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
         let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER}.* as followers FROM <record>$user;");
         let mut res = self.db.query(qry).bind(("user", user.to_raw())).await?;
