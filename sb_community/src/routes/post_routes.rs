@@ -12,25 +12,24 @@ use std::path::Path as FPath;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
-use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
 use crate::entity::discussion_entitiy::DiscussionDbService;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::notification_entitiy::{Notification, NotificationDbService};
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::reply_entitiy::ReplyDbService;
+use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
 use crate::routes::discussion_routes::{DiscussionPostView, DiscussionView};
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
-use sb_user_auth::utils::template_utils::ProfileFormPage;
-use sb_user_auth::utils::askama_filter_util::filters;
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{CtxResult, AppError};
+use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::request_utils::CreatedResponse;
-use tempfile::NamedTempFile;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
+use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::notification_entitiy::{Notification, NotificationDbService};
+use sb_user_auth::utils::template_utils::ProfileFormPage;
+use tempfile::NamedTempFile;
 
 pub const UPLOADS_URL_BASE:&str = "/media";
 pub fn routes(state: CtxState) -> Router {
@@ -55,7 +54,7 @@ struct PostDiscussionCommunityOwnerView {
 }
 
 impl ViewFieldSelector for PostDiscussionCommunityOwnerView {
-    fn get_select_query_fields(ident: &IdentIdName) -> String {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
         // belongs_to == discussion
         // belongs_to.belongs_to == community
         "belongs_to, belongs_to.belongs_to.created_by.community.main_discussion as created_by_profile_main_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
@@ -64,8 +63,6 @@ impl ViewFieldSelector for PostDiscussionCommunityOwnerView {
 
 #[derive( Validate, TryFromMultipart)]
 pub struct PostInput {
-    // #[validate(length(min = 5, message = "Min 5 characters"))]
-    // pub discussion_id: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
@@ -143,9 +140,9 @@ async fn get_post(State(CtxState { _db, .. }): State<CtxState>,
     let mut post = PostDbService { db: &_db, ctx: &ctx }.get(ident).await?;
     let post_replies = ReplyDbService { db: &_db, ctx: &ctx }.get_by_post_desc_view::<PostReplyView>(post.id.clone().unwrap(), 0, 120).await?;
 
-    let mut postPage: PostPageTemplate = post.into();
-    postPage.replies = post_replies;
-    Ok(postPage)
+    let mut post_page: PostPageTemplate = post.into();
+    post_page.replies = post_replies;
+    Ok(post_page)
 }
 
 async fn create_form(
@@ -279,10 +276,10 @@ mod tests {
         &create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
 
-        let postName2 = "post title Name 2?&$^%! <>end".to_string();
-        let create_response2 = server.post(format!("/api/discussion/{community_discussion_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", postName2.clone()).add_text("content", "contentttt222").add_text("topic_id", "")).await;
+        let post_name2 = "post title Name 2?&$^%! <>end".to_string();
+        let create_response2 = server.post(format!("/api/discussion/{community_discussion_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name2.clone()).add_text("content", "contentttt222").add_text("topic_id", "")).await;
 
-        let create_response4 = server.post(format!("/api/discussion/{community_discussion_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", postName2.clone()).add_text("content", "contentttt444442").add_text("topic_id", "")).await;
+        let create_response4 = server.post(format!("/api/discussion/{community_discussion_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name2.clone()).add_text("content", "contentttt444442").add_text("topic_id", "")).await;
         let created = &create_response.json::<CreatedResponse>();
         let created2 = &create_response2.json::<CreatedResponse>();
 

@@ -1,16 +1,14 @@
+use sb_middleware::db;
+use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName};
+use sb_middleware::{
+    ctx::Ctx,
+    error::{AppError, CtxError, CtxResult},
+};
+use sb_user_auth::entity::access_rule_entity::AccessRule;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
-use sb_community::entity::post_entitiy::Post;
-use sb_middleware::{
-    ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
-};
-use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity_list_view, get_entity_view, IdentIdName, Pagination, QryOrder, ViewFieldSelector, with_not_found_err, get_entity, get_entity_list, exists_entity};
-use sb_user_auth::entity::access_rule_entity::AccessRule;
-use sb_user_auth::entity::local_user_entity::LocalUser;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
@@ -18,13 +16,18 @@ pub struct TaskRequest {
     pub id: Option<Thing>,
     pub from_user: Thing,
     pub to_user: Thing,
-    pub post: Option<Thing>,
-    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_post: Option<Thing>,
+    pub request_txt: String,
     pub offer_amount: u64,
     pub status: String,
-    // #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables_post: Option<Vec<Thing>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
-    // #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
 }
 
@@ -34,7 +37,16 @@ pub enum TaskStatus {
     Accepted,
     Rejected,
     Delivered,
-    // Complete,
+    Complete,
+}
+
+#[derive(Display)]
+pub enum UserTaskRole {
+    // needs to be same as col name
+    #[strum(to_string = "from_user")]
+    FromUser, // created task
+    #[strum(to_string = "to_user")]
+    ToUser, // received task
 }
 
 pub struct TaskRequestDbService<'a> {
@@ -52,20 +64,23 @@ impl<'a> TaskRequestDbService<'a> {
         let t_stat_acc = TaskStatus::Accepted.to_string();
         let t_stat_rej = TaskStatus::Rejected.to_string();
         let t_stat_del = TaskStatus::Delivered.to_string();
+        let t_stat_com = TaskStatus::Complete.to_string();
 
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
-    DEFINE INDEX post_idx ON TABLE {TABLE_NAME} COLUMNS post;
+    DEFINE FIELD request_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
+    DEFINE INDEX request_post_idx ON TABLE {TABLE_NAME} COLUMNS request_post;
     DEFINE FIELD from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
     DEFINE FIELD to_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
-    DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej},'{t_stat_del}'];
+        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej},'{t_stat_del},'{t_stat_com}'];
     DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE FIELD offer_amount ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD deliverables ON TABLE {TABLE_NAME} TYPE option<array<string>>;
+    DEFINE FIELD deliverables_post ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_POST}>>>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
@@ -97,23 +112,23 @@ impl<'a> TaskRequestDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub async fn to_user_post_list(&self, to_user: Thing, post_id: Thing) -> CtxResult<Vec<AccessRule>> {
+    pub async fn user_post_list(&self, user_task_role: UserTaskRole, user: Thing, post_id: Thing) -> CtxResult<Vec<AccessRule>> {
         get_entity_list::<AccessRule>(self.db, TABLE_NAME.to_string(),
                                       &IdentIdName::ColumnIdentAnd(vec![
                                           IdentIdName::ColumnIdent {
-                                              column: "to_user".to_string(),
-                                              val: to_user.to_raw(),
+                                              column: user_task_role.to_string(),
+                                              val: user.to_raw(),
                                               rec: true
                                           },
                                           IdentIdName::ColumnIdent {
-                                              column: "post".to_string(),
+                                              column: "request_post".to_string(),
                                               val: post_id.to_raw(),
                                               rec: true
                                           },
                                       ]), None).await
     }
 
-    pub async fn from_user_post_list(&self, to_user: Thing, post_id: Thing) -> CtxResult<Vec<AccessRule>> {
+    /*pub async fn from_user_post_list(&self, to_user: Thing, post_id: Thing) -> CtxResult<Vec<AccessRule>> {
         get_entity_list::<AccessRule>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdentAnd(vec![
             IdentIdName::ColumnIdent {
                 column: "to_user".to_string(),
@@ -121,18 +136,18 @@ impl<'a> TaskRequestDbService<'a> {
                 rec: true
             },
             IdentIdName::ColumnIdent {
-                column: "post".to_string(),
+                column: "request_post".to_string(),
                 val: post_id.to_raw(),
                 rec: true
             },
         ]), None).await
-    }
+    }*/
 
-    pub async fn to_user_status_list(&self, to_user: Thing, status: TaskStatus) -> CtxResult<Vec<AccessRule>> {
+    pub async fn user_status_list(&self, user_task_role: UserTaskRole, user: Thing, status: TaskStatus) -> CtxResult<Vec<AccessRule>> {
         get_entity_list::<AccessRule>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdentAnd(vec![
             IdentIdName::ColumnIdent {
-                column: "to_user".to_string(),
-                val: to_user.to_raw(),
+                column: user_task_role.to_string(),
+                val: user.to_raw(),
                 rec: true
             },
             IdentIdName::ColumnIdent {
@@ -143,12 +158,24 @@ impl<'a> TaskRequestDbService<'a> {
         ]), None).await
     }
 
-    pub async fn update_status(&self, user: Thing, record: Thing, status: TaskStatus) -> CtxResult<TaskRequest> {
+    pub async fn update_status_received_by_user(&self, user: Thing, record: Thing, status: TaskStatus, deliverables: Option<Vec<String>>) -> CtxResult<TaskRequest> {
         let task = self.get(IdentIdName::Id(record.clone().to_raw())).await?;
         if task.to_user == user {
-            let res: Option<TaskRequest> = self.db.update((record.tb.clone(), record.id.clone().to_raw()))
-                .patch(PatchOp::replace("/status", status.to_string()))
-                .await
+            let update_op = self.db.update((record.tb.clone(), record.id.clone().to_raw()));
+
+            let deliverables = deliverables.unwrap_or(vec![]);
+            let res_builder = match status {
+                TaskStatus::Delivered => {
+                    if !deliverables.iter().all(|v| v.len() > 0) {
+                        return Err(self.ctx.to_ctx_error(AppError::Generic { description: "Deliverable empty".to_string() }));
+                    }
+                    update_op.patch(PatchOp::replace("/status", status.to_string()))
+                        .patch(PatchOp::replace("/deliverables", deliverables))
+                }
+                _ => update_op.patch(PatchOp::replace("/status", status.to_string()))
+            };
+
+            let res: Option<TaskRequest> = res_builder.await
                 .map_err(CtxError::from(self.ctx))?;
             res.ok_or_else(|| self.ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: record.to_raw() }))
         } else {

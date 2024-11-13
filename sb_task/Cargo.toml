@@ -13,3 +13,7 @@ serde_json = "1.0.132"
 axum = { version = "0.7.7", features = ["multipart", "http2"] }
 validator = { version = "0.18.1", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
+axum_typed_multipart = "0.13.0"
+tempfile = "3.13.0"
+tower-http = { version = "0.6.1", features = ["fs"] }
+tower = "0.5.1"

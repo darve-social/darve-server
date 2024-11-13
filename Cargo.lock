@@ -3695,6 +3695,7 @@ name = "sb_task"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "axum_typed_multipart",
  "sb_community",
  "sb_middleware",
  "sb_user_auth",
@@ -3702,6 +3703,9 @@ dependencies = [
  "serde_json",
  "strum",
  "surrealdb",
+ "tempfile",
+ "tower 0.5.1",
+ "tower-http",
  "validator",
 ]
 
