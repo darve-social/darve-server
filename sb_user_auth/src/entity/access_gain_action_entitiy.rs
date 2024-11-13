@@ -10,14 +10,14 @@ use sb_middleware::{
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JoinAction {
+pub struct AccessGainAction {
     pub id: Option<Thing>,
     pub external_ident: Option<String>,
     pub access_rule_pending: Option<Thing>,
     pub access_rights: Option<Vec<Thing>>,
     pub local_user: Option<Thing>,
-    pub action_type: JoinActionType,
-    pub action_status: JoinActionStatus,
+    pub action_type: AccessGainActionType,
+    pub action_status: AccessGainActionStatus,
     // #[serde(skip_serializing)]
     pub r_created: Option<String>,
     // #[serde(skip_serializing)]
@@ -26,19 +26,19 @@ pub struct JoinAction {
 }
 
 #[derive(EnumString, Display, VariantNames, Debug, Clone, Serialize, Deserialize)]
-pub enum JoinActionType {
+pub enum AccessGainActionType {
     LocalUser,
     Stripe,
 }
 
 #[derive(EnumString, Display, VariantNames, Debug, Clone, Serialize, Deserialize)]
-pub enum JoinActionStatus {
+pub enum AccessGainActionStatus {
     Complete,
     Failed,
     Pending,
 }
 
-pub struct JoinActionDbService<'a> {
+pub struct AccessGainActionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
@@ -48,7 +48,7 @@ const TABLE_COL_ACCESS_RIGHT: &str = crate::entity::access_right_entity::TABLE_N
 const TABLE_COL_ACCESS_RULE: &str = crate::entity::access_rule_entity::TABLE_NAME;
 const TABLE_COL_LOCAL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
 
-impl<'a> JoinActionDbService<'a> {
+impl<'a> AccessGainActionDbService<'a> {
     pub fn get_table_name() -> &'static str {
         TABLE_NAME
     }
@@ -66,7 +66,7 @@ impl<'a> JoinActionDbService<'a> {
     DEFINE INDEX action_status_idx ON TABLE {TABLE_NAME} COLUMNS action_status;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
-    ", JoinActionType::VARIANTS, JoinActionStatus::VARIANTS);
+    ", AccessGainActionType::VARIANTS, AccessGainActionStatus::VARIANTS);
         let mutation = self.db
             .query(sql)
             .await?;
@@ -75,31 +75,18 @@ impl<'a> JoinActionDbService<'a> {
         Ok(())
     }
 
-    /* pub async fn create(&self, record: PaymentAction) -> ApiResult<PaymentAction> {
-          let res = self.db
-              .create(TABLE_NAME)
-              .content(record)
-              .await
-              .map_err(ApiError::from(self.ctx))
-              .map(|v: Option<PaymentAction>| v.unwrap());
-
-         // let things: Vec<Domain> = self.db.select(TABLE_NAME).await.ok().unwrap();
-         // dbg!(things);
-         res
-     }*/
-
-    pub async fn get(&self, ident: IdentIdName) -> CtxResult<JoinAction> {
-        let opt = get_entity::<JoinAction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+    pub async fn get(&self, ident: IdentIdName) -> CtxResult<AccessGainAction> {
+        let opt = get_entity::<AccessGainAction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub async fn create_update(&self, mut record: JoinAction) -> CtxResult<JoinAction> {
+    pub async fn create_update(&self, mut record: AccessGainAction) -> CtxResult<AccessGainAction> {
         let resource = record.id.clone().unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::rand())));
         record.r_created = None;
         record.r_updated = None;
 
         let rec_id = record.id.clone();
-        let acc_right: Option<JoinAction> = self.db
+        let acc_right: Option<AccessGainAction> = self.db
             .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
             .await

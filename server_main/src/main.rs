@@ -33,10 +33,10 @@ use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::notification_entitiy::NotificationDbService;
-use sb_user_auth::entity::payment_action_entitiy::JoinActionDbService;
+use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{access_rule_routes, follow_routes, init_server_routes, join_routes, login_routes, register_routes};
+use sb_user_auth::routes::{access_rule_routes, follow_routes, init_server_routes, access_gain_action_routes, login_routes, register_routes};
 
 mod mw_response_transformer;
 
@@ -98,7 +98,7 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
-    JoinActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
@@ -119,7 +119,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Ro
         .merge(reply_routes::routes(ctx_state.clone()))
         .merge(webauthn_routes::routes(ctx_state.clone(), wa_config, "./server_main/src/assets/wasm"))
         .merge(stripe_routes::routes(ctx_state.clone()))
-        .merge(join_routes::routes(ctx_state.clone()))
+        .merge(access_gain_action_routes::routes(ctx_state.clone()))
         .merge(profile_routes::routes(ctx_state.clone()))
         .merge(task_request_routes::routes(ctx_state.clone()))
         .merge(follow_routes::routes(ctx_state.clone()))

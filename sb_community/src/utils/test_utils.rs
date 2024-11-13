@@ -23,7 +23,7 @@ use crate::entity::discussion_entitiy::DiscussionDbService;
 use crate::entity::discussion_topic_entitiy::DiscussionTopicDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::notification_entitiy::NotificationDbService;
-use sb_user_auth::entity::payment_action_entitiy::JoinActionDbService;
+use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::reply_entitiy::ReplyDbService;
 use sb_user_auth::routes::*;
@@ -91,7 +91,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Ro
         .merge(reply_routes::routes(ctx_state.clone()))
         .merge(webauthn_routes::routes(ctx_state.clone(), wa_config, "../server_main/src/assets/wasm"))
         .merge(stripe_routes::routes(ctx_state.clone()))
-        .merge(join_routes::routes(ctx_state.clone()))
+        .merge(access_gain_action_routes::routes(ctx_state.clone()))
         .merge(profile_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
@@ -128,7 +128,7 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
-    JoinActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
 
     /*

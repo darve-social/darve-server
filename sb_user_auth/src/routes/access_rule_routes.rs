@@ -54,8 +54,8 @@ pub struct AccessRuleInput {
     pub authorize_height_required: i16,
     pub price_amount: String,
     pub available_period_days: String,
-    pub join_confirmation: String,
-    pub join_redirect_url: String,
+    pub access_gain_action_confirmation: String,
+    pub access_gain_action_redirect_url: String,
 }
 
 async fn get_form_page(
@@ -96,8 +96,8 @@ async fn get_form(
                 authorize_height: 0,
             },
             available_period_days: None,
-            join_confirmation: None,
-            join_redirect_url: None,
+            access_gain_action_confirmation: None,
+            access_gain_action_redirect_url: None,
             r_created: None,
             price_amount: None,
         },
@@ -139,8 +139,8 @@ async fn create_update(State(ctx_state): State<CtxState>,
                 price_amount: None,
                 available_period_days: None,
                 r_created: None,
-                join_confirmation: None,
-                join_redirect_url: None,
+                access_gain_action_confirmation: None,
+                access_gain_action_redirect_url: None,
             }
         }
         true => {
@@ -155,13 +155,13 @@ async fn create_update(State(ctx_state): State<CtxState>,
         return Err(ctx.to_ctx_error(AppError::Generic { description: "title must have value".to_string() }));
     };
 
-    if form_value.join_confirmation.trim().len() > 0 {
-        update_access_rule.join_confirmation = Option::from(form_value.join_confirmation.trim().to_string());
-    } else { update_access_rule.join_confirmation = None }
+    if form_value.access_gain_action_confirmation.trim().len() > 0 {
+        update_access_rule.access_gain_action_confirmation = Option::from(form_value.access_gain_action_confirmation.trim().to_string());
+    } else { update_access_rule.access_gain_action_confirmation = None }
 
-    if form_value.join_redirect_url.trim().len() > 0 {
-        update_access_rule.join_redirect_url = Option::from(form_value.join_redirect_url.trim().to_string());
-    } else { update_access_rule.join_redirect_url = None }
+    if form_value.access_gain_action_redirect_url.trim().len() > 0 {
+        update_access_rule.access_gain_action_redirect_url = Option::from(form_value.access_gain_action_redirect_url.trim().to_string());
+    } else { update_access_rule.access_gain_action_redirect_url = None }
 
     if form_value.authorize_record_id_required.len() > 0 {
         let rec_id = Thing::try_from(form_value.authorize_record_id_required).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into rec_id Thing".to_string() }))?;
@@ -236,7 +236,7 @@ mod tests {
         let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
         let comm_disc_id = comm.unwrap().main_discussion.unwrap();
 
-        let create_response = server.post("/api/access-rule").json(&AccessRuleInput { id: "".to_string(), target_entity_id: comm_id.to_raw(), title: "Access Rule Register".to_string(), authorize_record_id_required: comm_id.to_raw(), authorize_activity_required: AUTH_ACTIVITY_VISITOR.to_string(), authorize_height_required: 1000, price_amount: "".to_string(), available_period_days: "".to_string(), join_confirmation: "".to_string(), join_redirect_url: "".to_string() }).await;
+        let create_response = server.post("/api/access-rule").json(&AccessRuleInput { id: "".to_string(), target_entity_id: comm_id.to_raw(), title: "Access Rule Register".to_string(), authorize_record_id_required: comm_id.to_raw(), authorize_activity_required: AUTH_ACTIVITY_VISITOR.to_string(), authorize_height_required: 1000, price_amount: "".to_string(), available_period_days: "".to_string(), access_gain_action_confirmation: "".to_string(), access_gain_action_redirect_url: "".to_string() }).await;
         &create_response.assert_status_success();
         let created = &create_response.json::<AccessRuleForm>();
         let ar_0 = created.access_rules.get(0).unwrap();

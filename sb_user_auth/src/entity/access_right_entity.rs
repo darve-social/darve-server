@@ -51,7 +51,7 @@ pub struct AccessRightDbService<'a> {
 pub const TABLE_NAME: &str = "access_right";
 const TABLE_NAME_ACCESS_RULE: &str = crate::entity::access_rule_entity::TABLE_NAME;
 const TABLE_NAME_LOCAL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
-const TABLE_NAME_PAYMENT_ACTION: &str = crate::entity::payment_action_entitiy::TABLE_NAME;
+const TABLE_NAME_PAYMENT_ACTION: &str = crate::entity::access_gain_action_entitiy::TABLE_NAME;
 
 impl<'a> AccessRightDbService<'a> {
     pub fn get_table_name() -> &'static str {

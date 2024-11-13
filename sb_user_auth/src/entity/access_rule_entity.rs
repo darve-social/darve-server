@@ -25,9 +25,9 @@ pub struct AccessRule {
     // how long delivery is possible - how long subsctiption lasts
     pub available_period_days: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub join_confirmation: Option<String>,
+    pub access_gain_action_confirmation: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub join_redirect_url: Option<String>,
+    pub access_gain_action_redirect_url: Option<String>,
     // how many times can it be delivered - 1 if it's a physical product
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub available_amount: Option<i64>,
@@ -58,8 +58,8 @@ impl<'a> AccessRuleDbService<'a> {
     DEFINE FIELD available_period_days ON TABLE {TABLE_NAME} TYPE option<number>;
     // DEFINE FIELD available_amount ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD join_confirmation ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD join_redirect_url ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD access_gain_action_confirmation ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD access_gain_action_redirect_url ON TABLE {TABLE_NAME} TYPE option<string>;
 ");
         let mutation = self.db
             .query(sql)

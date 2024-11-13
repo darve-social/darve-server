@@ -188,7 +188,6 @@ async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<Ct
     let file_name = t_request_input.file_1.metadata.file_name.unwrap();
     let ext = file_name.split(".").last().ok_or(AppError::Generic { description: "File has no extension".to_string() })?;
 
-    // let file_name = format!("tid_{}-file_1.{ext}", task_id.clone().id.to_raw());
     let file_name: String = TaskDeliverableFileName { task_id: task_id.clone(), file_nr: 1, ext: ext.to_string() }.to_string();
     let path = FPath::new(&uploads_dir).join(file_name.clone());
     t_request_input.file_1.contents.persist(path.clone())

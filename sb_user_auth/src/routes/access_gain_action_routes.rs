@@ -19,7 +19,7 @@ use validator::Validate;
 use crate::entity::access_right_entity::AccessRightDbService;
 use crate::entity::access_rule_entity::{AccessRule, AccessRuleDbService};
 use crate::entity::local_user_entity::LocalUserDbService;
-use crate::entity::payment_action_entitiy::{JoinAction, JoinActionDbService, JoinActionStatus, JoinActionType};
+use crate::entity::access_gain_action_entitiy::{AccessGainAction, AccessGainActionDbService, AccessGainActionStatus, AccessGainActionType};
 use crate::routes::register_routes::{display_register_form, display_register_page};
 use crate::utils::askama_filter_util::filters;
 use crate::utils::template_utils::ProfileFormPage;
@@ -32,22 +32,22 @@ use sb_middleware::utils::request_utils::CreatedResponse;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/access-rule/:access_rule_id/join", get(join_page))
-        .route("/api/access-rule/:access_rule_id/join", get(join_form))
-        .route("/api/join/access-rule", post(save_join))
+        .route("/access-rule/:access_rule_id/join", get(access_gain_action_page))
+        .route("/api/access-rule/:access_rule_id/join", get(access_gain_action_form))
+        .route("/api/join/access-rule", post(save_access_gain_action))
         .with_state(state)
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
-#[template(path = "nera2/join_form.html")]
-pub struct JoinForm {
+#[template(path = "nera2/access_gain_action_form.html")]
+pub struct AccessGainActionForm {
     pub access_rule: AccessRule,
     pub next: Option<String>,
     pub email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
-pub struct JoinInput {
+pub struct AccessGainActionInput {
     #[validate(email)]
     pub email: String,
     pub access_rule_id: String,
@@ -59,18 +59,18 @@ pub struct JoinInput {
 pub struct AccessRuleView {
     pub(crate) id: Thing,
     pub(crate) target_entity_id: Thing,
-    pub(crate) join_redirect_url: Option<String>,
-    pub(crate) join_confirmation: Option<String>,
+    pub(crate) access_gain_action_redirect_url: Option<String>,
+    pub(crate) access_gain_action_confirmation: Option<String>,
 }
 
 impl ViewFieldSelector for AccessRuleView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, target_entity_id, join_redirect_url, join_confirmation".to_string()
+        "id, target_entity_id, access_gain_action_redirect_url, access_gain_action_confirmation".to_string()
     }
 }
 
 
-async fn join_page(
+async fn access_gain_action_page(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
@@ -88,14 +88,14 @@ async fn join_page(
         return Ok(Redirect::temporary(format!("/api/stripe/access-rule/{}", access_rule.id.expect("is saved").to_raw()).as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(Box::new(JoinForm {
+    Ok(ProfileFormPage::new(Box::new(AccessGainActionForm {
         access_rule,
         next: qry.remove("next"),
         email: user.email,
     }), None, None).into_response())
 }
 
-async fn join_form(
+async fn access_gain_action_form(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
@@ -112,7 +112,7 @@ async fn join_form(
     if access_rule.price_amount.unwrap_or(0) > 0 {
         return Ok(Redirect::temporary(format!("/api/stripe/access-rule/{}", access_rule.id.expect("is saved").to_raw()).as_str()).into_response());
     }
-    let response_str = JoinForm {
+    let response_str = AccessGainActionForm {
         access_rule,
         next: qry.remove("next"),
         email: user.email,
@@ -120,10 +120,10 @@ async fn join_form(
     Ok((StatusCode::OK, Html(response_str)).into_response())
 }
 
-async fn save_join(
+async fn save_access_gain_action(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    JsonOrFormValidated(form_value): JsonOrFormValidated<JoinInput>,
+    JsonOrFormValidated(form_value): JsonOrFormValidated<AccessGainActionInput>,
 ) -> CtxResult<Response> {
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
 
@@ -139,15 +139,15 @@ async fn save_join(
 
     let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleView>(IdentIdName::Id(form_value.access_rule_id)).await?;
 
-    let join_action_db_service = JoinActionDbService { db: &ctx_state._db, ctx: &ctx };
+    let access_gain_action_db_service = AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx };
 
-    // TODO start with failed and check against join_confirmation requirements
-    let mut action_status = JoinActionStatus::Complete;
-    let mut j_action = if access_rule.join_confirmation.unwrap_or("".to_string()).len() > 1 {
+    // TODO start with failed and check against access_gain_action_confirmation requirements
+    let mut action_status = AccessGainActionStatus::Complete;
+    let mut j_action = if access_rule.access_gain_action_confirmation.unwrap_or("".to_string()).len() > 1 {
         let access_rule_pending = Some(access_rule.id.clone());
-        action_status = JoinActionStatus::Pending;
+        action_status = AccessGainActionStatus::Pending;
 
-        let already_pending = join_action_db_service.get(IdentIdName::ColumnIdentAnd(
+        let already_pending = access_gain_action_db_service.get(IdentIdName::ColumnIdentAnd(
             vec![
                 IdentIdName::ColumnIdent {
                     rec: true,
@@ -168,26 +168,26 @@ async fn save_join(
         if already_pending.is_ok() {
             already_pending.unwrap()
         } else {
-            join_action_db_service.create_update(create_joint_action(&user_id, access_rule_pending, action_status)).await?
+            access_gain_action_db_service.create_update(create_access_gain_action(&user_id, access_rule_pending, action_status)).await?
         }
     } else {
-        join_action_db_service.create_update(create_joint_action(&user_id, None, JoinActionStatus::Complete)).await?
+        access_gain_action_db_service.create_update(create_access_gain_action(&user_id, None, AccessGainActionStatus::Complete)).await?
     };
 
-    // TODO add func. - join status is complete by checking some values or must be confirmed by admin
+    // TODO add func. - access_gain_action status is complete by checking some values or must be confirmed by admin
     // let mut j_action = join_action_db_service.create_update(create_joint_action(&user_id, access_rule_pending, action_status)).await?;
 
     let response = match j_action.action_status {
-        JoinActionStatus::Complete => {
+        AccessGainActionStatus::Complete => {
             let a_right = AccessRightDbService { ctx: &ctx, db: &ctx_state._db }.add_paid_access_right(user_id.clone(), access_rule.id.clone(), j_action.id.clone().expect("must be saved already, having id")).await?;
             j_action.access_rights = Option::from(vec![a_right.id.expect("a_right must be saved")]);
-            let j_action = join_action_db_service.create_update(j_action).await?;
+            let j_action = access_gain_action_db_service.create_update(j_action).await?;
 
             let res = CreatedResponse { success: true, id: j_action.id.unwrap().to_raw(), uri: None };
             let mut res = ctx.to_htmx_or_json_res::<CreatedResponse>(res).into_response();
             // TODO add next param
 
-            let next = match access_rule.join_redirect_url {
+            let next = match access_rule.access_gain_action_redirect_url {
                 None => {
                     if access_rule.target_entity_id.tb == "community" {
                         format!("/community/{}", access_rule.target_entity_id)
@@ -200,11 +200,11 @@ async fn save_join(
             res.headers_mut().append(HX_REDIRECT, next.parse().unwrap());
             res
         }
-        JoinActionStatus::Failed => {
+        AccessGainActionStatus::Failed => {
             (StatusCode::OK, "Error vailidating provided form data").into_response()
         }
-        JoinActionStatus::Pending => {
-            let next = match access_rule.join_redirect_url {
+        AccessGainActionStatus::Pending => {
+            let next = match access_rule.access_gain_action_redirect_url {
                 None => {
                     format!("/uid/{}", user_id)
                 }
@@ -218,14 +218,14 @@ async fn save_join(
     Ok(response)
 }
 
-fn create_joint_action(user_id: &Thing, mut access_rule_pending: Option<Thing>, mut action_status: JoinActionStatus) -> JoinAction {
-    JoinAction {
+fn create_access_gain_action(user_id: &Thing, mut access_rule_pending: Option<Thing>, mut action_status: AccessGainActionStatus) -> AccessGainAction {
+    AccessGainAction {
         id: None,
         external_ident: None,
         access_rule_pending,
         access_rights: None,
         local_user: Option::from(user_id.clone()),
-        action_type: JoinActionType::LocalUser,
+        action_type: AccessGainActionType::LocalUser,
         action_status,
         r_created: None,
         r_updated: None,

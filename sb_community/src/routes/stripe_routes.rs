@@ -22,7 +22,7 @@ use sb_middleware::ctx::Ctx;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authorization_entity::Authorization;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::payment_action_entitiy::{JoinActionType, JoinAction, JoinActionDbService, JoinActionStatus};
+use sb_user_auth::entity::access_gain_action_entitiy::{AccessGainActionType, AccessGainAction, AccessGainActionDbService, AccessGainActionStatus};
 use sb_middleware::error::{CtxError, CtxResult, AppError};
 use sb_middleware::mw_ctx::CtxState;
 use crate::routes::community_routes::community_admin_access;
@@ -491,14 +491,14 @@ async fn handle_webhook(
                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
                 let u_id = invoice_rules.get(0).expect("invoice should have items").0.clone();
 
-                JoinActionDbService { db: &ctx_state._db, ctx: &ctx }.create_update(JoinAction {
+                AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx }.create_update(AccessGainAction {
                     id: None,
                     external_ident,
                     access_rule_pending: None,
                     access_rights: None,
                     local_user: Option::from(u_id),
-                    action_type: JoinActionType::Stripe,
-                    action_status: JoinActionStatus::Failed,
+                    action_type: AccessGainActionType::Stripe,
+                    action_status: AccessGainActionStatus::Failed,
                     r_created: None,
                     r_updated: None,
                 }).await?;
@@ -507,16 +507,16 @@ async fn handle_webhook(
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
                 // dbg!(&invoice);
-                let id = Thing::try_from((JoinActionDbService::get_table_name().to_string(), Id::from(invoice.id.as_str()))).unwrap();
-                let j_action_db = JoinActionDbService { db: &ctx_state._db, ctx: &ctx };
-                let mut j_action = JoinAction {
+                let id = Thing::try_from((AccessGainActionDbService::get_table_name().to_string(), Id::from(invoice.id.as_str()))).unwrap();
+                let j_action_db = AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx };
+                let mut j_action = AccessGainAction {
                     id: None,
                     external_ident: Some(invoice.id.to_string()),
                     access_rule_pending: None,
                     access_rights: None,
                     local_user: None,
-                    action_type: JoinActionType::Stripe,
-                    action_status: JoinActionStatus::Failed,
+                    action_type: AccessGainActionType::Stripe,
+                    action_status: AccessGainActionStatus::Failed,
                     r_created: None,
                     r_updated: None,
                 };
@@ -530,7 +530,7 @@ async fn handle_webhook(
                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
                 let mut a_rights = vec![];
                 j_action.local_user = Some(invoice_rules.get(0).expect("invoice must have items").0.clone());
-                j_action.action_status = JoinActionStatus::Complete;
+                j_action.action_status = AccessGainActionStatus::Complete;
                 j_action = j_action_db.create_update(j_action).await?;
                 for user_a_rule in invoice_rules {
                     let (usr_id, a_rule_thing) = user_a_rule;
