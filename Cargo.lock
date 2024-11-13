@@ -3743,6 +3743,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sb_wallet"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum_typed_multipart",
+ "sb_community",
+ "sb_middleware",
+ "sb_user_auth",
+ "serde",
+ "serde_json",
+ "strum",
+ "surrealdb",
+ "tempfile",
+ "tower 0.5.1",
+ "tower-http",
+ "validator",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
