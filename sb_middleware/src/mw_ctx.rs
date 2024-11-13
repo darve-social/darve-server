@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
+use tower_http::services::ServeDir;
 
 #[derive(Clone)]
 pub struct CtxState {
@@ -23,6 +24,7 @@ pub struct CtxState {
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
     pub uploads_dir: String,
+    pub uploads_serve_dir: ServeDir,
 }
 
 impl Debug for CtxState{
@@ -46,6 +48,8 @@ pub fn create_ctx_state(start_password: String, is_development: bool, jwt_secret
         stripe_wh_secret,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
+        uploads_serve_dir: ServeDir::new(uploads_dir.clone())
+            .append_index_html_on_directories(false),
         uploads_dir,
     };
     ctx_state
@@ -104,15 +108,6 @@ pub async fn mw_require_login(
     if ctx.user_id().is_err() {
         return (StatusCode::FORBIDDEN, "Login required").into_response();
     };
-    next.run(req).await
-}
-
-pub async fn mw_host_site_id(
-    State(CtxState { _db,.. }): State<CtxState>,
-    ctx: Ctx,
-    mut req: Request<Body>,
-    next: Next,) ->Response {
-
     next.run(req).await
 }
 

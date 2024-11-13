@@ -1,6 +1,8 @@
 use crate::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole};
+use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
-use axum::http::Response;
+use axum::http::uri::PathAndQuery;
+use axum::http::{Response, Uri};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -22,21 +24,19 @@ use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use tower::util::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
-use tower_http::services::ServeDir;
 use validator::Validate;
 
-pub const UPLOADS_URL_BASE: &str = "/tasks/*file";
+pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
 pub fn routes(state: CtxState) -> Router {
+
     Router::new()
         .route("/api/task_request", post(create_entity))
         .route("/api/task_request/received/post/:post_id", get(post_requests_received))
         .route("/api/task_request/given/post/:post_id", get(post_requests_given))
         .route("/api/task_request/:task_id/accept", post(accept_task_request))
         .route("/api/task_request/:task_id/deliver", post(deliver_task_request))
-        .route(UPLOADS_URL_BASE, get(serve_task_deliverable_file))
-
-        // .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
+        .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
         .with_state(state)
 }
@@ -143,20 +143,22 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     ctx.to_htmx_or_json_res(CreatedResponse { id: t_request.id.unwrap().to_raw(), uri: None, success: true })
 }
 
-async fn serve_task_deliverable_file(State(CtxState { _db, uploads_dir, .. }): State<CtxState>,
+async fn serve_task_deliverable_file(State(CtxState { _db, uploads_serve_dir, .. }): State<CtxState>,
                                      ctx: Ctx,
                                      Path(path): Path<String>,
-                                     request: Request,
 ) -> Result<Response<ServeFileSystemResponseBody>, CtxError> {
     let user = get_string_thing(ctx.user_id()?)?;
-    let task_file = TaskDeliverableFileName::try_from(path)?;
+
+    let task_file = TaskDeliverableFileName::try_from(path.clone())?;
     let task = TaskRequestDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(task_file.task_id.to_raw())).await?;
     if task.from_user != user {
-        return Err(ctx.to_ctx_error(AuthorizationFail { required: "owner".to_string() }));
+        return Err(ctx.to_ctx_error(AuthorizationFail { required: "Not authorised".to_string() }));
     }
-    let service = ServeDir::new(uploads_dir)
-        .append_index_html_on_directories(false);
-    service.oneshot(request).await.map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Error getting file".to_string() }))
+
+    let uri = Uri::from(PathAndQuery::try_from(path).unwrap());
+    let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+    let res = uploads_serve_dir.oneshot(req).await;
+        res.map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Error getting file".to_string() }))
 }
 
 async fn accept_task_request(State(CtxState { _db, .. }): State<CtxState>,
@@ -191,7 +193,7 @@ async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<Ct
     let path = FPath::new(&uploads_dir).join(file_name.clone());
     t_request_input.file_1.contents.persist(path.clone())
         .map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Upload failed".to_string() }))?;
-    let file_uri = format!("{UPLOADS_URL_BASE}/{file_name}");
+    let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
 
     TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user, task_id.clone(), TaskStatus::Delivered, Some(vec![file_uri])).await?;
 

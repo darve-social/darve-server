@@ -40,7 +40,8 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .merge(view_routes)
         .route("/api/discussion/:discussion_id/post", post(create_entity))
-        .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
+        .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
+        // .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
         .layer(DefaultBodyLimit::max(1024*1024*15))
         .with_state(state)
 }

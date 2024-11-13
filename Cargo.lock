@@ -3686,6 +3686,7 @@ dependencies = [
  "tokio",
  "tower 0.5.1",
  "tower-cookies",
+ "tower-http",
  "uuid 1.11.0",
  "validator",
 ]
