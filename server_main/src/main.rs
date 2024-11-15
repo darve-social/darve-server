@@ -16,7 +16,6 @@ use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use sb_user_auth::routes::webauthn::webauthn_routes;
-use sb_community::utils::test_utils::create_dev_env;
 
 use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
@@ -36,9 +35,12 @@ use sb_user_auth::entity::notification_entitiy::NotificationDbService;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{access_rule_routes, follow_routes, init_server_routes, access_gain_action_routes, login_routes, register_routes};
+use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes};
+use crate::test_utils::create_dev_env;
 
 mod mw_response_transformer;
+mod test_utils;
+mod tests;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {

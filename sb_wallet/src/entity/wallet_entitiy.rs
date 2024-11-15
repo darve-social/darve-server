@@ -15,10 +15,16 @@ pub struct Wallet {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub user: Thing,
+    pub transaction_head: Thing,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
+}
+
+#[derive(EnumString, Display)]
+pub enum CurrencySymbol{
+    USD
 }
 
 pub struct WalletDbService<'a> {
@@ -28,12 +34,16 @@ pub struct WalletDbService<'a> {
 
 pub const TABLE_NAME: &str = "wallet";
 const USER_TABLE: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
+const TRANSACTION_TABLE: &str = crate::entity::wallet_transaction_entitiy::TABLE_NAME;
+
+pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
 impl<'a> WalletDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}> VALUE $before OR <record>{USER_TABLE}:$this.id();
+    DEFINE FIELD {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE record<{TRANSACTION_TABLE}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");

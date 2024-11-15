@@ -115,10 +115,3 @@ fn path_is_valid(path: &str) -> bool {
 
     components.count() == 1
 }
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn display_access_rule_content() {}
-}
-

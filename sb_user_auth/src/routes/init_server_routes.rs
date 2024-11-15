@@ -54,7 +54,7 @@ async fn get_init_form(
 }
 
 #[derive(Debug, Deserialize, Validate, Serialize)]
-struct InitServerData {
+pub struct InitServerData {
     #[validate(length(min = 6, message = "Min 6 characters"))]
     pub init_pass: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
@@ -119,36 +119,4 @@ async fn post_init_form(
 
 async fn can_init(_db: &Db, ctx: &Ctx) -> bool {
     LocalUserDbService { ctx, db: &_db }.users_len().await.map(|result| { result == 0 }).unwrap_or(false)
-}
-
-#[cfg(test)]
-mod tests {
-    use uuid::Uuid;
-
-    use sb_middleware::ctx::Ctx;
-    use crate::entity::local_user_entity::LocalUserDbService;
-    use crate::routes::init_server_routes::InitServerData;
-    use sb_middleware::utils::db_utils::{IdentIdName, UsernameIdent};
-    use crate::entity::access_right_entity::AccessRightDbService;
-    use sb_community::test_utils::create_test_server;
-
-    #[tokio::test]
-    async fn init_server() {
-        let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
-        // let (server,user_ident) = create_login_test_user(&server).await;
-        let username = "username".to_string();
-        let create_response = server.post("/init").json(&InitServerData { init_pass: "12dfas3".to_string(), username: username.clone(), password: "passs43flksfalsffas3".to_string(), email: "emm@us.com".to_string() }).await;
-        // dbg!(&create_response);
-        &create_response.assert_status_success();
-
-        let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
-        let user = LocalUserDbService { db: &ctx_state._db, ctx }
-            .get(UsernameIdent(username.clone()).into())
-            .await;
-        let user = user.unwrap();
-        // dbg!(&user);
-        let access_rights = AccessRightDbService{db: &ctx_state._db, ctx }.list_by_user(&user.id.unwrap()).await;
-        assert_eq!(access_rights.unwrap().len()>0, true);
-    }
 }

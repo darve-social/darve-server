@@ -98,10 +98,3 @@ async fn unfollow_user(
     let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.remove_follow(user_id, follow).await?;
     ctx.to_htmx_or_json_res(CreatedResponse { id: unfollow_user_id, success, uri: None })
 }
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn follow_user() {}
-}
-

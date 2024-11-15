@@ -231,15 +231,3 @@ impl From<jsonwebtoken::errors::Error> for AppError {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn display_description() {
-        let err = super::AppError::Generic {
-            description: "super description".to_owned(),
-        };
-        assert_eq!(format!("{err}"), "super description");
-        assert_eq!(err.to_string(), "super description");
-    }
-}

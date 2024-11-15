@@ -28,5 +28,5 @@ regex = "1.10.6"
 axum-htmx = { version = "0.6.0", features = ["auto-vary"] }
 futures = "0.3.30"
 tokio-stream = "0.1.16"
-thiserror = "1.0.63"
+thiserror = "2.0.3"
 askama = { git = "https://github.com/djc/askama.git", branch = "main" }

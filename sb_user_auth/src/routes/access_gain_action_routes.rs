@@ -231,10 +231,3 @@ fn create_access_gain_action(user_id: &Thing, mut access_rule_pending: Option<Th
         r_updated: None,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn display_access_rule_content() {}
-}
-
