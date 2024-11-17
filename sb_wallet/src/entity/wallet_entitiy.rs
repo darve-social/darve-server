@@ -1,3 +1,4 @@
+use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, ViewFieldSelector};
 use sb_middleware::{
@@ -6,11 +7,9 @@ use sb_middleware::{
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-use surrealdb::iam::Level::No;
 use surrealdb::sql::Thing;
-use tokio_stream::StreamExt;
 use tokio::io::AsyncWriteExt;
-use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use tokio_stream::StreamExt;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Wallet {
@@ -122,13 +121,13 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::db;
     use sb_middleware::error::AppResult;
+    use sb_middleware::utils::string_utils::get_string_thing;
     use sb_user_auth::entity::authentication_entity::AuthType;
     use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
     use surrealdb::engine::local::Db;
     use surrealdb::{Surreal, Uuid};
     use tokio::io::AsyncWriteExt;
     use tokio_stream::StreamExt;
-    use sb_middleware::utils::string_utils::get_string_thing;
 
     #[tokio::test]
     async fn prod_balance_0() {
