@@ -56,7 +56,7 @@ impl CtxError {
 
 impl From<surrealdb::Error> for CtxError {
     fn from(value: surrealdb::Error) -> Self {
-        dbg!(&value);
+        // dbg!(&value);
         CtxError {
             req_id: Uuid::new_v4(),
             error: value.into(),

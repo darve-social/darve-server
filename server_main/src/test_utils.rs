@@ -30,6 +30,7 @@ use sb_user_auth::routes::webauthn::webauthn_routes;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_middleware::error::{AppError, AppResult};
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
+use crate::{main_router, runMigrations};
 
 pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
     let db = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().to_string());
@@ -72,114 +73,4 @@ pub async fn create_dev_env(ctx_state: &CtxState, username: String, pass: String
     let admin = register_user(&ctx_state._db, &ctx, &RegisterInput { username: username.clone().to_string(), password: pass.clone(), password1: pass.clone(),  email: None, next: None }).await.unwrap();
     let user = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test".to_string(), password: "test123".to_string(), password1: "test123".to_string(), email: None, next: None }).await.unwrap();
 
-}
-
-pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Router {
-    Router::new()
-        .nest_service("/assets", ServeDir::new("../src/assets"))
-        // No requirements
-        // Also behind /api, but no auth requirement on this route
-        .merge(init_server_routes::routes(ctx_state.clone()))
-        .merge(login_routes::routes(ctx_state.clone()))
-        .merge(register_routes::routes(ctx_state.clone()))
-        .merge(discussion_routes::routes(ctx_state.clone()))
-        .merge(discussion_topic_routes::routes(ctx_state.clone()))
-        .merge(community_routes::routes(ctx_state.clone()))
-        .merge(access_rule_routes::routes(ctx_state.clone()))
-        .merge(post_routes::routes(ctx_state.clone()))
-        .merge(reply_routes::routes(ctx_state.clone()))
-        .merge(webauthn_routes::routes(ctx_state.clone(), wa_config, "../server_main/src/assets/wasm"))
-        .merge(stripe_routes::routes(ctx_state.clone()))
-        .merge(access_gain_action_routes::routes(ctx_state.clone()))
-        .merge(profile_routes::routes(ctx_state.clone()))
-        // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
-        .layer(AutoVaryLayer)
-        .layer(middleware::map_response(mw_req_logger::mw_req_logger))
-        // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))
-        /*.layer(middleware::from_fn_with_state(
-            ctx_state.clone(),
-            mw_ctx::mw_require_login,
-        ))*/
-        // This is where Ctx gets created, with every new request
-        .layer(middleware::from_fn_with_state(
-            ctx_state.clone(),
-            mw_ctx::mw_ctx_constructor,
-        )
-        )
-        // Layers are executed from bottom up, so CookieManager has to be under ctx_constructor
-        .layer(CookieManagerLayer::new())
-    // .layer(Extension(ctx_state.clone()))
-    // .fallback_service(routes_static());
-}
-
-async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
-    let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
-    // let ts= TicketDbService {db: &db, ctx: &c };
-    // ts.mutate_db().await?;
-
-    LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AuthenticationDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionTopicDbService { db: &db, ctx: &c }.mutate_db().await?;
-    PostDbService { db: &db, ctx: &c }.mutate_db().await?;
-    ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    NotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
-    CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
-    FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-
-    /*
-            // ts.create_ticket(CreateTicketInput{title: "iiiii".parse().unwrap()}).await;
-            let vec = ts.list_tickets().await?.unwrap();
-            println!("LLLL={}", vec.len());
-
-            // &db.create("tickets")
-            // .content(Ticket {
-            //     id: None,
-            //     creator: "system".parse().unwrap(),
-            //     title: "init ticket".parse().unwrap(),
-            // })
-            // .await?;
-        let thi = Thing{id: Id::from(134), tb: "tttt".parse().unwrap() };
-        let res= Resource::from(thi);
-       db.insert(res);*/
-
-
-    /*
-        let sql = "
-        CREATE tickets CONTENT
-        {
-         creator:'sys',
-         title:'tttii'
-        };
-        SELECT * FROM type::table($table);
-        SELECT * FROM type::table($table1);
-    ";
-        let mut result = db
-            .query(sql)
-            .bind(("table", "tickets"))
-            .bind(("table1", "tttt"))
-            .await?;
-    // Get the first result from the first query
-        let created: Option<Ticket> = result.take(0)?;
-    // Get all of the results from the second query
-        let tickets: Vec<Ticket> = result.take(1)?;
-        let ttt: Vec<Thing> = result.take(2)?;
-
-        println!("created len={} 0={} tttt={}", tickets.len(), created.unwrap().title, ttt.len());
-
-    */
-
-
-    /*
-        let sql = "
-        SELECT * FROM ttt;
-    ";
-        let mut sss = db.query(sql).await?;
-        // sss.to_string()
-        let qr: Vec<Thing> = sss.take(0);
-        println!("TTTTT={}", qr.unwrap());*/
-    Ok(())
 }

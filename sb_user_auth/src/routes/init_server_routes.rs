@@ -48,7 +48,7 @@ async fn get_init_form(
 
     if !can_init(&_db, &ctx).await {
         Err(ctx.to_ctx_error(AppError::Generic { description: "Already initialized".to_string() }))
-    }else {
+    } else {
         Ok(ProfileFormPage::new(Box::new(InitServerForm {}), None, None).into_response())
     }
 }
@@ -69,9 +69,9 @@ async fn backup(
     State(CtxState { _db, is_development, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> Response {
-if !is_development {
-    return (StatusCode::OK, "not development").into_response();
-}
+    if !is_development {
+        return (StatusCode::OK, "not development").into_response();
+    }
     let mut backup = _db.export(()).await.unwrap();
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
@@ -84,15 +84,14 @@ if !is_development {
         match result {
             Ok(bytes) => {
                 file.write_all(bytes.as_slice()).await.unwrap();
-            },
+            }
             Err(error) => {
                 // Handle the export error
                 println!("ERRRRRR {}", error);
             }
         }
     }
-    (StatusCode::OK,"created backup").into_response()
-
+    (StatusCode::OK, "created backup").into_response()
 }
 async fn post_init_form(
     State(CtxState { _db, key_enc, .. }): State<CtxState>,

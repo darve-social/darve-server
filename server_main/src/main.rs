@@ -26,6 +26,7 @@ use sb_community::routes::{community_routes, discussion_routes, discussion_topic
 use sb_middleware::ctx::Ctx;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
+use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
@@ -36,6 +37,8 @@ use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes};
+use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::wallet_entitiy::WalletDbService;
 use crate::test_utils::create_dev_env;
 
 mod mw_response_transformer;
@@ -102,6 +105,9 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
+    TaskRequestDbService { db: &db, ctx: &c }.mutate_db().await?;
+    WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
+    CurrencyTransactionDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
 

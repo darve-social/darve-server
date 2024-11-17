@@ -76,7 +76,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE INDEX to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
     DEFINE FIELD request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej},'{t_stat_del},'{t_stat_com}'];
+        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej}','{t_stat_del}','{t_stat_com}'];
     DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE FIELD offer_amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD deliverables ON TABLE {TABLE_NAME} TYPE option<array<string>>;

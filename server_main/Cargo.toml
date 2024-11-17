@@ -43,3 +43,4 @@ sb_community={path = "../sb_community" }
 sb_middleware={path = "../sb_middleware" }
 sb_user_auth={path = "../sb_user_auth" }
 sb_task={path = "../sb_task" }
+sb_wallet={path = "../sb_wallet" }

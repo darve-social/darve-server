@@ -16,7 +16,7 @@ use sb_middleware::{
 };
 use crate::entity::access_right_entity::AccessRightDbService;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,

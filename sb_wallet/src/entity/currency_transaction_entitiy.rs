@@ -1,15 +1,12 @@
+use crate::entity::wallet_entitiy::CurrencySymbol;
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName};
+use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use sb_user_auth::entity::access_rule_entity::AccessRule;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
-use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
-use crate::entity::wallet_entitiy::{CurrencySymbol, Wallet};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
@@ -65,12 +62,12 @@ impl<'a> CurrencyTransactionDbService<'a> {
         Ok(())
     }
 
-    pub async fn move_amount(&self, wallet_from: Thing,  wallet_to: Thing, amount: i64, currency: CurrencySymbol) -> CtxResult<()> {
+    pub async fn move_amount(&self, wallet_from: Thing, wallet_to: Thing, amount: i64, currency: CurrencySymbol) -> CtxResult<()> {
         let qry = format!("
         BEGIN TRANSACTION;
 
-            LET $w_from = SELECT * FROM $w_from_id FETCH {TRANSACTION_HEAD_F};
-            LET $w_to = SELECT * FROM $w_to_id;
+            LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F};
+            LET $w_to = SELECT * FROM ONLY $w_to_id;
 
             LET $updated_from_balance = $w_from.{TRANSACTION_HEAD_F}.balance - $amt;
 
@@ -88,9 +85,9 @@ impl<'a> CurrencyTransactionDbService<'a> {
                 prev_transaction: $w_from.{TRANSACTION_HEAD_F}.id,
                 amount_out: $amt,
                 balance: $updated_from_balance,
-            }};
+            }} RETURN id;
 
-            UPDATE $w_from_id SET {TRANSACTION_HEAD_F}=$tx_out.id;
+            UPDATE $w_from.id SET {TRANSACTION_HEAD_F}=$tx_out[0].id;
 
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
                 wallet: $w_to_id,
@@ -100,9 +97,9 @@ impl<'a> CurrencyTransactionDbService<'a> {
                 prev_transaction: $w_to.{TRANSACTION_HEAD_F}.id,
                 amount_in: $amt,
                 balance: $w_to.{TRANSACTION_HEAD_F}.balance + $amt,
-            }};
+            }} RETURN id;
 
-            UPDATE $w_to_id SET {TRANSACTION_HEAD_F}=$tx_in.id;
+            UPDATE $w_to.id SET {TRANSACTION_HEAD_F}=$tx_in[0].id;
 
         COMMIT TRANSACTION;
         ");
@@ -116,15 +113,27 @@ impl<'a> CurrencyTransactionDbService<'a> {
         Ok(())
     }
 
-    /*async fn create_record(%self, record: CurrencyTransaction){
-
-    self.db
+    pub async fn create_init_record(&self, wallet_id: Thing, currency: CurrencySymbol, balance: Option<i64>) -> CtxResult<CurrencyTransaction> {
+        let record = CurrencyTransaction {
+            id: None,
+            wallet: wallet_id.clone(),
+            with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
+            tx_ident: wallet_id.id.to_raw(),
+            currency: currency.to_string(),
+            prev_transaction: Thing::from((TABLE_NAME, "zero_tx")),
+            amount_in: None,
+            amount_out: None,
+            balance: balance.unwrap_or(0),
+            r_created: None,
+            r_updated: None,
+        };
+        self.db
             .create(TABLE_NAME)
             .content(record)
             .await
             .map_err(CtxError::from(self.ctx))
             .map(|v: Option<CurrencyTransaction>| v.unwrap())
-    }*/
+    }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<CurrencyTransaction> {
         let opt = get_entity::<CurrencyTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
