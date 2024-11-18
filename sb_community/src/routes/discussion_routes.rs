@@ -278,6 +278,10 @@ async fn discussion_sse(
             if notification_discussion_ident.is_none() || notification_discussion_ident.clone().unwrap().discussion_id.ne(&discussion_id) {
                 return false;
             }
+            let n_event = CommunityNotificationEvent::from_str(notification.event.as_str());
+            if n_event.is_err() {
+                return false;
+            }
 
             let event_ident = notification_discussion_ident.unwrap();
             if q_params.topic_id.is_some() && q_params.topic_id.ne(&event_ident.topic_id) {
