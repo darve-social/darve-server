@@ -113,7 +113,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
         Ok(())
     }
 
-    pub async fn create_init_record(&self, wallet_id: Thing, currency: CurrencySymbol, balance: Option<i64>) -> CtxResult<CurrencyTransaction> {
+    pub(crate) async fn create_init_record(&self, wallet_id: Thing, currency: CurrencySymbol, balance: Option<i64>) -> CtxResult<CurrencyTransaction> {
         let record = CurrencyTransaction {
             id: None,
             wallet: wallet_id.clone(),

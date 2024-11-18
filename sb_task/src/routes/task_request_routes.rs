@@ -1,9 +1,9 @@
-use crate::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole};
+use crate::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
-use axum::http::{Response, Uri};
-use axum::response::Html;
+use axum::http::{Response, StatusCode, Uri};
+use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -20,22 +20,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
 use std::path::Path as FPath;
-use surrealdb::sql::Thing;
+use surrealdb::sql::{Id, Thing};
 use tempfile::NamedTempFile;
 use tower::util::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
 use validator::Validate;
+use crate::entity::task_request_offer_entity::{TaskRequestOffer, TaskRequestOfferDbService};
 
 pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
 pub fn routes(state: CtxState) -> Router {
-
     Router::new()
         .route("/api/task_request", post(create_entity))
         .route("/api/task_request/received/post/:post_id", get(post_requests_received))
         .route("/api/task_request/given/post/:post_id", get(post_requests_given))
         .route("/api/task_request/:task_id/accept", post(accept_task_request))
         .route("/api/task_request/:task_id/deliver", post(deliver_task_request))
+        .route("/api/task_request/:task_id/offer", post(add_task_request_offer))
         .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
         .with_state(state)
@@ -49,7 +50,12 @@ pub struct TaskRequestInput {
     pub to_user: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
-    pub offer_amount: u64,
+    pub offer_amount: Option<i64>,
+}
+
+#[derive(Deserialize, Serialize, Validate)]
+pub struct TaskRequestOfferInput {
+    pub amount: i64,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -125,11 +131,8 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
         return Err(ctx.to_ctx_error(AppError::Generic { description: "content must have value".to_string() }));
     };
 
-    let offer_amount = if t_request_input.offer_amount > 0 {
-        t_request_input.offer_amount
-    } else {
-        return Err(ctx.to_ctx_error(AppError::Generic { description: "offer_amount must have value greater than 0".to_string() }));
-    };
+    let offer_amount = t_request_input.offer_amount.unwrap_or(0);
+
 
     let post_id = t_request_input.post_id.unwrap_or("".to_string());
     let post = if post_id.len() > 0 {
@@ -138,7 +141,16 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
         None
     };
 
-    let t_request = TaskRequestDbService { db: &_db, ctx: &ctx }.create(TaskRequest { id: None, from_user, to_user, request_post: post, request_txt: content, offer_amount, status: TaskStatus::Requested.to_string(), deliverables: None, deliverables_post: None, r_created: None, r_updated: None }).await?;
+    let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
+    let offer = TaskRequestOfferDbService { db: &_db, ctx: &ctx }.create_update(TaskRequestOffer {
+        id: None,
+        task_request: t_req_id.clone(),
+        user: from_user.clone(),
+        amount: offer_amount,
+        r_created: None,
+        r_updated: None,
+    }).await?;
+    let t_request = TaskRequestDbService { db: &_db, ctx: &ctx }.create(TaskRequest { id: Some(t_req_id), from_user, to_user, request_post: post, request_txt: content, offers: vec![offer.id.unwrap()], status: TaskStatus::Requested.to_string(), deliverables: None, deliverables_post: None, r_created: None, r_updated: None }).await?;
 
     ctx.to_htmx_or_json_res(CreatedResponse { id: t_request.id.unwrap().to_raw(), uri: None, success: true })
 }
@@ -158,7 +170,7 @@ async fn serve_task_deliverable_file(State(CtxState { _db, uploads_serve_dir, ..
     let uri = Uri::from(PathAndQuery::try_from(path).unwrap());
     let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
     let res = uploads_serve_dir.oneshot(req).await;
-        res.map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Error getting file".to_string() }))
+    res.map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Error getting file".to_string() }))
 }
 
 async fn accept_task_request(State(CtxState { _db, .. }): State<CtxState>,
@@ -197,6 +209,21 @@ async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<Ct
     TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user, task_id.clone(), TaskStatus::Delivered, Some(vec![file_uri])).await?;
 
     ctx.to_htmx_or_json_res(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
+}
+
+async fn add_task_request_offer(State(CtxState { _db, .. }): State<CtxState>,
+                                ctx: Ctx,
+                                Path(task_id): Path<String>,
+                                JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
+) -> CtxResult<Html<String>> {
+    let from_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let task_offer = TaskRequestOfferDbService{ db: &_db, ctx: &ctx }.add_to_task_offers(get_string_thing(task_id)?, from_user, t_request_offer_input.amount).await?;
+    ctx.to_htmx_or_json_res(CreatedResponse{
+        success: true,
+        id: task_offer.id.unwrap().to_raw(),
+        uri: None,
+    })
+
 }
 
 struct TaskDeliverableFileName {

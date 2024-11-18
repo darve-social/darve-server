@@ -38,9 +38,10 @@ pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
     if db_start.is_err() {
         panic!("DB ERR={:?}",db_start.err().unwrap());
     }
-    runMigrations(db_start.unwrap()).await.expect("migrations run");
+    let is_dev = true;
+    runMigrations(db_start.unwrap(), is_dev).await.expect("migrations run");
 
-    let ctx_state = create_ctx_state("123".to_string(), true, "".to_string() , "".to_string() , "".to_string(), "uploads".to_string());
+    let ctx_state = create_ctx_state("123".to_string(), is_dev, "".to_string() , "".to_string() , "".to_string(), "uploads".to_string());
     let wa_config = create_webauth_config();
     let routes_all = main_router(&ctx_state.clone(), wa_config).await;
 

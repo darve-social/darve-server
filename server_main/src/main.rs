@@ -27,6 +27,7 @@ use sb_middleware::ctx::Ctx;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
+use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
@@ -48,15 +49,15 @@ mod tests;
 #[tokio::main]
 async fn main() -> AppResult<()> {
     dotenv().ok();
-    let db= db::start(None).await?;
-    runMigrations(db).await?;
-
     let is_dev = std::env::var("DEVELOPMENT").expect("set DEVELOPMENT env var").eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
     let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
     let stripe_wh_secret = std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
+
+    let db= db::start(None).await?;
+    runMigrations(db, is_dev).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(init_server_password, is_dev, jwt_secret, stripe_key, stripe_wh_secret, uploads_dir );
     let wa_config = webauthn_routes::create_webauth_config();
@@ -88,7 +89,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
+async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -106,7 +107,8 @@ async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
     AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
     TaskRequestDbService { db: &db, ctx: &c }.mutate_db().await?;
-    WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
+    TaskRequestOfferDbService { db: &db, ctx: &c }.mutate_db().await?;
+    WalletDbService { db: &db, ctx: &c, is_development  }.mutate_db().await?;
     CurrencyTransactionDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
