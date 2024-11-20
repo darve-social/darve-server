@@ -23,6 +23,7 @@ use sb_middleware::error::{CtxResult, AppError};
 use sb_middleware::mw_ctx::CtxState;
 use crate::routes::register_routes::{register_user, RegisterInput};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
+use sb_middleware::utils::string_utils::get_string_thing;
 use crate::entity::access_right_entity::AccessRightDbService;
 use crate::utils::template_utils::ProfileFormPage;
 
@@ -111,7 +112,7 @@ async fn post_init_form(
     let authorization = Authorization::new(authThing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99).unwrap();
 
     let aright_db_service = &AccessRightDbService { db: &_db, ctx: &ctx };
-    let user_rec_id = Thing::try_from(created_user.clone().id).map_err(|e| { ctx.to_ctx_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
+    let user_rec_id = get_string_thing(created_user.clone().id)?;
     aright_db_service.authorize(user_rec_id, authorization, None).await?;
     ctx.to_htmx_or_json_res(&created_user)
 }

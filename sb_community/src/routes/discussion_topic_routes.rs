@@ -80,7 +80,7 @@ async fn get_form(
     println!("->> {:<12} - create_update_disc_topic", "HANDLER");
     let user_id = LocalUserDbService{db: &_db, ctx: &ctx}.get_ctx_user_thing().await?;
 
-    let disc_id = Thing::try_from(discussion_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let disc_id = get_string_thing(discussion_id)?;
     let disc = DiscussionDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(disc_id.clone())).await?;
     let required_diss_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_diss_auth).await?;
@@ -102,7 +102,7 @@ async fn get_form(
             access_rules,
         },
         Some(topic_id) => {
-            let topic_id = Thing::try_from(topic_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into topic Thing".to_string() }))?;
+            let topic_id = get_string_thing(topic_id.clone())?;
             let topic = DiscussionTopicDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(topic_id)).await?;
             let access_rule = match topic.access_rule {
                 None => None,
@@ -130,7 +130,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
     println!("->> {:<12} - create_update_disc_topic", "HANDLER");
     let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let disc_id = Thing::try_from(discussion_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let disc_id = get_string_thing(discussion_id)?;
     let disc_db_ser = DiscussionDbService { db: &_db, ctx: &ctx };
     let comm_id = disc_db_ser.get(IdentIdName::Id(disc_id.clone())).await?.belongs_to;
 
@@ -148,7 +148,6 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
             r_created: None,
         },
         true => {
-            Thing::try_from(form_value.id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into topic Thing".to_string() }))?;
             disc_topic_db_ser.get(IdentIdName::Id(get_string_thing(form_value.id)?)).await?
         }
     };
@@ -161,7 +160,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
     update_topic.hidden = form_value.hidden.is_some();
 
     update_topic.access_rule = match form_value.access_rule_id.len()>0 {
-        true => Some(Thing::try_from(form_value.access_rule_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into access_rule_id Thing".to_string() }))?),
+        true => Some(get_string_thing(form_value.access_rule_id)?),
         false => None,
     };
 

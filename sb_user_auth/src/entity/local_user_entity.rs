@@ -14,6 +14,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{CtxError, CtxResult, AppError},
 };
+use sb_middleware::utils::string_utils::get_string_thing;
 use crate::entity::access_right_entity::AccessRightDbService;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -72,7 +73,7 @@ impl<'a> LocalUserDbService<'a> {
 
     pub async fn get_ctx_user_id(&self) -> CtxResult<String> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into Thing".to_string() }))?;
+        let user_id = get_string_thing(created_by.clone())?;
         let existing_id = self.exists(IdentIdName::Id(user_id)).await?;
         match existing_id {
             None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
@@ -82,7 +83,7 @@ impl<'a> LocalUserDbService<'a> {
 
     pub async fn get_ctx_user_thing(&self) -> CtxResult<Thing> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = get_string_thing(created_by.clone())?;
         let existing_id = self.exists(IdentIdName::Id(user_id.clone())).await?;
         match existing_id {
             None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
@@ -92,13 +93,13 @@ impl<'a> LocalUserDbService<'a> {
 
     pub async fn is_ctx_user_authorised(&self, authorization: &Authorization) -> CtxResult<()> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = get_string_thing(created_by.clone())?;
         AccessRightDbService{ db: self.db, ctx: self.ctx }.is_authorized(&user_id, authorization).await
     }
 
     pub async fn get_ctx_user(&self) -> CtxResult<LocalUser> {
         let created_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(created_by.clone()).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+        let user_id = get_string_thing(created_by.clone())?;
         self.get(IdentIdName::Id(user_id)).await
     }
 

@@ -119,7 +119,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
     println!("->> {:<12} - create_update_arule", "HANDLER");
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let comm_id = Thing::try_from(form_value.target_entity_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
+    let comm_id = get_string_thing(form_value.target_entity_id.clone())?;
     record_exists(&ctx_state._db, comm_id.clone()).await?;
     let required_diss_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
     AccessRightDbService { db: &ctx_state._db, ctx: &ctx }.is_authorized(&user_id, &required_diss_auth).await?;
@@ -165,7 +165,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
     } else { update_access_rule.access_gain_action_redirect_url = None }
 
     if form_value.authorize_record_id_required.len() > 0 {
-        let rec_id = Thing::try_from(form_value.authorize_record_id_required).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into rec_id Thing".to_string() }))?;
+        let rec_id = get_string_thing(form_value.authorize_record_id_required)?;
         let required_rec_auth = Authorization { authorize_record_id: rec_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
         AccessRightDbService { db: &ctx_state._db, ctx: &ctx }.is_authorized(&user_id, &required_rec_auth).await?;
         update_access_rule.authorization_required = Authorization { authorize_record_id: rec_id, authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(), authorize_height: form_value.authorize_height_required }

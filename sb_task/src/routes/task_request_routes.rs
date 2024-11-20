@@ -75,7 +75,7 @@ async fn post_requests_received(
     Path(post_id): Path<String>,
 ) -> CtxResult<String> {
     let to_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let post_id = Thing::try_from(post_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into post_id Thing".to_string() }))?;
+    let post_id = get_string_thing(post_id)?;
 
     let list = TaskRequestDbService { db: &_db, ctx: &ctx }.user_post_list(UserTaskRole::ToUser, to_user, post_id).await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
@@ -87,7 +87,7 @@ async fn post_requests_given(
     Path(post_id): Path<String>,
 ) -> CtxResult<String> {
     let from_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let post_id = Thing::try_from(post_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into post_id Thing".to_string() }))?;
+    let post_id = get_string_thing(post_id)?;
 
     let list = TaskRequestDbService { db: &_db, ctx: &ctx }.user_post_list(UserTaskRole::FromUser, from_user, post_id).await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
@@ -120,7 +120,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     let from_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
     let to_user = if t_request_input.to_user.len() > 0 {
-        Thing::try_from(t_request_input.to_user).map_err(|e| AppError::Generic { description: "to_user error into id Thing".to_string() })?
+        get_string_thing(t_request_input.to_user)?
     } else {
         return Err(ctx.to_ctx_error(AppError::Generic { description: "to_user must have value".to_string() }));
     };
@@ -136,7 +136,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 
     let post_id = t_request_input.post_id.unwrap_or("".to_string());
     let post = if post_id.len() > 0 {
-        Some(Thing::try_from(post_id).map_err(|e| AppError::Generic { description: "post_id error into id Thing".to_string() })?)
+        Some(get_string_thing(post_id)?)
     } else {
         None
     };

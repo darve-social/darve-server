@@ -99,7 +99,7 @@ pub async fn get_community(State(ctx_state): State<CtxState>,
 
     let ident_id_name = match name.contains(":") {
         true => {
-            let comm_thing = Thing::try_from(name).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "not community Thing".to_string() }))?;
+            let comm_thing = get_string_thing(name)?;
             IdentIdName::Id(comm_thing)
         }
         false => IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: name.clone(), rec: false }
@@ -154,14 +154,14 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
 
     let create_custom_id = form_value.create_custom_id.unwrap_or(false);
     let comm_id = match form_value.id.len() > 0 && !create_custom_id {
-        true => Some(Thing::try_from(form_value.id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community_id Thing".to_string() }))?),
+        true => Some(get_string_thing(form_value.id.clone())?),
         false => None,
     };
 
     let mut update_comm = match comm_id {
         None => Community {
             id: match create_custom_id {
-                true => Some(Thing::try_from(form_value.id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community_id Thing".to_string() }))?),
+                true => Some(get_string_thing(form_value.id)?),
                 false => None
             },
             title: "".to_string(),
@@ -200,10 +200,9 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
 }
 
 pub async fn community_admin_access(_db: &Db, ctx: &Ctx, community_id: String) -> CtxResult<(Thing, Community)> {
-    let req_by = ctx.user_id()?;
-    let user_id = Thing::try_from(req_by).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user_id Thing".to_string() }))?;
+    let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let comm_id = Thing::try_from(community_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
+    let comm_id = get_string_thing(community_id)?;
     let comm = CommunityDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(comm_id.clone())).await?;
     let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;

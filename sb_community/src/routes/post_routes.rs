@@ -192,7 +192,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 
     let post_db_service = PostDbService { db: &_db, ctx: &ctx };
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
-        Thing::try_from(input_value.topic_id).ok()
+        get_string_thing(input_value.topic_id).ok()
     } else { None };
 
     let post = post_db_service

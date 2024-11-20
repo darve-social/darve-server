@@ -14,6 +14,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{CtxError, CtxResult, AppError},
 };
+use sb_middleware::utils::string_utils::get_string_thing;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct AccessRight {
@@ -225,9 +226,9 @@ impl<'a> AccessRightDbService<'a> {
 
     pub async fn has_owner_access(&self, target_record_id: String) -> CtxResult<Thing> {
         let req_by = self.ctx.user_id()?;
-        let user_id = Thing::try_from(req_by).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into user_id Thing".to_string() }))?;
+        let user_id = get_string_thing(req_by)?;
 
-        let target_rec_thing = Thing::try_from(target_record_id).map_err(|e| self.ctx.to_ctx_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
+        let target_rec_thing = get_string_thing(target_record_id)?;
         let required_auth = Authorization { authorize_record_id: target_rec_thing.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
         self.is_authorized(&user_id, &required_auth).await?;
         Ok(target_rec_thing)

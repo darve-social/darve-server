@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use sb_middleware::error::{CtxError, CtxResult, AppError};
 use sb_middleware::utils::db_utils::RecordWithId;
+use sb_middleware::utils::string_utils::get_string_thing;
 
 const AUTH_DOMAIN_ID_AUTHORIZE_DELIM: &str = "#";
 const AUTH_DOMAIN_IDENT_HEIGHT_DELIM: &str = "~";
@@ -277,7 +278,7 @@ impl TryFrom<String> for Authorization {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.split_once(AUTH_DOMAIN_ID_AUTHORIZE_DELIM) {
             Some((domainIdent, auth)) => {
-                let domain: Thing = Thing::try_from(domainIdent).map_err(|e| Self::Error::ParseError { reason: "can't parse auth record ident".to_string() })?;
+                let domain: Thing = get_string_thing(domainIdent.to_string()).map_err(|e| AuthorizationError::ParseError {reason:"error parsing domain thing".to_string()})?;
                 if get_auth_record_index(&domain.tb).is_none() {
                     return Err(AuthorizationError::ParseError { reason: "wrong domain table ident".to_string() });
                 }

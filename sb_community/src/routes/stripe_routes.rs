@@ -221,7 +221,7 @@ impl TryFrom<MyStripeProductId> for Thing {
 
     fn try_from(value: MyStripeProductId) -> Result<Self, Self::Error> {
         let thing_ident = value.0.as_str().replace("-", ":");
-        Thing::try_from(thing_ident).map_err(|e| Self::Error::Generic { description: "Can not convert to ident from stripe product id".to_string() })
+        get_string_thing(thing_ident)
     }
 }
 
@@ -570,7 +570,7 @@ async fn extract_invoice_data(_ctx_state: &CtxState, ctx: &Ctx, invoice: Invoice
                 if let Some(mut md) = price.metadata {
                     let user_id = md.remove(PRICE_USER_ID_KEY);
                     if user_id.is_some() {
-                        let usr_id = Thing::try_from(user_id.clone().unwrap());
+                        let usr_id = get_string_thing(user_id.clone().unwrap());
                         let product_id = price.product.unwrap().id();
                         if usr_id.is_ok() {
                             let access_rule_thing: Result<Thing, AppError> = MyStripeProductId(product_id.clone()).try_into();

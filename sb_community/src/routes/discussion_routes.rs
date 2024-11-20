@@ -167,7 +167,7 @@ pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: Thing, q_pa
 
     let user_auth = match ctx.user_id() {
         Ok(user_id) => {
-            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            let user_id = get_string_thing(user_id)?;
             AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
         }
         Err(_) => vec![]
@@ -194,7 +194,7 @@ async fn create_update_form(
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
-    let comm_id = Thing::try_from(community_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error community id into Thing".to_string() }))?;
+    let comm_id = get_string_thing(community_id.clone())?;
     let mut topics = vec![];
     let disc_id: Option<&String> = match qry.get("id").unwrap_or(&String::new()).len() > 0 {
         true => Some(qry.get("id").unwrap()),
@@ -264,7 +264,7 @@ async fn discussion_sse(
 
     let user_auth = match ctx.user_id() {
         Ok(user_id) => {
-            let user_id = Thing::try_from(user_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user Thing".to_string() }))?;
+            let user_id = get_string_thing(user_id)?;
             AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
         }
         Err(_) => vec![]
