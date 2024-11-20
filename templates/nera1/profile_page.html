@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-
-{% block content %}
-
-profile={{profile_view.as_ref().unwrap().user_id}}
-
-{{profile_view|display_some|safe}}
-
-{% endblock %}
