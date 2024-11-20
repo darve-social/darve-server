@@ -235,7 +235,7 @@ mod tests {
     #[derive(Debug, PartialEq,  Serialize, Deserialize, Display)]
     pub enum SomeTestEnum {
             UserFollowAdded{username: String, rec: Thing},
-            UserTaskRequestComplete{task_id: String, delivered_by:String, requested_by: String, deliverables:Vec<String>},
+            UserTaskRequestComplete{task_id: String, deliverables:Vec<String>},
         }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -249,7 +249,7 @@ mod tests {
 
         let (db, ctx) = init_db_test().await;
         let qry = r#"DEFINE TABLE test_enum SCHEMAFULL;
-    DEFINE FIELD value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record}};"#;
+    DEFINE FIELD value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record}} | {UserTaskRequestComplete:{task_id: string, deliverables:array<string>}};"#;
         &db.query(qry).await.expect("table defined");
 
         let s=serde_json::to_string(&SomeTestEnum::UserFollowAdded { username: "usss".to_string(), rec: Thing::from(("test_enum", "32432fa")) }).expect("string");
@@ -266,6 +266,15 @@ mod tests {
         dbg!(&res);
         let res:Option<Val> = db.select(("test_enum", res.unwrap().id.unwrap().id.to_raw())).await.expect("rec");
         dbg!(res);
+
+        let res: Option<Val> = db.create("test_enum").content(Val{ id: None, value:SomeTestEnum::UserTaskRequestComplete {
+            task_id: "taaask:123".to_string(),
+            deliverables: vec!["one".to_string()],
+        }}).await.expect("saved");
+        dbg!(&res);
+        let res:Option<Val> = db.select(("test_enum", res.unwrap().id.unwrap().id.to_raw())).await.expect("rec");
+        dbg!(res);
+
     }
 
     async fn backup(_db: db::Db) {
