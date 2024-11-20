@@ -203,7 +203,7 @@ async fn display_profile(
     profile_view.profile_discussion = profile_comm.main_discussion;
 
     let disc_id = profile_view.profile_discussion.clone().unwrap();
-    let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone().to_raw())).await?;
+    let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
 
     let discussion_posts = PostDbService { db: &ctx_state._db, ctx: &ctx }
         .get_by_discussion_desc_view::<ProfilePostView>(disc_id.clone(), q_params.clone()).await?;
@@ -224,7 +224,7 @@ async fn display_profile(
 async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     let profile_comm_id = CommunityDbService::get_profile_community_id(user_id.clone());
-    match comm_db_ser.get(IdentIdName::Id(profile_comm_id.to_raw())).await {
+    match comm_db_ser.get(IdentIdName::Id(profile_comm_id.clone())).await {
         Ok(comm) => Ok(comm),
         Err(err) => {
             match err.error {
@@ -257,7 +257,7 @@ async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let other_user_id = get_string_thing(other_user_id)?;
     // TODO limit nr of requests or count them to distinguish bots for user ids
-    local_user_db_service.exists(IdentIdName::Id(other_user_id.to_raw())).await?;
+    local_user_db_service.exists(IdentIdName::Id(other_user_id.clone())).await?;
 
     let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
     let discussions = comm.profile_chats.clone().unwrap_or(vec![]);

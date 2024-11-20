@@ -77,7 +77,7 @@ impl<'a> WalletDbService<'a> {
     pub async fn get_balance(&self, user_id: Thing) -> CtxResult<WalletBalanceView> {
         let user_wallet_id = Self::get_wallet_id(&user_id);
         if record_exists(self.db, user_wallet_id.clone()).await.is_ok() {
-            self.get_view::<WalletBalanceView>(IdentIdName::Id(user_wallet_id.to_string())).await
+            self.get_view::<WalletBalanceView>(IdentIdName::Id(user_wallet_id)).await
         } else {
             self.init_wallet(user_id).await
         }
@@ -234,7 +234,7 @@ mod tests {
     // derive Display only stringifies enum ident, serde also serializes the value
     #[derive(Debug, PartialEq,  Serialize, Deserialize, Display)]
     pub enum SomeTestEnum {
-            UserFollowAdded{username: String, rec: Thing},
+            UserFollowAdded{username: String, rec: Thing, opt: Option<String>},
             UserTaskRequestComplete{task_id: String, deliverables:Vec<String>},
         }
 
@@ -249,10 +249,11 @@ mod tests {
 
         let (db, ctx) = init_db_test().await;
         let qry = r#"DEFINE TABLE test_enum SCHEMAFULL;
-    DEFINE FIELD value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record}} | {UserTaskRequestComplete:{task_id: string, deliverables:array<string>}};"#;
+    DEFINE FIELD value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record, opt: option<string>}} | {UserTaskRequestComplete:{task_id: string, deliverables:array<string>}};"#;
+
         &db.query(qry).await.expect("table defined");
 
-        let s=serde_json::to_string(&SomeTestEnum::UserFollowAdded { username: "usss".to_string(), rec: Thing::from(("test_enum", "32432fa")) }).expect("string");
+        let s=serde_json::to_string(&SomeTestEnum::UserFollowAdded { username: "usss".to_string(), rec: Thing::from(("test_enum", "32432fa")), opt: Some("vall".to_string()) }).expect("string");
         println!("hhh={}",s);
 
         let uuu: SomeTestEnum = serde_json::from_str(s.as_str()).expect("back");

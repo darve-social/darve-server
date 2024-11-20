@@ -154,7 +154,7 @@ impl<'a> TaskRequestDbService<'a> {
     }
 
     pub async fn update_status_received_by_user(&self, user: Thing, record: Thing, status: TaskStatus, deliverables: Option<Vec<String>>) -> CtxResult<TaskRequest> {
-        let task = self.get(IdentIdName::Id(record.clone().to_raw())).await?;
+        let task = self.get(IdentIdName::Id(record.clone())).await?;
         if task.to_user == user {
             let update_op = self.db.update((record.tb.clone(), record.id.clone().to_raw()));
 

@@ -19,6 +19,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
+use sb_middleware::utils::string_utils::get_string_thing;
 use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
 
 pub fn routes(state: CtxState) -> Router {
@@ -66,7 +67,7 @@ async fn get_post_replies(State(CtxState { _db, .. }): State<CtxState>,
     println!("->> {:<12} - get post", "HANDLER");
 
     let diss_db = DiscussionDbService { db: &_db, ctx: &ctx };
-    diss_db.must_exist(IdentIdName::Id(discussion_id__post_ident.0)).await?;
+    diss_db.must_exist(IdentIdName::Id(get_string_thing(discussion_id__post_ident.0)?)).await?;
 
     let ident = Thing::try_from(discussion_id__post_ident.1).map_err(|e| { ctx.to_ctx_error(AppError::Generic { description: "Can not convert to Thing".to_string() }) })?;
     if ident.tb != PostDbService::get_table_name() {
@@ -108,7 +109,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
         })
         .await?;
 
-    let reply_comm_view = reply_db_service.get_view::<PostReplyView>(&IdentIdName::Id(reply.id.clone().unwrap().to_raw())).await?;
+    let reply_comm_view = reply_db_service.get_view::<PostReplyView>(&IdentIdName::Id(reply.id.clone().unwrap())).await?;
 
 
     let post = post_db_service.increase_replies_nr(post_id.clone()).await?;

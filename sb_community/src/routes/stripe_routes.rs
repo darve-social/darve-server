@@ -28,6 +28,7 @@ use sb_middleware::mw_ctx::CtxState;
 use crate::routes::community_routes::community_admin_access;
 use sb_user_auth::routes::register_routes::display_register_page;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use crate::entity::community_entitiy::CommunityDbService;
 
@@ -240,7 +241,7 @@ async fn access_rule_payment(
 
     let user_id = ctx.user_id()?;
 
-    let mut charge_access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleChargeView>(IdentIdName::Id(access_rule_id.clone())).await?;
+    let mut charge_access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleChargeView>(IdentIdName::Id(get_string_thing(access_rule_id.clone())?)).await?;
 
     if ctx_state.is_development {
         charge_access_rule.stripe_connect_account_id = Some("acct_1Q29UUEdDBSaSZL3".to_string());

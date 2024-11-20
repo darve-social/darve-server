@@ -26,6 +26,7 @@ use sb_middleware::error::{CtxResult, AppError};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{record_exists, IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
+use sb_middleware::utils::string_utils::get_string_thing;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -102,6 +103,7 @@ async fn get_form(
             price_amount: None,
         },
         Some(id) => {
+            let id= get_string_thing(id)?;
             AccessRuleDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(id)).await?
         }
     };
@@ -144,8 +146,7 @@ async fn create_update(State(ctx_state): State<CtxState>,
             }
         }
         true => {
-            Thing::try_from(form_value.id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into access_rule Thing".to_string() }))?;
-            access_r_db_ser.get(IdentIdName::Id(form_value.id)).await?
+            access_r_db_ser.get(IdentIdName::Id(get_string_thing(form_value.id.clone())?)).await?
         }
     };
 

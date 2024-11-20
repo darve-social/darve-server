@@ -162,7 +162,7 @@ async fn serve_task_deliverable_file(State(CtxState { _db, uploads_serve_dir, ..
     let user = get_string_thing(ctx.user_id()?)?;
 
     let task_file = TaskDeliverableFileName::try_from(path.clone())?;
-    let task = TaskRequestDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(task_file.task_id.to_raw())).await?;
+    let task = TaskRequestDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(task_file.task_id)).await?;
     if task.from_user != user {
         return Err(ctx.to_ctx_error(AuthorizationFail { required: "Not authorised".to_string() }));
     }

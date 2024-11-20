@@ -29,6 +29,7 @@ use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use strum::{Display, EnumString};
+use sb_middleware::utils::string_utils::get_string_thing;
 use crate::entity::post_entitiy::Post;
 use crate::entity::reply_entitiy::Reply;
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
@@ -99,13 +100,13 @@ pub async fn get_community(State(ctx_state): State<CtxState>,
     let ident_id_name = match name.contains(":") {
         true => {
             let comm_thing = Thing::try_from(name).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "not community Thing".to_string() }))?;
-            IdentIdName::Id(comm_thing.to_raw())
+            IdentIdName::Id(comm_thing)
         }
         false => IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: name.clone(), rec: false }
     };
     let mut comm_view = CommunityDbService { db: &ctx_state._db, ctx: &ctx }
         .get_view::<CommunityView>(ident_id_name).await?;
-    comm_view.main_discussion_view = Some(get_discussion_view(&ctx_state._db, &ctx, comm_view.main_discussion.to_raw(), q_params).await?);
+    comm_view.main_discussion_view = Some(get_discussion_view(&ctx_state._db, &ctx, comm_view.main_discussion.clone(), q_params).await?);
     Ok(CommunityPage {
         theme_name: "emerald".to_string(),
         window_title: "win win".to_string(),
@@ -127,7 +128,7 @@ async fn create_update_form(
                 None => None,
                 Some(id) =>
                     Some(CommunityDbService { db: &_db, ctx: &ctx }
-                        .get_view::<CommunityView>(IdentIdName::Id(id.clone())).await?)
+                        .get_view::<CommunityView>(IdentIdName::Id(get_string_thing(id.clone())?)).await?)
             },
         }), None, None))
 }
@@ -177,7 +178,7 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
             // .get throws if not existant community_db_service.must_exist(IdentIdName::Id(comm_id.to_raw())).await?;
             let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };
             AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
-            community_db_service.get(IdentIdName::Id(comm_id.to_raw())).await?
+            community_db_service.get(IdentIdName::Id(comm_id)).await?
         }
     };
 
@@ -203,7 +204,7 @@ pub async fn community_admin_access(_db: &Db, ctx: &Ctx, community_id: String) -
     let user_id = Thing::try_from(req_by).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into user_id Thing".to_string() }))?;
 
     let comm_id = Thing::try_from(community_id).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into community Thing".to_string() }))?;
-    let comm = CommunityDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(comm_id.clone().to_raw())).await?;
+    let comm = CommunityDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(comm_id.clone())).await?;
     let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
     Ok((comm_id, comm))

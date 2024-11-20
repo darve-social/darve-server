@@ -29,6 +29,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
+use sb_middleware::utils::string_utils::get_string_thing;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -82,8 +83,8 @@ async fn access_gain_action_page(
         // TODO add cookie when loggedin so app knows if should go to registration
         return Ok(display_register_page(ctx, Query(qry)).await?.into_response());
     }
-    let user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(ctx.user_id().expect("not error - checked above"))).await?;
-    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(access_rule_id)).await?;
+    let user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user().await?;
+    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(get_string_thing(access_rule_id)?)).await?;
     if access_rule.price_amount.unwrap_or(0) > 0 {
         return Ok(Redirect::temporary(format!("/api/stripe/access-rule/{}", access_rule.id.expect("is saved").to_raw()).as_str()).into_response());
     }
@@ -107,8 +108,8 @@ async fn access_gain_action_form(
         // TODO add cookie when loggedin so app knows if should go to registration
         return Ok(display_register_form(ctx, Query(qry)).await?.into_response());
     }
-    let user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(ctx.user_id().expect("not error - checked above"))).await?;
-    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(access_rule_id)).await?;
+    let user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user().await?;
+    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get(IdentIdName::Id(get_string_thing(access_rule_id)?)).await?;
     if access_rule.price_amount.unwrap_or(0) > 0 {
         return Ok(Redirect::temporary(format!("/api/stripe/access-rule/{}", access_rule.id.expect("is saved").to_raw()).as_str()).into_response());
     }
@@ -128,7 +129,7 @@ async fn save_access_gain_action(
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
 
     let local_user_db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
-    let mut user = local_user_db_service.get(IdentIdName::Id(user_id.to_raw())).await?;
+    let mut user = local_user_db_service.get(IdentIdName::Id(user_id.clone())).await?;
     if user.email.is_none() {
         user.email = Option::from(form_value.email.to_lowercase());
         user = local_user_db_service.update(user).await?;
@@ -137,7 +138,7 @@ async fn save_access_gain_action(
         return Err(ctx.to_ctx_error(AppError::Generic { description: "Profile email different than provided".to_string() }));
     }
 
-    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleView>(IdentIdName::Id(form_value.access_rule_id)).await?;
+    let access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleView>(IdentIdName::Id(get_string_thing(form_value.access_rule_id)?)).await?;
 
     let access_gain_action_db_service = AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx };
 

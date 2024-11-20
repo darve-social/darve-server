@@ -176,7 +176,7 @@ impl<'a> AccessRightDbService<'a> {
             return Err(self.ctx.to_api_error(Error::Generic { description: "Can not add unpaid access right".to_string() }));
         }*/
         // TODO in transaction
-        let paid_access_rule = AccessRuleDbService { db: self.db, ctx: self.ctx }.get(IdentIdName::Id(access_rule_id.to_raw())).await?;
+        let paid_access_rule = AccessRuleDbService { db: self.db, ctx: self.ctx }.get(IdentIdName::Id(access_rule_id.clone())).await?;
 
         let access_rights = self.list_by_user(&local_user_id).await?;
         let existing_access_right = match access_rights.len()>0 {

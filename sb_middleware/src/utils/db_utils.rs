@@ -2,7 +2,6 @@ use std::fmt::{Display, Formatter};
 
 use serde::Deserialize;
 use strum::Display;
-use strum::EnumString;
 use surrealdb::sql::Thing;
 use tower::ServiceExt;
 
@@ -17,7 +16,7 @@ pub struct RecordWithId {
 }
 
 pub enum IdentIdName {
-    Id(String),
+    Id(Thing),
     ColumnIdent { column: String, val: String, rec: bool },
     ColumnIdentAnd(Vec<IdentIdName>),
 }
@@ -25,7 +24,7 @@ pub enum IdentIdName {
 impl Display for IdentIdName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            IdentIdName::Id(id) => f.write_str(id.as_str()),
+            IdentIdName::Id(id) => f.write_str(id.to_raw().as_str()),
             IdentIdName::ColumnIdent { column, val, rec } => {
                 let v = match *rec {
                     true => val.clone(),
@@ -67,7 +66,7 @@ pub struct Pagination {
     pub start: i32,
 }
 
-#[derive(EnumString, Display)]
+#[derive( Display)]
 pub enum QryOrder {
     DESC,
     ASC,
@@ -101,7 +100,7 @@ pub fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&st
 
     let queryString = match ident.clone() {
         IdentIdName::Id(id) => {
-            if id.len() < 3 {
+            if id.to_raw().len() < 3 {
                 return Err(AppError::Generic { description: "IdentIdName::Id() value too short".to_string() });
             }
             let fields = match select_fields_or_id {
@@ -191,9 +190,8 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(db: &Db, table_name: Strin
 pub async fn exists_entity(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<Thing>> {
     match ident {
         IdentIdName::Id(id) => {
-            let id_thing = Thing::try_from(id.as_str()).map_err(|e| AppError::Generic { description: "exists_entity error into id Thing".to_string() })?;
-            record_exists(db, id_thing.clone()).await?;
-            Ok(Some(id_thing))
+            record_exists(db, id.clone()).await?;
+            Ok(Some(id.clone()))
         }
         _ => {
             let query_string = get_entity_query_str(ident, None, None)?;

@@ -126,7 +126,7 @@ impl<'a> CommunityDbService<'a> {
     pub async fn add_profile_chat_discussion(&self, user_id: Thing, discussion_id: Thing) -> AppResult<()> {
         // !!! needs profile community already
 // or like discussion_entity.add_topic
-        let user_comm = self.get(IdentIdName::Id(Self::get_profile_community_id(user_id.clone()).to_raw()))
+        let user_comm = self.get(IdentIdName::Id(Self::get_profile_community_id(user_id.clone())))
             .await;
         let user_comm = match user_comm {
             Ok(u_comm) => u_comm,

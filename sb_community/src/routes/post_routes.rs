@@ -30,6 +30,7 @@ use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::notification_entitiy::{Notification, NotificationDbService};
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use tempfile::NamedTempFile;
+use sb_middleware::utils::string_utils::get_string_thing;
 
 pub const UPLOADS_URL_BASE:&str = "/media";
 pub fn routes(state: CtxState) -> Router {
@@ -132,7 +133,7 @@ async fn get_post(State(CtxState { _db, .. }): State<CtxState>,
     println!("->> {:<12} - get post", "HANDLER");
 
     let comm_db = DiscussionDbService { db: &_db, ctx: &ctx };
-    let discussion = comm_db.must_exist(IdentIdName::Id(disc_id__title_uri.0)).await?;
+    let discussion = comm_db.must_exist(IdentIdName::Id(get_string_thing(disc_id__title_uri.0)?)).await?;
 
     let ident = IdentIdName::ColumnIdentAnd(vec![
         IdentIdName::ColumnIdent { column: "belongs_to".to_string(), val: discussion.to_raw(), rec: true},
@@ -152,12 +153,12 @@ async fn create_form(
     Path(discussion_id): Path<String>,
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let disc_id = Thing::try_from(discussion_id.clone()).map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "error into discussion Thing".to_string() }))?;
+    let disc_id = get_string_thing(discussion_id.clone())?;
 
-    let required_comm_auth = Authorization { authorize_record_id: disc_id, authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };
+    let required_comm_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };
     AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
 
-    let dis_template = DiscussionDbService { db: &_db, ctx: &ctx }.get_view::<DiscussionView>(IdentIdName::Id(discussion_id.clone())).await?;
+    let dis_template = DiscussionDbService { db: &_db, ctx: &ctx }.get_view::<DiscussionView>(IdentIdName::Id(disc_id)).await?;
 
     let topics: Vec<DiscussionTopicView> = dis_template.topics.unwrap_or(vec![]);
 
@@ -179,7 +180,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     println!("->> {:<12} - create_post ", "HANDLER");
     let created_by = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
     let disc_db = DiscussionDbService { db: &_db, ctx: &ctx };
-    let disc_id = disc_db.must_exist(IdentIdName::Id(discussion_id) ).await?;
+    let disc_id = disc_db.must_exist(IdentIdName::Id(get_string_thing(discussion_id)?) ).await?;
 
     let min_authorisation = Authorization{
         authorize_record_id: disc_id.clone(),
@@ -210,7 +211,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
         }
     }
 
-    let post_comm_view = post_db_service.get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap().to_raw())).await?;
+    let post_comm_view = post_db_service.get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap())).await?;
     let notif_db_ser = NotificationDbService { db: &_db, ctx: &ctx };
     let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_ctx_error(AppError::Generic {description:"Post to json error for notification event".to_string()}))?;
 
@@ -229,7 +230,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 }
 
 async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> CtxResult<String> {
-    let owner_view = PostDbService{db: &ctx_state._db, ctx: &ctx}.get_view::<PostDiscussionCommunityOwnerView>(IdentIdName::Id(post_id.to_raw())).await?;
+    let owner_view = PostDbService{db: &ctx_state._db, ctx: &ctx}.get_view::<PostDiscussionCommunityOwnerView>(IdentIdName::Id(post_id)).await?;
     // belongs_to = discussion
     if owner_view.created_by_profile_main_discussion == Some(owner_view.belongs_to) {
         Ok(format!("/u/{}", owner_view.username))
