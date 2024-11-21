@@ -16,18 +16,10 @@ pub struct UserNotification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub user: Thing,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_ident: Option<String>,
     pub event: UserNotificationEvent,
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
-}
-
-impl From<UserNotification> for axum::response::sse::Event {
-    fn from(value: UserNotification) -> Self {
-        Self::default().data(value.event.to_string())
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
@@ -50,9 +42,8 @@ impl<'a> UserNotificationDbService<'a> {
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
-    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE {{UserFollowAdded:{{username: string}}}} | {{UserTaskRequestComplete:{{task_id: record, delivered_by: record<{USER_TABLE}>, requested_by: record<{USER_TABLE}>, deliverables: set<string>}}}};
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD event_ident ON TABLE {TABLE_NAME} TYPE option<string>;
     // will use ulid to sort by time DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
 
