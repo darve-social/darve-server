@@ -15,7 +15,7 @@ use validator::Validate;
 use crate::entity::discussion_entitiy::DiscussionDbService;
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::reply_entitiy::ReplyDbService;
-use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
+use crate::routes::community_routes::{DiscussionNotificationEvent };
 use crate::routes::discussion_routes::{DiscussionPostView, DiscussionView};
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
@@ -27,7 +27,7 @@ use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::notification_entitiy::{Notification, NotificationDbService};
+use crate::entity::discussion_notification_entitiy::{DiscussionNotification, DiscussionNotificationDbService};
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use tempfile::NamedTempFile;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -212,12 +212,17 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     }
 
     let post_comm_view = post_db_service.get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap())).await?;
-    let notif_db_ser = NotificationDbService { db: &_db, ctx: &ctx };
+    let notif_db_ser = DiscussionNotificationDbService { db: &_db, ctx: &ctx };
     let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_ctx_error(AppError::Generic {description:"Post to json error for notification event".to_string()}))?;
 
-    let event_ident = String::try_from(&PostNotificationEventIdent::from(&post_comm_view)).ok();
+    let event_type: String = DiscussionNotificationEvent::DiscussionPostAdded {
+        discussion_id: Thing::from(("tbl","idd")),
+        topic_id: None,
+        post_id: Thing::from(("tbl","idd")),
+    }.to_string();
+    let event = DiscussionNotificationEvent::try_from_post(event_type.as_str(), &post_comm_view)?;
     notif_db_ser.create(
-        Notification { id: None, event_ident, event: CommunityNotificationEvent::Discussion_PostAdded.to_string(), content: post_json, r_created: None }
+        DiscussionNotification { id: None, event, content: post_json, r_created: None }
     ).await?;
 
     let res = CreatedResponse { success: true, id: post.id.clone().unwrap().to_raw(), uri: post.r_title_uri };

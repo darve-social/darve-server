@@ -21,7 +21,7 @@ use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::notification_entitiy::NotificationDbService;
+use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_community::entity::post_entitiy::PostDbService;
 use sb_community::entity::reply_entitiy::ReplyDbService;

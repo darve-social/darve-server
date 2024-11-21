@@ -22,7 +22,7 @@ use sb_user_auth::entity::authorization_entity::{is_any_ge_in_list, Authorizatio
 use crate::entity::community_entitiy::CommunityDbService;
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::notification_entitiy::Notification;
+use crate::entity::discussion_notification_entitiy::DiscussionNotification;
 use crate::entity::post_entitiy::PostDbService;
 use crate::routes::discussion_topic_routes::{DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView};
 use sb_user_auth::utils::askama_filter_util::filters;
@@ -36,8 +36,8 @@ use sb_middleware::error::{CtxResult, AppError};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use sb_user_auth::entity::notification_entitiy;
-use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
+use crate::entity::discussion_notification_entitiy;
+use crate::routes::community_routes::{DiscussionNotificationEvent };
 
 pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new()
@@ -51,18 +51,30 @@ pub fn routes(state: CtxState) -> Router {
         .with_state(state)
 }
 
+// used in templates
 pub struct SseEventName {}
-
 impl SseEventName {
     pub fn get_discussion_post_added_event_name() -> String {
-        CommunityNotificationEvent::Discussion_PostAdded.to_string()
+        DiscussionNotificationEvent::DiscussionPostAdded{
+            discussion_id: Thing::from(("tbl","idd")),
+            topic_id: None,
+            post_id: Thing::from(("tbl","idd")),
+        }.to_string()
     }
 
     pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
-        CommunityNotificationEvent::DiscussionPost_ReplyAdded.to_string() + "@" + reply_ident.to_raw().as_str()
+        DiscussionNotificationEvent::DiscussionPostReplyAdded{
+            discussion_id: Thing::from(("tbl","idd")),
+            topic_id: None,
+            post_id: reply_ident.clone(),
+        }.get_sse_event_ident()
     }
     pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
-        CommunityNotificationEvent::DiscussionPost_ReplyNrIncreased.to_string() + "@" + post_ident.to_raw().as_str()
+        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+            discussion_id: Thing::from(("tbl","idd")),
+            topic_id: None,
+            post_id: post_ident.clone(),
+        }.get_sse_event_ident()
     }
     pub fn get_error() -> String {
         "Error".to_string()
@@ -270,32 +282,29 @@ async fn discussion_sse(
         Err(_) => vec![]
     };
 
-    let mut stream = _db.select(notification_entitiy::TABLE_NAME).live().await?
-        .filter(move |r: &Result<SdbNotification<Notification>, surrealdb::Error>| {
+    let mut stream = _db.select(discussion_notification_entitiy::TABLE_NAME).live().await?
+        .filter(move |r: &Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
             // TODO check if user still logged in
             // filter out events from other discussion - TODO make last events sub table for each discussion, delete all events older than ~5days
-            let notification = r.as_ref().unwrap().data.clone();
-            let notification_discussion_ident = PostNotificationEventIdent::try_from(notification.event_ident.unwrap_or("".to_string())).ok();
-            if notification_discussion_ident.is_none() || notification_discussion_ident.clone().unwrap().discussion_id.ne(&discussion_id) {
-                return false;
-            }
-            let n_event = CommunityNotificationEvent::from_str(notification.event.as_str());
-            if n_event.is_err() {
+            let (event_discussion_id, event_topic_id) = match r.as_ref().unwrap().data.clone().event{
+                DiscussionNotificationEvent::DiscussionPostAdded { discussion_id, topic_id,.. } =>(discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyAdded { discussion_id, topic_id,.. } => (discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { discussion_id, topic_id,.. } => (discussion_id, topic_id)
+            };
+            if event_discussion_id.ne(&discussion_id) {
                 return false;
             }
 
-            let event_ident = notification_discussion_ident.unwrap();
-            if q_params.topic_id.is_some() && q_params.topic_id.ne(&event_ident.topic_id) {
+            if q_params.topic_id.is_some() && q_params.topic_id.ne(&event_topic_id) {
                 return false;
             }
-            event_ident.discussion_id.eq(&discussion_id)
+            event_discussion_id.eq(&discussion_id)
         })
-        .map(move |n: Result<SdbNotification<Notification>, surrealdb::Error>| {
-            n.map(|n: surrealdb::Notification<Notification>| {
-                let n_event = CommunityNotificationEvent::from_str(n.data.event.as_str());
-                if n_event.is_ok() {
-                    match n_event.unwrap() {
-                        CommunityNotificationEvent::Discussion_PostAdded => {
+        .map(move |n: Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
+            n.map(|n: surrealdb::Notification<DiscussionNotification>| {
+                let n_event =n.data.event;
+                    match n_event {
+                        DiscussionNotificationEvent::DiscussionPostAdded{..} => {
                             match serde_json::from_str::<DiscussionPostView>(&n.data.content) {
                                 Ok(mut dpv) => {
 
@@ -306,7 +315,7 @@ async fn discussion_sse(
                                     };
                                     // dbg!(&dpv);
                                     match dpv.render() {
-                                        Ok(post_html) => Event::default().data(post_html).event(SseEventName::get_discussion_post_added_event_name()),
+                                        Ok(post_html) => Event::default().data(post_html).event(n_event.to_string()),
                                         Err(err) => {
                                             let msg = "ERROR rendering DiscussionPostView";
                                             println!("{} ERR={err}", &msg);
@@ -321,18 +330,14 @@ async fn discussion_sse(
                                 }
                             }
                         }
-                        CommunityNotificationEvent::DiscussionPost_ReplyNrIncreased => {
-                            let ident = PostNotificationEventIdent::try_from( n.data.event_ident);
-                            Event::default().data(n.data.content).event(SseEventName::get_discussion_post_reply_nr_increased(&ident.unwrap().post_id))
+                        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased{..} => {
+                            Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
                         }
-                        CommunityNotificationEvent::DiscussionPost_ReplyAdded => {
-                            let ident = PostNotificationEventIdent::try_from( n.data.event_ident);
-                            Event::default().data(n.data.content).event(SseEventName::get_discussion_post_reply_added(&ident.unwrap().post_id))
+                        DiscussionNotificationEvent::DiscussionPostReplyAdded{..} => {
+                            Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
                         }
                     }
-                } else {
-                    Event::default().data("test").event("ERR")
-                }
+
             })
         }
         );

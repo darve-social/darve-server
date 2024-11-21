@@ -23,7 +23,7 @@ use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
-use sb_middleware::error::{CtxResult, AppError};
+use sb_middleware::error::{CtxResult, AppError, AppResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
@@ -209,23 +209,88 @@ pub async fn community_admin_access(_db: &Db, ctx: &Ctx, community_id: String) -
     Ok((comm_id, comm))
 }
 
-#[derive(Debug, PartialEq, EnumString, Display)]
-pub enum CommunityNotificationEvent {
-    Discussion_PostAdded,
-    DiscussionPost_ReplyAdded,
-    DiscussionPost_ReplyNrIncreased,
+#[derive(Debug, PartialEq, Serialize, Deserialize, Display, Clone)]
+pub enum DiscussionNotificationEvent {
+    DiscussionPostAdded {
+        discussion_id: Thing,
+        topic_id: Option<Thing>,
+        post_id: Thing,
+    },
+    DiscussionPostReplyAdded {
+        discussion_id: Thing,
+        topic_id: Option<Thing>,
+        post_id: Thing,
+    },
+    DiscussionPostReplyNrIncreased {
+        discussion_id: Thing,
+        topic_id: Option<Thing>,
+        post_id: Thing,
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct PostNotificationEventIdent {
+impl DiscussionNotificationEvent {
+    pub fn try_from_post(event_type: &str, post: &DiscussionPostView) -> AppResult<DiscussionNotificationEvent> {
+        match event_type {
+            "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
+                discussion_id: post.belongs_to_id.clone(),
+                topic_id: post.topic.clone().map(|t| t.id),
+                post_id: post.id.clone(),
+            }),
+            "DiscussionPostReplyAdded" => Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
+                discussion_id: post.belongs_to_id.clone(),
+                topic_id: post.topic.clone().map(|t| t.id),
+                post_id: post.id.clone(),
+            }),
+            "DiscussionPostReplyNrIncreased" => Ok(DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+                discussion_id: post.belongs_to_id.clone(),
+                topic_id: post.topic.clone().map(|t| t.id),
+                post_id: post.id.clone(),
+            }),
+            _ => Err(AppError::Generic {description:format!("Can not match post DiscussionNotificationEvent::{}",event_type)})
+        }
+    }
+
+    pub fn try_from_reply_post(event_type: &str, data: (&Reply, &Post)) -> AppResult<DiscussionNotificationEvent> {
+        match event_type {
+            "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
+                discussion_id: data.0.discussion.clone(),
+                topic_id: data.1.discussion_topic.clone(),
+                post_id: data.1.id.clone().unwrap(),
+            }),
+            "DiscussionPostReplyAdded" => Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
+                discussion_id: data.0.discussion.clone(),
+                topic_id: data.1.discussion_topic.clone(),
+                post_id: data.1.id.clone().unwrap(),
+            }),
+            "DiscussionPostReplyNrIncreased" => Ok(DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+                discussion_id: data.0.discussion.clone(),
+                topic_id: data.1.discussion_topic.clone(),
+                post_id: data.1.id.clone().unwrap(),
+            }),
+            _ => Err(AppError::Generic {description:format!("Can not match DiscussionNotificationEvent::{}",event_type)})
+        }
+    }
+
+    pub fn get_sse_event_ident(&self)-> String {
+        match self {
+            DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),
+            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id,.. } => format!("{}@{}",self.to_string(), post_id),
+            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id,.. } => format!("{}@{}",self.to_string(), post_id)
+        }
+    }
+
+}
+
+/*#[derive(Serialize, Deserialize, Clone)]
+pub struct DiscussionNotificationEventData {
     pub discussion_id: Thing,
     pub topic_id: Option<Thing>,
     pub post_id: Thing,
 }
 
-impl From<&DiscussionPostView> for PostNotificationEventIdent {
+impl From<&DiscussionPostView> for DiscussionNotificationEventData {
     fn from(post: &DiscussionPostView) -> Self {
-       PostNotificationEventIdent {
+       DiscussionNotificationEventData {
             discussion_id: post.belongs_to_id.clone(),
             topic_id: post.topic.clone().map(|t| t.id),
             post_id: post.id.clone(),
@@ -233,9 +298,9 @@ impl From<&DiscussionPostView> for PostNotificationEventIdent {
     }
 }
 
-impl From<(&Reply, &Post)> for PostNotificationEventIdent {
+impl From<(&Reply, &Post)> for DiscussionNotificationEventData {
     fn from(data: (&Reply, &Post)) -> Self {
-       PostNotificationEventIdent {
+       DiscussionNotificationEventData {
             discussion_id: data.0.discussion.clone(),
             topic_id: data.1.discussion_topic.clone(),
             post_id: data.1.id.clone().unwrap(),
@@ -243,15 +308,15 @@ impl From<(&Reply, &Post)> for PostNotificationEventIdent {
     }
 }
 
-impl TryFrom<&PostNotificationEventIdent> for String {
+impl TryFrom<&DiscussionNotificationEventData> for String {
     type Error = serde_json::Error;
 
-    fn try_from(value: &PostNotificationEventIdent) -> Result<Self, Self::Error> {
+    fn try_from(value: &DiscussionNotificationEventData) -> Result<Self, Self::Error> {
        serde_json::to_string(value)
     }
 }
 
-impl TryFrom<String> for PostNotificationEventIdent{
+impl TryFrom<String> for DiscussionNotificationEventData {
     type Error = serde_json::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -259,13 +324,14 @@ impl TryFrom<String> for PostNotificationEventIdent{
     }
 }
 
-impl TryFrom<Option<String>> for PostNotificationEventIdent{
+impl TryFrom<Option<String>> for DiscussionNotificationEventData {
     type Error = AppError;
 
     fn try_from(value: Option<String>) -> Result<Self, Self::Error> {
         match value {
             None => Err(AppError::Generic {description:"TryFrom Option<String> for PostNotificationEventIdent = None".to_string()}),
-            Some(val) => PostNotificationEventIdent::try_from(val).map_err(|e| e.into())
+            Some(val) => DiscussionNotificationEventData::try_from(val).map_err(|e| e.into())
         }
     }
 }
+*/

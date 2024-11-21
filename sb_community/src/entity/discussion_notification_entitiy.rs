@@ -3,43 +3,50 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use sb_middleware::utils::db_utils::{get_entity_list, IdentIdName, Pagination, QryOrder};
+use crate::routes::community_routes::DiscussionNotificationEvent;
 use sb_middleware::db;
 use sb_middleware::{
     ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+    error::{AppError, CtxError, CtxResult},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Notification {
+pub struct DiscussionNotification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_ident: Option<String>,
-    pub event: String,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub event_ident: Option<String>,
+    pub event: DiscussionNotificationEvent,
     pub content: String,
     pub r_created: Option<String>,
 }
 
-impl From<Notification> for axum::response::sse::Event {
-    fn from(value: Notification) -> Self {
+/*impl From<DiscussionNotification> for axum::response::sse::Event {
+    fn from(value: DiscussionNotification) -> Self {
         Self::default().data(value.event)
     }
-}
+}*/
 
-pub struct NotificationDbService<'a> {
+pub struct DiscussionNotificationDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
 
 pub const TABLE_NAME: &str = "notification";
 // const TABLE_COL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
+const POST_TABLE: &str = crate::entity::post_entitiy::TABLE_NAME;
+const COMMUNITY_TABLE: &str = crate::entity::community_entitiy::TABLE_NAME;
+const DISCUSSION_TABLE: &str = crate::entity::discussion_entitiy::TABLE_NAME;
+const TOPIC_TABLE: &str = crate::entity::discussion_topic_entitiy::TABLE_NAME;
 
-impl<'a> NotificationDbService<'a> {
+impl<'a> DiscussionNotificationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE {{DiscussionPostAdded: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}}
+        | {{DiscussionPostReplyNrIncreased: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}}
+        | {{DiscussionPostReplyAdded: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}};
+
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD event_ident ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
@@ -59,13 +66,13 @@ impl<'a> NotificationDbService<'a> {
                                         )).await
     }*/
 
-    pub async fn create(&self, record: Notification) -> CtxResult<Notification> {
+    pub async fn create(&self, record: DiscussionNotification) -> CtxResult<DiscussionNotification> {
         let notification = self.db
             .create(TABLE_NAME)
             .content(record)
             .await
             .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<Notification>| v.unwrap())?;
+            .map(|v: Option<DiscussionNotification>| v.unwrap())?;
         Ok(notification)
     }
 }

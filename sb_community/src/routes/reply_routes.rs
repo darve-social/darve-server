@@ -11,7 +11,7 @@ use validator::Validate;
 use sb_middleware::ctx::Ctx;
 use crate::entity::discussion_entitiy::DiscussionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::notification_entitiy::{Notification, NotificationDbService};
+use crate::entity::discussion_notification_entitiy::{DiscussionNotification, DiscussionNotificationDbService};
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::reply_entitiy::{Reply, ReplyDbService};
 use sb_middleware::error::{CtxResult, AppError};
@@ -20,7 +20,7 @@ use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
-use crate::routes::community_routes::{CommunityNotificationEvent, PostNotificationEventIdent};
+use crate::routes::community_routes::{DiscussionNotificationEvent};
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -114,15 +114,27 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 
     let post = post_db_service.increase_replies_nr(post_id.clone()).await?;
 
-    let notif_db_ser = NotificationDbService { db: &_db, ctx: &ctx };
+    let notif_db_ser = DiscussionNotificationDbService { db: &_db, ctx: &ctx };
 
-    let event_ident = String::try_from( &PostNotificationEventIdent::from((&reply, &post)) ).ok();
+    let event_type = DiscussionNotificationEvent::DiscussionPostReplyNrIncreased{
+        discussion_id: Thing::from(("tbl","idd")),
+        topic_id: None,
+        post_id: Thing::from(("tbl","idd")),
+    }.to_string();
+    let event =  DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
+    // let event_ident = String::try_from( &DiscussionNotificationEventData::from((&reply, &post)) ).ok();
     notif_db_ser.create(
-        Notification { id: None, event_ident: event_ident.clone(), event: CommunityNotificationEvent::DiscussionPost_ReplyNrIncreased.to_string(), content: post.replies_nr.to_string(), r_created: None }
+        DiscussionNotification { id: None, event, content: post.replies_nr.to_string(), r_created: None }
     ).await?;
 
+    let event_type = DiscussionNotificationEvent::DiscussionPostReplyAdded{
+        discussion_id: Thing::from(("tbl","idd")),
+        topic_id: None,
+        post_id: Thing::from(("tbl","idd")),
+    }.to_string();
+    let event =  DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
     notif_db_ser.create(
-        Notification { id: None, event_ident, event: CommunityNotificationEvent::DiscussionPost_ReplyAdded.to_string(), content: reply_comm_view.render().unwrap(), r_created: None }
+        DiscussionNotification { id: None, event, content: reply_comm_view.render().unwrap(), r_created: None }
     ).await?;
 
     let res = CreatedResponse { success: true, id: reply.id.unwrap().clone().to_raw(), uri: None };

@@ -33,7 +33,7 @@ use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::notification_entitiy::NotificationDbService;
+use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
@@ -100,7 +100,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     DiscussionTopicDbService { db: &db, ctx: &c }.mutate_db().await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    NotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    DiscussionNotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
