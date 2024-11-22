@@ -110,7 +110,7 @@ impl ViewFieldSelector for ProfileDiscussionView {
 pub struct ProfilePostView {
     pub id: Thing,
     pub username: Option<String>,
-    pub discussion_id: Thing,
+    pub belongs_to_id: Thing,
     pub r_title_uri: Option<String>,
     pub title: String,
     pub content: String,
@@ -121,7 +121,7 @@ pub struct ProfilePostView {
 impl ViewFieldSelector for ProfilePostView {
     // post fields selct qry for view
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, created_by.username as username, r_title_uri, title, content, r_created, discussion.id as discussion_id, replies_nr".to_string()
+        "id, created_by.username as username, r_title_uri, title, content, r_created, belongs_to.id as belongs_to_id, replies_nr".to_string()
     }
 }
 
@@ -191,7 +191,6 @@ async fn display_profile(
     let mut profile_view = local_user_db_service
         .get_view::<ProfileView>(IdentIdName::ColumnIdent { column: "username".to_string(), val: username, rec: false }).await?;
     let profile_comm = get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
-
     profile_view.community = profile_comm.id;
     profile_view.profile_discussion = profile_comm.main_discussion;
 

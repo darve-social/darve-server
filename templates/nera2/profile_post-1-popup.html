@@ -105,7 +105,7 @@
                             <input name="title"></input>
                             <textarea name="content"></textarea>
                             <div id="e_{{modal_id}}"></div>
-                            <button hx-post="/api/discussion/{{discussion_id}}/post/{{r_title_uri|display_some}}/reply"
+                            <button hx-post="/api/discussion/{{belongs_to_id}}/post/{{r_title_uri|display_some}}/reply"
                                     hx-target="#e_{{modal_id}}" hx-target-*="#e_{{modal_id}}" hx-swap="innerHTML"
                                     class="btn btn-active btn-primary btn-block max-w-[200px]">
                                 Create
@@ -116,7 +116,7 @@
                          hx-swap="afterbegin" hx-target="#l_{{modal_id}} ul">
                     </div>
                     <div id="l_{{modal_id}}" hx-trigger="click once from:#d_{{modal_id}}"
-                         hx-get="/api/discussion/{{discussion_id}}/post/{{id.to_raw()}}/replies" hx-swap="innerHTML"
+                         hx-get="/api/discussion/{{belongs_to_id}}/post/{{id.to_raw()}}/replies" hx-swap="innerHTML"
                          class="post-replies">
                         <ul></ul>
                     </div>
