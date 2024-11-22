@@ -45,7 +45,7 @@ pub struct PostReplyList {
     replies: Vec<PostReplyView>,
 }
 
-#[derive(Template, Serialize, Deserialize)]
+#[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/post-reply-1.html")]
 pub struct PostReplyView {
     pub id: Thing,

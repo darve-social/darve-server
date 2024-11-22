@@ -40,6 +40,18 @@ pub struct UserNotificationTaskCompleteView {
     deliverables: Vec<String>
 }
 
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/user_notification_task_request_created_view_1.html")]
+pub struct UserNotificationTaskCreatedView {
+    task_id: Thing, from_user: Thing, to_user: Thing
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/user_notification_task_request_received_view_1.html")]
+pub struct UserNotificationTaskReceivedView {
+    task_id: Thing, from_user: Thing, to_user: Thing
+}
+
 async fn user_notification_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -61,6 +73,7 @@ async fn user_notification_sse(
             })
         }
         );
+
     // println!("GOT LIVE QRY STREAM");
     Ok(Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
@@ -81,6 +94,20 @@ fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> Event {
                 delivered_by,
                 requested_by,
                 deliverables,
+            }).0).event(event_ident)
+        }
+        UserNotificationEvent::UserTaskRequestCreated { task_id, from_user, to_user } => {
+            Event::default().data(ctx.to_htmx_or_json(UserNotificationTaskCreatedView {
+                task_id,
+                from_user,
+                to_user
+            }).0).event(event_ident)
+        }
+        UserNotificationEvent::UserTaskRequestReceived{ task_id, from_user, to_user } => {
+            Event::default().data(ctx.to_htmx_or_json(UserNotificationTaskReceivedView {
+                task_id,
+                from_user,
+                to_user
             }).0).event(event_ident)
         }
     }

@@ -7,17 +7,15 @@ use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum::Router;
-use futures::stream::Stream as FStream;
-use futures::{FutureExt, TryFutureExt};
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 
 use crate::entity::follow_entitiy::FollowDbService;
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use crate::entity::user_notification_entitiy::{UserNotification, UserNotificationDbService, UserNotificationEvent};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::ViewFieldSelector;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 
@@ -82,9 +80,18 @@ async fn follow_user(
     ctx: Ctx,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
-    let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let from_user = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user().await?;
     let follow = get_string_thing(follow_user_id.clone())?;
-    let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.create_follow(user_id, follow).await?;
+    let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.create_follow(from_user.id.unwrap(), follow.clone()).await?;
+    if success {
+        UserNotificationDbService{ db: &ctx_state._db, ctx: &ctx }.create(UserNotification{
+            id: None,
+            user: follow,
+            event: UserNotificationEvent::UserFollowAdded { username: from_user.username },
+            content: "".to_string(),
+            r_created: None,
+        }).await?;
+    }
     ctx.to_htmx_or_json_res(CreatedResponse { id: follow_user_id, success, uri: None })
 }
 

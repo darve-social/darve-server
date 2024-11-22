@@ -10,6 +10,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{CtxError, CtxResult, AppError},
 };
+use sb_middleware::error::AppResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserNotification {
@@ -26,11 +27,20 @@ pub struct UserNotification {
 pub enum UserNotificationEvent {
     UserFollowAdded { username: String },
     UserTaskRequestComplete { task_id: Thing, delivered_by: Thing, requested_by: Thing, deliverables: Vec<String> },
+    UserTaskRequestCreated { task_id: Thing, from_user: Thing, to_user: Thing },
+    UserTaskRequestReceived { task_id: Thing, from_user: Thing, to_user: Thing },
 }
 
 pub struct UserNotificationDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
+}
+
+impl<'a> UserNotificationDbService<'a> {
+    pub fn create_qry(&self, u_notification: UserNotification) -> AppResult<String> {
+        let event_json = serde_json::to_string(&u_notification.event)?;
+        Ok(format!("INSERT INTO {TABLE_NAME} {{user: {}, event:\"{event_json}\", content:\"\" }};", u_notification.user))
+    }
 }
 
 pub const TABLE_NAME: &str = "user_notification";

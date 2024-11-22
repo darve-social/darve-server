@@ -61,7 +61,6 @@ impl SseEventName {
             post_id: Thing::from(("tbl","idd")),
         }.to_string()
     }
-
     pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyAdded{
             discussion_id: Thing::from(("tbl","idd")),
