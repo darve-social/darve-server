@@ -1,9 +1,10 @@
 use crate::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
+use crate::entity::task_request_offer_entity::{TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
-use axum::http::{Response, StatusCode, Uri};
-use axum::response::{Html, IntoResponse};
+use axum::http::{Response, Uri};
+use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -16,6 +17,7 @@ use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::user_notification_entitiy::{UserNotificationDbService, UserNotificationEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
@@ -25,9 +27,7 @@ use tempfile::NamedTempFile;
 use tower::util::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
 use validator::Validate;
-use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationDbService, UserNotificationEvent};
-use crate::entity::task_request_offer_entity::{TaskRequestOffer, TaskRequestOfferDbService};
+use sb_middleware::db::Db;
 
 pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
@@ -152,46 +152,23 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
         r_created: None,
         r_updated: None,
     }).await?;
-    let t_request = TaskRequestDbService { db: &_db, ctx: &ctx }.create(TaskRequest { id: Some(t_req_id.clone()), from_user: from_user.clone(), to_user:to_user.clone(), request_post: post, request_txt: content, offers: vec![offer.id.unwrap()], status: TaskStatus::Requested.to_string(), deliverables: None, deliverables_post: None, r_created: None, r_updated: None }).await?;
+    let t_request = TaskRequestDbService { db: &_db, ctx: &ctx }.create(TaskRequest { id: Some(t_req_id.clone()), from_user: from_user.clone(), to_user: to_user.clone(), request_post: post, request_txt: content, offers: vec![offer.id.unwrap()], status: TaskStatus::Requested.to_string(), deliverables: None, deliverables_post: None, r_created: None, r_updated: None }).await?;
 
 
-    let notify_followers_task_given_qry: Vec<String> = FollowDbService{ db: &_db, ctx: &ctx }.user_followers(from_user.clone()).await?
-        .into_iter().map(|u| {
-        UserNotificationDbService{ db: &_db, ctx: &ctx }.create_qry(UserNotification{
-            id: None,
-            user: u.id.unwrap(),
-            event: UserNotificationEvent::UserTaskRequestCreated {
-                task_id: t_req_id.clone(),
-                from_user: from_user.clone(),
-                to_user: to_user.clone(),
-            },
-            content:"".to_string(),
-            r_created: None,
-        }).ok()
-    })
-        .filter(|v| v.is_some())
-        .map(|v| v.unwrap())
-        .collect();
-    _db.query(notify_followers_task_given_qry.join("")).await?;
+    let u_notification_db_service = UserNotificationDbService { db: &_db, ctx: &ctx };
+    u_notification_db_service.notify_user_followers(
+        from_user.clone(),
+        &UserNotificationEvent::UserTaskRequestCreated {
+            task_id: t_req_id.clone(),
+            from_user: from_user.clone(),
+            to_user: to_user.clone(),
+        }, "").await?;
 
-    let notify_followers_task_received_qry: Vec<String> = FollowDbService{ db: &_db, ctx: &ctx }.user_followers(to_user.clone()).await?
-        .into_iter().map(|u| {
-        UserNotificationDbService{ db: &_db, ctx: &ctx }.create_qry(UserNotification{
-            id: None,
-            user: u.id.unwrap(),
-            event: UserNotificationEvent::UserTaskRequestReceived {
-                task_id: t_req_id.clone(),
-                from_user: from_user.clone(),
-                to_user: to_user.clone(),
-            },
-            content:"".to_string(),
-            r_created: None,
-        }).ok()
-    })
-        .filter(|v| v.is_some())
-        .map(|v| v.unwrap())
-        .collect();
-    _db.query(notify_followers_task_received_qry.join("")).await?;
+    u_notification_db_service.notify_user_followers(to_user.clone(), &UserNotificationEvent::UserTaskRequestReceived {
+        task_id: t_req_id.clone(),
+        from_user: from_user.clone(),
+        to_user: to_user.clone(),
+    }, "").await?;
 
 
     ctx.to_htmx_or_json_res(CreatedResponse { id: t_request.id.unwrap().to_raw(), uri: None, success: true })
@@ -259,13 +236,13 @@ async fn add_task_request_offer(State(CtxState { _db, .. }): State<CtxState>,
                                 JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Html<String>> {
     let from_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let task_offer = TaskRequestOfferDbService{ db: &_db, ctx: &ctx }.add_to_task_offers(get_string_thing(task_id)?, from_user, t_request_offer_input.amount).await?;
-    ctx.to_htmx_or_json_res(CreatedResponse{
+    let task_offer = TaskRequestOfferDbService { db: &_db, ctx: &ctx }.add_to_task_offers(get_string_thing(task_id)?, from_user, t_request_offer_input.amount).await?;
+
+    ctx.to_htmx_or_json_res(CreatedResponse {
         success: true,
         id: task_offer.id.unwrap().to_raw(),
         uri: None,
     })
-
 }
 
 struct TaskDeliverableFileName {

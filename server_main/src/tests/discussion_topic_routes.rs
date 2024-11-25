@@ -1,19 +1,19 @@
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum::extract::{Path, State};
     use axum_test::multipart::MultipartForm;
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
     use sb_community::entity::community_entitiy::CommunityDbService;
     use sb_community::entity::discussion_entitiy::DiscussionDbService;
     use sb_community::routes::community_routes::CommunityInput;
+    use sb_community::routes::community_routes::get_community;
     use sb_community::routes::discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
     use sb_middleware::ctx::Ctx;
-    use sb_community::routes::community_routes::{get_community};
     use sb_middleware::utils::db_utils::IdentIdName;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn create_discussion() {
@@ -35,7 +35,7 @@ mod tests {
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
         let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await.expect("community struct");
         let comm_name = comm.name_uri.clone();
-        let comm_disc_id = comm.main_discussion.unwrap();
+        let comm_disc_id = comm.profile_discussion.unwrap();
 
         let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
 
@@ -71,7 +71,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 1);
 
         let post_name = "post title Name 2".to_string();
@@ -86,7 +86,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 2);
 
         let comm_view = get_community(State(ctx_state), ctx, Path(comm_name), DiscussionParams{
@@ -94,7 +94,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 1);
 
     }

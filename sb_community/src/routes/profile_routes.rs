@@ -20,8 +20,7 @@ use validator::Validate;
 use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
-use crate::routes::community_routes::{create_update_community, CommunityInput};
-use crate::routes::discussion_routes::{SseEventName};
+use crate::routes::discussion_routes::{get_discussion_view, DiscussionView, SseEventName};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
@@ -37,6 +36,7 @@ use sb_user_auth::utils::template_utils::ProfileFormPage;
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/u/:username", get(display_profile))
+        .route("/u/following/posts", get(get_following_posts))
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
@@ -87,7 +87,7 @@ pub struct ProfileView {
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        // "id as user_id, community, community.main_discussion as profile_discussion".to_string()
+        // "id as user_id, community, community.profile_discussion as profile_discussion".to_string()
         "id as user_id".to_string()
     }
 }
@@ -192,7 +192,7 @@ async fn display_profile(
         .get_view::<ProfileView>(IdentIdName::ColumnIdent { column: "username".to_string(), val: username, rec: false }).await?;
     let profile_comm = get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
     profile_view.community = profile_comm.id;
-    profile_view.profile_discussion = profile_comm.main_discussion;
+    profile_view.profile_discussion = profile_comm.profile_discussion;
 
     let disc_id = profile_view.profile_discussion.clone().unwrap();
     let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
@@ -215,7 +215,8 @@ async fn display_profile(
 
 async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
-    let profile_comm_id = CommunityDbService::get_profile_community_id(user_id.clone());
+    comm_db_ser.get_profile_community(user_id).await
+    /*let profile_comm_id = CommunityDbService::get_profile_community_id(user_id.clone());
     match comm_db_ser.get(IdentIdName::Id(profile_comm_id.clone())).await {
         Ok(comm) => Ok(comm),
         Err(err) => {
@@ -225,9 +226,20 @@ async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<
                 _ => Err(err)
             }
         }
-    }
+    }*/
 }
 
+// posts user is following
+async fn get_following_posts(State(CtxState{_db,..}): State<CtxState>,
+                           ctx: Ctx,
+                           q_params: DiscussionParams) -> CtxResult<DiscussionView> {
+    let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let following_posts_disc = CommunityDbService{ db: &_db, ctx: &ctx }.get_profile_following_posts_discussion(user_id).await?;
+    get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await
+}
+
+// user chat discussions
 async fn get_chats(State(CtxState { _db, .. }): State<CtxState>,
                    ctx: Ctx,
 ) -> CtxResult<Html<String>> {

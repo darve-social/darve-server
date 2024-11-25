@@ -103,7 +103,7 @@ fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> Event {
                 to_user
             }).0).event(event_ident)
         }
-        UserNotificationEvent::UserTaskRequestReceived{ task_id, from_user, to_user } => {
+        UserNotificationEvent::UserTaskRequestReceived { task_id, from_user, to_user } => {
             Event::default().data(ctx.to_htmx_or_json(UserNotificationTaskReceivedView {
                 task_id,
                 from_user,

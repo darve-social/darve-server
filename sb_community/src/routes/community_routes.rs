@@ -9,31 +9,28 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_htmx::HX_REDIRECT;
-use futures::stream::Stream as FStream;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
 
-use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use crate::entity::community_entitiy::{Community, CommunityDbService};
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use crate::entity::post_entitiy::Post;
+use crate::entity::reply_entitiy::Reply;
 use crate::routes::discussion_routes::{get_discussion_view, DiscussionPostView, DiscussionView};
-use sb_user_auth::utils::askama_filter_util::filters;
-use sb_user_auth::utils::template_utils::ProfileFormPage;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
-use sb_middleware::error::{CtxResult, AppError, AppResult};
+use sb_middleware::error::{AppError, AppResult, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
-use strum::{Display, EnumString};
 use sb_middleware::utils::string_utils::get_string_thing;
-use crate::entity::post_entitiy::Post;
-use crate::entity::reply_entitiy::Reply;
-use crate::routes::discussion_topic_routes::DiscussionTopicView;
-use crate::routes::reply_routes::PostReplyView;
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
+use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::utils::askama_filter_util::filters;
+use sb_user_auth::utils::template_utils::ProfileFormPage;
+use strum::Display;
 
 pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new()
@@ -55,7 +52,7 @@ struct CommunityForm {
 #[derive(Deserialize, Serialize, Validate)]
 pub struct CommunityInput {
     pub id: String,
-    pub create_custom_id: Option<bool>,
+    // pub create_custom_id: Option<bool>,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub name_uri: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
@@ -77,15 +74,15 @@ pub struct CommunityPage {
 #[template(path = "nera2/community_view_1.html")]
 pub struct CommunityView {
     id: Thing,
-    title: String,
+    title: Option<String>,
     name_uri: String,
-    main_discussion: Thing,
-    pub main_discussion_view: Option<DiscussionView>,
+    profile_discussion: Thing,
+    pub profile_discussion_view: Option<DiscussionView>,
 }
 
 impl ViewFieldSelector for CommunityView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, main_discussion, name_uri".to_string()
+        "id, title, profile_discussion, name_uri".to_string()
     }
 }
 
@@ -106,7 +103,7 @@ pub async fn get_community(State(ctx_state): State<CtxState>,
     };
     let mut comm_view = CommunityDbService { db: &ctx_state._db, ctx: &ctx }
         .get_view::<CommunityView>(ident_id_name).await?;
-    comm_view.main_discussion_view = Some(get_discussion_view(&ctx_state._db, &ctx, comm_view.main_discussion.clone(), q_params).await?);
+    comm_view.profile_discussion_view = Some(get_discussion_view(&ctx_state._db, &ctx, comm_view.profile_discussion.clone(), q_params).await?);
     Ok(CommunityPage {
         theme_name: "emerald".to_string(),
         window_title: "win win".to_string(),
@@ -152,21 +149,18 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
 pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityInput, user_id: &Thing) -> CtxResult<Community> {
     let community_db_service = CommunityDbService { db: &_db, ctx: &ctx };
 
-    let create_custom_id = form_value.create_custom_id.unwrap_or(false);
-    let comm_id = match form_value.id.len() > 0 && !create_custom_id {
+    let comm_id = match form_value.id.len() > 0  {
         true => Some(get_string_thing(form_value.id.clone())?),
         false => None,
     };
 
     let mut update_comm = match comm_id {
         None => Community {
-            id: match create_custom_id {
-                true => Some(get_string_thing(form_value.id)?),
-                false => None
-            },
-            title: "".to_string(),
+            id: None,
+            title: None,
             name_uri: "".to_string(),
-            main_discussion: None,
+            profile_discussion: None,
+            following_posts_discussion: None,
             profile_chats: None,
             r_created: None,
             courses: None,
@@ -183,7 +177,7 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
     };
 
     if form_value.title.len() > 0 {
-        update_comm.title = form_value.title;
+        update_comm.title = Some(form_value.title);
     } else {
         return Err(ctx.to_ctx_error(AppError::Generic { description: "title must have value".to_string() }));
     };
@@ -200,7 +194,7 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
 }
 
 pub async fn community_admin_access(_db: &Db, ctx: &Ctx, community_id: String) -> CtxResult<(Thing, Community)> {
-    let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
     let comm_id = get_string_thing(community_id)?;
     let comm = CommunityDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(comm_id.clone())).await?;
@@ -225,7 +219,7 @@ pub enum DiscussionNotificationEvent {
         discussion_id: Thing,
         topic_id: Option<Thing>,
         post_id: Thing,
-    }
+    },
 }
 
 impl DiscussionNotificationEvent {
@@ -246,7 +240,7 @@ impl DiscussionNotificationEvent {
                 topic_id: post.topic.clone().map(|t| t.id),
                 post_id: post.id.clone(),
             }),
-            _ => Err(AppError::Generic {description:format!("Can not match post DiscussionNotificationEvent::{}",event_type)})
+            _ => Err(AppError::Generic { description: format!("Can not match post DiscussionNotificationEvent::{}", event_type) })
         }
     }
 
@@ -267,18 +261,17 @@ impl DiscussionNotificationEvent {
                 topic_id: data.1.discussion_topic.clone(),
                 post_id: data.1.id.clone().unwrap(),
             }),
-            _ => Err(AppError::Generic {description:format!("Can not match DiscussionNotificationEvent::{}",event_type)})
+            _ => Err(AppError::Generic { description: format!("Can not match DiscussionNotificationEvent::{}", event_type) })
         }
     }
 
-    pub fn get_sse_event_ident(&self)-> String {
+    pub fn get_sse_event_ident(&self) -> String {
         match self {
             DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),
-            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id,.. } => format!("{}@{}",self.to_string(), post_id),
-            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id,.. } => format!("{}@{}",self.to_string(), post_id)
+            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id, .. } => format!("{}@{}", self.to_string(), post_id),
+            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id, .. } => format!("{}@{}", self.to_string(), post_id)
         }
     }
-
 }
 
 /*#[derive(Serialize, Deserialize, Clone)]

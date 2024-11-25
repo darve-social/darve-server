@@ -4,20 +4,20 @@ mod tests {
     use surrealdb::sql::Thing;
     use uuid::Uuid;
 
-    use sb_middleware::ctx::Ctx;
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_community::entity::community_entitiy::CommunityDbService;
     use sb_community::entity::discussion_entitiy::DiscussionDbService;
     use sb_community::entity::post_entitiy::PostDbService;
     use sb_community::routes::community_routes::CommunityInput;
     use sb_community::routes::discussion_routes::{DiscussionInput, DiscussionPostView};
     use sb_community::routes::discussion_topic_routes::TopicInput;
+    use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::db_utils::IdentIdName;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::entity::access_right_entity::AccessRightDbService;
     use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
     use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-    use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
     async fn get_discussion_view() {
@@ -111,7 +111,7 @@ mod tests {
         let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
         let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
-        let comm_disc_id = comm.unwrap().main_discussion.unwrap();
+        let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
 
         let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
 

@@ -2,15 +2,15 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
-use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use crate::entity::discussion_topic_entitiy::DiscussionTopic;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName, ViewFieldSelector};
 use sb_middleware::{
     ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+    error::{AppError, CtxError, CtxResult},
 };
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
+use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Discussion {
@@ -38,6 +38,7 @@ pub struct DiscussionDbService<'a> {
 
 pub const TABLE_NAME: &str = "discussion";
 pub const DISCUSSION_TOPIC_TABLE_NAME: &str = crate::entity::discussion_topic_entitiy::TABLE_NAME;
+pub const COMMUNITY_TABLE_NAME: &str = crate::entity::community_entitiy::TABLE_NAME;
 pub const USER_TABLE_NAME: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 
 impl<'a> DiscussionDbService<'a> {
@@ -48,7 +49,7 @@ impl<'a> DiscussionDbService<'a> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     //DEFINE FIELD name_uri ON TABLE {TABLE_NAME} TYPE option<string> // VALUE string::slug(string::trim($value))
-    DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record;
+    DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
     DEFINE FIELD chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;

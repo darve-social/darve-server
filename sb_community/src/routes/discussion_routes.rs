@@ -17,27 +17,27 @@ use surrealdb::Notification as SdbNotification;
 use tokio_stream::StreamExt as _;
 use validator::Validate;
 
-use sb_user_auth::entity::access_rule_entity::{AccessRule, AccessRuleDbService};
-use sb_user_auth::entity::authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
 use crate::entity::community_entitiy::CommunityDbService;
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use crate::entity::discussion_notification_entitiy;
 use crate::entity::discussion_notification_entitiy::DiscussionNotification;
 use crate::entity::post_entitiy::PostDbService;
+use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_topic_routes::{DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView};
-use sb_user_auth::utils::askama_filter_util::filters;
+use sb_middleware::ctx::Ctx;
+use sb_middleware::db::Db;
+use sb_middleware::error::{AppError, CtxResult};
+use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
-use sb_user_auth::utils::template_utils::ProfileFormPage;
-use sb_middleware::ctx::Ctx;
-use sb_middleware::db::Db;
-use sb_middleware::error::{CtxResult, AppError};
-use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use crate::entity::discussion_notification_entitiy;
-use crate::routes::community_routes::{DiscussionNotificationEvent };
+use sb_user_auth::entity::access_rule_entity::{AccessRule, AccessRuleDbService};
+use sb_user_auth::entity::authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::utils::askama_filter_util::filters;
+use sb_user_auth::utils::template_utils::ProfileFormPage;
 
 pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new()
@@ -381,8 +381,8 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
         true => {
             // check permissions in discussion and get community id from existing discussion in db
             let disc_id = get_string_thing(form_value.id)?;
-            let required_diss_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
-            aright_db_service.is_authorized(&user_id, &required_diss_auth).await?;
+            let required_disc_auth = Authorization { authorize_record_id: disc_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
+            aright_db_service.is_authorized(&user_id, &required_disc_auth).await?;
             disc_db_ser.get(IdentIdName::Id(disc_id)).await?
         }
     };

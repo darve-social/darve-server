@@ -13,9 +13,10 @@ use surrealdb::sql::Thing;
 use validator::Validate;
 
 use crate::entity::discussion_entitiy::DiscussionDbService;
+use crate::entity::discussion_notification_entitiy::{DiscussionNotification, DiscussionNotificationDbService};
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::reply_entitiy::ReplyDbService;
-use crate::routes::community_routes::{DiscussionNotificationEvent };
+use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_routes::{DiscussionPostView, DiscussionView};
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
@@ -24,13 +25,12 @@ use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::request_utils::CreatedResponse;
+use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use crate::entity::discussion_notification_entitiy::{DiscussionNotification, DiscussionNotificationDbService};
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use tempfile::NamedTempFile;
-use sb_middleware::utils::string_utils::get_string_thing;
 
 pub const UPLOADS_URL_BASE:&str = "/media";
 pub fn routes(state: CtxState) -> Router {
@@ -49,7 +49,7 @@ pub fn routes(state: CtxState) -> Router {
 
 #[derive(Deserialize)]
 struct PostDiscussionCommunityOwnerView {
-    created_by_profile_main_discussion: Option<Thing>,
+    created_by_profile_profile_discussion: Option<Thing>,
     belongs_to: Thing,
     community_uri: String,
     username: String,
@@ -59,7 +59,7 @@ impl ViewFieldSelector for PostDiscussionCommunityOwnerView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         // belongs_to == discussion
         // belongs_to.belongs_to == community
-        "belongs_to, belongs_to.belongs_to.created_by.community.main_discussion as created_by_profile_main_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
+        "belongs_to, belongs_to.belongs_to.created_by.community.profile_discussion as created_by_profile_profile_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
     }
 }
 
@@ -237,7 +237,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> CtxResult<String> {
     let owner_view = PostDbService{db: &ctx_state._db, ctx: &ctx}.get_view::<PostDiscussionCommunityOwnerView>(IdentIdName::Id(post_id)).await?;
     // belongs_to = discussion
-    if owner_view.created_by_profile_main_discussion == Some(owner_view.belongs_to) {
+    if owner_view.created_by_profile_profile_discussion == Some(owner_view.belongs_to) {
         Ok(format!("/u/{}", owner_view.username))
     } else { Ok(format!("/community/{}", owner_view.community_uri)) }
 }

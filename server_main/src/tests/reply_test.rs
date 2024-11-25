@@ -1,16 +1,16 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
-    use sb_middleware::ctx::Ctx;
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::CommunityInput;
     use sb_community::routes::reply_routes::PostReplyInput;
+    use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::entity::authorization_entity::{get_parent_ids, get_same_level_record_ids, is_child_record};
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn create_reply() {
@@ -33,7 +33,7 @@ mod tests {
         // let create_response = server.post("/api/discussion").json(&DiscussionInput { id: None, community_id:comm_id.clone().to_raw(), discussion_uri: commName.clone(), title: "The Discussion".to_string(), topics: None }).await;
         // let created = &create_response.json::<CreatedResponse>();
 
-        let comm_discussion_id = community.unwrap().main_discussion.unwrap().to_raw();
+        let comm_discussion_id = community.unwrap().profile_discussion.unwrap().to_raw();
         assert_eq!(comm_discussion_id.len() > 0, true);
 
         let postName = "post title Name 1".to_string();

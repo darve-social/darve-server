@@ -6,12 +6,12 @@ mod tests {
     use surrealdb::sql::Thing;
     use uuid::Uuid;
 
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::{get_community, CommunityInput};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
-    use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
     async fn create_post() {
@@ -32,7 +32,7 @@ mod tests {
         let community_db_service = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
         let community:Community = community_db_service.db.select((&comm_id.tb, comm_id.id.to_raw())).await.unwrap().unwrap();
         assert_eq!(comm_name, community.name_uri.clone());
-        let community_discussion_id = community.main_discussion.clone().unwrap();
+        let community_discussion_id = community.profile_discussion.clone().unwrap();
 
         let post_name = "post title Name 1".to_string();
         let create_post = server.post(format!("/api/discussion/{community_discussion_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name.clone()).add_text("content", "contentttt").add_text("topic_id", "")).await;
@@ -58,7 +58,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 2);
     }
 

@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 use surrealdb::sql::{Id, Thing};
 
-use sb_middleware::utils::db_utils::{get_entity_list, IdentIdName, Pagination, QryOrder};
+use crate::entity::follow_entitiy::FollowDbService;
 use sb_middleware::db;
+use sb_middleware::error::AppResult;
 use sb_middleware::{
     ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+    error::{AppError, CtxError, CtxResult},
 };
-use sb_middleware::error::AppResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserNotification {
@@ -37,7 +37,31 @@ pub struct UserNotificationDbService<'a> {
 }
 
 impl<'a> UserNotificationDbService<'a> {
-    pub fn create_qry(&self, u_notification: UserNotification) -> AppResult<String> {
+    pub async fn notify_users(&self, user_ids: Vec<Thing>, event: &UserNotificationEvent, content: &str) -> AppResult<()> {
+        let qry: Vec<String> = user_ids.into_iter().map(|u| {
+            self.create_qry(&UserNotification {
+                id: None,
+                user: u,
+                event: event.clone(),
+                content: content.to_string(),
+                r_created: None,
+            })
+                .ok()
+        })
+            .filter(|v| v.is_some())
+            .map(|v| v.unwrap())
+            .collect();
+        let res = self.db.query(qry.join("")).await?;
+        res.check()?;
+        Ok(())
+    }
+
+    pub async fn notify_user_followers(&self, user_id: Thing, event: &UserNotificationEvent, content: &str) -> AppResult<()> {
+        let notify_followers_task_given_qry: Vec<Thing> = FollowDbService { db: self.db, ctx: self.ctx }.user_follower_ids(user_id.clone()).await?;
+        self.notify_users(notify_followers_task_given_qry, event, content).await
+    }
+
+    pub fn create_qry(&self, u_notification: &UserNotification) -> AppResult<String> {
         let event_json = serde_json::to_string(&u_notification.event)?;
         Ok(format!("INSERT INTO {TABLE_NAME} {{user: {}, event:\"{event_json}\", content:\"\" }};", u_notification.user))
     }

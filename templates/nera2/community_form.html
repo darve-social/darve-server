@@ -15,7 +15,7 @@
                     <input
                             type="text"
                             name="title"
-                            value="{% if community_view.is_some() %}{{community_view.as_ref().unwrap().title}}{% endif %}"
+                            value="{% if community_view.is_some() %}{{community_view.as_ref().unwrap().title|display_some}}{% endif %}"
                             placeholder="Title"
                             class="input input-bordered input-primary w-full max-w-xs"
                     />

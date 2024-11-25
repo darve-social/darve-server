@@ -2,15 +2,15 @@ use std::convert::TryInto;
 
 #[cfg(test)]
 mod tests {
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::CommunityInput;
-    use sb_user_auth::entity::authorization_entity::{get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_ADMIN, AUTH_ACTIVITY_EDITOR, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR, AUTH_REC_NAME_DISCUSSION, AUTH_REC_NAME_POST};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use sb_user_auth::entity::authorization_entity::{get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_ADMIN, AUTH_ACTIVITY_EDITOR, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR, AUTH_REC_NAME_DISCUSSION, AUTH_REC_NAME_POST};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn authorization_compare() {
@@ -128,7 +128,7 @@ mod tests {
         let community_db_service = CommunityDbService { db: &ctx_state._db, ctx: &ctx.clone() };
         let community: Option<Community> = community_db_service.db.select((comm_id.clone().tb, comm_id.id.to_raw())).await.unwrap();
 
-        let comm_discussion_id = community.unwrap().main_discussion.unwrap();
+        let comm_discussion_id = community.unwrap().profile_discussion.unwrap();
 
         let acc_right_service = AccessRightDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false) };
 

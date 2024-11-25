@@ -2,25 +2,25 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum::extract::{Path, State};
     use axum_test::multipart::MultipartForm;
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
     use sb_community::entity::community_entitiy::CommunityDbService;
     use sb_community::routes::community_routes::{get_community, CommunityInput};
     use sb_community::routes::discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
-    use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
-    use sb_user_auth::entity::authentication_entity::AuthType;
-    use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR};
-    use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
-    use sb_user_auth::routes::access_rule_routes::{AccessRuleForm, AccessRuleInput};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::error::AppError;
     use sb_middleware::utils::db_utils::IdentIdName;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
+    use sb_user_auth::entity::authentication_entity::AuthType;
+    use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR};
+    use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
+    use sb_user_auth::routes::access_rule_routes::{AccessRuleForm, AccessRuleInput};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn display_access_rule_content() {
@@ -39,7 +39,7 @@ mod tests {
         let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
         let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
-        let comm_disc_id = comm.unwrap().main_discussion.unwrap();
+        let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
 
         let create_response = server.post("/api/access-rule").json(&AccessRuleInput { id: "".to_string(), target_entity_id: comm_id.to_raw(), title: "Access Rule Register".to_string(), authorize_record_id_required: comm_id.to_raw(), authorize_activity_required: AUTH_ACTIVITY_VISITOR.to_string(), authorize_height_required: 1000, price_amount: "".to_string(), available_period_days: "".to_string(), access_gain_action_confirmation: "".to_string(), access_gain_action_redirect_url: "".to_string() }).await;
         &create_response.assert_status_success();
@@ -68,7 +68,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 2);
 
 
@@ -96,7 +96,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 3);
 
         // check view with admin
@@ -105,7 +105,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 1);
         let post0 = posts.get(0).unwrap();
         let post_access_rule = post0.access_rule.clone().unwrap();
@@ -123,7 +123,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 1);
         let post0 = posts.get(0).unwrap();
         let post_access_rule = post0.access_rule.clone().unwrap();
@@ -157,7 +157,7 @@ mod tests {
             start: None,
             count: None,
         }).await.expect("community page");
-        let posts = comm_view.community_view.unwrap().main_discussion_view.unwrap().posts;
+        let posts = comm_view.community_view.unwrap().profile_discussion_view.unwrap().posts;
         assert_eq!(posts.len(), 1);
         let post0 = posts.get(0).unwrap();
         let post_access_rule = post0.access_rule.clone().unwrap();

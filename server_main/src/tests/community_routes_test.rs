@@ -1,10 +1,9 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum::http::HeaderValue;
     use axum_htmx::HX_REQUEST;
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
     use sb_community::entity::community_entitiy::CommunityDbService;
     use sb_community::routes::community_routes::CommunityInput;
     use sb_middleware::ctx::Ctx;
@@ -12,7 +11,8 @@ mod tests {
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::entity::access_right_entity::AccessRightDbService;
     use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn get_community_view() {
@@ -33,11 +33,11 @@ mod tests {
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false) };
         let comm_rec = comm_db
             .get(IdentIdName::Id(comm_id.to_raw())).await;
-        assert_eq!(comm_rec.clone().unwrap().main_discussion.is_some(), true);
+        assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
 
         let comm_rec = comm_db
             .get(IdentIdName::ColumnIdent { val: comm_uri.clone(), column: "name_uri".to_string(), rec: false }).await;
-        assert_eq!(comm_rec.clone().unwrap().main_discussion.is_some(), true);
+        assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
 
         let get_response = server.get(format!("/community/{comm_uri}").as_str()).await;
         &get_response.assert_status_success();
@@ -80,7 +80,7 @@ mod tests {
         let community1_by_uri = comm_by_uri.unwrap();
         assert_eq!(community1.clone().name_uri, comm_name_created.clone());
         assert_eq!(community1_by_uri.clone().name_uri, comm_name_created.clone());
-        let comm_disc1 = community1.main_discussion.clone().unwrap();
+        let comm_disc1 = community1.profile_discussion.clone().unwrap();
 
         let comm2 = comm_db.get(IdentIdName::Id(comm2_id.to_raw()).into()).await;
         let comm_by_uri2 = comm_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: comm_name2.to_string(), rec: false }).await;
@@ -88,7 +88,7 @@ mod tests {
         let community2_by_uri = comm_by_uri2.unwrap();
         assert_eq!(community2.clone().name_uri, comm_name2.clone());
         assert_eq!(community2_by_uri.clone().name_uri, comm_name2.clone());
-        let comm_disc_2 = community2.main_discussion.clone().unwrap();
+        let comm_disc_2 = community2.profile_discussion.clone().unwrap();
 
         let db_service = AccessRightDbService { db: &ctx_state._db, ctx: ctx1 };
         let user_auth = db_service.get_authorizations(&Thing::try_from(user_ident.clone()).unwrap()).await.unwrap();
