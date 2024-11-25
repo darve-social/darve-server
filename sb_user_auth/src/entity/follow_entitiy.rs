@@ -61,11 +61,36 @@ impl<'a> FollowDbService<'a> {
         Ok(true)
     }
 
+    pub async fn user_follower_ids(&self, user: Thing) -> CtxResult<Vec<Thing>> {
+        let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER} as followers FROM <record>$user;");
+        self.get_followers_qry::<Thing>(qry, user).await
+    }
+
+    pub async fn user_followers_number(&self, user: Thing) -> CtxResult<i64> {
+        let qry = format!("SELECT count(<-{TABLE_NAME}<-{TABLE_USER}) as nr FROM <record>$user;");
+        self.get_nr_qry(qry, user).await
+    }
+
     pub async fn user_followers(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
         let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER}.* as followers FROM <record>$user;");
-        let mut res = self.db.query(qry).bind(("user", user.to_raw())).await?;
-        let res: Option<Vec<LocalUser>> = res.take("followers")?;
+        self.get_followers_qry::<LocalUser>(qry, user).await
+    }
+
+    async fn get_followers_qry<T: for<'de> Deserialize<'de>> (&self, qry: String, user_id: Thing) -> CtxResult<Vec<T>>{
+        let mut res = self.db.query(qry).bind(("user", user_id.to_raw())).await?;
+        let res: Option<Vec<T>> = res.take("followers")?;
         Ok(res.unwrap_or(vec![]))
+    }
+
+    async fn get_nr_qry (&self, qry: String, user_id: Thing) -> CtxResult<i64>{
+        let mut res = self.db.query(qry).bind(("user", user_id.to_raw())).await?;
+        let res: Option<i64> = res.take("nr")?;
+        Ok(res.unwrap_or(0))
+    }
+
+    pub async fn user_following_number(&self, user: Thing) -> CtxResult<i64> {
+        let qry = format!("SELECT count(->{TABLE_NAME}->{TABLE_USER}) as nr FROM <record>$user;");
+        self.get_nr_qry(qry, user).await
     }
 
     pub async fn user_following(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {

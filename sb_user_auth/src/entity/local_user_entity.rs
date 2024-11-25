@@ -38,6 +38,18 @@ pub struct LocalUser {
     pub image_uri: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct UsernameView {
+    id: Thing,
+    username: String,
+}
+
+impl ViewFieldSelector for UsernameView {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, username".to_string()
+    }
+}
+
 pub struct LocalUserDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
@@ -110,6 +122,11 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+
+    pub async fn get_username(&self, ident: IdentIdName) -> CtxResult<String> {
+        let u_view = self.get_view::<UsernameView>(ident).await?;
+        Ok(u_view.username)
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, ident_id_name: IdentIdName) -> CtxResult<T> {

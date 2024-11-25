@@ -225,9 +225,29 @@ async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<Ct
         .map_err(|e| ctx.to_ctx_error(AppError::Generic { description: "Upload failed".to_string() }))?;
     let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
 
-    TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user, task_id.clone(), TaskStatus::Delivered, Some(vec![file_uri])).await?;
+    let deliverables = vec![file_uri];
+    let task = TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user.clone(), task_id.clone(), TaskStatus::Delivered, Some(deliverables.clone()) ).await?;
 
+    notify_task_donors(&_db, &ctx, &to_user, deliverables, task).await?;
     ctx.to_htmx_or_json_res(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
+}
+
+async fn notify_task_donors(_db: &Db, ctx: &Ctx, to_user: &Thing, deliverables: Vec<String>, task: TaskRequest) -> Result<(), CtxError> {
+    let mut notify_task_donors_ids: Vec<Thing> = TaskRequestOfferDbService { db: &_db, ctx: &ctx }.get_ids(task.offers).await?
+        .into_iter()
+        .map(|t| t.user)
+        .collect();
+
+    let u_notification_db_service = UserNotificationDbService { db: &_db, ctx: &ctx };
+    u_notification_db_service.notify_users(
+        notify_task_donors_ids,
+        &UserNotificationEvent::UserTaskRequestComplete {
+            task_id: task.id.unwrap(),
+            delivered_by: to_user.clone(),
+            requested_by: task.from_user,
+            deliverables,
+        }, "").await?;
+    Ok(())
 }
 
 async fn add_task_request_offer(State(CtxState { _db, .. }): State<CtxState>,

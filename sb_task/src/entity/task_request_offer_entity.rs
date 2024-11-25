@@ -109,5 +109,13 @@ impl<'a> TaskRequestOfferDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
+    pub async fn get_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<TaskRequestOffer>> {
+        let qry = format!("SELECT * FROM {};", ids.into_iter().map(|t| t.to_raw())
+            .collect::<Vec<String>>()
+            .join(","));
+        let mut res = self.db.query(qry).await?;
+        let res: Vec<TaskRequestOffer> = res.take(0)?;
+        Ok(res)
+    }
 }
 

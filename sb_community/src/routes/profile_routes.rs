@@ -29,6 +29,7 @@ use sb_middleware::utils::db_utils::{get_entities_by_id, record_exists, IdentIdN
 use sb_middleware::utils::extractor_utils::DiscussionParams;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
+use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
@@ -82,13 +83,14 @@ pub struct ProfileView {
     user_id: Thing,
     community: Option<Thing>,
     profile_discussion: Option<Thing>,
+    followers_nr: i64,
+    following_nr: i64,
     pub(crate) profile_discussion_view: Option<ProfileDiscussionView>,
 }
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        // "id as user_id, community, community.profile_discussion as profile_discussion".to_string()
-        "id as user_id".to_string()
+        "id as user_id, 0 as followers_nr, 0 as following_nr".to_string()
     }
 }
 
@@ -202,6 +204,10 @@ async fn display_profile(
     dis_view.posts = discussion_posts;
 
     profile_view.profile_discussion_view = Some(dis_view);
+    let follow_db_service = FollowDbService { db: &ctx_state._db, ctx: &ctx };
+    // TODO cache user follow numbers
+    profile_view.following_nr = follow_db_service.user_following_number(profile_view.user_id.clone()).await?;
+    profile_view.followers_nr =follow_db_service.user_followers_number(profile_view.user_id.clone()).await?;
 
     Ok(ProfilePage {
         theme_name: "emerald".to_string(),

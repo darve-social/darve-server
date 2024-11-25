@@ -1,6 +1,5 @@
-use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use strum::Display;
 use surrealdb::sql::{Id, Thing};
 
@@ -25,10 +24,10 @@ pub struct UserNotification {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
 pub enum UserNotificationEvent {
-    UserFollowAdded { username: String },
-    UserTaskRequestComplete { task_id: Thing, delivered_by: Thing, requested_by: Thing, deliverables: Vec<String> },
+    UserFollowAdded { username: String, follows_username: String },
     UserTaskRequestCreated { task_id: Thing, from_user: Thing, to_user: Thing },
     UserTaskRequestReceived { task_id: Thing, from_user: Thing, to_user: Thing },
+    UserTaskRequestComplete { task_id: Thing, delivered_by: Thing, requested_by: Thing, deliverables: Vec<String> },
 }
 
 pub struct UserNotificationDbService<'a> {
@@ -90,11 +89,6 @@ impl<'a> UserNotificationDbService<'a> {
 
         Ok(())
     }
-    /*pub async fn get_by_user(&self, user_id: Thing, from: i32, count: i8) -> CtxResult<Vec<UserNotification>> {
-        get_entity_list::<UserNotification>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent { column: TABLE_COL_USER.to_string(), val: user_id.to_raw(), rec: true},
-                                        Some(Pagination { order_by: Option::from("r_created".to_string()),order_dir:Some(QryOrder::DESC), count: 20, start: 0 }
-                                        )).await
-    }*/
 
     pub async fn create(&self, mut record: UserNotification) -> CtxResult<UserNotification> {
         record.id = Some(Thing::from((TABLE_NAME, Id::ulid())));

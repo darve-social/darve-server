@@ -29,6 +29,7 @@ pub fn routes(state: CtxState) -> Router {
 #[template(path = "nera2/user_notification_follow_view_1.html")]
 pub struct UserNotificationFollowView {
     username: String,
+    follows_username: String,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -85,8 +86,8 @@ async fn user_notification_sse(
 fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> Event {
     let event_ident = event.to_string();
     match event {
-        UserNotificationEvent::UserFollowAdded { username } => {
-            Event::default().data(ctx.to_htmx_or_json(UserNotificationFollowView { username }).0).event(event_ident)
+        UserNotificationEvent::UserFollowAdded { username, follows_username } => {
+            Event::default().data(ctx.to_htmx_or_json(UserNotificationFollowView { username, follows_username }).0).event(event_ident)
         }
         UserNotificationEvent::UserTaskRequestComplete { task_id, delivered_by, requested_by, deliverables } => {
             Event::default().data(ctx.to_htmx_or_json(UserNotificationTaskCompleteView {
