@@ -73,6 +73,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE INDEX local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
+    DEFINE INDEX local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
 ");
         let local_user_mutation = self.db
             .query(sql)
