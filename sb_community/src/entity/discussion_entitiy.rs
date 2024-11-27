@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
@@ -89,8 +90,20 @@ impl<'a> DiscussionDbService<'a> {
             return Err(self.ctx.to_ctx_error(AppError::Generic { description: "Need at least 2 users".to_string() }));
         }
 
-        let qry = format!("SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];",discussions.iter().map(|t|t.to_raw()).collect::<Vec<String>>().join(","), user_ids.iter().map(|t|t.to_raw()).collect::<Vec<String>>().join(","));
-        let res = get_list_qry::<Discussion>(self.db, TABLE_NAME.to_string(), qry).await?;
+        let mut bindings_map: HashMap<String, String> = HashMap::new();
+        let user_ids_str_val = user_ids.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
+        user_ids_str_val.into_iter().enumerate().for_each(|i_id| { bindings_map.insert(format!("uid_{}", i_id.0), i_id.1);} );
+        let q_bind_uid_props_str = bindings_map.iter().map(|k_v| format!("${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
+
+        let mut disc_bindings_map: HashMap<String, String> = HashMap::new();
+        let disc_ids_str_val = discussions.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
+        disc_ids_str_val.into_iter().enumerate().for_each(|i_id| { disc_bindings_map.insert(format!("d_id_{}", i_id.0), i_id.1);} );
+        let q_bind_discid_props_str = disc_bindings_map.iter().map(|k_v| format!("${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
+
+        bindings_map.extend(disc_bindings_map);
+
+        let qry = format!("SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];", q_bind_discid_props_str, q_bind_uid_props_str);
+        let res = get_list_qry::<Discussion>(self.db, TABLE_NAME.to_string(), (qry, bindings_map)).await?;
         match res.len() {
             0=>Ok(None),
             1=>Ok(Some(res[0].clone())),

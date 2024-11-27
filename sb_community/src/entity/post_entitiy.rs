@@ -163,7 +163,8 @@ impl<'a> PostDbService<'a> {
     }
 
     pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
-        let curr_nr = self.db.query(format!("SELECT replies_nr FROM {}", record.clone().to_raw()))
+        let curr_nr = self.db.query("SELECT replies_nr FROM <record>$rec".to_string())
+            .bind(("rec", record.clone().to_raw() ))
             .await?
             .take::<Option<i64>>("replies_nr")?
             .ok_or_else(||self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {ident:record.clone().to_raw()}))?;

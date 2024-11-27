@@ -1,7 +1,8 @@
+use std::collections::{HashMap};
 use std::fmt::{Display, Formatter};
-
 use serde::Deserialize;
 use strum::Display;
+use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 use tower::ServiceExt;
 
@@ -21,16 +22,36 @@ pub enum IdentIdName {
     ColumnIdentAnd(Vec<IdentIdName>),
 }
 
+impl IdentIdName {
+    pub fn get_bindings_map(&self)-> HashMap<String, String>{
+        let mut bindings: HashMap<String, String> = HashMap::new();
+        match self {
+            IdentIdName::Id(id) => {
+                bindings.insert("id".to_string(),id.to_raw());
+                bindings
+            }
+            IdentIdName::ColumnIdent { rec, val, column } => {
+
+                bindings.insert(format!("{}",column), val.clone());
+                bindings
+            }
+            IdentIdName::ColumnIdentAnd(and_filters) => {
+                and_filters.iter().fold(bindings,|mut acc,iin| {
+                    acc.extend(iin.get_bindings_map());
+                    acc
+                })
+            }
+        }
+    }
+}
+
 impl Display for IdentIdName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            IdentIdName::Id(id) => f.write_str(id.to_raw().as_str()),
-            IdentIdName::ColumnIdent { column, val, rec } => {
-                let v = match *rec {
-                    true => val.clone(),
-                    false => format!("'{}'", val.clone())
-                };
-                f.write_str(format!("{column}={v}").as_str())
+            IdentIdName::Id(_) => f.write_str("<record>$id"),
+            IdentIdName::ColumnIdent { column,rec,.. } => {
+                let prefix = if *rec {"<record>"}else { "" };
+                f.write_str(format!("{column}={prefix}${column}").as_str())
             }
             IdentIdName::ColumnIdentAnd(andFilters) => f.write_str(andFilters.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(" AND ").as_str()),
         }
@@ -77,7 +98,13 @@ pub trait ViewFieldSelector {
     fn get_select_query_fields(ident: &IdentIdName) -> String;
 }
 
-pub fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&str>, pagination: Option<Pagination>) -> Result<String, AppError> {
+struct QueryBinding {
+    name: String,
+    value: String,
+}
+
+fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&str>, pagination: Option<Pagination>) -> Result<(String, HashMap<String, String>), AppError> {
+    let mut q_bindings: HashMap<String, String> = HashMap::new();
     let pagination_q = match pagination {
         None => "".to_string(),
         Some(pag) => {
@@ -91,14 +118,17 @@ pub fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&st
             };
 
             let count = if pag.count <= 0 { 20 } else { pag.count };
-            pag_q = format!(" {pag_q} LIMIT {} ", count);
+            q_bindings.insert("_count_val".to_string(), count.to_string());
+            pag_q = format!(" {pag_q} LIMIT type::int($_count_val) ");
+
 
             let start = if pag.start < 0 { 0 } else { pag.start };
-            format!(" {pag_q} START {} ", start)
+            q_bindings.insert("_start_val".to_string(), start.to_string());
+            format!(" {pag_q} START type::int($_start_val) ")
         }
     };
 
-    let queryString = match ident.clone() {
+    let query_string = match ident.clone() {
         IdentIdName::Id(id) => {
             if id.to_raw().len() < 3 {
                 return Err(AppError::Generic { description: "IdentIdName::Id() value too short".to_string() });
@@ -107,28 +137,19 @@ pub fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&st
                 None => { "*" }
                 Some(f) => { f }
             };
-            format!("SELECT {fields} FROM {id};")
+            q_bindings.insert("id".to_string(), id.to_raw());
+            format!("SELECT {fields} FROM <record>$id;")
         }
-        /*IdentIdName::ColumnIdent { column: columnName, val } => {
-            let fields = match select_fields_or_id {
-                None => { "id" }
-                Some(f) => { f }
-            };
-            format!("SELECT {fields} FROM type::table($table) WHERE {columnName}='{val}' {pagination_q};")
-        }*/
         _ => {
             let fields = match select_fields_or_id {
                 None => { "id" }
                 Some(f) => { f }
             };
+            q_bindings.extend(ident.get_bindings_map());
             format!("SELECT {fields} FROM type::table($table) WHERE {} {pagination_q};", ident.to_string())
         }
     };
-    Ok(queryString)
-    // println!("QQQQ={:?}", &queryString);
-    /*let qry = db.query(queryString)
-        .bind(("table", table_name));
-    qry*/
+    Ok((query_string, q_bindings))
 }
 
 pub async fn get_entity<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<T>> {
@@ -152,14 +173,13 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(db:
     get_query(db, table_name, query_string).await
 }
 
-async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string: String) -> Result<Option<T>, CtxError> {
-    let qry = db.query(query_string.clone())
-        .bind(("table", table_name.clone()));
+async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string: (String, HashMap<String, String>)) -> Result<Option<T>, CtxError> {
+    let qry =  create_db_qry(db, table_name, query_string);
 
     let mut res = qry.await?;
     // if table_name.eq("reply"){
     // println!("Q={}", query_string);
-    // dbg!(&res);
+    dbg!(&res);
     // }
     let res = res.take::<Option<T>>(0)?;
     Ok(res)
@@ -177,14 +197,23 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
     get_list_qry(db, table_name, query_string).await
 }
 
-pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string: String) -> CtxResult<Vec<T>> {
-    let qry = db.query(query_string)
-        .bind(("table", table_name));
-
+pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string:  (String, HashMap<String, String>)) -> CtxResult<Vec<T>> {
+    let qry = create_db_qry(db, table_name, query_string);
     let mut res = qry.await?;
     // dbg!(&res);
     let res = res.take::<Vec<T>>(0)?;
     Ok(res)
+}
+
+fn create_db_qry(db: &Db, table_name: String, query_string: (String, HashMap<String, String>)) -> Query<surrealdb::engine::local::Db> {
+    dbg!(&query_string.0);
+    dbg!(&query_string.1);
+    let qry = db.query(query_string.0)
+        .bind(("table", table_name));
+    let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
+        acc.bind(name_value)
+    });
+    qry
 }
 
 pub async fn exists_entity(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<Thing>> {
@@ -195,8 +224,7 @@ pub async fn exists_entity(db: &Db, table_name: String, ident: &IdentIdName) -> 
         }
         _ => {
             let query_string = get_entity_query_str(ident, None, None)?;
-            let qry = db.query(query_string)
-                .bind(("table", table_name));
+            let qry =  create_db_qry(db, table_name, query_string);
 
             let mut res = qry.await?;
             let res = res.take::<Option<RecordWithId>>(0)?;

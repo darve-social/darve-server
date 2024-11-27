@@ -148,6 +148,30 @@ mod tests {
     use surrealdb::sql::Thing;
     use tokio::io::AsyncWriteExt;
     use tokio_stream::StreamExt;
+    use sb_middleware::utils::db_utils::IdentIdName;
+
+    #[tokio::test]
+    async fn query_with_params() {
+
+        let (db, ctx) = init_db_test().await;
+
+        let usr1 = LocalUserDbService { db: &db, ctx: &ctx }.create(LocalUser {
+            id: None,
+            username: "usname1".to_string(),
+            full_name: None,
+            birth_date: None,
+            phone: None,
+            email: None,
+            bio: None,
+            social_links: None,
+            image_uri: None,
+        }, AuthType::PASSWORD(Some("pass123".to_string()))).await.expect("user id");
+
+
+        // let usr1 = LocalUserDbService{ db: &db, ctx: &ctx }.get(IdentIdName::Id(get_string_thing(usr1).unwrap())).await.expect("got user");
+        let usr1 = LocalUserDbService{ db: &db, ctx: &ctx }.get(IdentIdName::ColumnIdent{column:"id".to_string(), val:get_string_thing(usr1).unwrap().to_raw(), rec:true}).await.expect("got user");
+        dbg!(usr1);
+    }
 
     #[tokio::test]
     async fn prod_balance_0() {
