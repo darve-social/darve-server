@@ -5,7 +5,7 @@ use validator::Validate;
 
 use crate::entity::discussion_topic_entitiy::DiscussionTopic;
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName, QryBindingsVal, ViewFieldSelector};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -103,7 +103,7 @@ impl<'a> DiscussionDbService<'a> {
         bindings_map.extend(disc_bindings_map);
 
         let qry = format!("SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];", q_bind_discid_props_str, q_bind_uid_props_str);
-        let res = get_list_qry::<Discussion>(self.db, TABLE_NAME.to_string(), (qry, bindings_map)).await?;
+        let res = get_list_qry::<Discussion>(self.db, QryBindingsVal::new(qry, bindings_map)).await?;
         match res.len() {
             0=>Ok(None),
             1=>Ok(Some(res[0].clone())),

@@ -2,6 +2,7 @@ use std::collections::{HashMap};
 use std::fmt::{Display, Formatter};
 use serde::Deserialize;
 use strum::Display;
+use surrealdb::engine::local::Db as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 use tower::ServiceExt;
@@ -70,11 +71,17 @@ impl From<UsernameIdent> for IdentIdName {
     }
 }
 
-/*impl From<NameIdent> for IdentIdName {
-    fn from(value: NameIdent) -> Self {
-        IdentIdName::ColumnIdent { column: "name".to_string(), val: value.0 }
+pub struct QryBindingsVal(String, HashMap<String, String>);
+impl QryBindingsVal {
+    pub fn new(qry: String, bindings: HashMap<String,String>)->Self{
+        QryBindingsVal(qry, bindings)
     }
-}*/
+    pub fn get_query_string(&self)->String{self.0.clone()}
+    pub fn get_bindings(&self)->HashMap<String, String>{self.1.clone()}
+    pub fn into_query(self, db: &Db)->Query<SurDb>{
+        self.1.into_iter().fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
+    }
+}
 
 pub struct UsernameIdent(pub String);
 
@@ -103,7 +110,7 @@ struct QueryBinding {
     value: String,
 }
 
-fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&str>, pagination: Option<Pagination>) -> Result<(String, HashMap<String, String>), AppError> {
+fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&str>, pagination: Option<Pagination>, table_name: String) -> Result<QryBindingsVal, AppError> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
     let pagination_q = match pagination {
         None => "".to_string(),
@@ -146,15 +153,17 @@ fn get_entity_query_str(ident: &IdentIdName, select_fields_or_id: Option<&str>, 
                 Some(f) => { f }
             };
             q_bindings.extend(ident.get_bindings_map());
-            format!("SELECT {fields} FROM type::table($table) WHERE {} {pagination_q};", ident.to_string())
+            // TODO move table name to IdentIdName::ColumnIdent prop since it's used only here
+            q_bindings.insert("_table".to_string(), table_name);
+            format!("SELECT {fields} FROM type::table($_table) WHERE {} {pagination_q};", ident.to_string())
         }
     };
-    Ok((query_string, q_bindings))
+    Ok(QryBindingsVal(query_string, q_bindings))
 }
 
 pub async fn get_entity<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<T>> {
-    let query_string = get_entity_query_str(ident, Some("*"), None)?;
-    get_query(db, table_name, query_string).await
+    let query_string = get_entity_query_str(ident, Some("*"), None, table_name)?;
+    get_query(db, query_string).await
 }
 
 pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(db: &Db, ids: Vec<Thing>) -> CtxResult<Vec<T>> {
@@ -168,13 +177,13 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(db: &Db, ids: Vec<Th
 }
 
 pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<T>> {
-    let query_string = get_entity_query_str(ident, Some(T::get_select_query_fields(ident).as_str()), None)?;
+    let query_string = get_entity_query_str(ident, Some(T::get_select_query_fields(ident).as_str()), None, table_name)?;
     // println!("QQQ={}", query_string);
-    get_query(db, table_name, query_string).await
+    get_query(db, query_string).await
 }
 
-async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string: (String, HashMap<String, String>)) -> Result<Option<T>, CtxError> {
-    let qry =  create_db_qry(db, table_name, query_string);
+async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, query_string: QryBindingsVal) -> Result<Option<T>, CtxError> {
+    let qry =  create_db_qry(db, query_string);
 
     let mut res = qry.await?;
     // if table_name.eq("reply"){
@@ -186,34 +195,32 @@ async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, quer
 }
 
 pub async fn get_entity_list<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, ident: &IdentIdName, pagination: Option<Pagination>) -> CtxResult<Vec<T>> {
-    let query_string = get_entity_query_str(ident, Some("*"), pagination)?;
+    let query_string = get_entity_query_str(ident, Some("*"), pagination, table_name)?;
 
-    get_list_qry(db, table_name, query_string).await
+    get_list_qry(db, query_string).await
 }
 
 pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(db: &Db, table_name: String, ident: &IdentIdName, pagination: Option<Pagination>) -> CtxResult<Vec<T>> {
-    let query_string = get_entity_query_str(ident, Some(T::get_select_query_fields(ident).as_str()), pagination)?;
+    let query_string = get_entity_query_str(ident, Some(T::get_select_query_fields(ident).as_str()), pagination, table_name)?;
     // println!("QQQ={}", query_string);
-    get_list_qry(db, table_name, query_string).await
+    get_list_qry(db, query_string).await
 }
 
-pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(db: &Db, table_name: String, query_string:  (String, HashMap<String, String>)) -> CtxResult<Vec<T>> {
-    let qry = create_db_qry(db, table_name, query_string);
+pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(db: &Db, query_string: QryBindingsVal) -> CtxResult<Vec<T>> {
+    let qry = create_db_qry(db, query_string);
     let mut res = qry.await?;
     // dbg!(&res);
     let res = res.take::<Vec<T>>(0)?;
     Ok(res)
 }
 
-fn create_db_qry(db: &Db, table_name: String, query_string: (String, HashMap<String, String>)) -> Query<surrealdb::engine::local::Db> {
-    dbg!(&query_string.0);
-    dbg!(&query_string.1);
-    let qry = db.query(query_string.0)
-        .bind(("table", table_name));
-    let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
-        acc.bind(name_value)
-    });
-    qry
+fn create_db_qry(db: &Db, query_string: QryBindingsVal) -> Query<surrealdb::engine::local::Db> {
+    // let qry = db.query(query_string.0);
+    // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
+    //     acc.bind(name_value)
+    // });
+    // qry
+    query_string.into_query(db)
 }
 
 pub async fn exists_entity(db: &Db, table_name: String, ident: &IdentIdName) -> CtxResult<Option<Thing>> {
@@ -223,8 +230,8 @@ pub async fn exists_entity(db: &Db, table_name: String, ident: &IdentIdName) -> 
             Ok(Some(id.clone()))
         }
         _ => {
-            let query_string = get_entity_query_str(ident, None, None)?;
-            let qry =  create_db_qry(db, table_name, query_string);
+            let query_string = get_entity_query_str(ident, None, None, table_name)?;
+            let qry =  create_db_qry(db, query_string);
 
             let mut res = qry.await?;
             let res = res.take::<Option<RecordWithId>>(0)?;

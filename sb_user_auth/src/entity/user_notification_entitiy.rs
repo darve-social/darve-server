@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use strum::Display;
@@ -10,6 +11,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
+use sb_middleware::utils::db_utils::QryBindingsVal;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserNotification {
@@ -37,20 +39,29 @@ pub struct UserNotificationDbService<'a> {
 
 impl<'a> UserNotificationDbService<'a> {
     pub async fn notify_users(&self, user_ids: Vec<Thing>, event: &UserNotificationEvent, content: &str) -> AppResult<()> {
-        let qry: Vec<String> = user_ids.into_iter().map(|u| {
+        let qry: Vec<QryBindingsVal> = user_ids.into_iter().enumerate().map(|i_uid| {
             self.create_qry(&UserNotification {
                 id: None,
-                user: u,
+                user: i_uid.1,
                 event: event.clone(),
                 content: content.to_string(),
                 r_created: None,
-            })
+            }, i_uid.0)
                 .ok()
         })
             .filter(|v| v.is_some())
             .map(|v| v.unwrap())
             .collect();
-        let res = self.db.query(qry.join("")).await?;
+        let qrys_bindings = qry.into_iter().fold((vec![], HashMap::new()),|mut qrys_bindings, qbv| {
+            qrys_bindings.0.push(qbv.get_query_string());
+            qrys_bindings.1.extend(qbv.get_bindings());
+            qrys_bindings
+        });
+        let qry = self.db.query(qrys_bindings.0.join(""));
+        let qry = qrys_bindings.1.into_iter().fold(qry,|qry, n_val| {
+            qry.bind(n_val)
+        });
+        let res = qry.await?;
         res.check()?;
         Ok(())
     }
@@ -60,9 +71,14 @@ impl<'a> UserNotificationDbService<'a> {
         self.notify_users(notify_followers_task_given_qry, event, content).await
     }
 
-    pub fn create_qry(&self, u_notification: &UserNotification) -> AppResult<String> {
+    pub fn create_qry(&self, u_notification: &UserNotification, qry_ident: usize) -> AppResult<QryBindingsVal> {
         let event_json = serde_json::to_string(&u_notification.event)?;
-        Ok(format!("INSERT INTO {TABLE_NAME} {{user: {}, event:\"{event_json}\", content:\"\" }};", u_notification.user))
+        let mut bindings: HashMap<String, String> = HashMap::new();
+        bindings.insert(format!("event_json_{qry_ident}"), event_json);
+        bindings.insert(format!("content_{qry_ident}"), String::new());
+        bindings.insert(format!("user_id_{qry_ident}"), u_notification.user.to_raw());
+        let qry = format!("INSERT INTO {TABLE_NAME} {{user: type::record($user_id_{qry_ident}), event:$event_json_{qry_ident}, content:$content_{qry_ident} }};");
+        Ok(QryBindingsVal::new(qry, bindings))
     }
 }
 
