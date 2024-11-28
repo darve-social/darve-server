@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName};
 use sb_middleware::{
@@ -110,10 +111,19 @@ impl<'a> TaskRequestOfferDbService<'a> {
     }
 
     pub async fn get_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<TaskRequestOffer>> {
-        let qry = format!("SELECT * FROM {};", ids.into_iter().map(|t| t.to_raw())
-            .collect::<Vec<String>>()
-            .join(","));
-        let mut res = self.db.query(qry).await?;
+        let mut bindings: HashMap<String,String> = HashMap::new();
+        let mut ids_str:Vec<String> = vec![];
+        ids.into_iter().enumerate().for_each(|i_id| {
+            let param_name = format!("id_{}", i_id.0);
+            bindings.insert(param_name.clone(), i_id.1.to_raw());
+            ids_str.push(format!("<record>${param_name}"));
+        });
+        let ids_str = ids_str.into_iter().collect::<Vec<String>>().join(",");
+
+        let qry = format!("SELECT * FROM {};", ids_str);
+        let query = self.db.query(qry);
+        let query = bindings.into_iter().fold(query, |query, n_val| query.bind(n_val));
+        let mut res = query.await?;
         let res: Vec<TaskRequestOffer> = res.take(0)?;
         Ok(res)
     }

@@ -93,12 +93,12 @@ impl<'a> DiscussionDbService<'a> {
         let mut bindings_map: HashMap<String, String> = HashMap::new();
         let user_ids_str_val = user_ids.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
         user_ids_str_val.into_iter().enumerate().for_each(|i_id| { bindings_map.insert(format!("uid_{}", i_id.0), i_id.1);} );
-        let q_bind_uid_props_str = bindings_map.iter().map(|k_v| format!("${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
+        let q_bind_uid_props_str = bindings_map.iter().map(|k_v| format!("<record>${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
 
         let mut disc_bindings_map: HashMap<String, String> = HashMap::new();
         let disc_ids_str_val = discussions.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
         disc_ids_str_val.into_iter().enumerate().for_each(|i_id| { disc_bindings_map.insert(format!("d_id_{}", i_id.0), i_id.1);} );
-        let q_bind_discid_props_str = disc_bindings_map.iter().map(|k_v| format!("${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
+        let q_bind_discid_props_str = disc_bindings_map.iter().map(|k_v| format!("<record>${}", k_v.0.to_string())).collect::<Vec<String>>().join(",");
 
         bindings_map.extend(disc_bindings_map);
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use serde::{Deserialize, Serialize};
@@ -85,23 +86,32 @@ pub async fn get_parent_ids(child_rec_id: &Thing, up_to_parent_level_id: Option<
 async fn get_parent_ids_qry(lower_rec_id: &Thing, ctx: &Ctx, db: &Db, higher_index: usize, lower_index: usize) -> CtxResult<Vec<Thing>> {
     let higher = AUTH_RECORD_TABLE_RANK[lower_index..higher_index + 1].to_vec();
 
-    let mut queries = vec![];
+    let mut queries_str = vec![];
     let mut c = 0;
+    let mut bindings: HashMap<String, String> = HashMap::new();
     while c < higher.len() {
         if c == 0 {
-            queries.push(format!("SELECT id FROM {};", lower_rec_id.to_raw()));
+            bindings.insert("lower_rec_id".to_string(), lower_rec_id.to_raw());
+            queries_str.push("SELECT id FROM <record>$lower_rec_id;".to_string());
         } else {
             // 0 is lower rec so don't include in query
-            // let qry = format!("SELECT {} as id FROM {};", higher[1..c + 1].join("."), lower_rec_id.to_raw());
-            let qry = format!("SELECT {} as id FROM {};", higher[1..c + 1].iter().map(|_| "belongs_to").collect::<Vec<&str>>().join("."), lower_rec_id.to_raw());
-            queries.push(qry);
+            let sel_column = higher[1..c + 1].iter().map(|_| "belongs_to").collect::<Vec<&str>>().join(".");
+            let sel_column_param = format!("sel_col_{c}");
+            bindings.insert(sel_column_param.clone(), sel_column);
+            let from_id = lower_rec_id.to_raw();
+            let from_id_param = format!("from_id_{c}");
+            bindings.insert(from_id_param.clone(), from_id);
+            let qry = format!("SELECT type::field(${sel_column_param}) as id FROM <record>${from_id_param};");
+            queries_str.push(qry);
         }
         c += 1;
     }
-    let mut res = db.query(queries.join("")).await?;
+    let query = db.query(queries_str.join(""));
+    let query = bindings.into_iter().fold(query,|query,name_v |query.bind(name_v));
+    let mut res = query.await?;
     c = 0;
     let mut res_list = vec![];
-    while c < queries.len() {
+    while c < queries_str.len() {
         let res: Option<RecordWithId> = res.take(c)?;
         let res = res.ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
         res_list.push(res.id);
@@ -148,9 +158,12 @@ pub async fn get_same_level_record_ids(rec_id_1: &Thing, rec_id_2: &Thing, ctx: 
 async fn get_higher_parent_record_id(lower_rec_id: &Thing, ctx: &Ctx, db: &Db, higher_index: usize, lower_index: usize) -> Result<Thing, CtxError> {
     let higher = AUTH_RECORD_TABLE_RANK[lower_index + 1..higher_index + 1].to_vec();
     let mut q_select_hierarchy = higher.join(".");
-    let qry = format!("SELECT {q_select_hierarchy} as id FROM {};", lower_rec_id.to_raw());
+    let qry = "SELECT type::field($q_select_hierarchy) as id FROM <record>$lower_rec_id;".to_string();
     // println!("qqq={qry}");
-    let res: Option<RecordWithId> = db.query(qry).await?.take(0)?;
+    let res: Option<RecordWithId> = db.query(qry)
+        .bind(("lower_rec_id", lower_rec_id.to_raw()))
+        .bind(("q_select_hierarchy",q_select_hierarchy))
+        .await?.take(0)?;
 
     let res = res.ok_or(ctx.to_ctx_error(AppError::Generic { description: format!("can not find higher parent record for {}", lower_rec_id.to_raw()) }))?;
     Ok(res.id)

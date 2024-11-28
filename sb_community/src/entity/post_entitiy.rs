@@ -78,17 +78,8 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
-");/*
-    DEFINE TABLE posts_updated TYPE NORMAL AS
-    SELECT id, r_updated FROM {TABLE_NAME}
-    WHERE r_updated in math::top((SELECT VALUE time::millis( r_updated ) FROM {TABLE_NAME}), 10);
-
-            DEFINE TABLE posts_created AS
-            SELECT *
-            FROM {TABLE_NAME}
-            WHERE created in time::max((SELECT VALUE created FROM {TABLE_NAME}), 20);
-        ");
-        */       let mutation = self.db
+");
+        let mutation = self.db
             .query(sql)
             .await?;
         &mutation.check().expect("should mutate domain");

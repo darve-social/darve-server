@@ -193,12 +193,9 @@ impl<'a> AuthenticationDbService<'a> {
     pub async fn authenticate(&self, ctx: &Ctx, local_user_id: String, auth: AuthType) -> CtxResult<String> {
         let id = Authentication::to_string_id(TABLE_NAME.to_string(), local_user_id.clone(), auth.clone(), true)?;
         println!("authenticate select id={}", id);
-        // dbg!(&auth);
-        // TODO replace with query value params - bind()
-        let q = format!("SELECT id FROM {id};");
-        let mut selectAuthentication = self.db.query(q).await?;
+        let q = "SELECT id FROM <record>$id;".to_string();
+        let mut selectAuthentication = self.db.query(q).bind(("id", id)).await?;
         let recFound: Option<Thing> = selectAuthentication.take("id")?;
-        // dbg!(&selectAuthentication.check());
         match recFound {
             None => Err(ctx.to_ctx_error(AppError::AuthenticationFail { })),
             Some(_) => Ok(local_user_id)
@@ -216,8 +213,12 @@ impl<'a> AuthenticationDbService<'a> {
         dbg!(res);*/
 
         let a_type = auth_type.as_str();
-        let q = format!("SELECT * FROM {TABLE_NAME} WHERE local_user={local_user_id} AND auth_type='{a_type}';");
-        let mut res = self.db.query(q).await;
+        let q = "SELECT * FROM type::table($table) WHERE local_user=<record>$local_user_id AND auth_type=$a_type;".to_string();
+        let mut res = self.db.query(q)
+            .bind(("table",TABLE_NAME))
+            .bind(("local_user_id",local_user_id))
+            .bind(("a_type",a_type))
+            .await;
         if res.is_err() {
             dbg!(res);
             return Ok(vec![]);
