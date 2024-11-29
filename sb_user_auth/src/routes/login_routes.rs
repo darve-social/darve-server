@@ -39,6 +39,7 @@ pub struct LoginInput {
 #[derive(Debug, Serialize)]
 struct LoginSuccess {
     id: String,
+    username: String,
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -128,7 +129,7 @@ pub async fn login(
 
 
     cookie_utils::issue_login_jwt(&key_enc, cookies, exists);
-    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id })).into_response();
+    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone() })).into_response();
     let mut next = payload.next.unwrap_or("".to_string());
     if next.len() < 1 {
         next = "/community".to_string();
