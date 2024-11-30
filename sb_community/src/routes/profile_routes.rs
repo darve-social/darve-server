@@ -152,6 +152,8 @@ struct UserDetails {
     image_uri:Option<String>,
     bio:Option<String>,
     email:Option<String>,
+    followers_nr: i64,
+    following_nr: i64,
 }
 
 pub async fn get_user_by_username(
@@ -166,7 +168,10 @@ pub async fn get_user_by_username(
         .get_user_by_username(&username)
         .await?;
 
-    let mut res = (StatusCode::OK, Json(UserDetails { id: user.id.map_or("".to_string(), |thing| thing.to_string()), username:username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
+    let mut profile_view = local_user_db_service
+    .get_view::<ProfileView>(IdentIdName::ColumnIdent { column: "username".to_string(), val: username.clone(), rec: false }).await?;
+
+    let mut res = (StatusCode::OK, Json(UserDetails { id: user.id.map_or("".to_string(), |thing| thing.to_string()), username:username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone(),followers_nr:profile_view.followers_nr,following_nr:profile_view.following_nr })).into_response();
 
     Ok(res)
 }
