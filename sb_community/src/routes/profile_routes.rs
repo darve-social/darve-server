@@ -6,11 +6,13 @@ use askama_axum::axum_core::extract::DefaultBodyLimit;
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::Html;
 use axum::routing::{get, post};
-use axum::Router;
+use axum::{Json, Router};
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use futures::TryFutureExt;
+use axum::response::{Response};
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use surrealdb::sql::Thing;
@@ -37,6 +39,7 @@ use sb_user_auth::utils::template_utils::ProfileFormPage;
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/u/:username", get(display_profile))
+        .route("/api/u/:username", get(get_user_by_username))
         .route("/u/following/posts", get(get_following_posts))
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
@@ -140,6 +143,34 @@ pub struct ProfileChat {
     user_id: Thing,
     pub discussion: Discussion,
 }
+
+#[derive(Debug, Serialize)]
+struct UserDetails {
+    id: String,
+    username: String,
+    full_name:Option<String>,
+    image_uri:Option<String>,
+    bio:Option<String>,
+    email:Option<String>,
+}
+
+pub async fn get_user_by_username(
+    State(CtxState { _db, key_enc, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(username): Path<String>,
+) -> CtxResult<Response> {
+    println!("->> {:<12} - get_user_by_username", "HANDLER");
+    let local_user_db_service = LocalUserDbService { ctx: &ctx, db: &_db };
+
+    let user = local_user_db_service
+        .get_user_by_username(&username)
+        .await?;
+
+    let mut res = (StatusCode::OK, Json(UserDetails { id: user.id.map_or("".to_string(), |thing| thing.to_string()), username:username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
+
+    Ok(res)
+}
+
 
 async fn profile_form(
     State(ctx_state): State<CtxState>,
