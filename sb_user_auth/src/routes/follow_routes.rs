@@ -6,7 +6,7 @@ use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{delete, get, post};
-use axum::Router;
+use axum::{Json, Router};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,6 @@ use sb_middleware::utils::string_utils::get_string_thing;
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/user/:user_id/followers", get(get_followers))
-        .route("/api/user/:user_id/following", get(get_following))
         .route("/api/follow/:follow_user_id", post(follow_user))
         .route("/api/follow/:follow_user_id", delete(unfollow_user))
         .with_state(state)
@@ -54,16 +53,26 @@ impl From<LocalUser> for FollowUser {
     }
 }
 
-async fn get_followers(
+
+pub async fn get_followers(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
     Path(user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<Json<FollowUserList>> {
     let user_id = get_string_thing(user_id.clone())?;
-    let followers: Vec<FollowUser> = FollowDbService { db: &ctx_state._db, ctx: &ctx }.user_followers(user_id).await?
-        .into_iter().map(FollowUser::from).collect();
-    ctx.to_htmx_or_json_res(FollowUserList { list: followers })
+    
+    let followers: Vec<FollowUser> = FollowDbService { db: &ctx_state._db, ctx: &ctx }
+        .user_followers(user_id)
+        .await?
+        .into_iter()
+        .map(FollowUser::from)
+        .collect();
+    
+    let response = FollowUserList { list: followers };
+    
+    Ok(Json(response))
 }
+
 
 async fn get_following(
     State(ctx_state): State<CtxState>,
