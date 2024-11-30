@@ -8,6 +8,7 @@ use axum::routing::get;
 use axum::{routing::post, Json, Router};
 use axum_htmx::HX_REDIRECT;
 use serde::{Deserialize, Serialize};
+use tower::util::Optional;
 use tower_cookies::{Cookie, Cookies};
 use validator::Validate;
 
@@ -40,6 +41,10 @@ pub struct LoginInput {
 struct LoginSuccess {
     id: String,
     username: String,
+    full_name:Option<String>,
+    image_uri:Option<String>,
+    bio:Option<String>,
+    email:Option<String>,
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -132,11 +137,9 @@ pub async fn login(
     let user = local_user_db_service
         .get_user_by_username(&payload.username)
         .await?;
-    println!("User details - Full Name: {:?}", user);
-
 
     cookie_utils::issue_login_jwt(&key_enc, cookies, exists);
-    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone() })).into_response();
+    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
     let mut next = payload.next.unwrap_or("".to_string());
     if next.len() < 1 {
         next = "/community".to_string();
