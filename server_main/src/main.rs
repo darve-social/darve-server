@@ -72,7 +72,15 @@ async fn main() -> AppResult<()> {
     if ctx_state.is_development {
         let username = "userrr".to_string();
         let password = "password".to_string();
-        create_dev_env(&ctx_state.clone(), username.clone(), password.clone()).await;
+        let email = "userrr@gmail.com".to_string();
+        let bio = "this is a test bio".to_string();
+        let full_name = "John Doe".to_string();
+        let image_uri = "https://play-lh.googleusercontent.com/ou4gBvEL0MDwRFbm6AoZl5fVrvdgLL5oPcRQ_a55F90flgDztQDTsvou9nZg77IHOYo=w240-h480-rw".to_string();
+        create_dev_env(&ctx_state.clone(), username.clone(), password.clone(),Some(email.clone()),
+        Some(bio.clone()),
+        Some(image_uri.clone()),
+        Some(full_name.clone()),
+    ).await;
         open::that(format!("http://localhost:8080/login?u={username}&p={password}")).expect("browser opens");
     }
 

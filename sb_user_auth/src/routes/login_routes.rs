@@ -106,7 +106,9 @@ pub async fn login(
     JsonOrFormValidated(payload): JsonOrFormValidated<LoginInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - api_login", "HANDLER");
-    let exists = LocalUserDbService { ctx: &ctx, db: &_db }.exists(UsernameIdent(payload.username.clone()).into()).await?;
+    let local_user_db_service = LocalUserDbService { ctx: &ctx, db: &_db };
+
+    let exists = local_user_db_service.exists(UsernameIdent(payload.username.clone()).into()).await?;
     println!("login exists={:?}", exists);
     if exists.is_none() {
         return Err(CtxError {
@@ -126,6 +128,11 @@ pub async fn login(
             is_htmx: ctx.is_htmx,
         });
     };
+
+    let user = local_user_db_service
+        .get_user_by_username(&payload.username)
+        .await?;
+    println!("User details - Full Name: {:?}", user);
 
 
     cookie_utils::issue_login_jwt(&key_enc, cookies, exists);

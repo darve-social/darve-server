@@ -105,7 +105,7 @@ async fn post_init_form(
         return Err(ctx.to_ctx_error(AppError::Generic { description: "Already initialized".to_string() }));
     }
 
-    let reg_input = RegisterInput { username: payload.0.username, password: payload.0.password.clone(), password1: payload.0.password.clone(), email: Some(payload.0.email), next: None };
+    let reg_input = RegisterInput { username: payload.0.username, password: payload.0.password.clone(), password1: payload.0.password.clone(), email: Some(payload.0.email),bio:None,full_name:None,image_uri:None, next: None };
 
     let created_user = register_user(&_db, &ctx, &reg_input).await?;
     let authThing = Thing::from((get_root_auth_rec_name(), "0".to_string()));

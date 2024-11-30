@@ -50,6 +50,11 @@ pub struct RegisterInput {
     // pub(crate) auth_type: Option<AuthType>,
     #[validate(email)]
     pub email: Option<String>,
+    pub bio: Option<String>,
+    #[validate(length(min = 6, message = "Min 1 character"))]
+    pub full_name: Option<String>,
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub image_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
 }
@@ -137,7 +142,7 @@ pub async fn register_user(_db: &Db, ctx: &Ctx, payload: &RegisterInput) -> CtxR
     let exists = user_db_service.exists(UsernameIdent(payload.username.clone()).into()).await?;
     // dbg!(&exists);
     if exists.is_none() {
-        let created_id = user_db_service.create(LocalUser { id: None, username: payload.username.clone(), full_name: None, birth_date: None, phone: None, email: payload.email.clone(), bio: None, social_links: None, image_uri: None }, auth_type).await?;
+        let created_id = user_db_service.create(LocalUser { id: None, username: payload.username.clone(), full_name: payload.full_name.clone(), birth_date: None, phone: None, email: payload.email.clone(), bio: payload.bio.clone(), social_links: None, image_uri: payload.image_uri.clone() }, auth_type).await?;
         return Ok(CreatedResponse { success: true, id: created_id, uri: None });
     } else if let AuthType::PASSWORD(pass) = &auth_type {
         // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
