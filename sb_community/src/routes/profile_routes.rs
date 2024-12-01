@@ -142,7 +142,6 @@ pub struct ProfileChatList {
 pub struct ProfileChat {
     user_id: Thing,
     pub discussion: Discussion,
-    image_uri:Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -283,17 +282,38 @@ async fn get_following_posts(State(CtxState{_db,..}): State<CtxState>,
 }
 
 // user chat discussions
-async fn get_chats(State(CtxState { _db, .. }): State<CtxState>,
-                   ctx: Ctx,
+async fn get_chats(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
 ) -> CtxResult<Html<String>> {
     println!("->> {:<12} - get_chats", "HANDLER");
     let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
     let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
-    let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+    let mut discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+
+    for discussion in &mut discussions {
+        if let Some(chat_room_user_ids) = &discussion.chat_room_user_ids {
+            if chat_room_user_ids.len() > 1 {
+                let other_user_id = chat_room_user_ids[1].clone();
+
+                let mut other_user_details = local_user_db_service
+                    .get(IdentIdName::Id(other_user_id))
+                    .await?;
+                discussion.title = other_user_details.full_name;
+                discussion.image_uri = other_user_details.image_uri;
+            }
+        }
+    }
+
+    // Print the updated discussions for debugging
+    println!("Updated Discussions: {:?}", discussions);
+
+    //TODO: @matjazonline please add discussion's last message and timestamp
     ctx.to_htmx_or_json_res(ProfileChatList { user_id, discussions })
 }
+
 
 async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
                              ctx: Ctx,
@@ -317,8 +337,7 @@ async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
         None => create_chat_discussion(user_id.clone(), other_user_id, comm, comm_db_service, discussion_db_service,other_user_details.full_name).await?,
         Some(disc) => disc
     };
-    //TODO: @matjazonline please add discussion's last message and timestamp
-    ctx.to_htmx_or_json_res(ProfileChat { discussion, user_id,image_uri:other_user_details.image_uri })
+    ctx.to_htmx_or_json_res(ProfileChat { discussion, user_id })
 }
 
 async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: Community, comm_db_service: CommunityDbService<'a>, discussion_db_service: DiscussionDbService<'a>,title:Option<String>) -> CtxResult<Discussion> {    
@@ -330,6 +349,7 @@ async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: 
         chat_room_user_ids: Some(vec![user_id.clone(), other_user_id.clone()]),
         r_created: None,
         created_by: user_id.clone(),
+        image_uri:None,
     }).await?;
     let exists = record_exists(comm_db_service.db, CommunityDbService::get_profile_community_id(user_id.clone())).await;
     if exists.is_err() {

@@ -30,6 +30,7 @@ pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     pub created_by: Thing,
+    pub image_uri: Option<String>,
 }
 
 pub struct DiscussionDbService<'a> {

@@ -376,6 +376,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
                 chat_room_user_ids: None,
                 r_created: None,
                 created_by: user_id,
+                image_uri:None,
             }
         }
         true => {

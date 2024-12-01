@@ -106,7 +106,7 @@ impl<'a> CommunityDbService<'a> {
         if comm.profile_discussion.is_none() {
             let disc = self.db
                 .create(DISCUSSION_TABLE_NAME)
-                .content(Discussion { id: None, title: None, topics: None, chat_room_user_ids: None, r_created: None, belongs_to: comm_id.clone(), created_by: comm.created_by.clone() })
+                .content(Discussion { id: None, title: None, topics: None, chat_room_user_ids: None, r_created: None, belongs_to: comm_id.clone(), created_by: comm.created_by.clone(),image_uri:None, })
                 .await
                 .map_err(CtxError::from(self.ctx))
                 .map(|v: Option<Discussion>| v.unwrap())?;
@@ -140,6 +140,7 @@ impl<'a> CommunityDbService<'a> {
                     chat_room_user_ids: None,
                     r_created: None,
                     created_by: user_id.clone(),
+                    image_uri:None,
                 };
                 let disc = DiscussionDbService { db: self.db, ctx: self.ctx }.create_update(disc).await?;
                 let comm_id = profile_comm.id.clone().unwrap();
