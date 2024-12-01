@@ -142,6 +142,7 @@ pub struct ProfileChatList {
 pub struct ProfileChat {
     user_id: Thing,
     pub discussion: Discussion,
+    image_uri:Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -302,6 +303,8 @@ async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
     let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let other_user_id = get_string_thing(other_user_id)?;
+    let mut other_user_details = local_user_db_service.get(IdentIdName::Id(other_user_id.clone())).await?;
+    println!("Other user details: {:?}", other_user_details);
     // TODO limit nr of requests or count them to distinguish bots for user ids
     local_user_db_service.exists(IdentIdName::Id(other_user_id.clone())).await?;
 
@@ -311,17 +314,18 @@ async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
     let discussion_db_service = DiscussionDbService { db: &_db, ctx: &ctx };
     let existing = discussion_db_service.get_chatroom_with_users(discussions, vec![user_id.clone(), other_user_id.clone()]).await?;
     let discussion = match existing {
-        None => create_chat_discussion(user_id.clone(), other_user_id, comm, comm_db_service, discussion_db_service).await?,
+        None => create_chat_discussion(user_id.clone(), other_user_id, comm, comm_db_service, discussion_db_service,other_user_details.full_name).await?,
         Some(disc) => disc
     };
-    ctx.to_htmx_or_json_res(ProfileChat { discussion, user_id })
+    //TODO: @matjazonline please add discussion's last message and timestamp
+    ctx.to_htmx_or_json_res(ProfileChat { discussion, user_id,image_uri:other_user_details.image_uri })
 }
 
-async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: Community, comm_db_service: CommunityDbService<'a>, discussion_db_service: DiscussionDbService<'a>) -> CtxResult<Discussion> {
+async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: Community, comm_db_service: CommunityDbService<'a>, discussion_db_service: DiscussionDbService<'a>,title:Option<String>) -> CtxResult<Discussion> {    
     let disc = discussion_db_service.create_update(Discussion {
         id: None,
         belongs_to: comm.id.unwrap(),
-        title: None,
+        title: title.clone(),
         topics: None,
         chat_room_user_ids: Some(vec![user_id.clone(), other_user_id.clone()]),
         r_created: None,

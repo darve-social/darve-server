@@ -72,9 +72,9 @@ async fn main() -> AppResult<()> {
     if ctx_state.is_development {
         let username = "userrr".to_string();
         let password = "password".to_string();
-        let email = "userrr@gmail.com".to_string();
-        let bio = "this is a test bio".to_string();
-        let full_name = "John Doe".to_string();
+        let email = "dynamite@myheroacademia.io".to_string();
+        let bio = "💥 Hero-in-training with explosive ambition to be #1! 💣".to_string();
+        let full_name = "Katsuki Bakugo".to_string();
         let image_uri = "https://images.unsplash.com/photo-1611272585212-5a3b87b63294?q=80&w=2730&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D".to_string();
         create_dev_env(&ctx_state.clone(), username.clone(), password.clone(),Some(email.clone()),
         Some(bio.clone()),

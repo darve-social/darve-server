@@ -145,7 +145,6 @@ impl<'a> LocalUserDbService<'a> {
         
         Ok(user)
     }
-    
 
     pub async fn create(&self, ct_input: LocalUser, auth: AuthType) -> CtxResult<String> {
         let local_user_id: String = self.db
