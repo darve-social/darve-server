@@ -310,7 +310,7 @@ async fn get_chats(
     // Print the updated discussions for debugging
     println!("Updated Discussions: {:?}", discussions);
 
-    //TODO: @matjazonline please add discussion's last message and timestamp
+    //TODO: @matjazonline please add discussion's last message and timestamp in each discussion
     ctx.to_htmx_or_json_res(ProfileChatList { user_id, discussions })
 }
 
@@ -324,7 +324,6 @@ async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let other_user_id = get_string_thing(other_user_id)?;
     let mut other_user_details = local_user_db_service.get(IdentIdName::Id(other_user_id.clone())).await?;
-    println!("Other user details: {:?}", other_user_details);
     // TODO limit nr of requests or count them to distinguish bots for user ids
     local_user_db_service.exists(IdentIdName::Id(other_user_id.clone())).await?;
 
