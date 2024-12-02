@@ -205,17 +205,7 @@ pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: Thing, q_pa
 }
 
 async fn is_user_chat_discussion__user_auths(db: &Db, ctx: &Ctx, discussion_id: &Thing, discussion_chat_room_user_ids: Option<Vec<Thing>>) -> CtxResult<(bool, Vec<Authorization>)> {
-    let is_chat_disc = match discussion_chat_room_user_ids {
-        Some(ref chat_user_ids) => {
-            let user_id = ctx.user_id()?;
-            let is_in_chat_group = chat_user_ids.contains(&get_string_thing(user_id).expect("user id ok"));
-            if !is_in_chat_group {
-                return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "Is chat participant".to_string() }));
-            }
-            Ok::<bool, CtxError>(true)
-        }
-        None => Ok(false)
-    }?;
+    let is_chat_disc = is_user_chat_discussion(ctx, discussion_chat_room_user_ids)?;
 
     let user_auth = if is_chat_disc {
         vec![Authorization {
@@ -228,6 +218,20 @@ async fn is_user_chat_discussion__user_auths(db: &Db, ctx: &Ctx, discussion_id: 
     };
 
     Ok((is_chat_disc, user_auth))
+}
+
+pub fn is_user_chat_discussion(ctx: &Ctx, discussion_chat_room_user_ids: Option<Vec<Thing>>) -> CtxResult<bool> {
+    match discussion_chat_room_user_ids {
+        Some(ref chat_user_ids) => {
+            let user_id = ctx.user_id()?;
+            let is_in_chat_group = chat_user_ids.contains(&get_string_thing(user_id).expect("user id ok"));
+            if !is_in_chat_group {
+                return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "Is chat participant".to_string() }));
+            }
+            Ok::<bool, CtxError>(true)
+        }
+        None => Ok(false)
+    }
 }
 
 async fn get_user_discussion_auths(_db: &Db, ctx: &Ctx) -> CtxResult<Vec<Authorization>> {
