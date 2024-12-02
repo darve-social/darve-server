@@ -185,7 +185,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
 
     if !is_user_chat {
         let min_authorisation = Authorization {
-            authorize_record_id: disc.id.unwrap().clone(),
+            authorize_record_id: disc.id.clone().unwrap().clone(),
             authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(),
             authorize_height: 0,
         };
@@ -198,7 +198,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     } else { None };
 
     let post = post_db_service
-        .create(Post { id: None, belongs_to: disc.clone(), discussion_topic: topic_val.clone(), title: input_value.title, r_title_uri: None, content: input_value.content, media_links: None, r_created: None, created_by: user_id, r_updated: None, r_replies: None, likes_nr: 0, replies_nr: 0 })
+        .create(Post { id: None, belongs_to: disc.id.unwrap().clone(), discussion_topic: topic_val.clone(), title: input_value.title, r_title_uri: None, content: input_value.content, media_links: None, r_created: None, created_by: user_id, r_updated: None, r_replies: None, likes_nr: 0, replies_nr: 0 })
         .await?;
 
     if let Some(files) = input_value.file_1 {

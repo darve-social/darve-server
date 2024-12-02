@@ -84,7 +84,7 @@ mod tests {
         // create new user
         let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
         let ctx = Ctx::new(Ok(user_ident3), Uuid::new_v4(), false);
-        let d_view = get_discussion_view(&ctx_state._db, &ctx, chat_disc_id, DiscussionParams {
+        let d_view = get_discussion_view(&ctx_state._db, &ctx, chat_disc_id.clone(), DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
@@ -92,6 +92,10 @@ mod tests {
         assert_eq!(d_view.is_err(), true);
         assert_eq!(d_view.err().unwrap().error, AppError::AuthorizationFail {required:"Is chat participant".to_string()});
 
+        let post_name = "post title Name 2".to_string();
+        let create_post = server.post(format!("/api/discussion/{chat_disc_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name.clone()).add_text("content", "contentttt2").add_text("topic_id", "")).await;
+        dbg!(&create_post);
+        &create_post.assert_status_failure();
     }
 }
 
