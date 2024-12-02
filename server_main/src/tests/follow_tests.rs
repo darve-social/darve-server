@@ -3,11 +3,12 @@
 mod tests {
     use axum_test::multipart::MultipartForm;
     use uuid::Uuid;
-    use sb_community::routes::profile_routes::{ProfileChat, ProfileChatList};
+    use sb_community::routes::profile_routes::{ProfileChat, ProfileChatList, ProfilePage};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
     use sb_user_auth::entity::follow_entitiy::FollowDbService;
+    use sb_user_auth::routes::follow_routes::FollowUserList;
     use sb_user_auth::routes::login_routes::LoginInput;
     use crate::test_utils::{create_login_test_user, create_test_server};
 
@@ -20,19 +21,54 @@ mod tests {
         let username3 = "usnnnn3".to_string();
         let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
-        let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
 
         let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
         let follow_db_service = FollowDbService { ctx: &ctx, db: &ctx_state._db };
-        let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident2.clone()).unwrap()).await.expect("user 2 followers nr");
+        let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
         assert_eq!(0, followers_nr);
-        // logged in as username3
-        let create_response = server.get(format!("/api/follow/{}",user_ident2.clone()).as_str()).await;
+
+        let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
+        let created = profile1_response.json::<ProfilePage>();
+        assert_eq!(created.profile_view.unwrap().followers_nr, 0);
+
+        // logged in as username2
+        let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
 
-        let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident2).unwrap()).await.expect("user 2 followers nr");
+        let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
         assert_eq!(1, followers_nr);
+
+        let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
+        let created = profile1_response.json::<ProfilePage>();
+        assert_eq!(created.profile_view.unwrap().followers_nr, 1);
+
+        //login as username3
+        let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
+
+        let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
+        let created = &create_response.json::<CreatedResponse>();
+        assert_eq!(created.success, true);
+
+        let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
+        assert_eq!(2, followers_nr);
+
+        let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
+        let created = profile1_response.json::<ProfilePage>();
+        assert_eq!(created.profile_view.unwrap().followers_nr, 2);
+
+        let create_response = server.get(format!("/api/user/{}/followers",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<FollowUserList>();
+        assert_eq!(created.list.len(), 2);
+        let f_usernames: Vec<String> = created.list.iter().map(|fu| fu.username.clone()).collect();
+        assert_eq!(f_usernames.contains( &username2.clone()),true);
+        assert_eq!(f_usernames.contains( &username3.clone()),true);
+        assert_eq!(f_usernames.contains( &username1.clone()),false);
+
+        let create_response = server.get(format!("/api/user/{}/following",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<FollowUserList>();
+        assert_eq!(created.list.len(), 0);
+
 
 
 

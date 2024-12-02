@@ -31,14 +31,14 @@ pub fn routes(state: CtxState) -> Router {
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/follow-user-list.html")]
-struct FollowUserList {
+pub struct FollowUserList {
     pub list: Vec<FollowUser>,
 }
 
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/follow-user.html")]
-struct FollowUser {
+pub struct FollowUser {
     pub username: String,
     pub name: String,
     pub image_url: String,
