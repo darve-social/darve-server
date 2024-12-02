@@ -66,7 +66,7 @@ pub struct ProfileSettingsFormInput {
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_page.html")]
 pub struct ProfilePage {
     theme_name: String,
@@ -74,18 +74,18 @@ pub struct ProfilePage {
     nav_top_title: String,
     header_title: String,
     footer_text: String,
-    pub(crate) profile_view: Option<ProfileView>,
+    pub profile_view: Option<ProfileView>,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_view_1.html")]
 pub struct ProfileView {
-    user_id: Thing,
-    community: Option<Thing>,
-    profile_discussion: Option<Thing>,
-    followers_nr: i64,
-    following_nr: i64,
-    pub(crate) profile_discussion_view: Option<ProfileDiscussionView>,
+    pub user_id: Thing,
+    pub community: Option<Thing>,
+    pub profile_discussion: Option<Thing>,
+    pub followers_nr: i64,
+    pub following_nr: i64,
+    pub profile_discussion_view: Option<ProfileDiscussionView>,
 }
 
 impl ViewFieldSelector for ProfileView {
@@ -94,11 +94,11 @@ impl ViewFieldSelector for ProfileView {
     }
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_discussion_view_1.html")]
 pub struct ProfileDiscussionView {
     id: Option<Thing>,
-    pub(crate) posts: Vec<ProfilePostView>,
+    pub posts: Vec<ProfilePostView>,
 }
 
 impl ViewFieldSelector for ProfileDiscussionView {
@@ -107,7 +107,7 @@ impl ViewFieldSelector for ProfileDiscussionView {
     }
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_post-1-popup.html")]
 pub struct ProfilePostView {
     pub id: Thing,
@@ -188,7 +188,7 @@ async fn display_profile(
     ctx: Ctx,
     Path(username): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<ProfilePage> {
+) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
     let mut profile_view = local_user_db_service
         .get_view::<ProfileView>(IdentIdName::ColumnIdent { column: "username".to_string(), val: username, rec: false }).await?;
@@ -209,7 +209,7 @@ async fn display_profile(
     profile_view.following_nr = follow_db_service.user_following_number(profile_view.user_id.clone()).await?;
     profile_view.followers_nr =follow_db_service.user_followers_number(profile_view.user_id.clone()).await?;
 
-    Ok(ProfilePage {
+    ctx.to_htmx_or_json_res(ProfilePage {
         theme_name: "emerald".to_string(),
         window_title: "win win".to_string(),
         nav_top_title: "navtt".to_string(),
