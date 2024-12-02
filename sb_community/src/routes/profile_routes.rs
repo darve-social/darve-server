@@ -41,7 +41,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
-        .route("/api/user_chat/with/:other_user_id", get(get_chat_discussion))
+        .route("/api/user_chat/with/:other_user_id", get(get_create_chat_discussion))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 1))
         .with_state(state)
 }
@@ -258,9 +258,9 @@ async fn get_chats(State(CtxState { _db, .. }): State<CtxState>,
     ctx.to_htmx_or_json_res(ProfileChatList { user_id, discussions })
 }
 
-async fn get_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
-                             ctx: Ctx,
-                             Path(other_user_id): Path<String>,
+async fn get_create_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
+                                    ctx: Ctx,
+                                    Path(other_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     println!("->> {:<12} - get get_chat_discussion", "HANDLER");
     let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };

@@ -26,7 +26,7 @@ use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_topic_routes::{DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
-use sb_middleware::error::{AppError, CtxResult};
+use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
@@ -55,22 +55,22 @@ pub fn routes(state: CtxState) -> Router {
 pub struct SseEventName {}
 impl SseEventName {
     pub fn get_discussion_post_added_event_name() -> String {
-        DiscussionNotificationEvent::DiscussionPostAdded{
-            discussion_id: Thing::from(("tbl","idd")),
+        DiscussionNotificationEvent::DiscussionPostAdded {
+            discussion_id: Thing::from(("tbl", "idd")),
             topic_id: None,
-            post_id: Thing::from(("tbl","idd")),
+            post_id: Thing::from(("tbl", "idd")),
         }.to_string()
     }
     pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
-        DiscussionNotificationEvent::DiscussionPostReplyAdded{
-            discussion_id: Thing::from(("tbl","idd")),
+        DiscussionNotificationEvent::DiscussionPostReplyAdded {
+            discussion_id: Thing::from(("tbl", "idd")),
             topic_id: None,
             post_id: reply_ident.clone(),
         }.get_sse_event_ident()
     }
     pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-            discussion_id: Thing::from(("tbl","idd")),
+            discussion_id: Thing::from(("tbl", "idd")),
             topic_id: None,
             post_id: post_ident.clone(),
         }.get_sse_event_ident()
@@ -114,6 +114,7 @@ pub struct DiscussionView {
     id: Option<Thing>,
     title: Option<String>,
     belongs_to: Thing,
+    chat_room_user_ids: Option<Vec<Thing>>,
     pub posts: Vec<DiscussionPostView>,
     pub(crate) topics: Option<Vec<DiscussionTopicView>>,
     display_topic: Option<DiscussionTopicView>,
@@ -121,7 +122,7 @@ pub struct DiscussionView {
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, [] as posts, topics.*.{id, title}, belongs_to".to_string()
+        "id, title, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids".to_string()
     }
 }
 
@@ -170,12 +171,66 @@ async fn display_discussion(State(CtxState { _db, .. }): State<CtxState>,
 }
 
 pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: Thing, q_params: DiscussionParams) -> CtxResult<DiscussionView> {
-    let mut dis_template = DiscussionDbService { db: &_db, ctx: &ctx }.get_view::<DiscussionView>(IdentIdName::Id(discussion_id.clone())).await?;
+    let discussion_db_service = DiscussionDbService { db: &_db, ctx: &ctx };
+    let mut dis_template = discussion_db_service.get_view::<DiscussionView>(IdentIdName::Id(discussion_id.clone())).await?;
     let disc_id = dis_template.id.clone().ok_or(ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: discussion_id.to_raw() }))?;
+    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion__user_auths(_db, ctx, &disc_id, dis_template.chat_room_user_ids.clone()).await?;
+
     dis_template.display_topic = if let Some(t_id) = q_params.topic_id.clone() {
         dis_template.topics.clone().unwrap_or(vec![]).into_iter().find(|t| t.id.eq(&t_id))
     } else { None };
 
+    // TODO optimize with one qry
+    let mut discussion_posts = PostDbService { db: &_db, ctx: &ctx }
+        .get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), q_params.clone()).await?;
+    /*let user_auth = if is_user_chat_discussion {
+        vec![Authorization{
+            authorize_record_id: disc_id.clone(),
+            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+            authorize_height: 99,
+        }]
+    }else {
+        get_user_discussion_auths(&_db, &ctx).await?
+    };*/
+    discussion_posts.iter_mut().for_each(|mut discussion_post_view: &mut DiscussionPostView| {
+        discussion_post_view.viewer_access_rights = user_auth.clone();
+        discussion_post_view.has_view_access = match &discussion_post_view.access_rule {
+            None => true,
+            Some(ar) => is_user_chat_discussion || is_any_ge_in_list(&ar.authorization_required, &discussion_post_view.viewer_access_rights).unwrap_or(false)
+        };
+    });
+
+    dis_template.posts = discussion_posts;
+    Ok(dis_template)
+}
+
+async fn is_user_chat_discussion__user_auths(db: &Db, ctx: &Ctx, discussion_id: &Thing, discussion_chat_room_user_ids: Option<Vec<Thing>>) -> CtxResult<(bool, Vec<Authorization>)> {
+    let is_chat_disc = match discussion_chat_room_user_ids {
+        Some(ref chat_user_ids) => {
+            let user_id = ctx.user_id()?;
+            let is_in_chat_group = chat_user_ids.contains(&get_string_thing(user_id).expect("user id ok"));
+            if !is_in_chat_group {
+                return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "Is chat participant".to_string() }));
+            }
+            Ok::<bool, CtxError>(true)
+        }
+        None => Ok(false)
+    }?;
+
+    let user_auth = if is_chat_disc {
+        vec![Authorization {
+            authorize_record_id: discussion_id.clone(),
+            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+            authorize_height: 99,
+        }]
+    } else {
+        get_user_discussion_auths(db, &ctx).await?
+    };
+
+    Ok((is_chat_disc, user_auth))
+}
+
+async fn get_user_discussion_auths(_db: &Db, ctx: &Ctx) -> CtxResult<Vec<Authorization>> {
     let user_auth = match ctx.user_id() {
         Ok(user_id) => {
             let user_id = get_string_thing(user_id)?;
@@ -183,18 +238,7 @@ pub async fn get_discussion_view(_db: &Db, ctx: &Ctx, discussion_id: Thing, q_pa
         }
         Err(_) => vec![]
     };
-    // TODO optimize with one qry
-    let mut discussion_posts = PostDbService { db: &_db, ctx: &ctx }
-        .get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), q_params.clone()).await?;
-    discussion_posts.iter_mut().for_each(|mut discussion_post_view: &mut DiscussionPostView| {
-        discussion_post_view.viewer_access_rights = user_auth.clone();
-        discussion_post_view.has_view_access = match &discussion_post_view.access_rule {
-            None => true,
-            Some(ar) =>  is_any_ge_in_list(&ar.authorization_required, &discussion_post_view.viewer_access_rights).unwrap_or(false)
-        };
-    });
-    dis_template.posts = discussion_posts;
-    Ok(dis_template)
+    Ok(user_auth)
 }
 
 async fn create_update_form(
@@ -203,7 +247,7 @@ async fn create_update_form(
     Path(community_id): Path<String>,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
-    let user_id = LocalUserDbService{ db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
 
     let comm_id = get_string_thing(community_id.clone())?;
     let mut topics = vec![];
@@ -234,6 +278,7 @@ async fn create_update_form(
                 id: None,
                 title: None,
                 belongs_to: comm_id.clone(),
+                chat_room_user_ids: None,
                 posts: vec![],
                 topics: None,
                 display_topic: None,
@@ -271,24 +316,19 @@ async fn discussion_sse(
     q_params: DiscussionParams,
 ) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
     let discussion_id = get_string_thing(discussion_id)?;
-    let discussion_id = DiscussionDbService { db: &_db, ctx: &ctx }.must_exist(IdentIdName::Id(discussion_id)).await?;
+    let discussion = DiscussionDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(discussion_id)).await?;
+    let discussion_id = discussion.id.expect("disc id");
 
-    let user_auth = match ctx.user_id() {
-        Ok(user_id) => {
-            let user_id = get_string_thing(user_id)?;
-            AccessRightDbService { db: &_db, ctx: &ctx }.get_authorizations(&user_id).await?
-        }
-        Err(_) => vec![]
-    };
+    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion__user_auths(&_db, &ctx, &discussion_id, discussion.chat_room_user_ids).await?;
 
     let mut stream = _db.select(discussion_notification_entitiy::TABLE_NAME).live().await?
         .filter(move |r: &Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
             // TODO check if user still logged in
             // filter out events from other discussion - TODO make last events sub table for each discussion, delete all events older than ~5days
-            let (event_discussion_id, event_topic_id) = match r.as_ref().unwrap().data.clone().event{
-                DiscussionNotificationEvent::DiscussionPostAdded { discussion_id, topic_id,.. } =>(discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyAdded { discussion_id, topic_id,.. } => (discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { discussion_id, topic_id,.. } => (discussion_id, topic_id)
+            let (event_discussion_id, event_topic_id) = match r.as_ref().unwrap().data.clone().event {
+                DiscussionNotificationEvent::DiscussionPostAdded { discussion_id, topic_id, .. } => (discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyAdded { discussion_id, topic_id, .. } => (discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { discussion_id, topic_id, .. } => (discussion_id, topic_id)
             };
             if event_discussion_id.ne(&discussion_id) {
                 return false;
@@ -301,42 +341,40 @@ async fn discussion_sse(
         })
         .map(move |n: Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
             n.map(|n: surrealdb::Notification<DiscussionNotification>| {
-                let n_event =n.data.event;
-                    match n_event {
-                        DiscussionNotificationEvent::DiscussionPostAdded{..} => {
-                            match serde_json::from_str::<DiscussionPostView>(&n.data.content) {
-                                Ok(mut dpv) => {
-
-                                    dpv.viewer_access_rights = user_auth.clone();
-                                    dpv.has_view_access = match &dpv.access_rule {
-                                        None => true,
-                                        Some(ar) =>  is_any_ge_in_list(&ar.authorization_required, &dpv.viewer_access_rights).unwrap_or(false)
-                                    };
-                                    // dbg!(&dpv);
-                                    match dpv.render() {
-                                        Ok(post_html) => Event::default().data(post_html).event(n_event.to_string()),
-                                        Err(err) => {
-                                            let msg = "ERROR rendering DiscussionPostView";
-                                            println!("{} ERR={err}", &msg);
-                                            Event::default().data(msg).event(SseEventName::get_error())
-                                        }
+                let n_event = n.data.event;
+                match n_event {
+                    DiscussionNotificationEvent::DiscussionPostAdded { .. } => {
+                        match serde_json::from_str::<DiscussionPostView>(&n.data.content) {
+                            Ok(mut dpv) => {
+                                dpv.viewer_access_rights = user_auth.clone();
+                                dpv.has_view_access = match &dpv.access_rule {
+                                    None => true,
+                                    Some(ar) => is_user_chat_discussion || is_any_ge_in_list(&ar.authorization_required, &dpv.viewer_access_rights).unwrap_or(false)
+                                };
+                                // dbg!(&dpv);
+                                match dpv.render() {
+                                    Ok(post_html) => Event::default().data(post_html).event(n_event.to_string()),
+                                    Err(err) => {
+                                        let msg = "ERROR rendering DiscussionPostView";
+                                        println!("{} ERR={err}", &msg);
+                                        Event::default().data(msg).event(SseEventName::get_error())
                                     }
                                 }
-                                Err(err) => {
-                                    let msg = "ERROR converting NotificationEvent content to DiscussionPostView";
-                                    println!("{} ERR={err}", &msg);
-                                    Event::default().data(msg).event(SseEventName::get_error())
-                                }
+                            }
+                            Err(err) => {
+                                let msg = "ERROR converting NotificationEvent content to DiscussionPostView";
+                                println!("{} ERR={err}", &msg);
+                                Event::default().data(msg).event(SseEventName::get_error())
                             }
                         }
-                        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased{..} => {
-                            Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
-                        }
-                        DiscussionNotificationEvent::DiscussionPostReplyAdded{..} => {
-                            Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
-                        }
                     }
-
+                    DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { .. } => {
+                        Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
+                    }
+                    DiscussionNotificationEvent::DiscussionPostReplyAdded { .. } => {
+                        Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
+                    }
+                }
             })
         }
         );

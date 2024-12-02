@@ -1,10 +1,7 @@
+use crate::error::CtxError;
 use askama::Template;
 use askama_axum::axum_core::response::IntoResponse;
-use axum::http::StatusCode;
-use axum::response::Html;
 use serde::{Deserialize, Serialize};
-use crate::ctx::Ctx;
-use crate::error::{CtxError, CtxResult};
 
 /*pub trait  Renderable<T>{
     fn render (&self, is_htmx:bool)-> (StatusCode, Html<String>){
