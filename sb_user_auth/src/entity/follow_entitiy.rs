@@ -1,5 +1,4 @@
 use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -9,6 +8,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
+use sb_middleware::error::CtxError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Follow {
@@ -32,8 +32,8 @@ const TABLE_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
 impl<'a> FollowDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} TYPE RELATION FROM {TABLE_USER} TO {TABLE_USER} SCHEMAFULL PERMISSIONS none;
-    DEFINE INDEX follow_idx ON TABLE {TABLE_NAME} COLUMNS in, out UNIQUE;
+    DEFINE TABLE {TABLE_NAME} TYPE RELATION IN {TABLE_USER} OUT {TABLE_USER} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+    DEFINE INDEX in_out_unique_idx ON {TABLE_NAME} FIELDS in, out UNIQUE;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
 ");
 
@@ -45,11 +45,22 @@ impl<'a> FollowDbService<'a> {
         Ok(())
     }
 
+    pub async fn is_following(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
+        let qry = format!("SELECT count() FROM ONLY {TABLE_NAME} where in=<record>$in AND out=<record>$out LIMIT 1;");
+        let mut res = self.db.query(qry)
+            .bind(("in", user))
+            .bind(("out", follows))
+            .await?;
+        let res: Option<i64> = res.take("count")?;
+        Ok(res.unwrap_or(0)>0)
+    }
+
     pub async fn create_follow(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
         let qry = format!("RELATE $in->{TABLE_NAME}->$out");
-        self.db.query(qry)
+        let res = self.db.query(qry)
             .bind(("in", user))
             .bind(("out", follows)).await?;
+        res.check()?;
         Ok(true)
     }
 

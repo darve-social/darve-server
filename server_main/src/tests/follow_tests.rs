@@ -27,17 +27,30 @@ mod tests {
         let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
         assert_eq!(0, followers_nr);
 
+        let is_following = follow_db_service.is_following(get_string_thing(user_ident1.clone()).expect("user"), get_string_thing(user_ident2.clone()).expect("user")).await.expect("is_following");
+        assert_eq!(is_following, false);
+
         let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 0);
 
         // logged in as username2
+        // follow user_ident1
         let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
 
+        // refollow error
+        let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
+        create_response.assert_status_failure();
+
         let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
         assert_eq!(1, followers_nr);
+
+        let is_following = follow_db_service.is_following(get_string_thing(user_ident1.clone()).expect("user"), get_string_thing(user_ident2.clone()).expect("user")).await.expect("is_following");
+        assert_eq!(is_following, false);
+        let is_following = follow_db_service.is_following(get_string_thing(user_ident2.clone()).expect("user"), get_string_thing(user_ident1.clone()).expect("user")).await.expect("is_following");
+        assert_eq!(is_following, true);
 
         let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
         let created = profile1_response.json::<ProfilePage>();
@@ -46,16 +59,26 @@ mod tests {
         //login as username3
         let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
 
+        // follow u1
         let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
 
+        // refollow error
+        let create_response = server.post(format!("/api/follow/{}",user_ident1.clone()).as_str()).json("").await;
+        create_response.assert_status_failure();
+
+        // check nr of followers
         let followers_nr = follow_db_service.user_followers_number(get_string_thing(user_ident1.clone()).unwrap()).await.expect("user 1 followers nr");
         assert_eq!(2, followers_nr);
 
         let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 2);
+
+        let create_response = server.get(format!("/api/user/follows/{}",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<CreatedResponse>();
+        assert_eq!(created.success, true);
 
         let create_response = server.get(format!("/api/user/{}/followers",user_ident1.clone()).as_str()).await;
         let created = &create_response.json::<FollowUserList>();
@@ -69,8 +92,22 @@ mod tests {
         let created = &create_response.json::<FollowUserList>();
         assert_eq!(created.list.len(), 0);
 
+        // unfollow
+        let create_response = server.delete(format!("/api/follow/{}",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<CreatedResponse>();
+        assert_eq!(created.success, true);
 
+        let profile1_response =server.get(format!("/u/{}",username1.clone()).as_str()).await;
+        let created = profile1_response.json::<ProfilePage>();
+        assert_eq!(created.profile_view.unwrap().followers_nr, 1);
 
+        let create_response = server.get(format!("/api/user/{}/followers",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<FollowUserList>();
+        assert_eq!(created.list.len(), 1);
+
+        let create_response = server.get(format!("/api/user/follows/{}",user_ident1.clone()).as_str()).await;
+        let created = &create_response.json::<CreatedResponse>();
+        assert_eq!(created.success, false);
 
     }
 }

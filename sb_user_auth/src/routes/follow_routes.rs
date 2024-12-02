@@ -26,6 +26,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/user/:user_id/following", get(get_following))
         .route("/api/follow/:follow_user_id", post(follow_user))
         .route("/api/follow/:follow_user_id", delete(unfollow_user))
+        .route("/api/user/follows/:follows_user_id", get(is_following_user))
         .with_state(state)
 }
 
@@ -104,4 +105,15 @@ async fn unfollow_user(
     let follow = get_string_thing(unfollow_user_id.clone())?;
     let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.remove_follow(user_id, follow).await?;
     ctx.to_htmx_or_json_res(CreatedResponse { id: unfollow_user_id, success, uri: None })
+}
+
+async fn is_following_user(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path(following_user_id): Path<String>,
+) -> CtxResult<Html<String>> {
+    let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let follows_user = get_string_thing(following_user_id.clone())?;
+    let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.is_following(user_id, follows_user.clone()).await?;
+    ctx.to_htmx_or_json_res(CreatedResponse { id: follows_user.to_raw(), success, uri: None })
 }
