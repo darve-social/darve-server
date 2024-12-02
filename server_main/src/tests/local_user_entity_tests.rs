@@ -1,11 +1,13 @@
 
 #[cfg(test)]
 mod tests {
+    use surrealdb::sql::Thing;
     use uuid::Uuid;
 
     use sb_user_auth::entity::local_user_entity::LocalUserDbService;
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::db_utils::{IdentIdName, UsernameIdent};
+    use sb_middleware::utils::string_utils::get_string_thing;
     use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
@@ -23,13 +25,13 @@ mod tests {
         assert_eq!(user.username, username.clone());
 
         let user = db_service
-            .get(IdentIdName::Id(uid.clone()))
+            .get(IdentIdName::Id(get_string_thing(uid.clone()).expect("thing")))
             .await;
         let user = user.unwrap();
         assert_eq!(user.username, username.clone());
 
         let user = db_service
-            .get(IdentIdName::Id("not_existing".to_string()))
+            .get(IdentIdName::Id(Thing::from(("local_user","not_existing"))))
             .await;
         assert_eq!(user.is_err(), true);
     }

@@ -118,7 +118,7 @@ mod tests {
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: "community-123".to_string(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(),  name_uri: "community-123".to_string(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
         let comm_id = Thing::try_from(created.id.clone()).unwrap();

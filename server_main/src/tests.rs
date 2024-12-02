@@ -9,3 +9,4 @@ mod access_rule_tests;
 mod init_server;
 mod authorization_entity_tests;
 mod local_user_entity_tests;
+mod follow_tests;

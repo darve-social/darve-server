@@ -18,7 +18,7 @@ mod tests {
         let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: "community-123".to_string(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(),  name_uri: "community-123".to_string(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
 
@@ -67,6 +67,7 @@ mod tests {
 
         let id1 = &Thing::try_from(comm_discussion_id.as_str()).unwrap();
         let id2 = &Thing::try_from(created2.id.as_str()).unwrap();
+        assert_eq!("fix get_same_level_record_ids qry", "");
         let rids = get_same_level_record_ids(id1, id2, &ctx, &ctx_state._db).await.unwrap();
         // println!("id1={:?} id2={:?} //// parentIDs={:?}",id1,id2,rids);
         assert_eq!(id1.eq(&rids.1), true);

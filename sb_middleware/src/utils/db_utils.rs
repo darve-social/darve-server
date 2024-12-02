@@ -188,7 +188,7 @@ async fn get_query<T: for<'a> Deserialize<'a>>(db: &Db, query_string: QryBinding
     let mut res = qry.await?;
     // if table_name.eq("reply"){
     // println!("Q={}", query_string);
-    dbg!(&res);
+    // dbg!(&res);
     // }
     let res = res.take::<Option<T>>(0)?;
     Ok(res)

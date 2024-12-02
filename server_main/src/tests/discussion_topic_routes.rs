@@ -22,7 +22,7 @@ mod tests {
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let comm_name = "community_123";
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: comm_name.clone().to_string(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: comm_name.clone().to_string(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
 
@@ -33,14 +33,14 @@ mod tests {
 
         let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
-        let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await.expect("community struct");
+        let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await.expect("community struct");
         let comm_name = comm.name_uri.clone();
         let comm_disc_id = comm.profile_discussion.unwrap();
 
         let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
 
         // let disc = disc_db.get(IdentIdName::Id(created.id.clone()).into()).await;
-        let comm_disc = disc_db.get(IdentIdName::Id(comm_disc_id.to_raw()).into()).await;
+        let comm_disc = disc_db.get(IdentIdName::Id(comm_disc_id.clone()).into()).await;
         assert_eq!(comm_disc.clone().unwrap().belongs_to.eq(&comm_id.clone()), true);
         // let disc_by_uri = disc_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: disc_name.to_string(), rec: false}).await;
         let discussion = comm_disc.unwrap();

@@ -21,7 +21,7 @@ mod tests {
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
         let disc_name = "discName1".to_lowercase();
 
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
 
@@ -32,7 +32,7 @@ mod tests {
 
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false) };
         let comm_rec = comm_db
-            .get(IdentIdName::Id(comm_id.to_raw())).await;
+            .get(IdentIdName::Id(comm_id)).await;
         assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
 
         let comm_rec = comm_db
@@ -52,7 +52,7 @@ mod tests {
         let comm_name = "discName1".to_lowercase();
         let comm_name2 = "disc_name2".to_lowercase();
 
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: comm_name.clone(), title: "The Community".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: comm_name.clone(), title: "The Community".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
         let comm_name_created = created.uri.clone().unwrap();
@@ -62,11 +62,11 @@ mod tests {
         &create_response.assert_status_success();
 
         // same username should return error
-        let create_response2 = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: comm_name_created.clone(), title: "The Community2".to_string() }).await;
+        let create_response2 = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: comm_name_created.clone(), title: "The Community2".to_string() }).await;
         // dbg!(&create_response2);
         &create_response2.assert_status_bad_request();
 
-        let create_response2 = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: comm_name2.clone(), title: "The Community2".to_string() }).await;
+        let create_response2 = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: comm_name2.clone(), title: "The Community2".to_string() }).await;
         &create_response2.assert_status_success();
         let created_comm2 = create_response2.json::<CreatedResponse>();
         let comm2_id = Thing::try_from(created_comm2.id).unwrap();
@@ -74,7 +74,7 @@ mod tests {
         let ctx1 = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: ctx1 };
 
-        let comm = comm_db.get(IdentIdName::Id(comm_id1.to_raw()).into()).await;
+        let comm = comm_db.get(IdentIdName::Id(comm_id1).into()).await;
         let comm_by_uri = comm_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: comm_name_created.to_string(), rec: false }).await;
         let community1 = comm.unwrap();
         let community1_by_uri = comm_by_uri.unwrap();
@@ -82,7 +82,7 @@ mod tests {
         assert_eq!(community1_by_uri.clone().name_uri, comm_name_created.clone());
         let comm_disc1 = community1.profile_discussion.clone().unwrap();
 
-        let comm2 = comm_db.get(IdentIdName::Id(comm2_id.to_raw()).into()).await;
+        let comm2 = comm_db.get(IdentIdName::Id(comm2_id.clone()).into()).await;
         let comm_by_uri2 = comm_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: comm_name2.to_string(), rec: false }).await;
         let community2 = comm2.unwrap();
         let community2_by_uri = comm_by_uri2.unwrap();

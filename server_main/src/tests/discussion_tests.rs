@@ -6,15 +6,17 @@ mod tests {
 
     use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_community::entity::community_entitiy::CommunityDbService;
-    use sb_community::entity::discussion_entitiy::DiscussionDbService;
+    use sb_community::entity::discussion_entitiy::{Discussion, DiscussionDbService};
     use sb_community::entity::post_entitiy::PostDbService;
     use sb_community::routes::community_routes::CommunityInput;
     use sb_community::routes::discussion_routes::{DiscussionInput, DiscussionPostView};
     use sb_community::routes::discussion_topic_routes::TopicInput;
     use sb_middleware::ctx::Ctx;
+    use sb_middleware::error::CtxResult;
     use sb_middleware::utils::db_utils::IdentIdName;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
+    use sb_middleware::utils::string_utils::get_string_thing;
     use sb_user_auth::entity::access_right_entity::AccessRightDbService;
     use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
     use sb_user_auth::entity::local_user_entity::LocalUserDbService;
@@ -26,7 +28,7 @@ mod tests {
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
         let disc_name = "discName1".to_lowercase();
 
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
 
@@ -48,7 +50,7 @@ mod tests {
         dbg!(&topic_resp);
         &topic_resp.assert_status_success();
 
-        let disc_rec = DiscussionDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok(user_ident), Uuid::new_v4(), false) }.get(IdentIdName::Id(disc_id.to_raw())).await;
+        let disc_rec = DiscussionDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok(user_ident), Uuid::new_v4(), false) }.get(IdentIdName::Id(disc_id.clone())).await;
         assert_eq!(disc_rec.clone().unwrap().topics.unwrap().len(), 1);
         let topics = disc_rec.unwrap().topics.unwrap();
         let topic_id = topics[0].clone();
@@ -78,7 +80,7 @@ mod tests {
         let disc_name = "discName1".to_lowercase();
         let disc_name2 = "discName2".to_lowercase();
 
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: disc_name.clone(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
 
@@ -110,13 +112,13 @@ mod tests {
 
         let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
-        let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
+        let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
         let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
 
         let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
 
-        let disc = disc_db.get(IdentIdName::Id(created.id.clone()).into()).await;
-        let comm_disc = disc_db.get(IdentIdName::Id(comm_disc_id.to_raw()).into()).await;
+        let disc = disc_db.get(IdentIdName::Id(get_string_thing(created.id.clone()).expect("thing")).into()).await;
+        let comm_disc: CtxResult<Discussion> = disc_db.get(IdentIdName::Id(comm_disc_id)).await;
         assert_eq!(comm_disc.unwrap().belongs_to.eq(&comm_id.clone()), true);
         // let disc_by_uri = disc_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: disc_name.to_string(), rec: false}).await;
         let discussion = disc.unwrap();
@@ -127,7 +129,7 @@ mod tests {
 
         let db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
         let aright_db_service = AccessRightDbService { db: &ctx_state._db, ctx: &ctx };
-        let user = db_service.get(IdentIdName::Id(user_ident.clone()).into()).await;
+        let user = db_service.get(IdentIdName::Id(get_string_thing(user_ident.clone()).expect("thing")).into()).await;
         let user = user.unwrap();
 
         let smaller_auth = Authorization { authorize_record_id: discussion.clone().id.unwrap(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 98 };

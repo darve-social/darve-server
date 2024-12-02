@@ -29,7 +29,7 @@ mod tests {
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let comm_name = "community_123";
-        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), create_custom_id: None, name_uri: comm_name.clone().to_string(), title: "The Community Test".to_string() }).await;
+        let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(),  name_uri: comm_name.clone().to_string(), title: "The Community Test".to_string() }).await;
         &create_response.assert_status_success();
         let created = &create_response.json::<CreatedResponse>();
 
@@ -38,7 +38,7 @@ mod tests {
 
         let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
         let comm_db = CommunityDbService { db: &ctx_state._db, ctx: &ctx };
-        let comm = comm_db.get(IdentIdName::Id(comm_id.clone().to_raw())).await;
+        let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
         let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
 
         let create_response = server.post("/api/access-rule").json(&AccessRuleInput { id: "".to_string(), target_entity_id: comm_id.to_raw(), title: "Access Rule Register".to_string(), authorize_record_id_required: comm_id.to_raw(), authorize_activity_required: AUTH_ACTIVITY_VISITOR.to_string(), authorize_height_required: 1000, price_amount: "".to_string(), available_period_days: "".to_string(), access_gain_action_confirmation: "".to_string(), access_gain_action_redirect_url: "".to_string() }).await;
@@ -48,7 +48,7 @@ mod tests {
         let ar_id = ar_0.id.clone().unwrap();
         let ar_db = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx };
 
-        let ar = ar_db.get(IdentIdName::Id(ar_id.to_raw()).into()).await.expect("access rule");
+        let ar = ar_db.get(IdentIdName::Id(ar_id.clone()).into()).await.expect("access rule");
         assert_eq!(ar.id.clone().unwrap(), ar_id);
 
         let post_name = "post title Name 0".to_string();
