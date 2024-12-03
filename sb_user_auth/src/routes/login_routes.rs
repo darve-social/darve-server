@@ -113,8 +113,9 @@ pub async fn login(
     println!("->> {:<12} - api_login", "HANDLER");
     let local_user_db_service = LocalUserDbService { ctx: &ctx, db: &_db };
 
-    let exists = local_user_db_service.exists(UsernameIdent(payload.username.clone()).into()).await?;
-    println!("login exists={:?}", exists);
+    let user = local_user_db_service.get(UsernameIdent(payload.username.clone()).into()).await?;
+
+    let exists: Option<String> = user.id.map(|thing| format!("{}:{}", thing.tb, thing.id.to_raw()));
     if exists.is_none() {
         return Err(CtxError {
             error: AppError::AuthenticationFail,
@@ -134,10 +135,6 @@ pub async fn login(
         });
     };
 
-    let user = local_user_db_service
-        .get_user_by_username(&payload.username)
-        .await?;
-
     cookie_utils::issue_login_jwt(&key_enc, cookies, exists);
     let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
     let mut next = payload.next.unwrap_or("".to_string());
@@ -148,5 +145,3 @@ pub async fn login(
 
     Ok(res)
 }
-
-
