@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 use validator::Validate;
 
+
 use crate::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use crate::entity::local_user_entity::LocalUserDbService;
 use crate::utils::askama_filter_util::filters;
@@ -39,6 +40,11 @@ pub struct LoginInput {
 #[derive(Debug, Serialize)]
 struct LoginSuccess {
     id: String,
+    username: String,
+    full_name:Option<String>,
+    image_uri:Option<String>,
+    bio:Option<String>,
+    email:Option<String>,
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -105,19 +111,13 @@ pub async fn login(
     JsonOrFormValidated(payload): JsonOrFormValidated<LoginInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - api_login", "HANDLER");
-    let exists = LocalUserDbService { ctx: &ctx, db: &_db }.exists(UsernameIdent(payload.username.clone()).into()).await?;
-    println!("login exists={:?}", exists);
-    if exists.is_none() {
-        return Err(CtxError {
-            error: AppError::AuthenticationFail,
-            req_id: ctx.req_id(),
-            is_htmx: ctx.is_htmx,
-        });
-    };
+    let local_user_db_service = LocalUserDbService { ctx: &ctx, db: &_db };
+
+    let user = local_user_db_service.get(UsernameIdent(payload.username.clone()).into()).await?;
 
     let user_id = if payload.password.len() > 0 {
         let pass = payload.password.clone();
-        AuthenticationDbService { ctx: &ctx, db: &_db }.authenticate(&ctx, exists.clone().unwrap(), AuthType::PASSWORD(Some(pass))).await?
+        AuthenticationDbService { ctx: &ctx, db: &_db }.authenticate(&ctx, user.id.clone().unwrap().to_raw(), AuthType::PASSWORD(Some(pass))).await?
     } else {
         return Err(CtxError {
             error: AppError::AuthenticationFail,
@@ -126,9 +126,8 @@ pub async fn login(
         });
     };
 
-
-    cookie_utils::issue_login_jwt(&key_enc, cookies, exists);
-    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id })).into_response();
+    cookie_utils::issue_login_jwt(&key_enc, cookies,  user.id.map(|v|v.to_raw()).clone() );
+    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
     let mut next = payload.next.unwrap_or("".to_string());
     if next.len() < 1 {
         next = "/community".to_string();
@@ -137,5 +136,3 @@ pub async fn login(
 
     Ok(res)
 }
-
-
