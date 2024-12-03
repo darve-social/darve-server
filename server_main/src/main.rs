@@ -72,7 +72,15 @@ async fn main() -> AppResult<()> {
     if ctx_state.is_development {
         let username = "userrr".to_string();
         let password = "password".to_string();
-        create_dev_env(&ctx_state.clone(), username.clone(), password.clone()).await;
+        let email = "dynamite@myheroacademia.io".to_string();
+        let bio = "💥 Hero-in-training with explosive ambition to be #1! 💣".to_string();
+        let full_name = "Katsuki Bakugo".to_string();
+        let image_uri = "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string();
+        create_dev_env(&ctx_state.clone(), username.clone(), password.clone(),Some(email.clone()),
+        Some(bio.clone()),
+        Some(image_uri.clone()),
+        Some(full_name.clone()),
+    ).await;
         open::that(format!("http://localhost:8080/login?u={username}&p={password}")).expect("browser opens");
     }
 

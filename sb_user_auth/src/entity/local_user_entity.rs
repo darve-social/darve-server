@@ -135,6 +135,17 @@ impl<'a> LocalUserDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
+    pub async fn get_user_by_username(&self, username: &str) -> CtxResult<LocalUser> {
+        let ident = IdentIdName::ColumnIdent {
+            column: "username".to_string(),
+            val: username.to_string(),
+            rec: false,
+        };
+        let user = self.get(ident).await?;
+
+        Ok(user)
+    }
+
     pub async fn create(&self, ct_input: LocalUser, auth: AuthType) -> CtxResult<String> {
         let local_user_id: String = self.db
             .create(TABLE_NAME)
