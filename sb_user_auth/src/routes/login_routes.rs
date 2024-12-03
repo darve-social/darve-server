@@ -8,7 +8,6 @@ use axum::routing::get;
 use axum::{routing::post, Json, Router};
 use axum_htmx::HX_REDIRECT;
 use serde::{Deserialize, Serialize};
-use tower::util::Optional;
 use tower_cookies::{Cookie, Cookies};
 use validator::Validate;
 
