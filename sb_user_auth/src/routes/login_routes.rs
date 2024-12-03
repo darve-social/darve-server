@@ -115,18 +115,9 @@ pub async fn login(
 
     let user = local_user_db_service.get(UsernameIdent(payload.username.clone()).into()).await?;
 
-    let exists: Option<String> = user.id.map(|thing| format!("{}:{}", thing.tb, thing.id.to_raw()));
-    if exists.is_none() {
-        return Err(CtxError {
-            error: AppError::AuthenticationFail,
-            req_id: ctx.req_id(),
-            is_htmx: ctx.is_htmx,
-        });
-    };
-
     let user_id = if payload.password.len() > 0 {
         let pass = payload.password.clone();
-        AuthenticationDbService { ctx: &ctx, db: &_db }.authenticate(&ctx, exists.clone().unwrap(), AuthType::PASSWORD(Some(pass))).await?
+        AuthenticationDbService { ctx: &ctx, db: &_db }.authenticate(&ctx, user.id.clone().unwrap().to_raw(), AuthType::PASSWORD(Some(pass))).await?
     } else {
         return Err(CtxError {
             error: AppError::AuthenticationFail,
@@ -135,7 +126,7 @@ pub async fn login(
         });
     };
 
-    cookie_utils::issue_login_jwt(&key_enc, cookies, exists);
+    cookie_utils::issue_login_jwt(&key_enc, cookies,  user.id.map(|v|v.to_raw()).clone() );
     let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
     let mut next = payload.next.unwrap_or("".to_string());
     if next.len() < 1 {
