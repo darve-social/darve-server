@@ -171,7 +171,7 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
 
      let topics = disc_db_ser.get_topics(disc_id.clone()).await?;
     let access_rules = AccessRuleDbService{ db: &_db, ctx: &ctx }.get_list(comm_id.clone()).await?;
-    ctx.to_htmx_or_json_res::<DiscussionTopicItemsEdit>( DiscussionTopicItemsEdit {
+    ctx.to_htmx_or_json::<DiscussionTopicItemsEdit>( DiscussionTopicItemsEdit {
         community_id: comm_id,
         edit_topic: DiscussionTopicItemForm {
             id: String::new(),

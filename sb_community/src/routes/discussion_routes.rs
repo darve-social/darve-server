@@ -48,6 +48,7 @@ pub fn routes(state: CtxState) -> Router {
         .merge(view_routes)
         .route("/api/discussion", post(create_update))
         .route("/api/discussion/:discussion_id/sse", get(discussion_sse))
+        .route("/api/discussion/:discussion_id/sse/htmx", get(discussion_sse_htmx))
         .with_state(state)
 }
 
@@ -313,6 +314,17 @@ async fn create_update_form(
         }), None, None))
 }
 
+async fn discussion_sse_htmx(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path(discussion_id): Path<String>,
+    q_params: DiscussionParams,
+) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
+    let mut ctx = ctx.clone();
+    ctx.is_htmx = true;
+    discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
+}
+
 async fn discussion_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -355,12 +367,12 @@ async fn discussion_sse(
                                     None => true,
                                     Some(ar) => is_user_chat_discussion || is_any_ge_in_list(&ar.authorization_required, &dpv.viewer_access_rights).unwrap_or(false)
                                 };
-                                // dbg!(&dpv);
-                                match dpv.render() {
-                                    Ok(post_html) => Event::default().data(post_html).event(n_event.to_string()),
+
+                                match ctx.to_htmx_or_json(dpv) {
+                                    Ok(post_html) => Event::default().data(post_html.0).event(n_event.to_string()),
                                     Err(err) => {
                                         let msg = "ERROR rendering DiscussionPostView";
-                                        println!("{} ERR={err}", &msg);
+                                        println!("{} ERR={}", &msg, err.error);
                                         Event::default().data(msg).event(SseEventName::get_error())
                                     }
                                 }
@@ -454,7 +466,8 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
         .create_update(update_discussion)
         .await?;
     let res = CreatedResponse { success: true, id: disc.id.unwrap().to_raw(), uri: None };
-    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res).into_response();
+    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?
+        .into_response();
     let comm = community_db_service.get(IdentIdName::Id(disc.belongs_to)).await?;
 
     res.headers_mut().append(HX_REDIRECT, format!("/community/{}", comm.name_uri).as_str().parse().unwrap());

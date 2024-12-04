@@ -185,7 +185,7 @@ async fn save_access_gain_action(
             let j_action = access_gain_action_db_service.create_update(j_action).await?;
 
             let res = CreatedResponse { success: true, id: j_action.id.unwrap().to_raw(), uri: None };
-            let mut res = ctx.to_htmx_or_json_res::<CreatedResponse>(res).into_response();
+            let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res).into_response();
             // TODO add next param
 
             let next = match access_rule.access_gain_action_redirect_url {

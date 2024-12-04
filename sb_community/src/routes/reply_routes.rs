@@ -138,5 +138,5 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     ).await?;
 
     let res = CreatedResponse { success: true, id: reply.id.unwrap().clone().to_raw(), uri: None };
-    ctx.to_htmx_or_json_res::<CreatedResponse>(res)
+    ctx.to_htmx_or_json::<CreatedResponse>(res)
 }

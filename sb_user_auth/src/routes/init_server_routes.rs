@@ -114,7 +114,7 @@ async fn post_init_form(
     let aright_db_service = &AccessRightDbService { db: &_db, ctx: &ctx };
     let user_rec_id = get_string_thing(created_user.clone().id)?;
     aright_db_service.authorize(user_rec_id, authorization, None).await?;
-    ctx.to_htmx_or_json_res(&created_user)
+    ctx.to_htmx_or_json(&created_user)
 }
 
 async fn can_init(_db: &Db, ctx: &Ctx) -> bool {

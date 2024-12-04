@@ -229,7 +229,7 @@ pub async fn create_post_entity_route(
 
     let res = CreatedResponse { success: true, id: post.id.clone().unwrap().to_raw(), uri: post.r_title_uri };
     // let created_uri = &res.uri.clone().unwrap();
-    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)
+    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?
         .into_response();
     let redirect = get_post_home_uri(&ctx_state, &ctx, post.id.unwrap()).await?;
     res.headers_mut().append(HX_REDIRECT, HeaderValue::from_str(redirect.as_str()).expect("header value"));

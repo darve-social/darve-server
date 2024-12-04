@@ -33,14 +33,12 @@ impl Ctx {
         self.req_id
     }
 
-    pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> Html<String> {
-        match self.is_htmx {
-            true => Html(object.render().unwrap()),
-            false => Html(serde_json::to_string(&object).expect("valid json"))
-        }
-    }
-    pub fn to_htmx_or_json_res<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
-        Ok(self.to_htmx_or_json(object))
+    pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
+        let rendered_string = match self.is_htmx {
+            true => object.render().map_err(|e| self.to_ctx_error(AppError::Generic {description:"Render template error".to_string()}))?,
+            false => serde_json::to_string(&object).map_err(|e| self.to_ctx_error(AppError::Generic {description:"Render json error".to_string()}))?
+        };
+        Ok(Html(rendered_string))
     }
 
     pub fn to_ctx_error(&self, error: AppError) -> CtxError {

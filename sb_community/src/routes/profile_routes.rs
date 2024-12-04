@@ -183,7 +183,7 @@ async fn profile_save(
     }
 
     let user = local_user_db_service.update(user).await?;
-    ctx.to_htmx_or_json_res(CreatedResponse { id: user.id.unwrap().to_raw(), uri: Some(user.username), success: true })
+    ctx.to_htmx_or_json(CreatedResponse { id: user.id.unwrap().to_raw(), uri: Some(user.username), success: true })
 }
 
 async fn display_profile(
@@ -209,7 +209,7 @@ async fn display_profile(
     profile_view.following_nr = follow_db_service.user_following_number(profile_view.user_id.clone()).await?;
     profile_view.followers_nr = follow_db_service.user_followers_number(profile_view.user_id.clone()).await?;
 
-    ctx.to_htmx_or_json_res(ProfilePage {
+    ctx.to_htmx_or_json(ProfilePage {
         theme_name: "emerald".to_string(),
         window_title: "win win".to_string(),
         nav_top_title: "navtt".to_string(),
@@ -253,7 +253,7 @@ async fn get_following_posts(State(CtxState { _db, .. }): State<CtxState>,
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let following_posts_disc = CommunityDbService { db: &_db, ctx: &ctx }.get_profile_following_posts_discussion(user_id).await?;
     let discussion_view = get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await?;
-    ctx.to_htmx_or_json_res(discussion_view)
+    ctx.to_htmx_or_json(discussion_view)
 }
 
 // user chat discussions
@@ -266,7 +266,7 @@ async fn get_chats(State(CtxState { _db, .. }): State<CtxState>,
     let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
     let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
     let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
-    ctx.to_htmx_or_json_res(ProfileChatList { user_id, discussions })
+    ctx.to_htmx_or_json(ProfileChatList { user_id, discussions })
 }
 
 async fn get_create_chat_discussion(State(CtxState { _db, .. }): State<CtxState>,
@@ -289,7 +289,7 @@ async fn get_create_chat_discussion(State(CtxState { _db, .. }): State<CtxState>
         None => create_chat_discussion(user_id.clone(), other_user_id, comm, comm_db_service, discussion_db_service).await?,
         Some(disc) => disc
     };
-    ctx.to_htmx_or_json_res(ProfileChat { discussion, user_id })
+    ctx.to_htmx_or_json(ProfileChat { discussion, user_id })
 }
 
 async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: Community, comm_db_service: CommunityDbService<'a>, discussion_db_service: DiscussionDbService<'a>) -> CtxResult<Discussion> {
@@ -338,5 +338,5 @@ async fn get_user_posts( State(ctx_state): State<CtxState>,
     let user = local_user_db_service.get(UsernameIdent(username).into()).await?;
     let profile_comm = get_profile_community(&ctx_state._db, &ctx, user.id.expect("user id").clone()).await?;
     let profile_disc_view = get_profile_discussion_view(&ctx_state._db, &ctx, q_params, profile_comm.profile_discussion.expect("profile discussion")).await?;
-    ctx.to_htmx_or_json_res(profile_disc_view)
+    ctx.to_htmx_or_json(profile_disc_view)
 }

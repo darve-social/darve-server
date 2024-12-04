@@ -171,7 +171,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     }, "").await?;
 
 
-    ctx.to_htmx_or_json_res(CreatedResponse { id: t_request.id.unwrap().to_raw(), uri: None, success: true })
+    ctx.to_htmx_or_json(CreatedResponse { id: t_request.id.unwrap().to_raw(), uri: None, success: true })
 }
 
 async fn serve_task_deliverable_file(State(CtxState { _db, uploads_serve_dir, .. }): State<CtxState>,
@@ -205,7 +205,7 @@ async fn accept_task_request(State(CtxState { _db, .. }): State<CtxState>,
     };
     TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user, task_id.clone(), status, None).await?;
 
-    ctx.to_htmx_or_json_res(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
+    ctx.to_htmx_or_json(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
 }
 
 async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<CtxState>,
@@ -229,7 +229,7 @@ async fn deliver_task_request(State(CtxState { _db, uploads_dir, .. }): State<Ct
     let task = TaskRequestDbService { db: &_db, ctx: &ctx }.update_status_received_by_user(to_user.clone(), task_id.clone(), TaskStatus::Delivered, Some(deliverables.clone()) ).await?;
 
     notify_task_donors(&_db, &ctx, &to_user, deliverables, task).await?;
-    ctx.to_htmx_or_json_res(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
+    ctx.to_htmx_or_json(CreatedResponse { id: task_id.to_raw(), uri: None, success: true })
 }
 
 async fn notify_task_donors(_db: &Db, ctx: &Ctx, to_user: &Thing, deliverables: Vec<String>, task: TaskRequest) -> Result<(), CtxError> {
@@ -258,7 +258,7 @@ async fn add_task_request_offer(State(CtxState { _db, .. }): State<CtxState>,
     let from_user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
     let task_offer = TaskRequestOfferDbService { db: &_db, ctx: &ctx }.add_to_task_offers(get_string_thing(task_id)?, from_user, t_request_offer_input.amount).await?;
 
-    ctx.to_htmx_or_json_res(CreatedResponse {
+    ctx.to_htmx_or_json(CreatedResponse {
         success: true,
         id: task_offer.id.unwrap().to_raw(),
         uri: None,

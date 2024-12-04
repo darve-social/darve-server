@@ -63,7 +63,7 @@ async fn get_followers(
     let user_id = get_string_thing(user_id.clone())?;
     let followers: Vec<FollowUser> = FollowDbService { db: &ctx_state._db, ctx: &ctx }.user_followers(user_id).await?
         .into_iter().map(FollowUser::from).collect();
-    ctx.to_htmx_or_json_res(FollowUserList { list: followers })
+    ctx.to_htmx_or_json(FollowUserList { list: followers })
 }
 
 async fn get_following(
@@ -74,7 +74,7 @@ async fn get_following(
     let user_id = get_string_thing(user_id.clone())?;
     let following = FollowDbService { db: &ctx_state._db, ctx: &ctx }.user_following(user_id).await?
         .into_iter().map(FollowUser::from).collect();
-    ctx.to_htmx_or_json_res(FollowUserList { list: following })
+    ctx.to_htmx_or_json(FollowUserList { list: following })
 }
 
 async fn follow_user(
@@ -93,7 +93,7 @@ async fn follow_user(
         UserNotificationDbService{ db: &ctx_state._db, ctx: &ctx }
             .notify_users(follower_ids, &UserNotificationEvent::UserFollowAdded {username: from_user.username, follows_username  },"").await?;
     }
-    ctx.to_htmx_or_json_res(CreatedResponse { id: follow_user_id, success, uri: None })
+    ctx.to_htmx_or_json(CreatedResponse { id: follow_user_id, success, uri: None })
 }
 
 async fn unfollow_user(
@@ -104,7 +104,7 @@ async fn unfollow_user(
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
     let follow = get_string_thing(unfollow_user_id.clone())?;
     let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.remove_follow(user_id, follow).await?;
-    ctx.to_htmx_or_json_res(CreatedResponse { id: unfollow_user_id, success, uri: None })
+    ctx.to_htmx_or_json(CreatedResponse { id: unfollow_user_id, success, uri: None })
 }
 
 async fn is_following_user(
@@ -115,5 +115,5 @@ async fn is_following_user(
     let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
     let follows_user = get_string_thing(following_user_id.clone())?;
     let success = FollowDbService { db: &ctx_state._db, ctx: &ctx }.is_following(user_id, follows_user.clone()).await?;
-    ctx.to_htmx_or_json_res(CreatedResponse { id: follows_user.to_raw(), success, uri: None })
+    ctx.to_htmx_or_json(CreatedResponse { id: follows_user.to_raw(), success, uri: None })
 }

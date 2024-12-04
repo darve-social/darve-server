@@ -191,5 +191,5 @@ async fn create_update(State(ctx_state): State<CtxState>,
         .create_update(update_access_rule)
         .await?;
 
-    ctx.to_htmx_or_json_res::<AccessRuleForm>(get_form(State(ctx_state), ctx.clone(), Path(comm_id.to_raw()), Query(HashMap::new())).await?)
+    ctx.to_htmx_or_json::<AccessRuleForm>(get_form(State(ctx_state), ctx.clone(), Path(comm_id.to_raw()), Query(HashMap::new())).await?)
 }

@@ -140,7 +140,8 @@ async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
     let comm = create_update_community(&_db, &ctx, form_value, &user_id).await?;
     let res = CreatedResponse { success: true, id: comm.id.unwrap().to_raw(), uri: Some(comm.name_uri) };
     let uri = res.uri.clone().unwrap();
-    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res).into_response();
+    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?
+        .into_response();
 
     res.headers_mut().append(HX_REDIRECT, format!("/community/{}", uri).as_str().parse().unwrap());
     Ok(res)
