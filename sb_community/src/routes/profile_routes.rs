@@ -1,9 +1,9 @@
-use crate::routes::post_routes::UPLOADS_URL_BASE;
+use crate::routes::post_routes::{create_post_entity_route, PostInput, UPLOADS_URL_BASE};
 use std::io::Write;
 use std::str::FromStr;
 
 use askama_axum::axum_core::extract::DefaultBodyLimit;
-use askama_axum::axum_core::response::IntoResponse;
+use askama_axum::axum_core::response::{IntoResponse, Response};
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -20,12 +20,12 @@ use validator::Validate;
 use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
-use crate::routes::discussion_routes::{get_discussion_view, DiscussionView, SseEventName};
+use crate::routes::discussion_routes::{get_discussion_view, SseEventName};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{get_entities_by_id, record_exists, IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{get_entities_by_id, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::DiscussionParams;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -38,6 +38,8 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/u/:username", get(display_profile))
         .route("/u/following/posts", get(get_following_posts))
+        .route("/api/user/:username/posts", get(get_user_posts))
+        .route("/api/user/post", post(create_user_post))
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
@@ -112,6 +114,7 @@ impl ViewFieldSelector for ProfileDiscussionView {
 pub struct ProfilePostView {
     pub id: Thing,
     pub username: Option<String>,
+    // belongs_to_id=discussion
     pub belongs_to_id: Thing,
     pub r_title_uri: Option<String>,
     pub title: String,
@@ -197,17 +200,14 @@ async fn display_profile(
     profile_view.profile_discussion = profile_comm.profile_discussion;
 
     let disc_id = profile_view.profile_discussion.clone().unwrap();
-    let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
 
-    let discussion_posts = PostDbService { db: &ctx_state._db, ctx: &ctx }
-        .get_by_discussion_desc_view::<ProfilePostView>(disc_id.clone(), q_params.clone()).await?;
-    dis_view.posts = discussion_posts;
+    let dis_view = get_profile_discussion_view(&ctx_state._db, &ctx, q_params, disc_id).await?;
 
     profile_view.profile_discussion_view = Some(dis_view);
     let follow_db_service = FollowDbService { db: &ctx_state._db, ctx: &ctx };
     // TODO cache user follow numbers
     profile_view.following_nr = follow_db_service.user_following_number(profile_view.user_id.clone()).await?;
-    profile_view.followers_nr =follow_db_service.user_followers_number(profile_view.user_id.clone()).await?;
+    profile_view.followers_nr = follow_db_service.user_followers_number(profile_view.user_id.clone()).await?;
 
     ctx.to_htmx_or_json_res(ProfilePage {
         theme_name: "emerald".to_string(),
@@ -217,6 +217,16 @@ async fn display_profile(
         footer_text: "foooo".to_string(),
         profile_view: Some(profile_view),
     })
+}
+
+async fn get_profile_discussion_view(db: &Db, ctx: &Ctx, q_params: DiscussionParams, disc_id: Thing) -> CtxResult<ProfileDiscussionView> {
+    // let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
+    let mut dis_view = ProfileDiscussionView { id: Some(disc_id.clone()), posts: vec![] };
+
+    let discussion_posts = PostDbService { db, ctx }
+        .get_by_discussion_desc_view::<ProfilePostView>(disc_id.clone(), q_params.clone()).await?;
+    dis_view.posts = discussion_posts;
+    Ok(dis_view)
 }
 
 async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
@@ -236,13 +246,14 @@ async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<
 }
 
 // posts user is following
-async fn get_following_posts(State(CtxState{_db,..}): State<CtxState>,
-                           ctx: Ctx,
-                           q_params: DiscussionParams) -> CtxResult<DiscussionView> {
+async fn get_following_posts(State(CtxState { _db, .. }): State<CtxState>,
+                             ctx: Ctx,
+                             q_params: DiscussionParams) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService { db: &_db, ctx: &ctx };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let following_posts_disc = CommunityDbService{ db: &_db, ctx: &ctx }.get_profile_following_posts_discussion(user_id).await?;
-    get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await
+    let following_posts_disc = CommunityDbService { db: &_db, ctx: &ctx }.get_profile_following_posts_discussion(user_id).await?;
+    let discussion_view = get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await?;
+    ctx.to_htmx_or_json_res(discussion_view)
 }
 
 // user chat discussions
@@ -305,4 +316,27 @@ async fn create_chat_discussion<'a>(user_id: Thing, other_user_id: Thing, comm: 
     comm_db_service.add_profile_chat_discussion(user_id, disc.id.clone().unwrap()).await?;
     comm_db_service.add_profile_chat_discussion(other_user_id, disc.id.clone().unwrap()).await?;
     Ok(disc)
+}
+
+async fn create_user_post(
+    ctx: Ctx,
+    State(ctx_state): State<CtxState>,
+    TypedMultipart(input_value): TypedMultipart<PostInput>,
+) -> CtxResult<Response> {
+    let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let profile_comm = get_profile_community(&ctx_state._db, &ctx, user_id).await?;
+
+    create_post_entity_route(ctx, Path(profile_comm.profile_discussion.unwrap().to_raw()), State(ctx_state), TypedMultipart(input_value)).await
+}
+
+async fn get_user_posts( State(ctx_state): State<CtxState>,
+                         ctx: Ctx,
+                         Path(username): Path<String>,
+                         q_params: DiscussionParams) -> CtxResult<Html<String>> {
+
+    let local_user_db_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
+    let user = local_user_db_service.get(UsernameIdent(username).into()).await?;
+    let profile_comm = get_profile_community(&ctx_state._db, &ctx, user.id.expect("user id").clone()).await?;
+    let profile_disc_view = get_profile_discussion_view(&ctx_state._db, &ctx, q_params, profile_comm.profile_discussion.expect("profile discussion")).await?;
+    ctx.to_htmx_or_json_res(profile_disc_view)
 }
