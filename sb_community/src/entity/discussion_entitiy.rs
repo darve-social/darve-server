@@ -19,8 +19,6 @@ pub struct Discussion {
     pub id: Option<Thing>,
     // belongs_to=community
     pub belongs_to: Thing,
-    // #[validate(custom(function = "is_some_min_chars"))]
-    // pub name_uri: Option<String>,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -49,7 +47,6 @@ impl<'a> DiscussionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    //DEFINE FIELD name_uri ON TABLE {TABLE_NAME} TYPE option<string> // VALUE string::slug(string::trim($value))
     DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;

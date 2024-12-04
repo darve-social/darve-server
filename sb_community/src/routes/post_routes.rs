@@ -40,7 +40,7 @@ pub fn routes(state: CtxState) -> Router {
 
     Router::new()
         .merge(view_routes)
-        .route("/api/discussion/:discussion_id/post", post(create_entity))
+        .route("/api/discussion/:discussion_id/post", post(create_post_entity_route))
         .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
         // .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 15))
@@ -170,15 +170,15 @@ async fn create_form(
     }), None, None))
 }
 
-async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
-                       ctx: Ctx,
-                       Path(discussion_id): Path<String>,
-                       State(ctx_state): State<CtxState>,
-                       TypedMultipart(input_value): TypedMultipart<PostInput>,
+pub async fn create_post_entity_route(
+                                      ctx: Ctx,
+                                      Path(discussion_id): Path<String>,
+                                      State(ctx_state): State<CtxState>,
+                                      TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - create_post ", "HANDLER");
-    let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
-    let disc_db = DiscussionDbService { db: &_db, ctx: &ctx };
+    let user_id = LocalUserDbService { db: &ctx_state._db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let disc_db = DiscussionDbService { db: &ctx_state._db, ctx: &ctx };
     let disc = disc_db.get(IdentIdName::Id(get_string_thing(discussion_id)?)).await?;
 
     let is_user_chat = is_user_chat_discussion(&ctx, disc.chat_room_user_ids).unwrap_or(false);
@@ -189,10 +189,10 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
             authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(),
             authorize_height: 0,
         };
-        AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &min_authorisation).await?;
+        AccessRightDbService { db: &ctx_state._db, ctx: &ctx }.is_authorized(&user_id, &min_authorisation).await?;
     }
 
-    let post_db_service = PostDbService { db: &_db, ctx: &ctx };
+    let post_db_service = PostDbService { db: &ctx_state._db, ctx: &ctx };
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
         get_string_thing(input_value.topic_id).ok()
     } else { None };
@@ -214,7 +214,7 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     }
 
     let post_comm_view = post_db_service.get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap())).await?;
-    let notif_db_ser = DiscussionNotificationDbService { db: &_db, ctx: &ctx };
+    let notif_db_ser = DiscussionNotificationDbService { db: &ctx_state._db, ctx: &ctx };
     let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_ctx_error(AppError::Generic { description: "Post to json error for notification event".to_string() }))?;
 
     let event_type: String = DiscussionNotificationEvent::DiscussionPostAdded {

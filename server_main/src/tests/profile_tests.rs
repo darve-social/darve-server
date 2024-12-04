@@ -23,6 +23,7 @@ mod tests {
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
 
         // logged in as username2
+        // get user chats
         let create_response = server.get("/api/user_chat/list").await;
         let created = &create_response.json::<ProfileChatList>();
         assert_eq!(created.discussions.len(), 0);

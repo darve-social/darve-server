@@ -21,6 +21,7 @@ mod tests {
 
         let comm_name = "comm-naMMe1".to_lowercase();
 
+        // create community
         let create_response = server.post("/api/community").json(&CommunityInput { id: "".to_string(), name_uri: comm_name.clone(), title: "The Community Test".to_string() }).await;
         let created = &create_response.json::<CreatedResponse>();
 
