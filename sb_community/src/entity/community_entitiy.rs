@@ -134,7 +134,7 @@ impl<'a> CommunityDbService<'a> {
                 let following_posts_disc_id = Self::get_profile_following_discussion_id(user_id.clone());
                 let disc = Discussion {
                     id: Some(following_posts_disc_id),
-                    belongs_to: user_id.clone(),
+                    belongs_to: profile_comm.id.clone().unwrap(),
                     title: None,
                     topics: None,
                     chat_room_user_ids: None,
@@ -201,7 +201,7 @@ impl<'a> CommunityDbService<'a> {
     }
 
     pub fn get_profile_following_discussion_id(user_id: Thing) -> Thing {
-        Thing::from((Self::get_table_name().to_string(), format!("following_{}", user_id.id.to_raw())))
+        Thing::from((DISCUSSION_TABLE_NAME.to_string(), format!("following_{}", user_id.id.to_raw())))
     }
 }
 
