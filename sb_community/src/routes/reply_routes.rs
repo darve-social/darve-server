@@ -16,7 +16,7 @@ use crate::entity::post_entitiy::PostDbService;
 use crate::entity::reply_entitiy::{Reply, ReplyDbService};
 use sb_middleware::error::{CtxResult, AppError};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -117,9 +117,9 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     let notif_db_ser = DiscussionNotificationDbService { db: &_db, ctx: &ctx };
 
     let event_type = DiscussionNotificationEvent::DiscussionPostReplyNrIncreased{
-        discussion_id: Thing::from(("tbl","idd")),
+        discussion_id: NO_SUCH_THING.clone(),
         topic_id: None,
-        post_id: Thing::from(("tbl","idd")),
+        post_id: NO_SUCH_THING.clone(),
     }.to_string();
     let event =  DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
     // let event_ident = String::try_from( &DiscussionNotificationEventData::from((&reply, &post)) ).ok();
@@ -128,9 +128,9 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     ).await?;
 
     let event_type = DiscussionNotificationEvent::DiscussionPostReplyAdded{
-        discussion_id: Thing::from(("tbl","idd")),
+        discussion_id: NO_SUCH_THING.clone(),
         topic_id: None,
-        post_id: Thing::from(("tbl","idd")),
+        post_id: NO_SUCH_THING.clone(),
     }.to_string();
     let event =  DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
     notif_db_ser.create(

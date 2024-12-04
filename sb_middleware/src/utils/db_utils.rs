@@ -1,5 +1,6 @@
 use std::collections::{HashMap};
 use std::fmt::{Display, Formatter};
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use strum::Display;
 use surrealdb::engine::local::Db as SurDb;
@@ -10,6 +11,8 @@ use tower::ServiceExt;
 use crate::ctx::Ctx;
 use crate::db::Db;
 use crate::error::{AppError, AppResult, CtxError, CtxResult};
+
+pub static  NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
 
 #[derive(Debug, Deserialize)]
 pub struct RecordWithId {

@@ -23,7 +23,7 @@ use crate::routes::reply_routes::PostReplyView;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
@@ -218,9 +218,9 @@ async fn create_entity(State(CtxState { _db, .. }): State<CtxState>,
     let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| ctx.to_ctx_error(AppError::Generic { description: "Post to json error for notification event".to_string() }))?;
 
     let event_type: String = DiscussionNotificationEvent::DiscussionPostAdded {
-        discussion_id: Thing::from(("tbl", "idd")),
+        discussion_id: NO_SUCH_THING.clone(),
         topic_id: None,
-        post_id: Thing::from(("tbl", "idd")),
+        post_id: NO_SUCH_THING.clone(),
     }.to_string();
     let event = DiscussionNotificationEvent::try_from_post(event_type.as_str(), &post_comm_view)?;
     notif_db_ser.create(

@@ -28,7 +28,7 @@ use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -56,21 +56,21 @@ pub struct SseEventName {}
 impl SseEventName {
     pub fn get_discussion_post_added_event_name() -> String {
         DiscussionNotificationEvent::DiscussionPostAdded {
-            discussion_id: Thing::from(("tbl", "idd")),
+            discussion_id: NO_SUCH_THING.clone(),
             topic_id: None,
-            post_id: Thing::from(("tbl", "idd")),
+            post_id: NO_SUCH_THING.clone(),
         }.to_string()
     }
     pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyAdded {
-            discussion_id: Thing::from(("tbl", "idd")),
+            discussion_id: NO_SUCH_THING.clone(),
             topic_id: None,
             post_id: reply_ident.clone(),
         }.get_sse_event_ident()
     }
     pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-            discussion_id: Thing::from(("tbl", "idd")),
+            discussion_id: NO_SUCH_THING.clone(),
             topic_id: None,
             post_id: post_ident.clone(),
         }.get_sse_event_ident()
