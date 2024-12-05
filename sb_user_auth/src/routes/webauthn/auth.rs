@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
+use axum::body::HttpBody;
+use axum::extract::State;
 use axum::{
     extract::{Extension, Json, Path},
     http::StatusCode,
     response::IntoResponse,
 };
-use axum::body::HttpBody;
-use axum::extract::State;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use base64::Engine;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use log::{error, info};
 use serde::de::IntoDeserializer;
 use serde::Serialize;
@@ -16,17 +16,17 @@ use surrealdb::sql::value;
 use tower_cookies::{Cookie, Cookies};
 use tower_sessions::Session;
 // 1. Import the prelude - this contains everything needed for the server to function.
-use webauthn_rs::prelude::*;
 use webauthn_rs::prelude::Base64UrlSafeData;
+use webauthn_rs::prelude::*;
 
-use sb_middleware::ctx::Ctx;
+use crate::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
-use crate::entity::authentication_entity::{AuthenticationDbService, AuthType};
-use sb_middleware::error::AppError;
-use sb_middleware::mw_ctx::{CtxState, JWT_KEY};
 use crate::routes::webauthn::error::WebauthnError;
 use crate::routes::webauthn::error::WebauthnError::WebauthnApiError;
 use crate::routes::webauthn::startup::AppState;
+use sb_middleware::ctx::Ctx;
+use sb_middleware::error::AppError;
+use sb_middleware::mw_ctx::{CtxState, JWT_KEY};
 use sb_middleware::utils::cookie_utils;
 use sb_middleware::utils::db_utils::{IdentIdName, UsernameIdent};
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -89,14 +89,19 @@ pub async fn start_register(
     // important in authentication, where presented credentials may *only* provide
     // the unique id, and not the username!
 
-    let user_db_service = &LocalUserDbService { db: &_db, ctx: &ctx };
+    let user_db_service = &LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
     let mut exclude_credentials: Option<Vec<CredentialID>> = None;
     let mut register_user_ident = None;
     let mut username = username;
     let logged_user_id = ctx.user_id().ok();
 
     if logged_user_id.is_none() {
-        let usernameIsAvailable = user_db_service.exists(UsernameIdent(username.clone().trim().to_string()).into()).await?
+        let usernameIsAvailable = user_db_service
+            .exists(UsernameIdent(username.clone().trim().to_string()).into())
+            .await?
             .is_none();
 
         if !usernameIsAvailable {
@@ -121,8 +126,8 @@ pub async fn start_register(
     }
 
     let register_user_ident = match register_user_ident {
-        None => {return Err(WebauthnError::Unknown)},
-        Some(user_ident) => user_ident
+        None => return Err(WebauthnError::Unknown),
+        Some(user_ident) => user_ident,
     };
 
     /*let user_unique_id = {
@@ -133,7 +138,7 @@ pub async fn start_register(
             .copied()
             .unwrap_or_else(Uuid::new_v4)
     };*/
-    let registration_uuid =Uuid::new_v4();
+    let registration_uuid = Uuid::new_v4();
 
     // Remove any previous registrations that may have occured from the session.
     session.remove_value("reg_state").await?;
@@ -160,7 +165,11 @@ pub async fn start_register(
             // safe to store the reg_state into the session since it is not client controlled and
             // not open to replay attacks. If this was a cookie store, this would be UNSAFE.
             session
-                .insert("reg_state", (register_user_ident, registration_uuid, reg_state)).await
+                .insert(
+                    "reg_state",
+                    (register_user_ident, registration_uuid, reg_state),
+                )
+                .await
                 .expect("Failed to insert");
             info!("Registration Successful!");
             Json(ccr)
@@ -188,21 +197,25 @@ pub async fn finish_register(
     // TODO if username exists and user has jwt for that user add new authentication with sk.cred_id().clone()
     // if not exists create new user and add authentication
 
-    let (register_user_ident, registration_uuid, reg_state ):(String, String, PasskeyRegistration) = match session.get("reg_state").await? {
-        Some((register_user_ident, registration_uuid, reg_state)) => (register_user_ident, registration_uuid, reg_state),
-        None => {
-            error!("Failed to get session");
-            return Err(WebauthnError::CorruptSession);
-        }
-    };
-    let reg_user_id = get_string_thing(register_user_ident.clone())
-        .map_err(|e| WebauthnError::CorruptSession)?;
+    let (register_user_ident, registration_uuid, reg_state): (String, String, PasskeyRegistration) =
+        match session.get("reg_state").await? {
+            Some((register_user_ident, registration_uuid, reg_state)) => {
+                (register_user_ident, registration_uuid, reg_state)
+            }
+            None => {
+                error!("Failed to get session");
+                return Err(WebauthnError::CorruptSession);
+            }
+        };
+    let reg_user_id =
+        get_string_thing(register_user_ident.clone()).map_err(|e| WebauthnError::CorruptSession)?;
 
     session.remove_value("reg_state").await?;
 
     let validPasskey = app_state
         .webauthn
-        .finish_passkey_registration(&reg, &reg_state).ok();
+        .finish_passkey_registration(&reg, &reg_state)
+        .ok();
     /*{
         Ok(sk) => {
             /*let mut users_guard = app_state.users.lock().await;
@@ -232,27 +245,55 @@ pub async fn finish_register(
         return Ok(StatusCode::BAD_REQUEST);
     }
 
-    let user_db_service = &LocalUserDbService { db: &_db, ctx: &ctx };
+    let user_db_service = &LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
     let logged_user_id = ctx.user_id().ok();
-    let register_existing_user_id = user_db_service.exists(IdentIdName::Id(reg_user_id.clone())).await?.is_some();
+    let register_existing_user_id = user_db_service
+        .exists(IdentIdName::Id(reg_user_id.clone()))
+        .await?
+        .is_some();
 
-    if logged_user_id.is_some()!=register_existing_user_id {
+    if logged_user_id.is_some() != register_existing_user_id {
         return Err(WebauthnError::CorruptSession);
     }
 
     if logged_user_id.is_none() && !register_existing_user_id {
-        let usernameIsAvailable = user_db_service.exists(UsernameIdent(
-            register_user_ident.clone().trim().to_string()
-        ).into()).await?.is_none();
+        let usernameIsAvailable = user_db_service
+            .exists(UsernameIdent(register_user_ident.clone().trim().to_string()).into())
+            .await?
+            .is_none();
 
         if !usernameIsAvailable {
             return Err(WebauthnError::UserExists);
         }
-        user_db_service.create(LocalUser {id:None, username: register_user_ident, full_name: None, birth_date: None, phone: None, email: None, bio: None, social_links: None, image_uri: None }, AuthType::PASSKEY(Some(validPasskey.as_ref().unwrap().cred_id().clone()), validPasskey)).await?;
+        user_db_service
+            .create(
+                LocalUser {
+                    id: None,
+                    username: register_user_ident,
+                    full_name: None,
+                    birth_date: None,
+                    phone: None,
+                    email: None,
+                    bio: None,
+                    social_links: None,
+                    image_uri: None,
+                },
+                AuthType::PASSKEY(
+                    Some(validPasskey.as_ref().unwrap().cred_id().clone()),
+                    validPasskey,
+                ),
+            )
+            .await?;
         return Ok(StatusCode::OK);
     }
 
-    if logged_user_id.is_some() && register_existing_user_id && logged_user_id.unwrap() == register_user_ident {
+    if logged_user_id.is_some()
+        && register_existing_user_id
+        && logged_user_id.unwrap() == register_user_ident
+    {
         // user is logged in and has user id
         // registerUuid = RegisterUserUuid::Existing(Uuid::new_v4(), username_user_id);
         let local_user = user_db_service.get(IdentIdName::Id(reg_user_id)).await;
@@ -262,10 +303,10 @@ pub async fn finish_register(
         // TODO continue - add new auth for user...
         return Err(WebauthnError::WebauthnNotImplemented);
         /*users_guard
-                .keys
-                .entry(user_unique_id)
-                .and_modify(|keys| keys.push(sk.clone()))
-                .or_insert_with(|| vec![sk.clone()]);*/
+        .keys
+        .entry(user_unique_id)
+        .and_modify(|keys| keys.push(sk.clone()))
+        .or_insert_with(|| vec![sk.clone()]);*/
     }
 
     Ok(StatusCode::NOT_ACCEPTABLE)
@@ -316,46 +357,50 @@ pub async fn start_authentication(
     // Remove any previous authentication that may have occured from the session.
     session.remove_value("auth_state").await?;
     /*
-        // Get the set of keys that the user possesses
-        let users_guard = app_state.users.lock().await;
+    // Get the set of keys that the user possesses
+    let users_guard = app_state.users.lock().await;
 
-        // Look up their unique id from the username
-        let user_unique_id = users_guard
-            .user_ident_to_uuid
-            .get(&username)
-            .copied()
-            .ok_or(WebauthnError::UserNotFound)?;
+    // Look up their unique id from the username
+    let user_unique_id = users_guard
+        .user_ident_to_uuid
+        .get(&username)
+        .copied()
+        .ok_or(WebauthnError::UserNotFound)?;
 
-        let allow_credentials = users_guard
-            .keys
-            .get(&user_unique_id)
-            .ok_or(WebauthnError::UserHasNoCredentials)?;*/
+    let allow_credentials = users_guard
+        .keys
+        .get(&user_unique_id)
+        .ok_or(WebauthnError::UserHasNoCredentials)?;*/
 
-    let user_db_service = &LocalUserDbService { db: &_db, ctx: &ctx };
-    let auth_db_service = &AuthenticationDbService { db: &_db, ctx: &ctx };
+    let user_db_service = &LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
+    let auth_db_service = &AuthenticationDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
 
-    let exists_id = user_db_service.exists(UsernameIdent(username).into()).await?;
+    let exists_id = user_db_service
+        .exists(UsernameIdent(username).into())
+        .await?;
 
     if exists_id.is_none() {
         return Err(WebauthnError::UserNotFound);
     }
 
-    let allow_credentials:Vec<Passkey> = auth_db_service.get_by_auth_type(
-        exists_id.clone().unwrap(),
-        AuthType::PASSKEY(None, None)
-    ).await?
+    let allow_credentials: Vec<Passkey> = auth_db_service
+        .get_by_auth_type(exists_id.clone().unwrap(), AuthType::PASSKEY(None, None))
+        .await?
         .into_iter()
-        .filter_map(|auth|{
-            match auth.passkey_json {
-                None => None,
-                Some(pk_str) => {
-
-                    let pk_res = serde_json::from_str::<Passkey>(&pk_str);
-                    if pk_res.is_err(){
-                        println!("ERROR parsing into json PASSKEY={}", pk_str);
-                    }
-                    pk_res.ok()
+        .filter_map(|auth| match auth.passkey_json {
+            None => None,
+            Some(pk_str) => {
+                let pk_res = serde_json::from_str::<Passkey>(&pk_str);
+                if pk_res.is_err() {
+                    println!("ERROR parsing into json PASSKEY={}", pk_str);
                 }
+                pk_res.ok()
             }
         })
         .collect();
@@ -363,7 +408,6 @@ pub async fn start_authentication(
     if allow_credentials.len() < 1 {
         return Err(WebauthnError::UserHasNoCredentials);
     }
-
 
     let res = match app_state
         .webauthn
@@ -377,7 +421,8 @@ pub async fn start_authentication(
             // safe to store the auth_state into the session since it is not client controlled and
             // not open to replay attacks. If this was a cookie store, this would be UNSAFE.
             session
-                .insert("auth_state", (exists_id.unwrap(), auth_state)).await
+                .insert("auth_state", (exists_id.unwrap(), auth_state))
+                .await
                 .expect("Failed to insert");
             Json(rcr)
         }
@@ -395,7 +440,7 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(CtxState { _db, key_enc,.. }): State<CtxState>,
+    State(CtxState { _db, key_enc, .. }): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
     Extension(app_state): Extension<AppState>,
@@ -403,10 +448,11 @@ pub async fn finish_authentication(
     Json(auth): Json<PublicKeyCredential>,
 ) -> Result<impl IntoResponse, WebauthnError> {
     let (user_unique_id, auth_state): (String, PasskeyAuthentication) = session
-        .get("auth_state").await?
+        .get("auth_state")
+        .await?
         .ok_or(WebauthnError::CorruptSession)?;
-    let u_uniq_id = get_string_thing(user_unique_id.clone())
-        .map_err(|e| WebauthnError::CorruptSession)?;
+    let u_uniq_id =
+        get_string_thing(user_unique_id.clone()).map_err(|e| WebauthnError::CorruptSession)?;
 
     let _ = session.remove_value("auth_state").await.is_ok();
 
@@ -418,8 +464,14 @@ pub async fn finish_authentication(
             // TODO get credential by localUserId:{type:PASSKEY(auth_result.cred_id())}
             println!("IIIDDDD={:?}", auth_result.cred_id());
 
-            let user_db_service = &LocalUserDbService { db: &_db, ctx: &ctx };
-            let auth_db_service = &AuthenticationDbService { db: &_db, ctx: &ctx };
+            let user_db_service = &LocalUserDbService {
+                db: &_db,
+                ctx: &ctx,
+            };
+            let auth_db_service = &AuthenticationDbService {
+                db: &_db,
+                ctx: &ctx,
+            };
 
             let exists_id = user_db_service.exists(IdentIdName::Id(u_uniq_id)).await?;
 
@@ -427,7 +479,13 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserNotFound);
             }
 
-            let user_id = auth_db_service.authenticate(&ctx, user_unique_id, AuthType::PASSKEY(Some(auth_result.cred_id().clone()), None)).await;
+            let user_id = auth_db_service
+                .authenticate(
+                    &ctx,
+                    user_unique_id,
+                    AuthType::PASSKEY(Some(auth_result.cred_id().clone()), None),
+                )
+                .await;
 
             if user_id.is_err() {
                 return Err(WebauthnError::UserHasNoCredentials);
@@ -437,17 +495,17 @@ pub async fn finish_authentication(
             // let mut users_guard = app_state.users.lock().await;
             // Update the credential counter, if possible.
             /*users_guard
-                .keys
-                .get_mut(&user_unique_id)
-                .map(|keys| {
-                    keys.iter_mut().for_each(|sk| {
-                        // This will update the credential if it's the matching
-                        // one. Otherwise it's ignored. That is why it is safe to
-                        // iterate this over the full list.
-                        sk.update_credential(&auth_result);
-                    })
+            .keys
+            .get_mut(&user_unique_id)
+            .map(|keys| {
+                keys.iter_mut().for_each(|sk| {
+                    // This will update the credential if it's the matching
+                    // one. Otherwise it's ignored. That is why it is safe to
+                    // iterate this over the full list.
+                    sk.update_credential(&auth_result);
                 })
-                .ok_or(WebauthnError::UserHasNoCredentials)?;*/
+            })
+            .ok_or(WebauthnError::UserHasNoCredentials)?;*/
             StatusCode::OK
         }
         Err(e) => {

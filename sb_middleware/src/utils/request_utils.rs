@@ -45,12 +45,13 @@ pub fn htmx_or_json_err_resp(is_htmx: bool, mut api_error: CtxError) -> CtxError
 
 #[derive(Template, Debug, Serialize, Deserialize, Clone)] // this will generate the code...
 #[template(path = "nera2/register_response.html")] // using the template in this path, relative
-// to the `templates` dir in the crate root
-pub struct CreatedResponse { // the name of the struct can be anything
+                                                   // to the `templates` dir in the crate root
+pub struct CreatedResponse {
+    // the name of the struct can be anything
     // domain: String, // the field name should match the variable name
     // in your template
     pub success: bool,
     pub id: String,
     #[serde(default)]
-    pub uri: Option<String>
+    pub uri: Option<String>,
 }

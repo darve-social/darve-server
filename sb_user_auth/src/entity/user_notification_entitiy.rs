@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use strum::Display;
 use surrealdb::sql::{Id, Thing};
@@ -7,11 +7,11 @@ use surrealdb::sql::{Id, Thing};
 use crate::entity::follow_entitiy::FollowDbService;
 use sb_middleware::db;
 use sb_middleware::error::AppResult;
+use sb_middleware::utils::db_utils::QryBindingsVal;
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use sb_middleware::utils::db_utils::QryBindingsVal;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserNotification {
@@ -26,10 +26,26 @@ pub struct UserNotification {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
 pub enum UserNotificationEvent {
-    UserFollowAdded { username: String, follows_username: String },
-    UserTaskRequestCreated { task_id: Thing, from_user: Thing, to_user: Thing },
-    UserTaskRequestReceived { task_id: Thing, from_user: Thing, to_user: Thing },
-    UserTaskRequestComplete { task_id: Thing, delivered_by: Thing, requested_by: Thing, deliverables: Vec<String> },
+    UserFollowAdded {
+        username: String,
+        follows_username: String,
+    },
+    UserTaskRequestCreated {
+        task_id: Thing,
+        from_user: Thing,
+        to_user: Thing,
+    },
+    UserTaskRequestReceived {
+        task_id: Thing,
+        from_user: Thing,
+        to_user: Thing,
+    },
+    UserTaskRequestComplete {
+        task_id: Thing,
+        delivered_by: Thing,
+        requested_by: Thing,
+        deliverables: Vec<String>,
+    },
 }
 
 pub struct UserNotificationDbService<'a> {
@@ -38,40 +54,69 @@ pub struct UserNotificationDbService<'a> {
 }
 
 impl<'a> UserNotificationDbService<'a> {
-    pub async fn notify_users(&self, user_ids: Vec<Thing>, event: &UserNotificationEvent, content: &str) -> AppResult<()> {
-        let qry: Vec<QryBindingsVal> = user_ids.into_iter().enumerate().map(|i_uid| {
-            self.create_qry(&UserNotification {
-                id: None,
-                user: i_uid.1,
-                event: event.clone(),
-                content: content.to_string(),
-                r_created: None,
-            }, i_uid.0)
+    pub async fn notify_users(
+        &self,
+        user_ids: Vec<Thing>,
+        event: &UserNotificationEvent,
+        content: &str,
+    ) -> AppResult<()> {
+        let qry: Vec<QryBindingsVal> = user_ids
+            .into_iter()
+            .enumerate()
+            .map(|i_uid| {
+                self.create_qry(
+                    &UserNotification {
+                        id: None,
+                        user: i_uid.1,
+                        event: event.clone(),
+                        content: content.to_string(),
+                        r_created: None,
+                    },
+                    i_uid.0,
+                )
                 .ok()
-        })
+            })
             .filter(|v| v.is_some())
             .map(|v| v.unwrap())
             .collect();
-        let qrys_bindings = qry.into_iter().fold((vec![], HashMap::new()),|mut qrys_bindings, qbv| {
-            qrys_bindings.0.push(qbv.get_query_string());
-            qrys_bindings.1.extend(qbv.get_bindings());
-            qrys_bindings
-        });
+        let qrys_bindings =
+            qry.into_iter()
+                .fold((vec![], HashMap::new()), |mut qrys_bindings, qbv| {
+                    qrys_bindings.0.push(qbv.get_query_string());
+                    qrys_bindings.1.extend(qbv.get_bindings());
+                    qrys_bindings
+                });
         let qry = self.db.query(qrys_bindings.0.join(""));
-        let qry = qrys_bindings.1.into_iter().fold(qry,|qry, n_val| {
-            qry.bind(n_val)
-        });
+        let qry = qrys_bindings
+            .1
+            .into_iter()
+            .fold(qry, |qry, n_val| qry.bind(n_val));
         let res = qry.await?;
         res.check()?;
         Ok(())
     }
 
-    pub async fn notify_user_followers(&self, user_id: Thing, event: &UserNotificationEvent, content: &str) -> AppResult<()> {
-        let notify_followers_task_given_qry: Vec<Thing> = FollowDbService { db: self.db, ctx: self.ctx }.user_follower_ids(user_id.clone()).await?;
-        self.notify_users(notify_followers_task_given_qry, event, content).await
+    pub async fn notify_user_followers(
+        &self,
+        user_id: Thing,
+        event: &UserNotificationEvent,
+        content: &str,
+    ) -> AppResult<()> {
+        let notify_followers_task_given_qry: Vec<Thing> = FollowDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .user_follower_ids(user_id.clone())
+        .await?;
+        self.notify_users(notify_followers_task_given_qry, event, content)
+            .await
     }
 
-    pub fn create_qry(&self, u_notification: &UserNotification, qry_ident: usize) -> AppResult<QryBindingsVal> {
+    pub fn create_qry(
+        &self,
+        u_notification: &UserNotification,
+        qry_ident: usize,
+    ) -> AppResult<QryBindingsVal> {
         let event_json = serde_json::to_string(&u_notification.event)?;
         let mut bindings: HashMap<String, String> = HashMap::new();
         bindings.insert(format!("event_json_{qry_ident}"), event_json);
@@ -98,9 +143,7 @@ impl<'a> UserNotificationDbService<'a> {
 
 ");
 
-        let mutation = self.db
-            .query(sql)
-            .await?;
+        let mutation = self.db.query(sql).await?;
         &mutation.check().expect("should mutate user_notification");
 
         Ok(())
@@ -108,7 +151,8 @@ impl<'a> UserNotificationDbService<'a> {
 
     pub async fn create(&self, mut record: UserNotification) -> CtxResult<UserNotification> {
         record.id = Some(Thing::from((TABLE_NAME, Id::ulid())));
-        let userNotification = self.db
+        let userNotification = self
+            .db
             .create(TABLE_NAME)
             .content(record)
             .await
@@ -117,4 +161,3 @@ impl<'a> UserNotificationDbService<'a> {
         Ok(userNotification)
     }
 }
-

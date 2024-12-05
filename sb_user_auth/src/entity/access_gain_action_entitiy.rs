@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, VariantNames};
 use surrealdb::sql::{Id, Thing};
 
-use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::db;
+use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::{
     ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+    error::{AppError, CtxError, CtxResult},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -22,7 +22,6 @@ pub struct AccessGainAction {
     pub r_created: Option<String>,
     // #[serde(skip_serializing)]
     pub r_updated: Option<String>,
-
 }
 
 #[derive(EnumString, Display, VariantNames, Debug, Clone, Serialize, Deserialize)]
@@ -67,9 +66,7 @@ impl<'a> AccessGainActionDbService<'a> {
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ", AccessGainActionType::VARIANTS, AccessGainActionStatus::VARIANTS);
-        let mutation = self.db
-            .query(sql)
-            .await?;
+        let mutation = self.db.query(sql).await?;
         &mutation.check().expect("should mutate PaymentAction");
 
         Ok(())
@@ -81,12 +78,16 @@ impl<'a> AccessGainActionDbService<'a> {
     }
 
     pub async fn create_update(&self, mut record: AccessGainAction) -> CtxResult<AccessGainAction> {
-        let resource = record.id.clone().unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::rand())));
+        let resource = record
+            .id
+            .clone()
+            .unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::rand())));
         record.r_created = None;
         record.r_updated = None;
 
         let rec_id = record.id.clone();
-        let acc_right: Option<AccessGainAction> = self.db
+        let acc_right: Option<AccessGainAction> = self
+            .db
             .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
             .await
@@ -98,4 +99,3 @@ impl<'a> AccessGainActionDbService<'a> {
     //     with_not_found_err(opt, self.ctx, ident_id_name.to_string().as_str())
     // }
 }
-

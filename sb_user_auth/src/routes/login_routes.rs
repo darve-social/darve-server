@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 use validator::Validate;
 
-
 use crate::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use crate::entity::local_user_entity::LocalUserDbService;
 use crate::utils::askama_filter_util::filters;
@@ -20,7 +19,7 @@ use sb_middleware::mw_ctx::{CtxState, JWT_KEY};
 use sb_middleware::utils::cookie_utils;
 use sb_middleware::utils::db_utils::UsernameIdent;
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
-use sb_middleware::{ctx::Ctx, error::CtxError, error::CtxResult, error::AppError};
+use sb_middleware::{ctx::Ctx, error::AppError, error::CtxError, error::CtxResult};
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -41,10 +40,10 @@ pub struct LoginInput {
 struct LoginSuccess {
     id: String,
     username: String,
-    full_name:Option<String>,
-    image_uri:Option<String>,
-    bio:Option<String>,
-    email:Option<String>,
+    full_name: Option<String>,
+    image_uri: Option<String>,
+    bio: Option<String>,
+    email: Option<String>,
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -72,12 +71,17 @@ async fn login_form(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(Box::new(LoginForm {
-        username: qry.remove("u"),
-        password: qry.remove("p"),
-        next,
-        loggedin: ctx.user_id().is_ok(),
-    }), None, None).into_response())
+    Ok(ProfileFormPage::new(
+        Box::new(LoginForm {
+            username: qry.remove("u"),
+            password: qry.remove("p"),
+            next,
+            loggedin: ctx.user_id().is_ok(),
+        }),
+        None,
+        None,
+    )
+    .into_response())
 }
 
 async fn logout_page(
@@ -86,20 +90,21 @@ async fn logout_page(
     ctx: Ctx,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<Response> {
-    cookies.remove(
-        Cookie::new(JWT_KEY, "")
-    );
+    cookies.remove(Cookie::new(JWT_KEY, ""));
 
     let next = qry.remove("next");
     if next.is_some() && ctx.user_id().is_ok() {
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-
-    Ok(ProfileFormPage::new(Box::new(
-        LogoutContent {
+    Ok(ProfileFormPage::new(
+        Box::new(LogoutContent {
             next: qry.remove("next"),
-        }), None, None).into_response())
+        }),
+        None,
+        None,
+    )
+    .into_response())
 }
 
 pub async fn login(
@@ -111,13 +116,27 @@ pub async fn login(
     JsonOrFormValidated(payload): JsonOrFormValidated<LoginInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - api_login", "HANDLER");
-    let local_user_db_service = LocalUserDbService { ctx: &ctx, db: &_db };
+    let local_user_db_service = LocalUserDbService {
+        ctx: &ctx,
+        db: &_db,
+    };
 
-    let user = local_user_db_service.get(UsernameIdent(payload.username.clone()).into()).await?;
+    let user = local_user_db_service
+        .get(UsernameIdent(payload.username.clone()).into())
+        .await?;
 
     let user_id = if payload.password.len() > 0 {
         let pass = payload.password.clone();
-        AuthenticationDbService { ctx: &ctx, db: &_db }.authenticate(&ctx, user.id.clone().unwrap().to_raw(), AuthType::PASSWORD(Some(pass))).await?
+        AuthenticationDbService {
+            ctx: &ctx,
+            db: &_db,
+        }
+        .authenticate(
+            &ctx,
+            user.id.clone().unwrap().to_raw(),
+            AuthType::PASSWORD(Some(pass)),
+        )
+        .await?
     } else {
         return Err(CtxError {
             error: AppError::AuthenticationFail,
@@ -126,8 +145,19 @@ pub async fn login(
         });
     };
 
-    cookie_utils::issue_login_jwt(&key_enc, cookies,  user.id.map(|v|v.to_raw()).clone() );
-    let mut res = (StatusCode::OK, Json(LoginSuccess { id: user_id , username:payload.username.clone(),email:user.email.clone(),full_name:user.full_name.clone(),bio:user.bio.clone(),image_uri:user.image_uri.clone() })).into_response();
+    cookie_utils::issue_login_jwt(&key_enc, cookies, user.id.map(|v| v.to_raw()).clone());
+    let mut res = (
+        StatusCode::OK,
+        Json(LoginSuccess {
+            id: user_id,
+            username: payload.username.clone(),
+            email: user.email.clone(),
+            full_name: user.full_name.clone(),
+            bio: user.bio.clone(),
+            image_uri: user.image_uri.clone(),
+        }),
+    )
+        .into_response();
     let mut next = payload.next.unwrap_or("".to_string());
     if next.len() < 1 {
         next = "/community".to_string();

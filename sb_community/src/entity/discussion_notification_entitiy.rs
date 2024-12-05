@@ -53,9 +53,7 @@ impl<'a> DiscussionNotificationDbService<'a> {
 
 ");
 
-        let mutation = self.db
-            .query(sql)
-            .await?;
+        let mutation = self.db.query(sql).await?;
         &mutation.check().expect("should mutate domain");
 
         Ok(())
@@ -66,8 +64,12 @@ impl<'a> DiscussionNotificationDbService<'a> {
                                         )).await
     }*/
 
-    pub async fn create(&self, record: DiscussionNotification) -> CtxResult<DiscussionNotification> {
-        let notification = self.db
+    pub async fn create(
+        &self,
+        record: DiscussionNotification,
+    ) -> CtxResult<DiscussionNotification> {
+        let notification = self
+            .db
             .create(TABLE_NAME)
             .content(record)
             .await
@@ -76,4 +78,3 @@ impl<'a> DiscussionNotificationDbService<'a> {
         Ok(notification)
     }
 }
-

@@ -1,8 +1,7 @@
-
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
-    use uuid::Uuid;
     use sb_community::routes::discussion_routes::get_discussion_view;
     use sb_community::routes::profile_routes::{ProfileChat, ProfileChatList};
     use sb_middleware::ctx::Ctx;
@@ -10,7 +9,7 @@ mod tests {
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_user_auth::routes::login_routes::LoginInput;
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn get_user_chat() {
@@ -30,14 +29,24 @@ mod tests {
         assert_eq!(created.user_id.to_raw(), user_ident2);
 
         // create chat with user_ident1
-        let create_response = server.get(format!("/api/user_chat/with/{}", user_ident1.as_str()).as_str()).await;
+        let create_response = server
+            .get(format!("/api/user_chat/with/{}", user_ident1.as_str()).as_str())
+            .await;
         &create_response.assert_status_success();
         let created = &create_response.json::<ProfileChat>();
         let chat_disc_id = created.discussion.id.clone().unwrap();
 
         // send message
         let post_name = "post title Name 1".to_string();
-        let create_post = server.post(format!("/api/discussion/{chat_disc_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name.clone()).add_text("content", "contentttt").add_text("topic_id", "")).await;
+        let create_post = server
+            .post(format!("/api/discussion/{chat_disc_id}/post").as_str())
+            .multipart(
+                MultipartForm::new()
+                    .add_text("title", post_name.clone())
+                    .add_text("content", "contentttt")
+                    .add_text("topic_id", ""),
+            )
+            .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
@@ -52,9 +61,15 @@ mod tests {
 
         // login username1
         server.get("/logout").await;
-        let login_response = server.post("/api/login").json(&LoginInput { username: username1.clone(), password: "some3242paSs#$".to_string(), next: None }).await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username1.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .await;
         login_response.assert_status_success();
-
 
         // logged in as username1
         // check user1 also has chat with user2
@@ -67,36 +82,66 @@ mod tests {
         assert_eq!(list_disc_id, chat_disc_id);
 
         // respond to chat
-        let create_response = server.get(format!("/api/user_chat/with/{}", user_ident2.as_str()).as_str()).await;
+        let create_response = server
+            .get(format!("/api/user_chat/with/{}", user_ident2.as_str()).as_str())
+            .await;
         &create_response.assert_status_success();
         let created = &create_response.json::<ProfileChat>();
         let chat_disc_id_usr1 = created.discussion.id.clone().unwrap();
         assert_eq!(chat_disc_id_usr1, chat_disc_id.clone());
 
         let ctx = Ctx::new(Ok(user_ident1), Uuid::new_v4(), false);
-        let discussion_posts = get_discussion_view(&ctx_state._db, &ctx, chat_disc_id.clone(), DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        }).await.expect("discussion");
+        let discussion_posts = get_discussion_view(
+            &ctx_state._db,
+            &ctx,
+            chat_disc_id.clone(),
+            DiscussionParams {
+                topic_id: None,
+                start: None,
+                count: None,
+            },
+        )
+        .await
+        .expect("discussion");
         assert_eq!(discussion_posts.posts.len(), 1);
-        assert_eq!(discussion_posts.posts.get(0).expect("post").title, post_name);
+        assert_eq!(
+            discussion_posts.posts.get(0).expect("post").title,
+            post_name
+        );
 
         // create new user
         let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
         let ctx = Ctx::new(Ok(user_ident3), Uuid::new_v4(), false);
-        let d_view = get_discussion_view(&ctx_state._db, &ctx, chat_disc_id.clone(), DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        }).await;
+        let d_view = get_discussion_view(
+            &ctx_state._db,
+            &ctx,
+            chat_disc_id.clone(),
+            DiscussionParams {
+                topic_id: None,
+                start: None,
+                count: None,
+            },
+        )
+        .await;
         assert_eq!(d_view.is_err(), true);
-        assert_eq!(d_view.err().unwrap().error, AppError::AuthorizationFail {required:"Is chat participant".to_string()});
+        assert_eq!(
+            d_view.err().unwrap().error,
+            AppError::AuthorizationFail {
+                required: "Is chat participant".to_string()
+            }
+        );
 
         let post_name = "post title Name 2".to_string();
-        let create_post = server.post(format!("/api/discussion/{chat_disc_id}/post").as_str()).multipart(MultipartForm::new().add_text("title", post_name.clone()).add_text("content", "contentttt2").add_text("topic_id", "")).await;
+        let create_post = server
+            .post(format!("/api/discussion/{chat_disc_id}/post").as_str())
+            .multipart(
+                MultipartForm::new()
+                    .add_text("title", post_name.clone())
+                    .add_text("content", "contentttt2")
+                    .add_text("topic_id", ""),
+            )
+            .await;
         dbg!(&create_post);
         &create_post.assert_status_failure();
     }
 }
-

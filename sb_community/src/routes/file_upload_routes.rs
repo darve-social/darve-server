@@ -1,30 +1,23 @@
-use std::any::Any;
 use std::io;
 use std::io::ErrorKind::AlreadyExists;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
-use askama_axum::Template;
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::post;
 use axum::{BoxError, Router};
-use futures::{FutureExt, TryFutureExt};
 use futures::{Stream, TryStreamExt};
-// use futures::stream::Stream as FStream;
-use serde::{Deserialize, Serialize};
+use futures::TryFutureExt;
 use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::io::BufWriter;
 use tokio_util::io::StreamReader;
-use validator::Validate;
 
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{CtxResult, AppError};
+use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::ViewFieldSelector;
 
 pub async fn routes(state: CtxState, uploads_dir: &str) -> Router {
     match tokio::fs::create_dir(uploads_dir).await {
@@ -64,7 +57,9 @@ async fn upload(
             continue;
         };
         if !path_is_valid(&file_name) {
-            return Err(ctx.to_ctx_error(AppError::Generic { description: "path not valid".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic {
+                description: "path not valid".to_string(),
+            }));
         }
         let path = std::path::Path::new(ctx_state.uploads_dir.as_str()).join(&file_name);
         let saved = stream_to_file(path.clone(), field)
@@ -78,7 +73,7 @@ async fn upload(
 
 async fn stream_to_file<S, E>(path: PathBuf, stream: S) -> Result<(String, u64), AppError>
 where
-    S: Stream<Item=Result<Bytes, E>>,
+    S: Stream<Item = Result<Bytes, E>>,
     E: Into<BoxError>,
 {
     async {
@@ -97,8 +92,10 @@ where
 
         Ok::<_, io::Error>((path.to_str().unwrap().to_string(), cp))
     }
-        .await
-        .map_err(|err| AppError::Generic { description: err.to_string() })
+    .await
+    .map_err(|err| AppError::Generic {
+        description: err.to_string(),
+    })
 }
 
 // to prevent directory traversal attacks we ensure the path consists of exactly one normal

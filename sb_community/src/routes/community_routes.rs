@@ -86,11 +86,11 @@ impl ViewFieldSelector for CommunityView {
     }
 }
 
-
-pub async fn get_community(State(ctx_state): State<CtxState>,
-                           ctx: Ctx,
-                           Path(name): Path<String>,
-                           q_params: DiscussionParams,
+pub async fn get_community(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path(name): Path<String>,
+    q_params: DiscussionParams,
 ) -> CtxResult<CommunityPage> {
     println!("->> {:<12} - get community", "HANDLER");
 
@@ -99,11 +99,27 @@ pub async fn get_community(State(ctx_state): State<CtxState>,
             let comm_thing = get_string_thing(name)?;
             IdentIdName::Id(comm_thing)
         }
-        false => IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: name.clone(), rec: false }
+        false => IdentIdName::ColumnIdent {
+            column: "name_uri".to_string(),
+            val: name.clone(),
+            rec: false,
+        },
     };
-    let mut comm_view = CommunityDbService { db: &ctx_state._db, ctx: &ctx }
-        .get_view::<CommunityView>(ident_id_name).await?;
-    comm_view.profile_discussion_view = Some(get_discussion_view(&ctx_state._db, &ctx, comm_view.profile_discussion.clone(), q_params).await?);
+    let mut comm_view = CommunityDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_view::<CommunityView>(ident_id_name)
+    .await?;
+    comm_view.profile_discussion_view = Some(
+        get_discussion_view(
+            &ctx_state._db,
+            &ctx,
+            comm_view.profile_discussion.clone(),
+            q_params,
+        )
+        .await?,
+    );
     Ok(CommunityPage {
         theme_name: "emerald".to_string(),
         window_title: "win win".to_string(),
@@ -119,38 +135,66 @@ async fn create_update_form(
     ctx: Ctx,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
-    Ok(ProfileFormPage::new(Box::new(
-        CommunityForm {
+    Ok(ProfileFormPage::new(
+        Box::new(CommunityForm {
             community_view: match qry.get("id") {
                 None => None,
-                Some(id) =>
-                    Some(CommunityDbService { db: &_db, ctx: &ctx }
-                        .get_view::<CommunityView>(IdentIdName::Id(get_string_thing(id.clone())?)).await?)
+                Some(id) => Some(
+                    CommunityDbService {
+                        db: &_db,
+                        ctx: &ctx,
+                    }
+                    .get_view::<CommunityView>(IdentIdName::Id(get_string_thing(id.clone())?))
+                    .await?,
+                ),
             },
-        }), None, None))
+        }),
+        None,
+        None,
+    ))
 }
 
-async fn create_update(State(CtxState { _db, .. }): State<CtxState>,
-                       ctx: Ctx,
-                       JsonOrFormValidated(form_value): JsonOrFormValidated<CommunityInput>,
+async fn create_update(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    JsonOrFormValidated(form_value): JsonOrFormValidated<CommunityInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - create_update_comm", "HANDLER");
-    let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+    let user_id = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
 
     let comm = create_update_community(&_db, &ctx, form_value, &user_id).await?;
-    let res = CreatedResponse { success: true, id: comm.id.unwrap().to_raw(), uri: Some(comm.name_uri) };
+    let res = CreatedResponse {
+        success: true,
+        id: comm.id.unwrap().to_raw(),
+        uri: Some(comm.name_uri),
+    };
     let uri = res.uri.clone().unwrap();
-    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?
-        .into_response();
+    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?.into_response();
 
-    res.headers_mut().append(HX_REDIRECT, format!("/community/{}", uri).as_str().parse().unwrap());
+    res.headers_mut().append(
+        HX_REDIRECT,
+        format!("/community/{}", uri).as_str().parse().unwrap(),
+    );
     Ok(res)
 }
 
-pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityInput, user_id: &Thing) -> CtxResult<Community> {
-    let community_db_service = CommunityDbService { db: &_db, ctx: &ctx };
+pub async fn create_update_community(
+    _db: &Db,
+    ctx: &Ctx,
+    form_value: CommunityInput,
+    user_id: &Thing,
+) -> CtxResult<Community> {
+    let community_db_service = CommunityDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
 
-    let comm_id = match form_value.id.len() > 0  {
+    let comm_id = match form_value.id.len() > 0 {
         true => Some(get_string_thing(form_value.id.clone())?),
         false => None,
     };
@@ -171,8 +215,17 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
         },
         Some(comm_id) => {
             // .get throws if not existant community_db_service.must_exist(IdentIdName::Id(comm_id.to_raw())).await?;
-            let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 99 };
-            AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
+            let required_comm_auth = Authorization {
+                authorize_record_id: comm_id.clone(),
+                authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+                authorize_height: 99,
+            };
+            AccessRightDbService {
+                db: &_db,
+                ctx: &ctx,
+            }
+            .is_authorized(&user_id, &required_comm_auth)
+            .await?;
             community_db_service.get(IdentIdName::Id(comm_id)).await?
         }
     };
@@ -180,27 +233,52 @@ pub async fn create_update_community(_db: &Db, ctx: &Ctx, form_value: CommunityI
     if form_value.title.len() > 0 {
         update_comm.title = Some(form_value.title);
     } else {
-        return Err(ctx.to_ctx_error(AppError::Generic { description: "title must have value".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "title must have value".to_string(),
+        }));
     };
 
     if form_value.name_uri.len() > 0 {
         update_comm.name_uri = form_value.name_uri;
     } else {
-        return Err(ctx.to_ctx_error(AppError::Generic { description: "name_uri must have value".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "name_uri must have value".to_string(),
+        }));
     };
 
-    community_db_service
-        .create_update(update_comm)
-        .await
+    community_db_service.create_update(update_comm).await
 }
 
-pub async fn community_admin_access(_db: &Db, ctx: &Ctx, community_id: String) -> CtxResult<(Thing, Community)> {
-    let user_id = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+pub async fn community_admin_access(
+    _db: &Db,
+    ctx: &Ctx,
+    community_id: String,
+) -> CtxResult<(Thing, Community)> {
+    let user_id = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
 
     let comm_id = get_string_thing(community_id)?;
-    let comm = CommunityDbService { db: &_db, ctx: &ctx }.get(IdentIdName::Id(comm_id.clone())).await?;
-    let required_comm_auth = Authorization { authorize_record_id: comm_id.clone(), authorize_activity: AUTH_ACTIVITY_OWNER.to_string(), authorize_height: 1 };
-    AccessRightDbService { db: &_db, ctx: &ctx }.is_authorized(&user_id, &required_comm_auth).await?;
+    let comm = CommunityDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get(IdentIdName::Id(comm_id.clone()))
+    .await?;
+    let required_comm_auth = Authorization {
+        authorize_record_id: comm_id.clone(),
+        authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+        authorize_height: 1,
+    };
+    AccessRightDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .is_authorized(&user_id, &required_comm_auth)
+    .await?;
     Ok((comm_id, comm))
 }
 
@@ -224,53 +302,78 @@ pub enum DiscussionNotificationEvent {
 }
 
 impl DiscussionNotificationEvent {
-    pub fn try_from_post(event_type: &str, post: &DiscussionPostView) -> AppResult<DiscussionNotificationEvent> {
+    pub fn try_from_post(
+        event_type: &str,
+        post: &DiscussionPostView,
+    ) -> AppResult<DiscussionNotificationEvent> {
         match event_type {
             "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
                 discussion_id: post.belongs_to_id.clone(),
                 topic_id: post.topic.clone().map(|t| t.id),
                 post_id: post.id.clone(),
             }),
-            "DiscussionPostReplyAdded" => Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
-                discussion_id: post.belongs_to_id.clone(),
-                topic_id: post.topic.clone().map(|t| t.id),
-                post_id: post.id.clone(),
+            "DiscussionPostReplyAdded" => {
+                Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
+                    discussion_id: post.belongs_to_id.clone(),
+                    topic_id: post.topic.clone().map(|t| t.id),
+                    post_id: post.id.clone(),
+                })
+            }
+            "DiscussionPostReplyNrIncreased" => Ok(
+                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+                    discussion_id: post.belongs_to_id.clone(),
+                    topic_id: post.topic.clone().map(|t| t.id),
+                    post_id: post.id.clone(),
+                },
+            ),
+            _ => Err(AppError::Generic {
+                description: format!(
+                    "Can not match post DiscussionNotificationEvent::{}",
+                    event_type
+                ),
             }),
-            "DiscussionPostReplyNrIncreased" => Ok(DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-                discussion_id: post.belongs_to_id.clone(),
-                topic_id: post.topic.clone().map(|t| t.id),
-                post_id: post.id.clone(),
-            }),
-            _ => Err(AppError::Generic { description: format!("Can not match post DiscussionNotificationEvent::{}", event_type) })
         }
     }
 
-    pub fn try_from_reply_post(event_type: &str, data: (&Reply, &Post)) -> AppResult<DiscussionNotificationEvent> {
+    pub fn try_from_reply_post(
+        event_type: &str,
+        data: (&Reply, &Post),
+    ) -> AppResult<DiscussionNotificationEvent> {
         match event_type {
             "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
                 discussion_id: data.0.discussion.clone(),
                 topic_id: data.1.discussion_topic.clone(),
                 post_id: data.1.id.clone().unwrap(),
             }),
-            "DiscussionPostReplyAdded" => Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
-                discussion_id: data.0.discussion.clone(),
-                topic_id: data.1.discussion_topic.clone(),
-                post_id: data.1.id.clone().unwrap(),
+            "DiscussionPostReplyAdded" => {
+                Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
+                    discussion_id: data.0.discussion.clone(),
+                    topic_id: data.1.discussion_topic.clone(),
+                    post_id: data.1.id.clone().unwrap(),
+                })
+            }
+            "DiscussionPostReplyNrIncreased" => Ok(
+                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+                    discussion_id: data.0.discussion.clone(),
+                    topic_id: data.1.discussion_topic.clone(),
+                    post_id: data.1.id.clone().unwrap(),
+                },
+            ),
+            _ => Err(AppError::Generic {
+                description: format!("Can not match DiscussionNotificationEvent::{}", event_type),
             }),
-            "DiscussionPostReplyNrIncreased" => Ok(DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-                discussion_id: data.0.discussion.clone(),
-                topic_id: data.1.discussion_topic.clone(),
-                post_id: data.1.id.clone().unwrap(),
-            }),
-            _ => Err(AppError::Generic { description: format!("Can not match DiscussionNotificationEvent::{}", event_type) })
         }
     }
 
     pub fn get_sse_event_ident(&self) -> String {
         match self {
             DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),
-            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id, .. } => format!("{}@{}", self.to_string(), post_id),
-            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id, .. } => format!("{}@{}", self.to_string(), post_id)
+            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id, .. } => {
+                format!("{}@{}", self.to_string(), post_id)
+            }
+            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id, .. } => {
+                format!("{}@{}", self.to_string(), post_id)
+            }
         }
     }
 }

@@ -1,11 +1,9 @@
-use std::fmt::format;
-use std::sync::Arc;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use thiserror::Error;
 use sb_middleware::error::CtxError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum WebauthnError {
@@ -37,9 +35,11 @@ impl IntoResponse for WebauthnError {
             WebauthnError::UserExists => "User already exists",
             WebauthnError::WebauthnApiError(s) => {
                 println!("WA ERR={}", s);
-               "WebauthnApi error"
-            },
-            WebauthnError::WebauthnNotImplemented => "Webauthn not implemented - probably loggedin/existing user"
+                "WebauthnApi error"
+            }
+            WebauthnError::WebauthnNotImplemented => {
+                "Webauthn not implemented - probably loggedin/existing user"
+            }
         };
 
         // its often easiest to implement `IntoResponse` by calling other implementations
@@ -47,7 +47,7 @@ impl IntoResponse for WebauthnError {
     }
 }
 
-impl  From<CtxError> for WebauthnError {
+impl From<CtxError> for WebauthnError {
     fn from(value: CtxError) -> Self {
         WebauthnError::WebauthnApiError(value.error.to_string())
     }

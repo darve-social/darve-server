@@ -1,4 +1,6 @@
-use crate::routes::webauthn::auth::{finish_authentication, finish_register, start_authentication, start_register};
+use crate::routes::webauthn::auth::{
+    finish_authentication, finish_register, start_authentication, start_register,
+};
 use crate::routes::webauthn::startup::AppState;
 use axum::error_handling::HandleErrorLayer;
 use axum::http::StatusCode;
@@ -31,15 +33,13 @@ pub fn create_webauth_config() -> WebauthnConfig {
 
 pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -> Router {
     let isHttps = wa_config.isHttps.clone();
-// Create the app
+    // Create the app
     let webauthn_state = AppState::new(wa_config);
 
     // TODO replace with https://github.com/rynoV/tower-sessions-surrealdb-store
     let session_store = MemoryStore::default();
     let webauthn_session_service = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|_| async {
-            StatusCode::BAD_REQUEST
-        }))
+        .layer(HandleErrorLayer::new(|_| async { StatusCode::BAD_REQUEST }))
         /* .layer(HandleErrorLayer::new(|_: BoxError| async {
             StatusCode::BAD_REQUEST
         }))*/
@@ -51,26 +51,33 @@ pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -
                 .with_expiry(Expiry::OnInactivity(Duration::seconds(360))),
         );
 
-// build our application with a route
+    // build our application with a route
     let webauthn_app_routes = Router::new()
-        .route("/api/passkey/register_start/:username", post(start_register))
+        .route(
+            "/api/passkey/register_start/:username",
+            post(start_register),
+        )
         .route("/api/passkey/register_finish", post(finish_register))
-        .route("/api/passkey/login_start/:username", post(start_authentication))
+        .route(
+            "/api/passkey/login_start/:username",
+            post(start_authentication),
+        )
         .route("/api/passkey/login_finish", post(finish_authentication))
         .layer(Extension(webauthn_state))
         .layer(webauthn_session_service)
         .fallback(handler_404);
 
-// #[cfg(feature = "wasm")]
+    // #[cfg(feature = "wasm")]
     if !PathBuf::from(wasm_dir_path).exists() {
         // panic!("Can't find WASM files to serve!")
         println!("Can't find WASM files to serve!");
     }
 
-// #[cfg(feature = "wasm")]
-    let webauthn_app_routes = Router::new()
-        .merge(webauthn_app_routes)
-        .nest_service("/passkey", tower_http::services::ServeDir::new(wasm_dir_path));
+    // #[cfg(feature = "wasm")]
+    let webauthn_app_routes = Router::new().merge(webauthn_app_routes).nest_service(
+        "/passkey",
+        tower_http::services::ServeDir::new(wasm_dir_path),
+    );
 
     webauthn_app_routes.with_state(state)
 }

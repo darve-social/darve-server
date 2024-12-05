@@ -59,28 +59,41 @@ pub struct UserNotificationTaskReceivedView {
 async fn user_notification_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
-    let user = LocalUserDbService { db: &_db, ctx: &ctx }.get_ctx_user_thing().await?;
+) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+    let user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
 
-    let mut stream = _db.select(user_notification_entitiy::TABLE_NAME).live().await?
-        .filter(move |r: &Result<SdbNotification<UserNotification>, surrealdb::Error>| {
-            let notification = r.as_ref().unwrap().data.clone();
-            if notification.user != user {
-                return false;
-            }
-
-            true
-        })
-        .map(move |n: Result<SdbNotification<UserNotification>, surrealdb::Error>| {
-            n.map(|n: surrealdb::Notification<UserNotification>| {
-                let res = to_sse_event(ctx.clone(), n.data.event);
-                if res.is_err() {
-                    Event::default().data(res.unwrap_err().error.to_string()).event("Error".to_string())
-                } else {
-                    res.unwrap()
+    let mut stream = _db
+        .select(user_notification_entitiy::TABLE_NAME)
+        .live()
+        .await?
+        .filter(
+            move |r: &Result<SdbNotification<UserNotification>, surrealdb::Error>| {
+                let notification = r.as_ref().unwrap().data.clone();
+                if notification.user != user {
+                    return false;
                 }
-            })
-        }
+
+                true
+            },
+        )
+        .map(
+            move |n: Result<SdbNotification<UserNotification>, surrealdb::Error>| {
+                n.map(|n: surrealdb::Notification<UserNotification>| {
+                    let res = to_sse_event(ctx.clone(), n.data.event);
+                    if res.is_err() {
+                        Event::default()
+                            .data(res.unwrap_err().error.to_string())
+                            .event("Error".to_string())
+                    } else {
+                        res.unwrap()
+                    }
+                })
+            },
         );
 
     // println!("GOT LIVE QRY STREAM");
@@ -94,8 +107,14 @@ async fn user_notification_sse(
 fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> CtxResult<Event> {
     let event_ident = event.to_string();
     let event = match event {
-        UserNotificationEvent::UserFollowAdded { username, follows_username } => {
-            match ctx.to_htmx_or_json(UserNotificationFollowView { username, follows_username }) {
+        UserNotificationEvent::UserFollowAdded {
+            username,
+            follows_username,
+        } => {
+            match ctx.to_htmx_or_json(UserNotificationFollowView {
+                username,
+                follows_username,
+            }) {
                 Ok(response_string) => Event::default().data(response_string.0).event(event_ident),
                 Err(err) => {
                     let msg = "ERROR rendering UserNotificationFollowView";
@@ -104,7 +123,12 @@ fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> CtxResult<Event> {
                 }
             }
         }
-        UserNotificationEvent::UserTaskRequestComplete { task_id, delivered_by, requested_by, deliverables } => {
+        UserNotificationEvent::UserTaskRequestComplete {
+            task_id,
+            delivered_by,
+            requested_by,
+            deliverables,
+        } => {
             match ctx.to_htmx_or_json(UserNotificationTaskCompleteView {
                 task_id,
                 delivered_by,
@@ -119,7 +143,11 @@ fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> CtxResult<Event> {
                 }
             }
         }
-        UserNotificationEvent::UserTaskRequestCreated { task_id, from_user, to_user } => {
+        UserNotificationEvent::UserTaskRequestCreated {
+            task_id,
+            from_user,
+            to_user,
+        } => {
             match ctx.to_htmx_or_json(UserNotificationTaskCreatedView {
                 task_id,
                 from_user,
@@ -133,7 +161,11 @@ fn to_sse_event(ctx: Ctx, event: UserNotificationEvent) -> CtxResult<Event> {
                 }
             }
         }
-        UserNotificationEvent::UserTaskRequestReceived { task_id, from_user, to_user } => {
+        UserNotificationEvent::UserTaskRequestReceived {
+            task_id,
+            from_user,
+            to_user,
+        } => {
             match ctx.to_htmx_or_json(UserNotificationTaskReceivedView {
                 task_id,
                 from_user,

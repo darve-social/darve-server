@@ -17,30 +17,36 @@ use uuid::Uuid;
 
 use sb_user_auth::routes::webauthn::webauthn_routes;
 
+use crate::test_utils::create_dev_env;
 use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
+use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
 use sb_community::entity::post_entitiy::PostDbService;
 use sb_community::entity::reply_entitiy::ReplyDbService;
-use sb_community::routes::{community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes, reply_routes, stripe_routes};
+use sb_community::routes::{
+    community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes,
+    reply_routes, stripe_routes,
+};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
 use sb_task::routes::task_request_routes;
+use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
-use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes};
+use sb_user_auth::routes::{
+    access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
+    register_routes,
+};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
-use crate::test_utils::create_dev_env;
 
 mod mw_response_transformer;
 mod test_utils;
@@ -49,17 +55,27 @@ mod tests;
 #[tokio::main]
 async fn main() -> AppResult<()> {
     dotenv().ok();
-    let is_dev = std::env::var("DEVELOPMENT").expect("set DEVELOPMENT env var").eq("true");
+    let is_dev = std::env::var("DEVELOPMENT")
+        .expect("set DEVELOPMENT env var")
+        .eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
     let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
-    let stripe_wh_secret = std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
+    let stripe_wh_secret =
+        std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
 
-    let db= db::start(None).await?;
+    let db = db::start(None).await?;
     runMigrations(db, is_dev).await?;
 
-    let ctx_state = mw_ctx::create_ctx_state(init_server_password, is_dev, jwt_secret, stripe_key, stripe_wh_secret, uploads_dir );
+    let ctx_state = mw_ctx::create_ctx_state(
+        init_server_password,
+        is_dev,
+        jwt_secret,
+        stripe_key,
+        stripe_wh_secret,
+        uploads_dir,
+    );
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = main_router(&ctx_state, wa_config).await;
 
@@ -75,13 +91,23 @@ async fn main() -> AppResult<()> {
         let email = "dynamite@myheroacademia.io".to_string();
         let bio = "💥 Hero-in-training with explosive ambition to be #1! 💣".to_string();
         let full_name = "Katsuki Bakugo".to_string();
-        let image_uri = "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string();
-        create_dev_env(&ctx_state.clone(), username.clone(), password.clone(),Some(email.clone()),
-        Some(bio.clone()),
-        Some(image_uri.clone()),
-        Some(full_name.clone()),
-    ).await;
-        open::that(format!("http://localhost:8080/login?u={username}&p={password}")).expect("browser opens");
+        let image_uri =
+            "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq"
+                .to_string();
+        create_dev_env(
+            &ctx_state.clone(),
+            username.clone(),
+            password.clone(),
+            Some(email.clone()),
+            Some(bio.clone()),
+            Some(image_uri.clone()),
+            Some(full_name.clone()),
+        )
+        .await;
+        open::that(format!(
+            "http://localhost:8080/login?u={username}&p={password}"
+        ))
+        .expect("browser opens");
     }
 
     axum::serve(listener, routes_all.into_make_service())
@@ -93,7 +119,6 @@ async fn main() -> AppResult<()> {
     //     Router::new().nest_service("/", get_service(ServeDir::new("./")))
     // }
 
-
     Ok(())
 }
 
@@ -103,25 +128,47 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     // ts.mutate_db().await?;
 
     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AuthenticationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AuthenticationDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     DiscussionDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionTopicDbService { db: &db, ctx: &c }.mutate_db().await?;
+    DiscussionTopicDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionNotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    DiscussionNotificationDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessRightDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessGainActionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    AccessRightDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    AccessGainActionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestOfferDbService { db: &db, ctx: &c }.mutate_db().await?;
-    WalletDbService { db: &db, ctx: &c, is_development  }.mutate_db().await?;
-    CurrencyTransactionDbService { db: &db, ctx: &c }.mutate_db().await?;
+    TaskRequestDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    TaskRequestOfferDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    WalletDbService {
+        db: &db,
+        ctx: &c,
+        is_development,
+    }
+    .mutate_db()
+    .await?;
+    CurrencyTransactionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     Ok(())
 }
 
-pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Router {
+pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Router {
     Router::new()
         .nest_service("/assets", ServeDir::new("./server_main/src/assets"))
         // No requirements
@@ -135,7 +182,11 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Ro
         .merge(access_rule_routes::routes(ctx_state.clone()))
         .merge(post_routes::routes(ctx_state.clone()))
         .merge(reply_routes::routes(ctx_state.clone()))
-        .merge(webauthn_routes::routes(ctx_state.clone(), wa_config, "./server_main/src/assets/wasm"))
+        .merge(webauthn_routes::routes(
+            ctx_state.clone(),
+            wa_config,
+            "./server_main/src/assets/wasm",
+        ))
         .merge(stripe_routes::routes(ctx_state.clone()))
         .merge(access_gain_action_routes::routes(ctx_state.clone()))
         .merge(profile_routes::routes(ctx_state.clone()))
@@ -153,8 +204,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig ) -> Ro
         .layer(middleware::from_fn_with_state(
             ctx_state.clone(),
             mw_ctx::mw_ctx_constructor,
-        )
-        )
+        ))
         // Layers are executed from bottom up, so CookieManager has to be under ctx_constructor
         .layer(CookieManagerLayer::new())
     // .layer(Extension(ctx_state.clone()))

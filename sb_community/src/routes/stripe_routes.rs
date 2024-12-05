@@ -4,40 +4,57 @@ use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
-use axum::{async_trait, Router};
 use axum::body::Body;
 use axum::extract::{FromRequest, Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::response::{Redirect, Response};
 use axum::routing::{get, post};
+use axum::{async_trait, Router};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
-use stripe::{CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData, CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId};
-use stripe::{Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount, CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments, CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink, CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate, PaymentLink, Price, Product};
+use stripe::{
+    Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
+    CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
+    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
+    CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
+    PaymentLink, Price, Product,
+};
+use stripe::{
+    CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
+    CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
+};
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::{Id, Thing};
 use tokio::io::AsyncWriteExt;
 
+use crate::entity::community_entitiy::CommunityDbService;
+use crate::routes::community_routes::community_admin_access;
 use sb_middleware::ctx::Ctx;
+use sb_middleware::error::{AppError, CtxError, CtxResult};
+use sb_middleware::mw_ctx::CtxState;
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::string_utils::get_string_thing;
+use sb_user_auth::entity::access_gain_action_entitiy::{
+    AccessGainAction, AccessGainActionDbService, AccessGainActionStatus, AccessGainActionType,
+};
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authorization_entity::Authorization;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::access_gain_action_entitiy::{AccessGainActionType, AccessGainAction, AccessGainActionDbService, AccessGainActionStatus};
-use sb_middleware::error::{CtxError, CtxResult, AppError};
-use sb_middleware::mw_ctx::CtxState;
-use crate::routes::community_routes::community_admin_access;
 use sb_user_auth::routes::register_routes::display_register_page;
-use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
-use sb_middleware::utils::string_utils::get_string_thing;
-use sb_user_auth::entity::access_right_entity::AccessRightDbService;
-use crate::entity::community_entitiy::CommunityDbService;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/community/:community_id/stripe/link-start", get(get_link_start_page))
-        .route("/community/:community_id/stripe/link-complete", get(get_link_complete_page))
+        .route(
+            "/community/:community_id/stripe/link-start",
+            get(get_link_start_page),
+        )
+        .route(
+            "/community/:community_id/stripe/link-complete",
+            get(get_link_complete_page),
+        )
         .route("/api/stripe/access-rule/:ar_id", get(access_rule_payment))
         .route("/api/stripe/webhook", post(handle_webhook))
         .with_state(state)
@@ -108,23 +125,38 @@ async fn get_link_start_page(
 
     let connect_account_id = match comm.stripe_connect_account_id.clone() {
         None => {
-            let acc: Account = Account::create(&client,
-                                               CreateAccount {
-                                                   type_: Some(AccountType::Standard),
-                                                   capabilities: Some(CreateAccountCapabilities {
-                                                       card_payments: Some(CreateAccountCapabilitiesCardPayments { requested: Some(true) }),
-                                                       transfers: Some(CreateAccountCapabilitiesTransfers { requested: Some(true) }),
-                                                       ..Default::default()
-                                                   }),
-                                                   ..Default::default()
-                                               })
-                .map_err(|e| ctx.to_ctx_error(e.into()))
-                .await?;
+            let acc: Account = Account::create(
+                &client,
+                CreateAccount {
+                    type_: Some(AccountType::Standard),
+                    capabilities: Some(CreateAccountCapabilities {
+                        card_payments: Some(CreateAccountCapabilitiesCardPayments {
+                            requested: Some(true),
+                        }),
+                        transfers: Some(CreateAccountCapabilitiesTransfers {
+                            requested: Some(true),
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .map_err(|e| ctx.to_ctx_error(e.into()))
+            .await?;
             comm.stripe_connect_account_id = Some(acc.id.clone().to_string());
-            comm = CommunityDbService { ctx: &ctx, db: &ctx_state._db }.create_update(comm).await?;
+            comm = CommunityDbService {
+                ctx: &ctx,
+                db: &ctx_state._db,
+            }
+            .create_update(comm)
+            .await?;
             acc.id
         }
-        Some(id) => AccountId::from_str(id.as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?
+        Some(id) => AccountId::from_str(id.as_str()).map_err(|e1| {
+            ctx.to_ctx_error(AppError::Stripe {
+                source: e1.to_string(),
+            })
+        })?,
     };
 
     let requirements_due = get_account_requirements_due(&client, &ctx, &connect_account_id).await?;
@@ -138,16 +170,35 @@ async fn get_link_start_page(
                 type_: AccountLinkType::AccountOnboarding,
                 collect: None,
                 expand: &[],
-                refresh_url: Some(format!("http://localhost:8080/community/{}/stripe/link-start", comm_id.clone().to_raw()).as_str()),
-                return_url: Some(format!("http://localhost:8080/community/{}/stripe/link-complete", comm_id.to_raw()).as_str()),
+                refresh_url: Some(
+                    format!(
+                        "http://localhost:8080/community/{}/stripe/link-start",
+                        comm_id.clone().to_raw()
+                    )
+                    .as_str(),
+                ),
+                return_url: Some(
+                    format!(
+                        "http://localhost:8080/community/{}/stripe/link-complete",
+                        comm_id.to_raw()
+                    )
+                    .as_str(),
+                ),
                 collection_options: None,
-            }, )
-            .map_err(|e| ctx.to_ctx_error(e.into()))
-            .await?.url;
+            },
+        )
+        .map_err(|e| ctx.to_ctx_error(e.into()))
+        .await?
+        .url;
     } else {
         if comm.stripe_connect_complete == false {
             comm.stripe_connect_complete = true;
-            CommunityDbService { ctx: &ctx, db: &ctx_state._db }.create_update(comm).await?;
+            CommunityDbService {
+                ctx: &ctx,
+                db: &ctx_state._db,
+            }
+            .create_update(comm)
+            .await?;
         }
     }
 
@@ -180,15 +231,26 @@ async fn get_link_complete_page(
         // return Err(ctx.to_api_error(Error::Generic { description: "No Stripe account conncted".to_string() }));
         format!("/community/{}/stripe/link-start", comm_id.clone().to_raw())
     } else {
-        let acc_id = AccountId::from_str(comm.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?;
-        let requirements_due = get_account_requirements_due(&Client::new(ctx_state.stripe_key), &ctx, &acc_id).await?;
+        let acc_id = AccountId::from_str(comm.stripe_connect_account_id.clone().unwrap().as_str())
+            .map_err(|e1| {
+                ctx.to_ctx_error(AppError::Stripe {
+                    source: e1.to_string(),
+                })
+            })?;
+        let requirements_due =
+            get_account_requirements_due(&Client::new(ctx_state.stripe_key), &ctx, &acc_id).await?;
 
         if requirements_due {
             format!("/community/{}/stripe/link-start", comm_id.clone().to_raw())
         } else {
             if comm.stripe_connect_complete == false {
                 comm.stripe_connect_complete = true;
-                CommunityDbService { ctx: &ctx, db: &ctx_state._db }.create_update(comm).await?;
+                CommunityDbService {
+                    ctx: &ctx,
+                    db: &ctx_state._db,
+                }
+                .create_update(comm)
+                .await?;
             }
             "".to_string()
         }
@@ -225,7 +287,6 @@ impl TryFrom<MyStripeProductId> for Thing {
     }
 }
 
-
 async fn access_rule_payment(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
@@ -235,40 +296,68 @@ async fn access_rule_payment(
 
     if ctx.user_id().is_err() {
         let mut qry: HashMap<String, String> = HashMap::new();
-        qry.insert("next".to_string(), format!("/api/stripe/access-rule/{access_rule_id}"));
-        return Ok(display_register_page(ctx, Query(qry)).await?.into_response());
+        qry.insert(
+            "next".to_string(),
+            format!("/api/stripe/access-rule/{access_rule_id}"),
+        );
+        return Ok(display_register_page(ctx, Query(qry))
+            .await?
+            .into_response());
     }
 
     let user_id = ctx.user_id()?;
 
-    let mut charge_access_rule = AccessRuleDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<AccessRuleChargeView>(IdentIdName::Id(get_string_thing(access_rule_id.clone())?)).await?;
+    let mut charge_access_rule = AccessRuleDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_view::<AccessRuleChargeView>(IdentIdName::Id(get_string_thing(access_rule_id.clone())?))
+    .await?;
 
     if ctx_state.is_development {
         charge_access_rule.stripe_connect_account_id = Some("acct_1Q29UUEdDBSaSZL3".to_string());
     }
 
     if charge_access_rule.price_amount.is_none() {
-        return Err(ctx.to_ctx_error(AppError::Generic { description: "Price not defined".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "Price not defined".to_string(),
+        }));
     }
 
-
-    if !ctx_state.is_development && (charge_access_rule.stripe_connect_account_id.is_none() || !charge_access_rule.stripe_connect_complete) {
-        return Err(ctx.to_ctx_error(AppError::Generic { description: "No Stripe account conncted".to_string() }));
+    if !ctx_state.is_development
+        && (charge_access_rule.stripe_connect_account_id.is_none()
+            || !charge_access_rule.stripe_connect_complete)
+    {
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "No Stripe account conncted".to_string(),
+        }));
     }
 
-    let acc_id = AccountId::from_str(charge_access_rule.stripe_connect_account_id.clone().unwrap().as_str()).map_err(|e1| ctx.to_ctx_error(AppError::Stripe { source: e1.to_string() }))?;
+    let acc_id = AccountId::from_str(
+        charge_access_rule
+            .stripe_connect_account_id
+            .clone()
+            .unwrap()
+            .as_str(),
+    )
+    .map_err(|e1| {
+        ctx.to_ctx_error(AppError::Stripe {
+            source: e1.to_string(),
+        })
+    })?;
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
         let pr_id: ProductId = MyThing(charge_access_rule.id).into();
         let prod_res = Product::retrieve(&client, &pr_id, &[]).await;
 
-
         if prod_res.is_err() {
             let mut create_product = CreateProduct::new(charge_access_rule.title.as_str());
             create_product.id = Some(pr_id.as_str());
             Product::create(&client, create_product).await.unwrap()
-        } else { prod_res.unwrap() }
+        } else {
+            prod_res.unwrap()
+        }
         /*create_product.metadata = Some(std::collections::HashMap::from([(
             String::from("access-rule-id"),
             access_rule_id,
@@ -289,19 +378,17 @@ async fn access_rule_payment(
         create_price.unit_amount = Some((charge_access_rule.price_amount.unwrap() * 100) as i64);
         create_price.expand = &["product"];
         create_price.recurring = match charge_access_rule.available_period_days {
-            Some(days_interval) => {
-                match days_interval > 0 {
-                    true => Some(CreatePriceRecurring {
-                        aggregate_usage: None,
-                        interval: CreatePriceRecurringInterval::Day,
-                        interval_count: Some(days_interval),
-                        trial_period_days: None,
-                        usage_type: None,
-                    }),
-                    false => None
-                }
-            }
-            None => None
+            Some(days_interval) => match days_interval > 0 {
+                true => Some(CreatePriceRecurring {
+                    aggregate_usage: None,
+                    interval: CreatePriceRecurringInterval::Day,
+                    interval_count: Some(days_interval),
+                    trial_period_days: None,
+                    usage_type: None,
+                }),
+                false => None,
+            },
+            None => None,
         };
 
         Price::create(&client, create_price).await.unwrap()
@@ -321,7 +408,9 @@ async fn access_rule_payment(
             println!("FEEE {} // {}", rel, amt);
             if rel < ctx_state.min_platform_fee_abs_2dec as i64 {
                 ctx_state.min_platform_fee_abs_2dec as i64
-            } else { rel }
+            } else {
+                rel
+            }
         }
     };
 
@@ -365,12 +454,12 @@ async fn access_rule_payment(
         // value with 2 decimals - 1500 is $15s
         application_fee_amount: match price.recurring.is_some() {
             true => None,
-            false => Some(platform_fee)
+            false => Some(platform_fee),
         },
         // subscriptions only=  application_fee_percent: Some(10f64),
         application_fee_percent: match price.recurring.is_some() {
             false => None,
-            true => Some((ctx_state.platform_fee_rel * 100 as f64) as f64)
+            true => Some((ctx_state.platform_fee_rel * 100 as f64) as f64),
         },
         invoice_creation: match price.recurring.is_some() {
             true => None,
@@ -379,26 +468,26 @@ async fn access_rule_payment(
                 invoice_data: Some(CreatePaymentLinkInvoiceCreationInvoiceData {
                     ..Default::default()
                 }),
-            })
+            }),
         },
     };
 
-    let mut payment_link = PaymentLink::create(
-        &client,
-        create_pl,
-    )
-        .await.map_err(|e| ctx.to_ctx_error(AppError::Stripe { source: e.to_string() }))?;
+    let mut payment_link = PaymentLink::create(&client, create_pl).await.map_err(|e| {
+        ctx.to_ctx_error(AppError::Stripe {
+            source: e.to_string(),
+        })
+    })?;
 
     /*let action_id =
-        PaymentActionDbService { ctx: &ctx, db: &ctx_state._db }.create_update(PaymentAction {
-            id: Thing::from((PaymentActionDbService::get_table_name(), Id::from(payment_link.id.as_str()))),
-            community: charge_access_rule.community,
-            access_rules: vec![charge_access_rule.id],
-            local_user: Thing::try_from(user_id).map_err(|e| ctx.to_api_error(Error::Generic { description: "error into access_rule Thing".to_string() }))?,
-            paid: false,
-            r_created: None,
-            r_updated: None,
-        }).await?;*/
+    PaymentActionDbService { ctx: &ctx, db: &ctx_state._db }.create_update(PaymentAction {
+        id: Thing::from((PaymentActionDbService::get_table_name(), Id::from(payment_link.id.as_str()))),
+        community: charge_access_rule.community,
+        access_rules: vec![charge_access_rule.id],
+        local_user: Thing::try_from(user_id).map_err(|e| ctx.to_api_error(Error::Generic { description: "error into access_rule Thing".to_string() }))?,
+        paid: false,
+        r_created: None,
+        r_updated: None,
+    }).await?;*/
 
     /*let mut payment_link = PaymentLink::create(
         &client,
@@ -413,14 +502,13 @@ async fn access_rule_payment(
     Ok(Redirect::temporary(payment_link.url.as_str()).into_response())
 }
 
-
 struct StripeEvent(Event);
 
 #[async_trait]
 impl<S> FromRequest<S> for StripeEvent
-    where
-        String: FromRequest<S>,
-        S: Send + Sync,
+where
+    String: FromRequest<S>,
+    S: Send + Sync,
 {
     type Rejection = Response;
 
@@ -431,8 +519,9 @@ impl<S> FromRequest<S> for StripeEvent
             return Err(StatusCode::BAD_REQUEST.into_response());
         };
 
-        let payload =
-            String::from_request(req, state).await.map_err(IntoResponse::into_response)?;
+        let payload = String::from_request(req, state)
+            .await
+            .map_err(IntoResponse::into_response)?;
 
         let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
         Ok(Self(
@@ -490,9 +579,17 @@ async fn handle_webhook(
             if let EventObject::Invoice(invoice) = event.data.object {
                 let external_ident = Some(invoice.id.as_str().clone().to_string());
                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
-                let u_id = invoice_rules.get(0).expect("invoice should have items").0.clone();
+                let u_id = invoice_rules
+                    .get(0)
+                    .expect("invoice should have items")
+                    .0
+                    .clone();
 
-                AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx }.create_update(AccessGainAction {
+                AccessGainActionDbService {
+                    db: &ctx_state._db,
+                    ctx: &ctx,
+                }
+                .create_update(AccessGainAction {
                     id: None,
                     external_ident,
                     access_rule_pending: None,
@@ -502,14 +599,22 @@ async fn handle_webhook(
                     action_status: AccessGainActionStatus::Failed,
                     r_created: None,
                     r_updated: None,
-                }).await?;
+                })
+                .await?;
             }
         }
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
                 // dbg!(&invoice);
-                let id = Thing::try_from((AccessGainActionDbService::get_table_name().to_string(), Id::from(invoice.id.as_str()))).unwrap();
-                let j_action_db = AccessGainActionDbService { db: &ctx_state._db, ctx: &ctx };
+                /*let id = Thing::try_from((
+                    AccessGainActionDbService::get_table_name().to_string(),
+                    Id::from(invoice.id.as_str()),
+                ))
+                .unwrap();*/
+                let j_action_db = AccessGainActionDbService {
+                    db: &ctx_state._db,
+                    ctx: &ctx,
+                };
                 let mut j_action = AccessGainAction {
                     id: None,
                     external_ident: Some(invoice.id.to_string()),
@@ -522,7 +627,9 @@ async fn handle_webhook(
                     r_updated: None,
                 };
                 if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
-                    || invoice.paid.is_none() || invoice.paid.unwrap() == false {
+                    || invoice.paid.is_none()
+                    || invoice.paid.unwrap() == false
+                {
                     j_action_db.create_update(j_action).await?;
                     // don't process partially paid
                     return Ok(StatusCode::OK.into_response());
@@ -530,12 +637,30 @@ async fn handle_webhook(
 
                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
                 let mut a_rights = vec![];
-                j_action.local_user = Some(invoice_rules.get(0).expect("invoice must have items").0.clone());
+                j_action.local_user = Some(
+                    invoice_rules
+                        .get(0)
+                        .expect("invoice must have items")
+                        .0
+                        .clone(),
+                );
                 j_action.action_status = AccessGainActionStatus::Complete;
                 j_action = j_action_db.create_update(j_action).await?;
                 for user_a_rule in invoice_rules {
                     let (usr_id, a_rule_thing) = user_a_rule;
-                    let a_right = AccessRightDbService { ctx: &ctx, db: &ctx_state._db }.add_paid_access_right(usr_id.clone(), a_rule_thing.clone(), j_action.id.clone().expect("must be saved already, having id")).await?;
+                    let a_right = AccessRightDbService {
+                        ctx: &ctx,
+                        db: &ctx_state._db,
+                    }
+                    .add_paid_access_right(
+                        usr_id.clone(),
+                        a_rule_thing.clone(),
+                        j_action
+                            .id
+                            .clone()
+                            .expect("must be saved already, having id"),
+                    )
+                    .await?;
                     a_rights.push(a_right.id.expect("AccessRight to be saved"));
                 }
                 j_action.access_rights = Some(a_rights);
@@ -562,7 +687,11 @@ async fn handle_webhook(
     Ok("".into_response())
 }
 
-async fn extract_invoice_data(_ctx_state: &CtxState, ctx: &Ctx, invoice: Invoice) -> Result<Vec<(Thing, Thing)>, CtxError> {
+async fn extract_invoice_data(
+    _ctx_state: &CtxState,
+    ctx: &Ctx,
+    invoice: Invoice,
+) -> Result<Vec<(Thing, Thing)>, CtxError> {
     let mut user_access_rules: Vec<(Thing, Thing)> = vec![];
     if let Some(list) = invoice.lines {
         for item in list.data {
@@ -573,28 +702,55 @@ async fn extract_invoice_data(_ctx_state: &CtxState, ctx: &Ctx, invoice: Invoice
                         let usr_id = get_string_thing(user_id.clone().unwrap());
                         let product_id = price.product.unwrap().id();
                         if usr_id.is_ok() {
-                            let access_rule_thing: Result<Thing, AppError> = MyStripeProductId(product_id.clone()).try_into();
+                            let access_rule_thing: Result<Thing, AppError> =
+                                MyStripeProductId(product_id.clone()).try_into();
                             if access_rule_thing.is_ok() {
-                                user_access_rules.push((usr_id.unwrap(), access_rule_thing.unwrap()));
+                                user_access_rules
+                                    .push((usr_id.unwrap(), access_rule_thing.unwrap()));
                                 // return Ok((usr_id.unwrap(), access_rule_thing.unwrap()));
                             } else {
-                                println!("ERROR stripe wh parse product id {} into thing invoice={}", product_id.as_str(), invoice.id.as_str())
+                                println!(
+                                    "ERROR stripe wh parse product id {} into thing invoice={}",
+                                    product_id.as_str(),
+                                    invoice.id.as_str()
+                                )
                             }
-                        } else { println!("ERROR stripe wh parse user id {:?} into thing invoice={}", user_id.unwrap(), invoice.id.as_str()) }
-                    } else { println!("ERROR stripe wh no user id for price {} invoice={}", price.id.as_str(), invoice.id.as_str()); }
+                        } else {
+                            println!(
+                                "ERROR stripe wh parse user id {:?} into thing invoice={}",
+                                user_id.unwrap(),
+                                invoice.id.as_str()
+                            )
+                        }
+                    } else {
+                        println!(
+                            "ERROR stripe wh no user id for price {} invoice={}",
+                            price.id.as_str(),
+                            invoice.id.as_str()
+                        );
+                    }
                 }
             }
         }
     };
 
     if user_access_rules.len() == 0 {
-        Err(ctx.to_ctx_error(AppError::Generic { description: "extract invoice data err".to_string() }))
-    } else { Ok(user_access_rules) }
+        Err(ctx.to_ctx_error(AppError::Generic {
+            description: "extract invoice data err".to_string(),
+        }))
+    } else {
+        Ok(user_access_rules)
+    }
 }
 
-async fn get_account_requirements_due(client: &Client, ctx: &Ctx, connect_account_id: &AccountId) -> CtxResult<bool> {
+async fn get_account_requirements_due(
+    client: &Client,
+    ctx: &Ctx,
+    connect_account_id: &AccountId,
+) -> CtxResult<bool> {
     let acc: Account = Account::retrieve(client, &connect_account_id, Default::default())
-        .map_err(|e| ctx.to_ctx_error(e.into())).await?;
+        .map_err(|e| ctx.to_ctx_error(e.into()))
+        .await?;
     // dbg!(&acc);
 
     let mut requirements_due = false;

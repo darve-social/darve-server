@@ -22,7 +22,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::UsernameIdent;
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
-use sb_middleware::{ctx::Ctx, error::CtxError, error::AppError};
+use sb_middleware::{ctx::Ctx, error::AppError, error::CtxError};
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -31,9 +31,7 @@ pub fn routes(state: CtxState) -> Router {
         .with_state(state)
 }
 
-static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap()
-});
+static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap());
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct RegisterInput {
@@ -62,11 +60,15 @@ pub struct RegisterInput {
 impl RegisterInput {
     pub fn passwords_valid_auth_type(&self, ctx: &Ctx) -> CtxResult<AuthType> {
         if self.password != self.password1 {
-            return Err(ctx.to_ctx_error(AppError::Generic { description: "Passwords must match".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic {
+                description: "Passwords must match".to_string(),
+            }));
         }
 
         if self.password1.len() < 6 {
-            return Err(ctx.to_ctx_error(AppError::Generic { description: "Password minimum 6 characters".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic {
+                description: "Password minimum 6 characters".to_string(),
+            }));
         }
 
         Ok(AuthType::PASSWORD(Some(self.password.clone())))
@@ -91,11 +93,16 @@ pub async fn display_register_page(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(Box::new(RegisterForm {
-        username: qry.remove("u"),
-        next,
-        loggedin: ctx.user_id().is_ok(),
-    }), None, None).into_response())
+    Ok(ProfileFormPage::new(
+        Box::new(RegisterForm {
+            username: qry.remove("u"),
+            next,
+            loggedin: ctx.user_id().is_ok(),
+        }),
+        None,
+        None,
+    )
+    .into_response())
 }
 
 pub async fn display_register_form(
@@ -111,7 +118,8 @@ pub async fn display_register_form(
         username: qry.remove("u"),
         next,
         loggedin: ctx.user_id().is_ok(),
-    }.into_response())
+    }
+    .into_response())
 }
 
 async fn api_register(
@@ -124,28 +132,70 @@ async fn api_register(
     println!("->> {:<12} - api_register", "HANDLER");
 
     // let JsonOrFormValidated(data)= payload;
-    let reg = register_user(&ctx_state._db, &ctx, &data).await?;//.map(|r|ctx.to_htmx_or_json(r))?;//.into_response();
-    // let mut next = data.next.unwrap_or("".to_string());
-    /*if next.len()<1{
-        next = format!("/login?u={}", data.username);
-    }*/
+    let _reg = register_user(&ctx_state._db, &ctx, &data).await?; //.map(|r|ctx.to_htmx_or_json(r))?;//.into_response();
+                                                                 // let mut next = data.next.unwrap_or("".to_string());
+                                                                 /*if next.len()<1{
+                                                                     next = format!("/login?u={}", data.username);
+                                                                 }*/
     // registered.headers_mut().insert(HX_REDIRECT, next.parse().unwrap());
     // Ok(registered)
-    login(State(ctx_state), cookies, ctx, JsonOrFormValidated(LoginInput { username: data.username, password: data.password, next: data.next })).await
+    login(
+        State(ctx_state),
+        cookies,
+        ctx,
+        JsonOrFormValidated(LoginInput {
+            username: data.username,
+            password: data.password,
+            next: data.next,
+        }),
+    )
+    .await
 }
 
-pub async fn register_user(_db: &Db, ctx: &Ctx, payload: &RegisterInput) -> CtxResult<CreatedResponse> {
-    let user_db_service = &LocalUserDbService { db: &_db, ctx: &ctx };
+pub async fn register_user(
+    _db: &Db,
+    ctx: &Ctx,
+    payload: &RegisterInput,
+) -> CtxResult<CreatedResponse> {
+    let user_db_service = &LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
 
     let auth_type = payload.passwords_valid_auth_type(ctx)?;
 
-    let exists = user_db_service.exists(UsernameIdent(payload.username.clone()).into()).await?;
+    let exists = user_db_service
+        .exists(UsernameIdent(payload.username.clone()).into())
+        .await?;
     // dbg!(&exists);
     if exists.is_none() {
-        let created_id = user_db_service.create(LocalUser { id: None, username: payload.username.clone(), full_name: payload.full_name.clone(), birth_date: None, phone: None, email: payload.email.clone(), bio: payload.bio.clone(), social_links: None, image_uri: payload.image_uri.clone() }, auth_type).await?;
-        return Ok(CreatedResponse { success: true, id: created_id, uri: None });
-    } else if let AuthType::PASSWORD(pass) = &auth_type {
+        let created_id = user_db_service
+            .create(
+                LocalUser {
+                    id: None,
+                    username: payload.username.clone(),
+                    full_name: payload.full_name.clone(),
+                    birth_date: None,
+                    phone: None,
+                    email: payload.email.clone(),
+                    bio: payload.bio.clone(),
+                    social_links: None,
+                    image_uri: payload.image_uri.clone(),
+                },
+                auth_type,
+            )
+            .await?;
+        return Ok(CreatedResponse {
+            success: true,
+            id: created_id,
+            uri: None,
+        });
+    } else if let AuthType::PASSWORD(_pass) = &auth_type {
         // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
     }
-    return Err(CtxError { error: AppError::RegisterFail, req_id: ctx.req_id(), is_htmx: ctx.is_htmx });
+    return Err(CtxError {
+        error: AppError::RegisterFail,
+        req_id: ctx.req_id(),
+        is_htmx: ctx.is_htmx,
+    });
 }

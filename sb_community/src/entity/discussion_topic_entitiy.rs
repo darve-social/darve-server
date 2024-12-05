@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
-use sb_middleware::utils::db_utils::{exists_entity, get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::db;
+use sb_middleware::utils::db_utils::{exists_entity, get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::{
     ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+    error::{AppError, CtxError, CtxResult},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
@@ -23,7 +23,6 @@ pub struct DiscussionTopic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
 }
-
 
 pub struct DiscussionTopicDbService<'a> {
     pub db: &'a db::Db,
@@ -45,9 +44,7 @@ impl<'a> DiscussionTopicDbService<'a> {
     DEFINE FIELD hidden ON TABLE {TABLE_NAME} TYPE bool;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
 ");
-        let mutation = self.db
-            .query(sql)
-            .await?;
+        let mutation = self.db.query(sql).await?;
         &mutation.check().expect("should mutate domain");
 
         Ok(())
@@ -59,16 +56,21 @@ impl<'a> DiscussionTopicDbService<'a> {
     }
 
     pub async fn get(&self, ident_id_name: IdentIdName) -> CtxResult<DiscussionTopic> {
-        let opt = get_entity::<DiscussionTopic>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
+        let opt =
+            get_entity::<DiscussionTopic>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
     pub async fn create_update(&self, mut record: DiscussionTopic) -> CtxResult<DiscussionTopic> {
-        let resource = record.id.clone().unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::rand() )));
+        let resource = record
+            .id
+            .clone()
+            .unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::rand())));
         record.r_created = None;
 
-        let disc_topic: Option<DiscussionTopic> = self.db
-            .upsert( (resource.tb, resource.id.to_raw()))
+        let disc_topic: Option<DiscussionTopic> = self
+            .db
+            .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
             .await
             .map_err(CtxError::from(self.ctx))?;
@@ -92,4 +94,3 @@ impl<'a> DiscussionTopicDbService<'a> {
         Ok(res)
     }*/
 }
-

@@ -18,7 +18,7 @@ pub enum AppError {
     Generic { description: String },
     AuthenticationFail,
     RegisterFail,
-    AuthorizationFail{required: String},
+    AuthorizationFail { required: String },
     EntityFailIdNotFound { ident: String },
     AuthFailNoJwtCookie,
     AuthFailJwtInvalid { source: String },
@@ -95,7 +95,7 @@ impl fmt::Display for AppError {
             Self::SurrealDbNoResult { id, .. } => write!(f, "No result for id {id}"),
             Self::SurrealDbParse { id, .. } => write!(f, "Couldn't parse id {id}"),
             AppError::AuthorizationFail { .. } => write!(f, "not authorized"),
-            AppError::Stripe { .. } => write!(f, "Stripe error")
+            AppError::Stripe { .. } => write!(f, "Stripe error"),
         }
     }
 }
@@ -153,11 +153,10 @@ impl IntoResponse for CtxError {
     }
 }
 
-
 fn get_error_body(err: &CtxError, is_htmx: bool) -> String {
     match is_htmx {
         true => to_err_html(err.error.to_string()),
-        false => ErrorResponseBody::new(err.error.to_string(), Some(err.req_id.to_string())).into()
+        false => ErrorResponseBody::new(err.error.to_string(), Some(err.req_id.to_string())).into(),
     }
 }
 

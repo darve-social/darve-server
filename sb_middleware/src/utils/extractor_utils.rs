@@ -1,14 +1,20 @@
-use axum::{async_trait, extract::FromRequestParts, Form, http::request::Parts, Json, RequestExt, response::{IntoResponse, Response}};
 use axum::extract::{FromRequest, Query, Request};
 use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
+use axum::{
+    async_trait,
+    extract::FromRequestParts,
+    http::request::Parts,
+    response::{IntoResponse, Response},
+    Form, Json, RequestExt,
+};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use surrealdb::sql::Thing;
 use tower::ServiceExt;
 use validator::{Validate, ValidationErrors};
 
-use crate::error::{ErrorResponseBody, to_err_html};
+use crate::error::{to_err_html, ErrorResponseBody};
 use crate::mw_ctx::CtxState;
 
 /*
@@ -121,11 +127,11 @@ pub struct JsonOrFormValidated<T>(pub T);
 
 #[async_trait]
 impl<S, T> FromRequest<S> for JsonOrFormValidated<T>
-    where
-        S: Send + Sync,
-        Json<T>: FromRequest<()>,
-        Form<T>: FromRequest<()>,
-        T: DeserializeOwned + Validate + 'static,
+where
+    S: Send + Sync,
+    Json<T>: FromRequest<()>,
+    Form<T>: FromRequest<()>,
+    T: DeserializeOwned + Validate + 'static,
 {
     type Rejection = Response;
 
@@ -141,7 +147,8 @@ impl<S, T> FromRequest<S> for JsonOrFormValidated<T>
                     {
                         let body: String = ErrorResponseBody::new(err.to_string(), None).into();
                         (StatusCode::BAD_REQUEST, body)
-                    }.into_response()
+                    }
+                    .into_response()
                 })?;
                 return Ok(Self(payload));
             }
@@ -150,8 +157,8 @@ impl<S, T> FromRequest<S> for JsonOrFormValidated<T>
                 // htmx request
                 let Form(payload) = req.extract().await.map_err(IntoResponse::into_response)?;
                 &payload.validate().map_err(|err| {
-                        (StatusCode::BAD_REQUEST, to_err_html(err.to_string()))
-                }.into_response())?;
+                    { (StatusCode::BAD_REQUEST, to_err_html(err.to_string())) }.into_response()
+                })?;
                 return Ok(Self(payload));
             }
         }
@@ -173,29 +180,30 @@ struct DiscParamsRaw {
     count: Option<i8>,
 }
 #[async_trait]
-impl FromRequestParts<CtxState> for DiscussionParams
-
-{
+impl FromRequestParts<CtxState> for DiscussionParams {
     type Rejection = Response;
 
-    async fn from_request_parts(parts: &mut Parts, state: &CtxState) -> Result<Self, Self::Rejection> {
-        let qry:Query<DiscParamsRaw> = Query::from_request_parts(parts, state)
-            .await
-            .map_err(|err| {
-                dbg!(&err);
-                err.into_response()
-            }
-            )?;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &CtxState,
+    ) -> Result<Self, Self::Rejection> {
+        let qry: Query<DiscParamsRaw> =
+            Query::from_request_parts(parts, state)
+                .await
+                .map_err(|err| {
+                    dbg!(&err);
+                    err.into_response()
+                })?;
 
         let Query(dp_raw) = qry;
 
         Ok(DiscussionParams {
             topic_id: match dp_raw.topic_id {
                 Some(tid_string) => Thing::try_from(tid_string).ok(),
-                _ => None
+                _ => None,
             },
-            count:dp_raw.count,
-            start:dp_raw.start,
+            count: dp_raw.count,
+            start: dp_raw.start,
         })
     }
 }

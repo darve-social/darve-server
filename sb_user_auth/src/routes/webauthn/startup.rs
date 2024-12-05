@@ -1,8 +1,7 @@
+use crate::routes::webauthn::webauthn_routes::WebauthnConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use webauthn_rs::prelude::*;
-use crate::routes::webauthn::webauthn_routes::WebauthnConfig;
 
 /*
  * Webauthn RS server side app state and setup  code.
@@ -36,8 +35,10 @@ impl AppState {
         // Url containing the effective domain name
         // MUST include the port number!
         // let wa_origin_url = "http://localhost:8080";
-        let rp_origin = Url::parse(wa_config.relaying_party_origin_url.as_str()).expect("Invalid URL");
-        let builder = WebauthnBuilder::new(wa_config.relaying_party_domain.as_str(), &rp_origin).expect("Invalid configuration");
+        let rp_origin =
+            Url::parse(wa_config.relaying_party_origin_url.as_str()).expect("Invalid URL");
+        let builder = WebauthnBuilder::new(wa_config.relaying_party_domain.as_str(), &rp_origin)
+            .expect("Invalid configuration");
 
         // Now, with the builder you can define other options.
         // Set a "nice" relying party name. Has no security properties and
@@ -48,11 +49,13 @@ impl AppState {
         // Consume the builder and create our webauthn instance.
         let webauthn = Arc::new(builder.build().expect("Invalid configuration"));
 
-       /* let users = Arc::new(Mutex::new(Data {
+        /* let users = Arc::new(Mutex::new(Data {
             user_ident_to_uuid: HashMap::new(),
             keys: HashMap::new(),
         }));*/
 
-        AppState { webauthn/*, users*/ }
+        AppState {
+            webauthn, /*, users*/
+        }
     }
 }

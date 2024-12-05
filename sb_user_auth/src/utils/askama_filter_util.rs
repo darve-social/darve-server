@@ -4,11 +4,11 @@ pub mod filters {
     use rand::Rng;
     use std::fmt::Display;
 
-    const values: [&str; 4] = [
+    const VALUES: [&str; 4] = [
         "This is part of member content, learn more...",
         "Member content, click to get access",
         "Members get access to this content, click to subscribe",
-        "Our most valueable topics are visible to members, click to join"
+        "Our most valueable topics are visible to members, click to join",
     ];
 
     // This filter does not have extra arguments
@@ -24,34 +24,44 @@ pub mod filters {
         })
     }
 
-    pub fn if_view_access(value: &impl Display, replace_with: &str, has_view_access: &bool) -> ::askama::Result<String> {
+    pub fn if_view_access(
+        value: &impl Display,
+        replace_with: &str,
+        has_view_access: &bool,
+    ) -> ::askama::Result<String> {
         match has_view_access {
             true => Ok(format!("{}", value)),
-                false => {
-                        if replace_with.len() > 0 {
-                            Ok(format!("{}", replace_with))
-                        } else {
-                            let mut rng = rand::thread_rng();
-                            let random_string_index: usize = rng.gen_range(0..values.len());
-                            Ok(values[random_string_index].to_string())
-                        }
-                    }
+            false => {
+                if replace_with.len() > 0 {
+                    Ok(format!("{}", replace_with))
+                } else {
+                    let mut rng = rand::thread_rng();
+                    let random_string_index: usize = rng.gen_range(0..VALUES.len());
+                    Ok(VALUES[random_string_index].to_string())
+                }
+            }
         }
     }
 
-    pub fn protected_content_txt(value: &impl Display, replace_with: String, required_access_rule: &Option<AccessRule>, viewer_rights: &Vec<Authorization>) -> ::askama::Result<String> {
+    pub fn protected_content_txt(
+        value: &impl Display,
+        replace_with: String,
+        required_access_rule: &Option<AccessRule>,
+        viewer_rights: &Vec<Authorization>,
+    ) -> ::askama::Result<String> {
         match required_access_rule {
             None => Ok(format!("{}", value)),
             Some(ar) => {
-                match is_any_ge_in_list(&ar.authorization_required, &viewer_rights).unwrap_or(false) {
+                match is_any_ge_in_list(&ar.authorization_required, &viewer_rights).unwrap_or(false)
+                {
                     true => Ok(format!("{}", value)),
                     false => {
                         if replace_with.len() > 0 {
                             Ok(format!("{}", replace_with))
                         } else {
                             let mut rng = rand::thread_rng();
-                            let random_string_index: usize = rng.gen_range(0..values.len());
-                            Ok(values[random_string_index].to_string())
+                            let random_string_index: usize = rng.gen_range(0..VALUES.len());
+                            Ok(VALUES[random_string_index].to_string())
                         }
                     }
                 }

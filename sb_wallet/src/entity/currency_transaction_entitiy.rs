@@ -53,17 +53,22 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
-        let mutation = self.db
-            .query(sql)
-            .await?;
+        let mutation = self.db.query(sql).await?;
 
         &mutation.check().expect("should mutate currencyTransaction");
 
         Ok(())
     }
 
-    pub async fn move_amount(&self, wallet_from: Thing, wallet_to: Thing, amount: i64, currency: CurrencySymbol) -> CtxResult<()> {
-        let qry = format!("
+    pub async fn move_amount(
+        &self,
+        wallet_from: Thing,
+        wallet_to: Thing,
+        amount: i64,
+        currency: CurrencySymbol,
+    ) -> CtxResult<()> {
+        let qry = format!(
+            "
         BEGIN TRANSACTION;
 
             LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F};
@@ -102,18 +107,27 @@ impl<'a> CurrencyTransactionDbService<'a> {
             UPDATE $w_to.id SET {TRANSACTION_HEAD_F}=$tx_in[0].id;
 
         COMMIT TRANSACTION;
-        ");
+        "
+        );
 
-        let res = self.db.query(qry)
+        let res = self
+            .db
+            .query(qry)
             .bind(("w_from_id", wallet_from))
             .bind(("w_to_id", wallet_to))
             .bind(("amt", amount))
-            .bind(("currency", currency.to_string())).await?;
+            .bind(("currency", currency.to_string()))
+            .await?;
         res.check()?;
         Ok(())
     }
 
-    pub(crate) async fn create_init_record(&self, wallet_id: Thing, currency: CurrencySymbol, balance: Option<i64>) -> CtxResult<CurrencyTransaction> {
+    pub(crate) async fn create_init_record(
+        &self,
+        wallet_id: Thing,
+        currency: CurrencySymbol,
+        balance: Option<i64>,
+    ) -> CtxResult<CurrencyTransaction> {
         let record = CurrencyTransaction {
             id: None,
             wallet: wallet_id.clone(),
@@ -136,7 +150,8 @@ impl<'a> CurrencyTransactionDbService<'a> {
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<CurrencyTransaction> {
-        let opt = get_entity::<CurrencyTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        let opt =
+            get_entity::<CurrencyTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 }

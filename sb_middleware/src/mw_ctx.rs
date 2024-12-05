@@ -1,5 +1,5 @@
 use crate::db;
-use crate::{ctx::Ctx, error::CtxResult, error::AppError, error::AppResult};
+use crate::{ctx::Ctx, error::AppError, error::AppResult, error::CtxResult};
 use axum::body::Body;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -9,8 +9,8 @@ use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use tower_cookies::{Cookie, Cookies};
-use uuid::Uuid;
 use tower_http::services::ServeDir;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct CtxState {
@@ -27,14 +27,20 @@ pub struct CtxState {
     pub uploads_serve_dir: ServeDir,
 }
 
-impl Debug for CtxState{
+impl Debug for CtxState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("CTX STATE HERE :)")
     }
 }
 
-pub fn create_ctx_state(start_password: String, is_development: bool, jwt_secret: String, stripe_key: String, stripe_wh_secret: String, uploads_dir: String) -> CtxState {
-
+pub fn create_ctx_state(
+    start_password: String,
+    is_development: bool,
+    jwt_secret: String,
+    stripe_key: String,
+    stripe_wh_secret: String,
+    uploads_dir: String,
+) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
     let key_dec = DecodingKey::from_secret(secret);
@@ -101,18 +107,19 @@ pub async fn mw_ctx_constructor(
 }
 
 pub async fn mw_require_login(
-    State(CtxState { _db,.. }): State<CtxState>,
+    State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     mut req: Request<Body>,
-    next: Next,) ->Response {
+    next: Next,
+) -> Response {
     if ctx.user_id().is_err() {
         return (StatusCode::FORBIDDEN, "Login required").into_response();
     };
     next.run(req).await
 }
 
-pub fn get_jwt_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String>{
-    extract_token_user_id(key, cookies ).map_err(|err| {
+pub fn get_jwt_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String> {
+    extract_token_user_id(key, cookies).map_err(|err| {
         // Remove an invalid cookie
         if let AppError::AuthFailJwtInvalid { .. } = err {
             cookies.remove(Cookie::from(JWT_KEY))
@@ -158,7 +165,7 @@ mod tests {
             &my_claims,
             &EncodingKey::from_secret(SECRET),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(token_str, TOKEN_EXPIRED);
     }
 
@@ -171,7 +178,7 @@ mod tests {
             &DecodingKey::from_secret(SECRET),
             &validation,
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(token.claims.auth, SOMEONE);
     }
 
@@ -200,14 +207,14 @@ mod tests {
             &my_claims,
             &EncodingKey::from_secret(SECRET),
         )
-            .unwrap();
+        .unwrap();
         // Verify
         let token_result = decode::<Claims>(
             &token_str,
             &DecodingKey::from_secret(SECRET),
             &Validation::default(),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(token_result.claims.auth, SOMEONE);
     }
 }

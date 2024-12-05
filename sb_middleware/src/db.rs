@@ -1,5 +1,8 @@
 use once_cell::sync::Lazy;
-use surrealdb::{engine::local::{Db as LocalDb, Mem}, Surreal};
+use surrealdb::{
+    engine::local::{Db as LocalDb, Mem},
+    Surreal,
+};
 
 use crate::error::AppResult;
 
@@ -23,12 +26,13 @@ pub async fn start(db_name: Option<String>) -> AppResult<Surreal<LocalDb>> {
         }
     }*/
 
-        println!("->> DB connected in memory");
-        let version = DB.version().await?;
-        println!("->> DB version: {version}");
-        // Select a specific namespace / database
-        DB.use_ns("namespace").use_db(db_name.unwrap_or("database".to_string())).await?;
+    println!("->> DB connected in memory");
+    let version = DB.version().await?;
+    println!("->> DB version: {version}");
+    // Select a specific namespace / database
+    DB.use_ns("namespace")
+        .use_db(db_name.unwrap_or("database".to_string()))
+        .await?;
 
-        Ok(DB.clone())
-    }
-
+    Ok(DB.clone())
+}

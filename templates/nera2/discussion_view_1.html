@@ -1,6 +1,6 @@
 
 <h1>discussion: {{title|display_some}} topics: {% if topics.is_some() %} {% for topic in topics.as_ref().unwrap() %} <a href="?topic_id={{topic.id}}">{{topic.title}}</a>, {% endfor %} {% endif %} </h1>
-
+<h3> latest post by: {% if latest_post.is_some() %}{{latest_post.as_ref().unwrap().created_by.username}} {% endif %}</h3>
 {% include "post-list-1-popup.html" %}
 
 <div hx-ext="response-targets">

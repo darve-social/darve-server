@@ -22,7 +22,7 @@ struct RequestLog {
 pub async fn mw_req_logger(ctx: Ctx, uri: Uri, req_method: Method, res: Response) -> Response {
     let log = RequestLog {
         req_id: ctx.req_id().to_string(),
-        user: ctx.user_id().ok(),//.or_else(|| {Some("ooo1".to_string())}),
+        user: ctx.user_id().ok(), //.or_else(|| {Some("ooo1".to_string())}),
         error: res.extensions().get::<AppError>().map(|e| format!("{e:?}")),
         req_path: uri.to_string(),
         req_method: req_method.to_string(),

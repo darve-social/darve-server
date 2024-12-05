@@ -1,5 +1,5 @@
-use askama::Template;
 use crate::error::*;
+use askama::Template;
 use axum::extract::FromRequestParts;
 use axum::response::Html;
 use serde::Serialize;
@@ -35,14 +35,26 @@ impl Ctx {
 
     pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
         let rendered_string = match self.is_htmx {
-            true => object.render().map_err(|e| self.to_ctx_error(AppError::Generic {description:"Render template error".to_string()}))?,
-            false => serde_json::to_string(&object).map_err(|e| self.to_ctx_error(AppError::Generic {description:"Render json error".to_string()}))?
+            true => object.render().map_err(|e| {
+                self.to_ctx_error(AppError::Generic {
+                    description: "Render template error".to_string(),
+                })
+            })?,
+            false => serde_json::to_string(&object).map_err(|e| {
+                self.to_ctx_error(AppError::Generic {
+                    description: "Render json error".to_string(),
+                })
+            })?,
         };
         Ok(Html(rendered_string))
     }
 
     pub fn to_ctx_error(&self, error: AppError) -> CtxError {
-        CtxError {is_htmx:self.is_htmx, req_id: self.req_id, error}
+        CtxError {
+            is_htmx: self.is_htmx,
+            req_id: self.req_id,
+            error,
+        }
     }
 }
 
@@ -54,12 +66,12 @@ impl<S: Send + Sync> FromRequestParts<S> for Ctx {
         parts: &'life0 mut axum::http::request::Parts,
         _state: &'life1 S,
     ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output=CtxResult<Self>> + core::marker::Send + 'async_trait>,
+        Box<dyn core::future::Future<Output = CtxResult<Self>> + core::marker::Send + 'async_trait>,
     >
-        where
-            'life0: 'async_trait,
-            'life1: 'async_trait,
-            Self: 'async_trait,
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
     {
         Box::pin(async {
             // println!(
@@ -74,4 +86,3 @@ impl<S: Send + Sync> FromRequestParts<S> for Ctx {
         })
     }
 }
-

@@ -1,21 +1,21 @@
-use std::ops::{Add, Deref};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::opt::QueryResult;
-use surrealdb::opt::IntoResource;
 use surrealdb::sql::Thing;
 
+use crate::entity::access_right_entity::AccessRightDbService;
 use crate::entity::authentication_entity::{AuthType, Authentication, AuthenticationDbService};
 use crate::entity::authorization_entity::Authorization;
 use sb_middleware::db;
 use sb_middleware::error::AppError::EntityFailIdNotFound;
-use sb_middleware::utils::db_utils::{exists_entity, get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, RecordWithId, ViewFieldSelector};
-use sb_middleware::{
-    ctx::Ctx,
-    error::{CtxError, CtxResult, AppError},
+use sb_middleware::utils::db_utils::{
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName,
+    RecordWithId, ViewFieldSelector,
 };
 use sb_middleware::utils::string_utils::get_string_thing;
-use crate::entity::access_right_entity::AccessRightDbService;
+use sb_middleware::{
+    ctx::Ctx,
+    error::{AppError, CtxError, CtxResult},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
@@ -75,11 +75,11 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE INDEX local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
 ");
-        let local_user_mutation = self.db
-            .query(sql)
-            .await?;
+        let local_user_mutation = self.db.query(sql).await?;
 
-        &local_user_mutation.check().expect("should mutate local_user");
+        &local_user_mutation
+            .check()
+            .expect("should mutate local_user");
 
         Ok(())
     }
@@ -89,8 +89,10 @@ impl<'a> LocalUserDbService<'a> {
         let user_id = get_string_thing(created_by.clone())?;
         let existing_id = self.exists(IdentIdName::Id(user_id)).await?;
         match existing_id {
-            None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
-            Some(uid) => Ok(uid)
+            None => Err(self
+                .ctx
+                .to_ctx_error(EntityFailIdNotFound { ident: created_by })),
+            Some(uid) => Ok(uid),
         }
     }
 
@@ -99,15 +101,22 @@ impl<'a> LocalUserDbService<'a> {
         let user_id = get_string_thing(created_by.clone())?;
         let existing_id = self.exists(IdentIdName::Id(user_id.clone())).await?;
         match existing_id {
-            None => Err(self.ctx.to_ctx_error(EntityFailIdNotFound { ident: created_by })),
-            Some(_uid) => Ok(user_id)
+            None => Err(self
+                .ctx
+                .to_ctx_error(EntityFailIdNotFound { ident: created_by })),
+            Some(_uid) => Ok(user_id),
         }
     }
 
     pub async fn is_ctx_user_authorised(&self, authorization: &Authorization) -> CtxResult<()> {
         let created_by = self.ctx.user_id()?;
         let user_id = get_string_thing(created_by.clone())?;
-        AccessRightDbService{ db: self.db, ctx: self.ctx }.is_authorized(&user_id, authorization).await
+        AccessRightDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .is_authorized(&user_id, authorization)
+        .await
     }
 
     pub async fn get_ctx_user(&self) -> CtxResult<LocalUser> {
@@ -117,7 +126,9 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn exists(&self, ident: IdentIdName) -> CtxResult<Option<String>> {
-        exists_entity(self.db, TABLE_NAME.to_string(), &ident).await.map(|r| r.map(|o| o.to_raw()))
+        exists_entity(self.db, TABLE_NAME.to_string(), &ident)
+            .await
+            .map(|r| r.map(|o| o.to_raw()))
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
@@ -130,13 +141,17 @@ impl<'a> LocalUserDbService<'a> {
         Ok(u_view.username)
     }
 
-    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, ident_id_name: IdentIdName) -> CtxResult<T> {
+    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        ident_id_name: IdentIdName,
+    ) -> CtxResult<T> {
         let opt = get_entity_view::<T>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
     pub async fn create(&self, ct_input: LocalUser, auth: AuthType) -> CtxResult<String> {
-        let local_user_id: String = self.db
+        let local_user_id: String = self
+            .db
             .create(TABLE_NAME)
             .content(ct_input)
             .await
@@ -145,15 +160,23 @@ impl<'a> LocalUserDbService<'a> {
             .map_err(CtxError::from(self.ctx))?;
         let auth = Authentication::new(local_user_id.clone(), auth)?;
         // dbg!(&auth);
-        AuthenticationDbService { db: self.db, ctx: self.ctx }.create(auth).await?;
+        AuthenticationDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .create(auth)
+        .await?;
         Ok(local_user_id)
     }
 
     pub async fn update(&self, mut record: LocalUser) -> CtxResult<LocalUser> {
-        let resource = record.id.clone().ok_or(AppError::Generic { description: "can not update user with no id".to_string() })?;
+        let resource = record.id.clone().ok_or(AppError::Generic {
+            description: "can not update user with no id".to_string(),
+        })?;
         // record.r_created = None;
 
-        let disc_topic: Option<LocalUser> = self.db
+        let disc_topic: Option<LocalUser> = self
+            .db
             .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
             .await
