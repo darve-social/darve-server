@@ -282,7 +282,7 @@ pub async fn create_post_entity_route(
             content: input_value.content,
             media_links: None,
             r_created: None,
-            created_by: user_id,
+            created_by: user_id.clone(),
             r_updated: None,
             r_replies: None,
             likes_nr: 0,
@@ -320,18 +320,18 @@ pub async fn create_post_entity_route(
     };
     let mut notif_content = DiscussionLatestPostView::from(&post);
     notif_content.created_by.username = user.username;
-    let notif_str = serde_json::to_string(&notif_content).unwrap().as_str();
+    let notif_str = serde_json::to_string(&notif_content).unwrap();
     if is_user_chat {
         user_notification_db_service
             .notify_users(
                 disc.chat_room_user_ids.clone().unwrap(),
                 &UserNotificationEvent::UserChatMessage,
-                notif_str
+                notif_str.as_str()
             )
             .await?;
     }else {
        user_notification_db_service
-           .notify_user_followers(user_id.clone(), &UserNotificationEvent::UserCommunityPost, notif_str).await?;
+           .notify_user_followers(user_id.clone(), &UserNotificationEvent::UserCommunityPost, notif_str.as_str()).await?;
     }
 
     let post_comm_view = post_db_service
