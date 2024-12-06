@@ -117,6 +117,7 @@ impl<'a> CommunityDbService<'a> {
                 .content(Discussion {
                     id: None,
                     title: None,
+                    image_uri: None,
                     topics: None,
                     chat_room_user_ids: None,
                     latest_post_id: None,
@@ -166,6 +167,7 @@ impl<'a> CommunityDbService<'a> {
                     id: Some(following_posts_disc_id),
                     belongs_to: profile_comm.id.clone().unwrap(),
                     title: None,
+                    image_uri: None,
                     topics: None,
                     chat_room_user_ids: None,
                     latest_post_id: None,

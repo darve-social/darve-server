@@ -33,7 +33,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
-use sb_middleware::utils::string_utils::get_string_thing;
+use sb_middleware::utils::string_utils::{get_string_thing, LEN_OR_NONE};
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::{AccessRule, AccessRuleDbService};
 use sb_user_auth::entity::authorization_entity::{
@@ -70,7 +70,7 @@ impl SseEventName {
             topic_id: None,
             post_id: NO_SUCH_THING.clone(),
         }
-        .to_string()
+            .to_string()
     }
     pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyAdded {
@@ -78,7 +78,7 @@ impl SseEventName {
             topic_id: None,
             post_id: reply_ident.clone(),
         }
-        .get_sse_event_ident()
+            .get_sse_event_ident()
     }
     pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
         DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
@@ -86,7 +86,7 @@ impl SseEventName {
             topic_id: None,
             post_id: post_ident.clone(),
         }
-        .get_sse_event_ident()
+            .get_sse_event_ident()
     }
     pub fn get_error() -> String {
         "Error".to_string()
@@ -106,6 +106,7 @@ pub struct DiscussionInput {
     pub community_id: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
+    pub image_uri: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub topics: Option<String>,
 }
@@ -126,6 +127,7 @@ pub struct DiscussionPage {
 pub struct DiscussionView {
     id: Option<Thing>,
     title: Option<String>,
+    image_uri: Option<String>,
     belongs_to: Thing,
     chat_room_user_ids: Option<Vec<Thing>>,
     pub posts: Vec<DiscussionPostView>,
@@ -136,11 +138,12 @@ pub struct DiscussionView {
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids,  latest_post_id.{id, title, content, media_links, created_by.*} as latest_post".to_string()
+        "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids,  latest_post_id.{id, title, content, media_links, created_by.*} as latest_post".to_string()
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/post_1_latest_chat.html")]
 pub struct DiscussionLatestPostView {
     pub id: Thing,
     pub created_by: DiscussionLatestPostCreatedBy,
@@ -234,7 +237,7 @@ pub async fn get_discussion_view(
         &disc_id,
         dis_template.chat_room_user_ids.clone(),
     )
-    .await?;
+        .await?;
 
     dis_template.display_topic = if let Some(t_id) = q_params.topic_id.clone() {
         dis_template
@@ -252,8 +255,8 @@ pub async fn get_discussion_view(
         db: &_db,
         ctx: &ctx,
     }
-    .get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), q_params.clone())
-    .await?;
+        .get_by_discussion_desc_view::<DiscussionPostView>(disc_id.clone(), q_params.clone())
+        .await?;
     /*let user_auth = if is_user_chat_discussion {
         vec![Authorization{
             authorize_record_id: disc_id.clone(),
@@ -272,9 +275,9 @@ pub async fn get_discussion_view(
                 Some(ar) => {
                     is_user_chat_discussion
                         || is_any_ge_in_list(
-                            &ar.authorization_required,
-                            &discussion_post_view.viewer_access_rights,
-                        )
+                        &ar.authorization_required,
+                        &discussion_post_view.viewer_access_rights,
+                    )
                         .unwrap_or(false)
                 }
             };
@@ -334,8 +337,8 @@ async fn get_user_discussion_auths(_db: &Db, ctx: &Ctx) -> CtxResult<Vec<Authori
                 db: &_db,
                 ctx: &ctx,
             }
-            .get_authorizations(&user_id)
-            .await?
+                .get_authorizations(&user_id)
+                .await?
         }
         Err(_) => vec![],
     };
@@ -352,8 +355,8 @@ async fn create_update_form(
         db: &_db,
         ctx: &ctx,
     }
-    .get_ctx_user_thing()
-    .await?;
+        .get_ctx_user_thing()
+        .await?;
 
     let comm_id = get_string_thing(community_id.clone())?;
     let mut topics = vec![];
@@ -375,15 +378,15 @@ async fn create_update_form(
                 db: &_db,
                 ctx: &ctx,
             }
-            .is_authorized(&user_id, &required_disc_auth)
-            .await?;
+                .is_authorized(&user_id, &required_disc_auth)
+                .await?;
 
             topics = DiscussionDbService {
                 db: &_db,
                 ctx: &ctx,
             }
-            .get_topics(id.clone())
-            .await?;
+                .get_topics(id.clone())
+                .await?;
             get_discussion_view(
                 &_db,
                 &ctx,
@@ -394,7 +397,7 @@ async fn create_update_form(
                     count: None,
                 },
             )
-            .await?
+                .await?
         }
         None => {
             // auth community
@@ -407,11 +410,12 @@ async fn create_update_form(
                 db: &_db,
                 ctx: &ctx,
             }
-            .is_authorized(&user_id, &required_comm_auth)
-            .await?;
+                .is_authorized(&user_id, &required_comm_auth)
+                .await?;
             DiscussionView {
                 id: None,
                 title: None,
+                image_uri: None,
                 belongs_to: comm_id.clone(),
                 chat_room_user_ids: None,
                 posts: vec![],
@@ -426,8 +430,8 @@ async fn create_update_form(
         db: &_db,
         ctx: &ctx,
     }
-    .get_list(comm_id.clone())
-    .await?;
+        .get_list(comm_id.clone())
+        .await?;
 
     Ok(ProfileFormPage::new(
         Box::new(DiscussionForm {
@@ -458,7 +462,7 @@ async fn discussion_sse_htmx(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
     let mut ctx = ctx.clone();
     ctx.is_htmx = true;
     discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
@@ -469,14 +473,14 @@ async fn discussion_sse(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
     let discussion_id = get_string_thing(discussion_id)?;
     let discussion = DiscussionDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .get(IdentIdName::Id(discussion_id))
-    .await?;
+        .get(IdentIdName::Id(discussion_id))
+        .await?;
     let discussion_id = discussion.id.expect("disc id");
 
     let (is_user_chat_discussion, user_auth) = is_user_chat_discussion__user_auths(
@@ -485,7 +489,7 @@ async fn discussion_sse(
         &discussion_id,
         discussion.chat_room_user_ids,
     )
-    .await?;
+        .await?;
 
     let mut stream = _db.select(discussion_notification_entitiy::TABLE_NAME).live().await?
         .filter(move |r: &Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
@@ -597,6 +601,7 @@ async fn create_update(
                 id: None,
                 belongs_to: comm_id,
                 title: None,
+                image_uri: None,
                 topics: None,
                 chat_room_user_ids: None,
                 latest_post_id: None,
@@ -641,6 +646,8 @@ async fn create_update(
             description: "title must have value".to_string(),
         }));
     };
+    
+    update_discussion.image_uri = form_value.image_uri.and_then(LEN_OR_NONE);
 
     let disc = disc_db_ser.create_update(update_discussion).await?;
     let res = CreatedResponse {

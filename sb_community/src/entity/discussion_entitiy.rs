@@ -25,6 +25,8 @@ pub struct Discussion {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chat_room_user_ids: Option<Vec<Thing>>,
@@ -55,6 +57,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
     DEFINE FIELD chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
