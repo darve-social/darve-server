@@ -19,9 +19,7 @@ use crate::entity::discussion_notification_entitiy::{
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::reply_entitiy::ReplyDbService;
 use crate::routes::community_routes::DiscussionNotificationEvent;
-use crate::routes::discussion_routes::{
-    is_user_chat_discussion, DiscussionPostView, DiscussionView,
-};
+use crate::routes::discussion_routes::{is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView};
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
 use sb_middleware::ctx::Ctx;
@@ -37,6 +35,7 @@ use sb_user_auth::entity::authorization_entity::{
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use tempfile::NamedTempFile;
+use sb_user_auth::entity::user_notification_entitiy::{UserNotificationDbService, UserNotificationEvent};
 
 pub const UPLOADS_URL_BASE: &str = "/media";
 pub fn routes(state: CtxState) -> Router {
@@ -232,12 +231,13 @@ pub async fn create_post_entity_route(
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - create_post ", "HANDLER");
-    let user_id = LocalUserDbService {
+    let user = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .get_ctx_user_thing()
+    .get_ctx_user()
     .await?;
+    let user_id = user.id.expect("user exists");
     let disc_db = DiscussionDbService {
         db: &ctx_state._db,
         ctx: &ctx,
@@ -246,7 +246,7 @@ pub async fn create_post_entity_route(
         .get(IdentIdName::Id(get_string_thing(discussion_id)?))
         .await?;
 
-    let is_user_chat = is_user_chat_discussion(&ctx, disc.chat_room_user_ids).unwrap_or(false);
+    let is_user_chat = is_user_chat_discussion(&ctx, &disc.chat_room_user_ids).unwrap_or(false);
 
     if !is_user_chat {
         let min_authorisation = Authorization {
@@ -313,6 +313,26 @@ pub async fn create_post_entity_route(
     disc_db
         .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
         .await?;
+
+    let user_notification_db_service = UserNotificationDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    let mut notif_content = DiscussionLatestPostView::from(&post);
+    notif_content.created_by.username = user.username;
+    let notif_str = serde_json::to_string(&notif_content).unwrap().as_str();
+    if is_user_chat {
+        user_notification_db_service
+            .notify_users(
+                disc.chat_room_user_ids.clone().unwrap(),
+                &UserNotificationEvent::UserChatMessage,
+                notif_str
+            )
+            .await?;
+    }else {
+       user_notification_db_service
+           .notify_user_followers(user_id.clone(), &UserNotificationEvent::UserCommunityPost, notif_str).await?;
+    }
 
     let post_comm_view = post_db_service
         .get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap()))

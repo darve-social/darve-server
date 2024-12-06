@@ -21,7 +21,7 @@ use crate::entity::community_entitiy::CommunityDbService;
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::discussion_notification_entitiy;
 use crate::entity::discussion_notification_entitiy::DiscussionNotification;
-use crate::entity::post_entitiy::PostDbService;
+use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_topic_routes::{
     DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView,
@@ -156,6 +156,19 @@ pub struct DiscussionLatestPostView {
 pub struct DiscussionLatestPostCreatedBy {
     pub id: Thing,
     pub username: String,
+}
+
+// !! username is not set/valid
+impl From<&Post> for DiscussionLatestPostView {
+    fn from(value: &Post) -> Self {
+        DiscussionLatestPostView{
+            id: value.belongs_to.clone(),
+            created_by: DiscussionLatestPostCreatedBy { id: value.created_by.clone(), username: value.created_by.clone().to_raw() },
+            title: value.title.clone(),
+            content: value.content.clone(),
+            media_links: value.media_links.clone(),
+        }
+    }
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -294,7 +307,7 @@ async fn is_user_chat_discussion__user_auths(
     discussion_id: &Thing,
     discussion_chat_room_user_ids: Option<Vec<Thing>>,
 ) -> CtxResult<(bool, Vec<Authorization>)> {
-    let is_chat_disc = is_user_chat_discussion(ctx, discussion_chat_room_user_ids)?;
+    let is_chat_disc = is_user_chat_discussion(ctx, &discussion_chat_room_user_ids)?;
 
     let user_auth = if is_chat_disc {
         vec![Authorization {
@@ -311,10 +324,10 @@ async fn is_user_chat_discussion__user_auths(
 
 pub fn is_user_chat_discussion(
     ctx: &Ctx,
-    discussion_chat_room_user_ids: Option<Vec<Thing>>,
+    discussion_chat_room_user_ids: &Option<Vec<Thing>>,
 ) -> CtxResult<bool> {
     match discussion_chat_room_user_ids {
-        Some(ref chat_user_ids) => {
+        Some(chat_user_ids) => {
             let user_id = ctx.user_id()?;
             let is_in_chat_group =
                 chat_user_ids.contains(&get_string_thing(user_id).expect("user id ok"));
@@ -646,7 +659,7 @@ async fn create_update(
             description: "title must have value".to_string(),
         }));
     };
-    
+
     update_discussion.image_uri = form_value.image_uri.and_then(LEN_OR_NONE);
 
     let disc = disc_db_ser.create_update(update_discussion).await?;

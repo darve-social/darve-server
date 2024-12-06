@@ -47,6 +47,7 @@ pub enum UserNotificationEvent {
         deliverables: Vec<String>,
     },
     UserChatMessage,
+    UserCommunityPost,
 }
 
 pub struct UserNotificationDbService<'a> {
