@@ -159,6 +159,23 @@ impl<'a> TaskRequestDbService<'a> {
         .await
     }
 
+    pub async fn request_post_list(
+        &self,
+        post_id: Thing,
+    ) -> CtxResult<Vec<TaskRequest>> {
+        get_entity_list::<TaskRequest>(
+            self.db,
+            TABLE_NAME.to_string(),
+            &IdentIdName::ColumnIdent {
+                    column: "request_post".to_string(),
+                    val: post_id.to_raw(),
+                    rec: true,
+                },
+            None,
+        )
+        .await
+    }
+
     pub async fn user_status_list(
         &self,
         user_task_role: UserTaskRole,

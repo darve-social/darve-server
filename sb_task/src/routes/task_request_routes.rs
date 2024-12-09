@@ -39,6 +39,10 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/task_request", post(create_entity))
         .route(
+            "/api/task_request/list/post/:post_id",
+            get(post_task_requests),
+        )
+        .route(
             "/api/task_request/received/post/:post_id",
             get(post_requests_received),
         )
@@ -130,6 +134,21 @@ async fn post_requests_given(
         ctx: &ctx,
     }
     .user_post_list(UserTaskRole::FromUser, from_user, post_id)
+    .await?;
+    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+}
+
+async fn post_task_requests(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+) -> CtxResult<String> {
+
+    let list = TaskRequestDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .request_post_list(get_string_thing(post_id)?)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
