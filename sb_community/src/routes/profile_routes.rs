@@ -94,6 +94,10 @@ pub struct ProfilePage {
 #[template(path = "nera2/profile_view_1.html")]
 pub struct ProfileView {
     pub user_id: Thing,
+    pub username: String,
+    pub full_name: Option<String>,
+    pub bio: Option<String>,
+    pub image_uri: Option<String>,
     pub community: Option<Thing>,
     pub profile_discussion: Option<Thing>,
     pub followers_nr: i64,
@@ -103,7 +107,7 @@ pub struct ProfileView {
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id as user_id, 0 as followers_nr, 0 as following_nr".to_string()
+        "id as user_id, username, full_name, bio, image_uri, 0 as followers_nr, 0 as following_nr".to_string()
     }
 }
 
