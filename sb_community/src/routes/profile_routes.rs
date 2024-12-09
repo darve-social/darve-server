@@ -44,7 +44,7 @@ use once_cell::sync::Lazy;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/u/:username", get(display_profile))
+        .route("/u/:username_or_id", get(display_profile))
         .route("/u/following/posts", get(get_following_posts))
         .route("/api/user/:username/posts", get(get_user_posts))
         .route("/api/user/post", post(create_user_post))
@@ -236,19 +236,26 @@ async fn profile_save(
 async fn display_profile(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    Path(username): Path<String>,
+    Path(username_or_id): Path<String>,
     q_params: DiscussionParams,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let mut profile_view = local_user_db_service
-        .get_view::<ProfileView>(IdentIdName::ColumnIdent {
+    let is_id = username_or_id.contains(":");
+    let user_ident = if !is_id {
+        IdentIdName::ColumnIdent {
             column: "username".to_string(),
-            val: username,
+            val: username_or_id,
             rec: false,
-        })
+        }
+    } else {
+        IdentIdName::Id(get_string_thing(username_or_id)?)
+    };
+
+    let mut profile_view = local_user_db_service
+        .get_view::<ProfileView>(user_ident)
         .await?;
     let profile_comm =
         get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
