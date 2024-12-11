@@ -203,10 +203,53 @@ mod tests {
 
         // user3 get followers stream
         let create_response = server.get("/u/following/posts").await;
-        dbg!(&create_response);
-        // TODO test /u/following/posts
         let created = &create_response.json::<FollowingStreamView>();
         assert_eq!(created.post_list.len(), 1);
+
+        // login user1
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username1.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .await;
+        login_response.assert_status_success();
+
+        // user1 post 2
+        let post_name = "post title Name 2".to_string();
+        let create_post = server
+            .post("/api/user/post")
+            .multipart(
+                MultipartForm::new()
+                    .add_text("title", post_name.clone())
+                    .add_text("content", "contentttt22")
+                    .add_text("topic_id", ""),
+            )
+            .await;
+        let created = create_post.json::<CreatedResponse>();
+        &create_post.assert_status_success();
+        assert_eq!(created.id.len() > 0, true);
+
+
+        // login user3
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username3.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .await;
+        login_response.assert_status_success();
+
+        // user3 get followers stream
+        let create_response = server.get("/u/following/posts").await;
+        let created = &create_response.json::<FollowingStreamView>();
+        assert_eq!(created.post_list.len(), 2);
 
         // user3 unfollow user1
         let create_response = server
@@ -236,7 +279,49 @@ mod tests {
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, false);
 
-        // TODO post again and assure no posts are in /u/following/posts from unfollowed user
+        // login user1
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username1.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .await;
+        login_response.assert_status_success();
+
+        // user1 post 3
+        let post_name = "post title Name 3".to_string();
+        let create_post = server
+            .post("/api/user/post")
+            .multipart(
+                MultipartForm::new()
+                    .add_text("title", post_name.clone())
+                    .add_text("content", "contentttt3")
+                    .add_text("topic_id", ""),
+            )
+            .await;
+        let created = create_post.json::<CreatedResponse>();
+        &create_post.assert_status_success();
+        assert_eq!(created.id.len() > 0, true);
+
+        // login user3
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username3.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .await;
+        login_response.assert_status_success();
+
+        // user3 get followers stream
+        let create_response = server.get("/u/following/posts").await;
+        let created = &create_response.json::<FollowingStreamView>();
+        assert_eq!(created.post_list.len(), 2);
     }
 
 }
