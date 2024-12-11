@@ -22,6 +22,7 @@ pub struct RecordWithId {
 
 pub enum IdentIdName {
     Id(Thing),
+    Ids(Vec<Thing>),
     ColumnIdent {
         column: String,
         val: String,
@@ -38,7 +39,14 @@ impl IdentIdName {
                 bindings.insert("id".to_string(), id.to_raw());
                 bindings
             }
-            IdentIdName::ColumnIdent { val, column ,..} => {
+            IdentIdName::Ids(ids) => {
+                ids.into_iter().enumerate()
+                    .for_each(|i_id|{
+                        bindings.insert(format!("id_{}",i_id.0), i_id.1.to_raw());
+                    } );
+                bindings
+            }
+            IdentIdName::ColumnIdent { val, column, .. } => {
                 bindings.insert(format!("{}", column), val.clone());
                 bindings
             }
@@ -56,6 +64,13 @@ impl Display for IdentIdName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             IdentIdName::Id(_) => f.write_str("<record>$id"),
+            IdentIdName::Ids(ids) => {
+                let ids_qry = ids.iter().enumerate()
+                    .map(|i_thg| format!("<record>$id_{}", i_thg.0))
+                    .collect::<Vec<String>>()
+                    .join(",");
+                f.write_str(ids_qry.as_str())
+            },
             IdentIdName::ColumnIdent { column, rec, .. } => {
                 let prefix = if *rec { "<record>" } else { "" };
                 f.write_str(format!("{column}={prefix}${column}").as_str())
@@ -88,7 +103,9 @@ impl From<UsernameIdent> for IdentIdName {
     }
 }
 
+#[derive(Debug)]
 pub struct QryBindingsVal(String, HashMap<String, String>);
+
 impl QryBindingsVal {
     pub fn new(qry: String, bindings: HashMap<String, String>) -> Self {
         QryBindingsVal(qry, bindings)
@@ -128,11 +145,6 @@ pub trait ViewFieldSelector {
     fn get_select_query_fields(ident: &IdentIdName) -> String;
 }
 
-struct QueryBinding {
-    name: String,
-    value: String,
-}
-
 fn get_entity_query_str(
     ident: &IdentIdName,
     select_fields_or_id: Option<&str>,
@@ -140,29 +152,9 @@ fn get_entity_query_str(
     table_name: String,
 ) -> Result<QryBindingsVal, AppError> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
-    let pagination_q = match pagination {
-        None => "".to_string(),
-        Some(pag) => {
-            let mut pag_q = match pag.order_by {
-                None => "".to_string(),
-                Some(order_by_f) => format!(" ORDER BY {order_by_f} "),
-            };
-            let mut pag_q = match pag.order_dir {
-                None => format!(" {pag_q} {} ", QryOrder::DESC.to_string()),
-                Some(direction) => format!(" {pag_q} {} ", direction.to_string()),
-            };
-
-            let count = if pag.count <= 0 { 20 } else { pag.count };
-            q_bindings.insert("_count_val".to_string(), count.to_string());
-            pag_q = format!(" {pag_q} LIMIT type::int($_count_val) ");
-
-            let start = if pag.start < 0 { 0 } else { pag.start };
-            q_bindings.insert("_start_val".to_string(), start.to_string());
-            format!(" {pag_q} START type::int($_start_val) ")
-        }
-    };
 
     let query_string = match ident.clone() {
+
         IdentIdName::Id(id) => {
             if id.to_raw().len() < 3 {
                 return Err(AppError::Generic {
@@ -171,9 +163,44 @@ fn get_entity_query_str(
             }
             let fields = select_fields_or_id.unwrap_or("*");
             q_bindings.insert("id".to_string(), id.to_raw());
+
             format!("SELECT {fields} FROM <record>$id;")
         }
+
+        IdentIdName::Ids(ids)=>{
+            q_bindings.extend(ident.get_bindings_map());
+            let fields = select_fields_or_id.unwrap_or("*");
+
+             format!(
+                "SELECT {fields} FROM {};",
+                ident.to_string()
+             )
+
+        }
+
         _ => {
+            let pagination_q = match pagination {
+                None => "".to_string(),
+                Some(pag) => {
+                    let mut pag_q = match pag.order_by {
+                        None => "".to_string(),
+                        Some(order_by_f) => format!(" ORDER BY {order_by_f} "),
+                    };
+                    let mut pag_q = match pag.order_dir {
+                        None => format!(" {pag_q} {} ", QryOrder::DESC.to_string()),
+                        Some(direction) => format!(" {pag_q} {} ", direction.to_string()),
+                    };
+
+                    let count = if pag.count <= 0 { 20 } else { pag.count };
+                    q_bindings.insert("_count_val".to_string(), count.to_string());
+                    pag_q = format!(" {pag_q} LIMIT type::int($_count_val) ");
+
+                    let start = if pag.start < 0 { 0 } else { pag.start };
+                    q_bindings.insert("_start_val".to_string(), start.to_string());
+                    format!(" {pag_q} START type::int($_start_val) ")
+                }
+            };
+
             let fields = select_fields_or_id.unwrap_or("id");
             q_bindings.extend(ident.get_bindings_map());
             // TODO move table name to IdentIdName::ColumnIdent prop since it's used only here
@@ -203,14 +230,24 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
     if ids.len() < 1 {
         return Ok(vec![]);
     }
+    let qry_bindings = ids.iter()
+        .enumerate()
+        .map(|i_t| (format!("<record>$id_{}", i_t.0), (format!("id_{}", i_t.0), i_t.1.to_raw())))
+        .collect::<Vec<(String, (String, String))>>();
+
     let query_string = format!(
         "SELECT * FROM {};",
-        ids.iter()
-            .map(|t| t.to_raw())
+        qry_bindings.iter()
+            .map(|i_t| i_t.0.clone())
             .collect::<Vec<String>>()
             .join(",")
     );
-    let mut res = db.query(query_string).await?;
+    // let mut res = db.query(query_string);
+    let mut res = qry_bindings.into_iter().fold(db.query(query_string), |qry, qry_binding| {
+        qry.bind(qry_binding.1)
+    })
+        .await?;
+
     let res = res.take::<Vec<T>>(0)?;
     Ok(res)
 }
@@ -268,7 +305,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
         pagination,
         table_name,
     )?;
-    // println!("QQQ={}", query_string);
+    println!("QQQ={:#?}", &query_string);
     get_list_qry(db, query_string).await
 }
 
