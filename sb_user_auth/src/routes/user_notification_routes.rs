@@ -1,5 +1,3 @@
-use std::clone::Clone;
-use std::string::ToString;
 use askama_axum::Template;
 use axum::extract::State;
 use axum::response::sse::Event;
@@ -7,10 +5,12 @@ use axum::response::Sse;
 use axum::routing::get;
 use axum::Router;
 use futures::stream::Stream as FStream;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use futures::Stream;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use std::clone::Clone;
+use std::string::ToString;
+use std::time::Duration;
 use surrealdb::sql::Thing;
 use surrealdb::{Error, Notification as SdbNotification};
 use tokio_stream::StreamExt as _;
@@ -60,43 +60,57 @@ pub struct UserNotificationTaskReceivedView {
     task_id: Thing,
     from_user: Thing,
     to_user: Thing,
-    }
+}
 
-static ACCEPT_EVENT_NAMES: Lazy<[String; 4]> = Lazy::new(|| {[
-    UserNotificationEvent::UserTaskRequestComplete{
-        task_id: NO_SUCH_THING.clone(),
-        delivered_by: NO_SUCH_THING.clone(),
-        requested_by: NO_SUCH_THING.clone(),
-        deliverables: vec![],
-    }.to_string(),
-    UserNotificationEvent::UserTaskRequestReceived{
-        task_id: NO_SUCH_THING.clone(),
-        from_user: NO_SUCH_THING.clone(),
-        to_user: NO_SUCH_THING.clone(),
-    }.to_string(),
-    UserNotificationEvent::UserFollowAdded{
-        username: "".to_string(),
-        follows_username: "".to_string(),
-    }.to_string(),
-    UserNotificationEvent::UserTaskRequestCreated{
-        task_id: NO_SUCH_THING.clone(),
-        from_user: NO_SUCH_THING.clone(),
-        to_user: NO_SUCH_THING.clone(),
-    }.to_string(),
-]});
+static ACCEPT_EVENT_NAMES: Lazy<[String; 4]> = Lazy::new(|| {
+    [
+        UserNotificationEvent::UserTaskRequestComplete {
+            task_id: NO_SUCH_THING.clone(),
+            delivered_by: NO_SUCH_THING.clone(),
+            requested_by: NO_SUCH_THING.clone(),
+            deliverables: vec![],
+        }
+        .to_string(),
+        UserNotificationEvent::UserTaskRequestReceived {
+            task_id: NO_SUCH_THING.clone(),
+            from_user: NO_SUCH_THING.clone(),
+            to_user: NO_SUCH_THING.clone(),
+        }
+        .to_string(),
+        UserNotificationEvent::UserFollowAdded {
+            username: "".to_string(),
+            follows_username: "".to_string(),
+        }
+        .to_string(),
+        UserNotificationEvent::UserTaskRequestCreated {
+            task_id: NO_SUCH_THING.clone(),
+            from_user: NO_SUCH_THING.clone(),
+            to_user: NO_SUCH_THING.clone(),
+        }
+        .to_string(),
+    ]
+});
 
 async fn user_notification_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    create_user_notifications_sse(&_db, ctx.clone(), Vec::from(ACCEPT_EVENT_NAMES.clone()), to_sse_event ).await?
+    create_user_notifications_sse(
+        &_db,
+        ctx.clone(),
+        Vec::from(ACCEPT_EVENT_NAMES.clone()),
+        to_sse_event,
+    )
+    .await?
 }
 
-pub async fn create_user_notifications_sse(db: &Db, ctx: Ctx, accept_events: Vec<String>, to_sse_fn: fn(Ctx, UserNotification) -> CtxResult<Event>) -> Result<Result<Sse<impl Stream<Item=Result<Event, Error>> + Sized>, CtxError>, CtxError> {
-    let user = LocalUserDbService {
-        db,
-        ctx: &ctx,
-    }
+pub async fn create_user_notifications_sse(
+    db: &Db,
+    ctx: Ctx,
+    accept_events: Vec<String>,
+    to_sse_fn: fn(Ctx, UserNotification) -> CtxResult<Event>,
+) -> Result<Result<Sse<impl Stream<Item = Result<Event, Error>> + Sized>, CtxError>, CtxError> {
+    let user = LocalUserDbService { db, ctx: &ctx }
         .get_ctx_user_thing()
         .await?;
 
@@ -108,8 +122,7 @@ pub async fn create_user_notifications_sse(db: &Db, ctx: Ctx, accept_events: Vec
             move |r: &Result<SdbNotification<UserNotification>, surrealdb::Error>| {
                 let notification = r.as_ref().unwrap().data.clone();
                 // filter out chat messages since they are in profile route
-                notification.user == user
-                    && accept_events.contains(&notification.event.to_string())
+                notification.user == user && accept_events.contains(&notification.event.to_string())
             },
         )
         .map(
@@ -135,7 +148,7 @@ pub async fn create_user_notifications_sse(db: &Db, ctx: Ctx, accept_events: Vec
     )))
 }
 
-fn to_sse_event(ctx: Ctx, notification: UserNotification, ) -> CtxResult<Event> {
+fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
     let event_ident = notification.event.to_string();
     let event = match notification.event {
         UserNotificationEvent::UserFollowAdded {
@@ -210,11 +223,9 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification, ) -> CtxResult<Event> 
                 }
             }
         }
-        _ => {
-            Event::default()
-                .data(format!("Event ident {event_ident} recognised"))
-                .event("Error".to_string())
-        }
+        _ => Event::default()
+            .data(format!("Event ident {event_ident} recognised"))
+            .event("Error".to_string()),
     };
     Ok(event)
 }

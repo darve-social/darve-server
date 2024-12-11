@@ -4,7 +4,7 @@ use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
-use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
+use crate::entity::discussion_entitiy::Discussion;
 use sb_middleware::db;
 use sb_middleware::error::AppResult;
 use sb_middleware::utils::db_utils::{
@@ -27,8 +27,6 @@ pub struct Community {
     pub name_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_discussion: Option<Thing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub following_posts_discussion: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_chats: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -60,7 +58,7 @@ impl<'a> CommunityDbService<'a> {
          ASSERT string::len(string::slug(string::trim($value)))>4 OR string::len(string::slug(string::trim($this.title)))>4;
     DEFINE INDEX community_name_uri_idx ON TABLE {TABLE_NAME} COLUMNS name_uri UNIQUE;
     DEFINE FIELD profile_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
-    DEFINE FIELD following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
+    // DEFINE FIELD following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
     DEFINE FIELD courses ON TABLE {TABLE_NAME} TYPE option<array<record<course>>>;
     DEFINE FIELD created_by ON TABLE {TABLE_NAME} TYPE record<local_user>;
     DEFINE FIELD profile_chats ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TABLE_NAME}>>>;
@@ -156,45 +154,6 @@ impl<'a> CommunityDbService<'a> {
         Ok(comm)
     }
 
-    pub async fn get_profile_following_posts_discussion(&self, user_id: Thing) -> AppResult<Thing> {
-        // TODO return following_posts_discussion in one qry
-        let profile_comm = self.get_profile_community(user_id.clone()).await?;
-        match profile_comm.following_posts_discussion {
-            None => {
-                let following_posts_disc_id =
-                    Self::get_profile_following_discussion_id(user_id.clone());
-                let disc = Discussion {
-                    id: Some(following_posts_disc_id),
-                    belongs_to: profile_comm.id.clone().unwrap(),
-                    title: None,
-                    image_uri: None,
-                    topics: None,
-                    chat_room_user_ids: None,
-                    latest_post_id: None,
-                    r_created: None,
-                    created_by: user_id.clone(),
-                };
-                let disc = DiscussionDbService {
-                    db: self.db,
-                    ctx: self.ctx,
-                }
-                .create_update(disc)
-                .await?;
-                let comm_id = profile_comm.id.clone().unwrap();
-                let res: Option<Community> = self
-                    .db
-                    .update((comm_id.tb, comm_id.id.to_string()))
-                    .patch(PatchOp::replace(
-                        "/following_posts_discussion".to_string().as_str(),
-                        disc.id.clone(),
-                    ))
-                    .await?;
-                Ok(disc.id.unwrap())
-            }
-            Some(disc_id) => Ok(disc_id),
-        }
-    }
-
     pub async fn add_profile_chat_discussion(
         &self,
         user_id: Thing,
@@ -231,7 +190,6 @@ impl<'a> CommunityDbService<'a> {
                         title: None,
                         name_uri: user_id.to_raw(),
                         profile_discussion: None,
-                        following_posts_discussion: None,
                         profile_chats: None,
                         r_created: None,
                         courses: None,
@@ -239,7 +197,7 @@ impl<'a> CommunityDbService<'a> {
                         stripe_connect_account_id: None,
                         stripe_connect_complete: false,
                     })
-                    .await
+                        .await
                 } else {
                     Err(self.ctx.to_ctx_error(err.error))
                 }
@@ -249,12 +207,5 @@ impl<'a> CommunityDbService<'a> {
 
     pub fn get_profile_community_id(user_id: Thing) -> Thing {
         Thing::from((Self::get_table_name().to_string(), user_id.id.to_raw()))
-    }
-
-    pub fn get_profile_following_discussion_id(user_id: Thing) -> Thing {
-        Thing::from((
-            DISCUSSION_TABLE_NAME.to_string(),
-            format!("following_{}", user_id.id.to_raw()),
-        ))
     }
 }

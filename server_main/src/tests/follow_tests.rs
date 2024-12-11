@@ -2,10 +2,10 @@
 mod tests {
     use crate::test_utils::{create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
+    use tokio::io::AsyncWriteExt;
+    use tokio_stream::StreamExt;
     use sb_community::routes::discussion_routes::DiscussionView;
-    use sb_community::routes::profile_routes::{
-        ProfileDiscussionView, ProfilePage,
-    };
+    use sb_community::routes::profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
@@ -13,6 +13,7 @@ mod tests {
     use sb_user_auth::routes::follow_routes::FollowUserList;
     use sb_user_auth::routes::login_routes::LoginInput;
     use uuid::Uuid;
+    use sb_middleware::db;
 
     #[tokio::test]
     async fn get_user_followers() {
@@ -147,8 +148,8 @@ mod tests {
 
         // user3 get followers stream
         let create_response = server.get("/u/following/posts").await;
-        let created = &create_response.json::<DiscussionView>();
-        assert_eq!(created.posts.len(), 0);
+        let created = &create_response.json::<FollowingStreamView>();
+        assert_eq!(created.post_list.len(), 0);
 
         // login user1
         server.get("/logout").await;
@@ -199,12 +200,13 @@ mod tests {
             })
             .await;
         login_response.assert_status_success();
+
         // user3 get followers stream
         let create_response = server.get("/u/following/posts").await;
         dbg!(&create_response);
         // TODO test /u/following/posts
-        // let created = &create_response.json::<DiscussionView>();
-        // assert_eq!(created.posts.len(), 0);
+        let created = &create_response.json::<FollowingStreamView>();
+        assert_eq!(created.post_list.len(), 1);
 
         // user3 unfollow user1
         let create_response = server
@@ -236,4 +238,5 @@ mod tests {
 
         // TODO post again and assure no posts are in /u/following/posts from unfollowed user
     }
+
 }

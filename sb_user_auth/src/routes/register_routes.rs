@@ -133,10 +133,10 @@ async fn api_register(
 
     // let JsonOrFormValidated(data)= payload;
     let _reg = register_user(&ctx_state._db, &ctx, &data).await?; //.map(|r|ctx.to_htmx_or_json(r))?;//.into_response();
-                                                                 // let mut next = data.next.unwrap_or("".to_string());
-                                                                 /*if next.len()<1{
-                                                                     next = format!("/login?u={}", data.username);
-                                                                 }*/
+                                                                  // let mut next = data.next.unwrap_or("".to_string());
+                                                                  /*if next.len()<1{
+                                                                      next = format!("/login?u={}", data.username);
+                                                                  }*/
     // registered.headers_mut().insert(HX_REDIRECT, next.parse().unwrap());
     // Ok(registered)
     login(

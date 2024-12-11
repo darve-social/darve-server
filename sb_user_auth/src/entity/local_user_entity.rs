@@ -8,8 +8,8 @@ use crate::entity::authorization_entity::Authorization;
 use sb_middleware::db;
 use sb_middleware::error::AppError::EntityFailIdNotFound;
 use sb_middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName,
-    RecordWithId, ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, RecordWithId,
+    ViewFieldSelector,
 };
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_middleware::{

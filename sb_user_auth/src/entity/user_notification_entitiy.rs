@@ -124,7 +124,7 @@ impl<'a> UserNotificationDbService<'a> {
         bindings.insert(format!("event_json_{qry_ident}"), event_json);
         bindings.insert(format!("content_{qry_ident}"), String::new());
         bindings.insert(format!("user_id_{qry_ident}"), u_notification.user.to_raw());
-        let qry = format!("INSERT INTO {TABLE_NAME} {{user: type::record($user_id_{qry_ident}), event:$event_json_{qry_ident}, content:$content_{qry_ident} }};");
+        let qry = format!("INSERT INTO {TABLE_NAME} {{user: (type::record($user_id_{qry_ident})), event:$event_json_{qry_ident}, content:$content_{qry_ident} }};");
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }

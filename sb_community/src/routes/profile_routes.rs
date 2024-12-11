@@ -6,6 +6,7 @@ use askama_axum::axum_core::extract::DefaultBodyLimit;
 use askama_axum::axum_core::response::{IntoResponse, Response};
 use askama_axum::Template;
 use axum::extract::{Path, State};
+use axum::response::sse::Event;
 use axum::response::{Html, Sse};
 use axum::routing::{get, post};
 use axum::Router;
@@ -14,7 +15,6 @@ use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use std::string::ToString;
-use axum::response::sse::Event;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -22,25 +22,29 @@ use validator::Validate;
 use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
-use crate::routes::discussion_routes::{get_discussion_view, DiscussionLatestPostView, DiscussionPostView, SseEventName};
+use crate::routes::discussion_routes::{
+    get_discussion_view, DiscussionLatestPostView, DiscussionPostView, SseEventName,
+};
+use futures::stream::Stream as FStream;
+use once_cell::sync::Lazy;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{
-    get_entities_by_id, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector,
-};
+use sb_middleware::utils::db_utils::{get_entities_by_id, get_entity_list, get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::DiscussionParams;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
-use sb_user_auth::routes::user_notification_routes::{create_user_notifications_sse, UserNotificationFollowView, UserNotificationTaskCompleteView, UserNotificationTaskCreatedView, UserNotificationTaskReceivedView};
+use sb_user_auth::routes::user_notification_routes::{
+    create_user_notifications_sse, UserNotificationFollowView, UserNotificationTaskCompleteView,
+    UserNotificationTaskCreatedView, UserNotificationTaskReceivedView,
+};
 use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
-use futures::stream::Stream as FStream;
-use once_cell::sync::Lazy;
+use crate::entity::post_stream_entitiy::PostStreamDbService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -107,7 +111,8 @@ pub struct ProfileView {
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id as user_id, username, full_name, bio, image_uri, 0 as followers_nr, 0 as following_nr".to_string()
+        "id as user_id, username, full_name, bio, image_uri, 0 as followers_nr, 0 as following_nr"
+            .to_string()
     }
 }
 
@@ -157,6 +162,12 @@ pub struct ProfileChatList {
 pub struct ProfileChat {
     user_id: Thing,
     pub discussion: Discussion,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/profile_stream_view.html")]
+pub struct FollowingStreamView {
+    pub post_list: Vec<DiscussionPostView>,
 }
 
 async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<ProfileFormPage> {
@@ -315,17 +326,6 @@ async fn get_profile_discussion_view(
 async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     comm_db_ser.get_profile_community(user_id).await
-    /*let profile_comm_id = CommunityDbService::get_profile_community_id(user_id.clone());
-    match comm_db_ser.get(IdentIdName::Id(profile_comm_id.clone())).await {
-        Ok(comm) => Ok(comm),
-        Err(err) => {
-            match err.error {
-                AppError::EntityFailIdNotFound { .. } =>
-                    create_update_community(db, ctx, CommunityInput { id: profile_comm_id.to_raw(), create_custom_id: Some(true), name_uri: user_id.to_raw(), title: user_id.to_raw() }, &user_id).await,
-                _ => Err(err)
-            }
-        }
-    }*/
 }
 
 // posts user is following
@@ -339,14 +339,16 @@ async fn get_following_posts(
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let following_posts_disc = CommunityDbService {
+    let stream_post_ids = PostStreamDbService{
         db: &_db,
         ctx: &ctx,
-    }
-    .get_profile_following_posts_discussion(user_id)
-    .await?;
-    let discussion_view = get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await?;
-    ctx.to_htmx_or_json(discussion_view)
+    }.user_posts_stream(user_id).await?;
+    let post_list = if stream_post_ids.len()>0{
+        // TODO resolve view access
+        get_entity_list_view::<DiscussionPostView>(&_db, crate::entity::post_entitiy::TABLE_NAME.to_string(), &IdentIdName::Ids(stream_post_ids), None).await?
+    }else { vec![] };
+
+    ctx.to_htmx_or_json(FollowingStreamView{post_list})
 }
 
 // user chat discussions
@@ -362,31 +364,44 @@ async fn get_chats(
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
     let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
-    let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+    /*let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+    let dis = DiscussionDbService{
+        db: &_db,
+        ctx: &ctx,
+    }.get_()*/
+    let discussions= get_entity_list::<Discussion>(&_db, crate::entity::discussion_entitiy::TABLE_NAME.to_string(), &IdentIdName::Ids(discussion_ids), None).await?;
     ctx.to_htmx_or_json(ProfileChatList {
         user_id,
         discussions,
     })
 }
 
-
-static ACCEPT_EVENT_NAMES: Lazy<[String; 1]> = Lazy::new(|| {[
-UserNotificationEvent::UserChatMessage.to_string()]});
+static ACCEPT_EVENT_NAMES: Lazy<[String; 1]> =
+    Lazy::new(|| [UserNotificationEvent::UserChatMessage.to_string()]);
 
 async fn get_chats_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    create_user_notifications_sse(&_db, ctx, Vec::from(ACCEPT_EVENT_NAMES.clone()), to_sse_event ).await?
+    create_user_notifications_sse(
+        &_db,
+        ctx,
+        Vec::from(ACCEPT_EVENT_NAMES.clone()),
+        to_sse_event,
+    )
+    .await?
 }
 
-fn to_sse_event(ctx: Ctx, notification: UserNotification ) -> CtxResult<Event> {
+fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
     let event_ident = notification.event.to_string();
     let event = match notification.event {
         UserNotificationEvent::UserChatMessage { .. } => {
-
             let post_view = serde_json::from_str::<DiscussionLatestPostView>(&notification.content)
-                .map_err(|e| ctx.to_ctx_error(AppError::Serde {source:notification.content}))?;
+                .map_err(|e| {
+                    ctx.to_ctx_error(AppError::Serde {
+                        source: notification.content,
+                    })
+                })?;
 
             match ctx.to_htmx_or_json(post_view) {
                 Ok(response_string) => Event::default().data(response_string.0).event(event_ident),
@@ -397,11 +412,9 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification ) -> CtxResult<Event> {
                 }
             }
         }
-        _ => {
-            Event::default()
-                .data(format!("Event ident {event_ident} recognised"))
-                .event("Error".to_string())
-        }
+        _ => Event::default()
+            .data(format!("Event ident {event_ident} recognised"))
+            .event("Error".to_string()),
     };
 
     Ok(event)
@@ -555,5 +568,3 @@ async fn get_user_posts(
     .await?;
     ctx.to_htmx_or_json(profile_disc_view)
 }
-
-

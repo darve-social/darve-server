@@ -23,6 +23,7 @@ use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
 use sb_community::entity::post_entitiy::PostDbService;
+use sb_community::entity::post_stream_entitiy::PostStreamDbService;
 use sb_community::entity::reply_entitiy::ReplyDbService;
 use sb_community::routes::{
     community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes,
@@ -165,6 +166,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     CurrencyTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
+    PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
 

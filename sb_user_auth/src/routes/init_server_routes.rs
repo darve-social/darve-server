@@ -130,8 +130,7 @@ async fn post_init_form(
 
     let created_user = register_user(&_db, &ctx, &reg_input).await?;
     let auth_thing = Thing::from((get_root_auth_rec_name(), "0".to_string()));
-    let authorization =
-        Authorization::new(auth_thing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99)?;
+    let authorization = Authorization::new(auth_thing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99)?;
 
     let aright_db_service = &AccessRightDbService {
         db: &_db,

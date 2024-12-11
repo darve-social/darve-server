@@ -205,7 +205,6 @@ pub async fn create_update_community(
             title: None,
             name_uri: "".to_string(),
             profile_discussion: None,
-            following_posts_discussion: None,
             profile_chats: None,
             r_created: None,
             courses: None,
