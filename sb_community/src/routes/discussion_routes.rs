@@ -125,15 +125,15 @@ pub struct DiscussionPage {
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/discussion_view_1.html")]
 pub struct DiscussionView {
-    id: Option<Thing>,
-    title: Option<String>,
-    image_uri: Option<String>,
-    belongs_to: Thing,
-    chat_room_user_ids: Option<Vec<Thing>>,
+    pub id: Option<Thing>,
+    pub title: Option<String>,
+    pub image_uri: Option<String>,
+    pub belongs_to: Thing,
+    pub chat_room_user_ids: Option<Vec<Thing>>,
     pub posts: Vec<DiscussionPostView>,
     pub latest_post: Option<DiscussionLatestPostView>,
-    pub(crate) topics: Option<Vec<DiscussionTopicView>>,
-    display_topic: Option<DiscussionTopicView>,
+    pub topics: Option<Vec<DiscussionTopicView>>,
+    pub display_topic: Option<DiscussionTopicView>,
 }
 
 impl ViewFieldSelector for DiscussionView {
