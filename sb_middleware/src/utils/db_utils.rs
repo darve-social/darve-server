@@ -121,6 +121,9 @@ impl QryBindingsVal {
             .into_iter()
             .fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
     }
+    pub fn is_empty_qry(&self) -> bool {
+        self.0.len()<1
+    }
 }
 
 pub struct UsernameIdent(pub String);
@@ -168,6 +171,10 @@ fn get_entity_query_str(
         }
 
         IdentIdName::Ids(ids)=>{
+            if ids.len()<1 {
+                return Ok(QryBindingsVal::new(String::new(), HashMap::new()));
+            }
+
             q_bindings.extend(ident.get_bindings_map());
             let fields = select_fields_or_id.unwrap_or("*");
 
@@ -313,6 +320,9 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     db: &Db,
     query_string: QryBindingsVal,
 ) -> CtxResult<Vec<T>> {
+    if query_string.is_empty_qry() {
+        return Ok(vec![]);
+    }
     let qry = create_db_qry(db, query_string);
     let mut res = qry.await?;
     // dbg!(&res);
