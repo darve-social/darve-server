@@ -23,7 +23,7 @@ use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::post_stream_entitiy::PostStreamDbService;
-use crate::routes::discussion_routes::{DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
+use crate::routes::discussion_routes::{get_discussion_view, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
 use futures::stream::Stream as FStream;
 use once_cell::sync::Lazy;
 use sb_middleware::ctx::Ctx;
@@ -157,7 +157,7 @@ pub struct ProfileChatList {
 #[template(path = "nera2/profile_chat.html")]
 pub struct ProfileChat {
     user_id: Thing,
-    pub discussion: Discussion,
+    pub discussion: DiscussionView,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -454,10 +454,13 @@ async fn get_create_chat_discussion(
                 comm,
                 comm_db_service,
                 discussion_db_service,
-            )
-                .await?
+            ).await?
         }
-        Some(disc) => disc,
+        Some(disc) => get_discussion_view(&_db, &ctx, disc.id.unwrap(), DiscussionParams {
+            topic_id: None,
+            start: None,
+            count: None,
+        }),
     };
     ctx.to_htmx_or_json(ProfileChat {
         discussion,
@@ -471,7 +474,7 @@ async fn create_chat_discussion<'a>(
     comm: Community,
     comm_db_service: CommunityDbService<'a>,
     discussion_db_service: DiscussionDbService<'a>,
-) -> CtxResult<Discussion> {
+) -> CtxResult<DiscussionView> {
     let disc = discussion_db_service
         .create_update(Discussion {
             id: None,
@@ -515,6 +518,17 @@ async fn create_chat_discussion<'a>(
     comm_db_service
         .add_profile_chat_discussion(other_user_id, disc.id.clone().unwrap())
         .await?;
+    let disc = DiscussionView {
+        id: disc.id,
+        title: disc.title,
+        image_uri: disc.image_uri,
+        belongs_to: disc.belongs_to,
+        chat_room_user_ids: disc.chat_room_user_ids,
+        posts: vec![],
+        latest_post: None,
+        topics: None,
+        display_topic: None,
+    };
     Ok(disc)
 }
 

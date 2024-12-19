@@ -299,7 +299,7 @@ pub async fn get_discussion_view(
             };
         });
 
-    println!("DSIIIIISSSS={:?}", dis_template.latest_post);
+    // println!("DSIIIIISSSS={:?}", dis_template.latest_post);
     dis_template.posts = discussion_posts;
     Ok(dis_template)
 }
