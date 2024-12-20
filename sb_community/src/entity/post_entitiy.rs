@@ -3,7 +3,7 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use surrealdb::err::Error::IndexExists;
 use surrealdb::opt::PatchOp;
-use surrealdb::sql::Thing;
+use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
@@ -145,7 +145,8 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
-    pub async fn create(&self, record: Post) -> CtxResult<Post> {
+    pub async fn create(&self, mut record: Post) -> CtxResult<Post> {
+        record.id = Some(Thing::from((TABLE_NAME, Id::ulid())));
         self.db
             .create(TABLE_NAME)
             .content(record)

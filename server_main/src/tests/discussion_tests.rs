@@ -50,6 +50,7 @@ mod tests {
                 id: "".to_string(),
                 community_id: comm_id.to_raw(),
                 title: "The Discussion".to_string(),
+                image_uri: None,
             })
             .await;
         let created = &create_response.json::<CreatedResponse>();
@@ -168,6 +169,7 @@ mod tests {
                 id: "".to_string(),
                 community_id: comm_id.to_raw(),
                 title: "The Discussion".to_string(),
+                image_uri: None,
             })
             .await;
         let created = &create_response.json::<CreatedResponse>();

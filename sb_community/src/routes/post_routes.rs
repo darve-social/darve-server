@@ -17,9 +17,12 @@ use crate::entity::discussion_notification_entitiy::{
     DiscussionNotification, DiscussionNotificationDbService,
 };
 use crate::entity::post_entitiy::{Post, PostDbService};
+use crate::entity::post_stream_entitiy::PostStreamDbService;
 use crate::entity::reply_entitiy::ReplyDbService;
 use crate::routes::community_routes::DiscussionNotificationEvent;
-use crate::routes::discussion_routes::{is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView};
+use crate::routes::discussion_routes::{
+    is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView,
+};
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
 use sb_middleware::ctx::Ctx;
@@ -33,9 +36,11 @@ use sb_user_auth::entity::authorization_entity::{
     Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER,
 };
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::user_notification_entitiy::{
+    UserNotificationDbService, UserNotificationEvent,
+};
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 use tempfile::NamedTempFile;
-use sb_user_auth::entity::user_notification_entitiy::{UserNotificationDbService, UserNotificationEvent};
 
 pub const UPLOADS_URL_BASE: &str = "/media";
 pub fn routes(state: CtxState) -> Router {
@@ -326,12 +331,24 @@ pub async fn create_post_entity_route(
             .notify_users(
                 disc.chat_room_user_ids.clone().unwrap(),
                 &UserNotificationEvent::UserChatMessage,
-                notif_str.as_str()
+                notif_str.as_str(),
             )
             .await?;
-    }else {
-       user_notification_db_service
-           .notify_user_followers(user_id.clone(), &UserNotificationEvent::UserCommunityPost, notif_str.as_str()).await?;
+    } else {
+        user_notification_db_service
+            .notify_user_followers(
+                user_id.clone(),
+                &UserNotificationEvent::UserCommunityPost,
+                notif_str.as_str(),
+            )
+            .await?;
+
+        PostStreamDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        }
+        .to_user_follower_streams(post.created_by.clone(), &post.id.clone().expect("has id"))
+        .await?;
     }
 
     let post_comm_view = post_db_service

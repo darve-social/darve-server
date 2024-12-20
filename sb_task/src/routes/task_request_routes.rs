@@ -143,7 +143,6 @@ async fn post_task_requests(
     ctx: Ctx,
     Path(post_id): Path<String>,
 ) -> CtxResult<String> {
-
     let list = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,

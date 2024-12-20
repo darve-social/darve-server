@@ -1,8 +1,6 @@
 use crate::entity::task_request_entitiy::TaskRequestDbService;
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{
-    get_entity, with_not_found_err, IdentIdName,
-};
+use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},

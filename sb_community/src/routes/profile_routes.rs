@@ -6,6 +6,7 @@ use askama_axum::axum_core::extract::DefaultBodyLimit;
 use askama_axum::axum_core::response::{IntoResponse, Response};
 use askama_axum::Template;
 use axum::extract::{Path, State};
+use axum::response::sse::Event;
 use axum::response::{Html, Sse};
 use axum::routing::{get, post};
 use axum::Router;
@@ -14,7 +15,7 @@ use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use std::string::ToString;
-use axum::response::sse::Event;
+use axum::http::Request;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -22,25 +23,25 @@ use validator::Validate;
 use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
-use crate::routes::discussion_routes::{get_discussion_view, DiscussionLatestPostView, DiscussionPostView, SseEventName};
+use crate::entity::post_stream_entitiy::PostStreamDbService;
+use crate::routes::discussion_routes::{get_discussion_view, DiscussionInput, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
+use futures::stream::Stream as FStream;
+use once_cell::sync::Lazy;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{
-    get_entities_by_id, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector,
-};
-use sb_middleware::utils::extractor_utils::DiscussionParams;
+use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
+use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
-use sb_user_auth::routes::user_notification_routes::{create_user_notifications_sse, UserNotificationFollowView, UserNotificationTaskCompleteView, UserNotificationTaskCreatedView, UserNotificationTaskReceivedView};
+use sb_user_auth::routes::follow_routes::{UserItemView, UserListView};
+use sb_user_auth::routes::user_notification_routes::create_user_notifications_sse;
 use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
-use futures::stream::Stream as FStream;
-use once_cell::sync::Lazy;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -52,6 +53,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user_chat/list/sse", get(get_chats_sse))
+        .route("/api/user/search", post(search_users))
         .route(
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
@@ -75,6 +77,7 @@ pub struct ProfileSettingsFormInput {
     pub username: String,
     #[validate(email(message = "Email expected"))]
     pub email: String,
+    pub full_name: String,
     #[form_data(limit = "1MiB")]
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
@@ -98,6 +101,7 @@ pub struct ProfileView {
     pub full_name: Option<String>,
     pub bio: Option<String>,
     pub image_uri: Option<String>,
+    pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
     pub profile_discussion: Option<Thing>,
     pub followers_nr: i64,
@@ -107,7 +111,8 @@ pub struct ProfileView {
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id as user_id, username, full_name, bio, image_uri, 0 as followers_nr, 0 as following_nr".to_string()
+        "id as user_id, username, full_name, bio, image_uri, social_links, 0 as followers_nr, 0 as following_nr"
+            .to_string()
     }
 }
 
@@ -149,14 +154,26 @@ impl ViewFieldSelector for ProfilePostView {
 #[template(path = "nera2/profile_chat_list.html")]
 pub struct ProfileChatList {
     pub user_id: Thing,
-    pub discussions: Vec<Discussion>,
+    pub discussions: Vec<DiscussionView>,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/profile_chat.html")]
 pub struct ProfileChat {
     user_id: Thing,
-    pub discussion: Discussion,
+    pub discussion: DiscussionView,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/profile_stream_view.html")]
+pub struct FollowingStreamView {
+    pub post_list: Vec<DiscussionPostView>,
+}
+
+#[derive(Deserialize, Serialize, Validate, Debug)]
+pub struct SearchInput {
+    #[validate(length(min = 3, message = "Min 3 characters"))]
+    pub query: String,
 }
 
 async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<ProfileFormPage> {
@@ -164,8 +181,8 @@ async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .get_ctx_user()
-    .await?;
+        .get_ctx_user()
+        .await?;
 
     Ok(ProfileFormPage::new(
         Box::new(ProfileSettingsForm {
@@ -188,8 +205,8 @@ async fn profile_save(
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .get_ctx_user()
-    .await?;
+        .get_ctx_user()
+        .await?;
 
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state._db,
@@ -204,6 +221,11 @@ async fn profile_save(
         Some(body_value.email.trim().to_string())
     } else {
         user.email
+    };
+    user.full_name = if body_value.full_name.trim().len() > 0 {
+        Some(body_value.full_name.trim().to_string())
+    } else {
+        user.full_name
     };
 
     user.username = if body_value.username.trim().len() > 0 {
@@ -315,17 +337,6 @@ async fn get_profile_discussion_view(
 async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     comm_db_ser.get_profile_community(user_id).await
-    /*let profile_comm_id = CommunityDbService::get_profile_community_id(user_id.clone());
-    match comm_db_ser.get(IdentIdName::Id(profile_comm_id.clone())).await {
-        Ok(comm) => Ok(comm),
-        Err(err) => {
-            match err.error {
-                AppError::EntityFailIdNotFound { .. } =>
-                    create_update_community(db, ctx, CommunityInput { id: profile_comm_id.to_raw(), create_custom_id: Some(true), name_uri: user_id.to_raw(), title: user_id.to_raw() }, &user_id).await,
-                _ => Err(err)
-            }
-        }
-    }*/
 }
 
 // posts user is following
@@ -339,14 +350,16 @@ async fn get_following_posts(
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let following_posts_disc = CommunityDbService {
+    let stream_post_ids = PostStreamDbService {
         db: &_db,
         ctx: &ctx,
-    }
-    .get_profile_following_posts_discussion(user_id)
-    .await?;
-    let discussion_view = get_discussion_view(&_db, &ctx, following_posts_disc, q_params).await?;
-    ctx.to_htmx_or_json(discussion_view)
+    }.user_posts_stream(user_id).await?;
+    let post_list = if stream_post_ids.len() > 0 {
+        // TODO resolve view access
+        get_entity_list_view::<DiscussionPostView>(&_db, crate::entity::post_entitiy::TABLE_NAME.to_string(), &IdentIdName::Ids(stream_post_ids), None).await?
+    } else { vec![] };
+
+    ctx.to_htmx_or_json(FollowingStreamView { post_list })
 }
 
 // user chat discussions
@@ -362,31 +375,44 @@ async fn get_chats(
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
     let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
-    let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+    /*let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
+    let dis = DiscussionDbService{
+        db: &_db,
+        ctx: &ctx,
+    }.get_()*/
+    let discussions = get_entity_list_view::<DiscussionView>(&_db, crate::entity::discussion_entitiy::TABLE_NAME.to_string(), &IdentIdName::Ids(discussion_ids), None).await?;
     ctx.to_htmx_or_json(ProfileChatList {
         user_id,
         discussions,
     })
 }
 
-
-static ACCEPT_EVENT_NAMES: Lazy<[String; 1]> = Lazy::new(|| {[
-UserNotificationEvent::UserChatMessage.to_string()]});
+static ACCEPT_EVENT_NAMES: Lazy<[String; 1]> =
+    Lazy::new(|| [UserNotificationEvent::UserChatMessage.to_string()]);
 
 async fn get_chats_sse(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    create_user_notifications_sse(&_db, ctx, Vec::from(ACCEPT_EVENT_NAMES.clone()), to_sse_event ).await?
+) -> CtxResult<Sse<impl FStream<Item=Result<Event, surrealdb::Error>>>> {
+    create_user_notifications_sse(
+        &_db,
+        ctx,
+        Vec::from(ACCEPT_EVENT_NAMES.clone()),
+        to_sse_event,
+    )
+        .await?
 }
 
-fn to_sse_event(ctx: Ctx, notification: UserNotification ) -> CtxResult<Event> {
+fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
     let event_ident = notification.event.to_string();
     let event = match notification.event {
         UserNotificationEvent::UserChatMessage { .. } => {
-
             let post_view = serde_json::from_str::<DiscussionLatestPostView>(&notification.content)
-                .map_err(|e| ctx.to_ctx_error(AppError::Serde {source:notification.content}))?;
+                .map_err(|e| {
+                    ctx.to_ctx_error(AppError::Serde {
+                        source: notification.content,
+                    })
+                })?;
 
             match ctx.to_htmx_or_json(post_view) {
                 Ok(response_string) => Event::default().data(response_string.0).event(event_ident),
@@ -397,11 +423,9 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification ) -> CtxResult<Event> {
                 }
             }
         }
-        _ => {
-            Event::default()
-                .data(format!("Event ident {event_ident} recognised"))
-                .event("Error".to_string())
-        }
+        _ => Event::default()
+            .data(format!("Event ident {event_ident} recognised"))
+            .event("Error".to_string()),
     };
 
     Ok(event)
@@ -445,10 +469,13 @@ async fn get_create_chat_discussion(
                 comm,
                 comm_db_service,
                 discussion_db_service,
-            )
-            .await?
+            ).await?
         }
-        Some(disc) => disc,
+        Some(disc) => get_discussion_view(&_db, &ctx, disc.id.unwrap(), DiscussionParams {
+            topic_id: None,
+            start: None,
+            count: None,
+        }).await?,
     };
     ctx.to_htmx_or_json(ProfileChat {
         discussion,
@@ -462,7 +489,7 @@ async fn create_chat_discussion<'a>(
     comm: Community,
     comm_db_service: CommunityDbService<'a>,
     discussion_db_service: DiscussionDbService<'a>,
-) -> CtxResult<Discussion> {
+) -> CtxResult<DiscussionView> {
     let disc = discussion_db_service
         .create_update(Discussion {
             id: None,
@@ -480,7 +507,7 @@ async fn create_chat_discussion<'a>(
         comm_db_service.db,
         CommunityDbService::get_profile_community_id(user_id.clone()),
     )
-    .await;
+        .await;
     if exists.is_err() {
         // creates profile community
         get_profile_community(comm_db_service.db, comm_db_service.ctx, user_id.clone()).await?;
@@ -489,7 +516,7 @@ async fn create_chat_discussion<'a>(
         comm_db_service.db,
         CommunityDbService::get_profile_community_id(other_user_id.clone()),
     )
-    .await;
+        .await;
     if exists.is_err() {
         // creates profile community
         get_profile_community(
@@ -497,7 +524,7 @@ async fn create_chat_discussion<'a>(
             comm_db_service.ctx,
             other_user_id.clone(),
         )
-        .await?;
+            .await?;
     }
 
     comm_db_service
@@ -506,6 +533,17 @@ async fn create_chat_discussion<'a>(
     comm_db_service
         .add_profile_chat_discussion(other_user_id, disc.id.clone().unwrap())
         .await?;
+    let disc = DiscussionView {
+        id: disc.id,
+        title: disc.title,
+        image_uri: disc.image_uri,
+        belongs_to: disc.belongs_to,
+        chat_room_user_ids: disc.chat_room_user_ids,
+        posts: vec![],
+        latest_post: None,
+        topics: None,
+        display_topic: None,
+    };
     Ok(disc)
 }
 
@@ -518,8 +556,8 @@ async fn create_user_post(
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .get_ctx_user_thing()
-    .await?;
+        .get_ctx_user_thing()
+        .await?;
     let profile_comm = get_profile_community(&ctx_state._db, &ctx, user_id).await?;
 
     create_post_entity_route(
@@ -528,7 +566,7 @@ async fn create_user_post(
         State(ctx_state),
         TypedMultipart(input_value),
     )
-    .await
+        .await
 }
 
 async fn get_user_posts(
@@ -552,8 +590,24 @@ async fn get_user_posts(
         q_params,
         profile_comm.profile_discussion.expect("profile discussion"),
     )
-    .await?;
+        .await?;
     ctx.to_htmx_or_json(profile_disc_view)
 }
 
-
+async fn search_users(
+    ctx: Ctx,
+    State(ctx_state): State<CtxState>,
+    JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
+) -> CtxResult<Html<String>> {
+    let local_user_db_service = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    // require logged in
+    local_user_db_service.get_ctx_user_thing().await?;
+    let items: Vec<UserItemView> = local_user_db_service.search(form_value.query).await?
+        .into_iter()
+        .map(|u|u.into())
+        .collect();
+    ctx.to_htmx_or_json(UserListView{items})
+}

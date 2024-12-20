@@ -9,7 +9,7 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
-
+use surrealdb::sql::Thing;
 use crate::entity::follow_entitiy::FollowDbService;
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use crate::entity::user_notification_entitiy::{
@@ -34,21 +34,23 @@ pub fn routes(state: CtxState) -> Router {
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/follow-user-list.html")]
-pub struct FollowUserList {
-    pub list: Vec<FollowUser>,
+pub struct UserListView {
+    pub items: Vec<UserItemView>,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/follow-user.html")]
-pub struct FollowUser {
+pub struct UserItemView {
+    pub id: Thing,
     pub username: String,
     pub name: String,
     pub image_url: String,
 }
 
-impl From<LocalUser> for FollowUser {
+impl From<LocalUser> for UserItemView {
     fn from(value: LocalUser) -> Self {
-        FollowUser {
+        UserItemView {
+            id: value.id.unwrap(),
             username: value.username.clone(),
             name: value.full_name.clone().unwrap_or_default(),
             image_url: value.image_uri.clone().unwrap_or_default(),
@@ -62,16 +64,16 @@ async fn get_followers(
     Path(user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let user_id = get_string_thing(user_id.clone())?;
-    let followers: Vec<FollowUser> = FollowDbService {
+    let followers: Vec<UserItemView> = FollowDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
     .user_followers(user_id)
     .await?
     .into_iter()
-    .map(FollowUser::from)
+    .map(UserItemView::from)
     .collect();
-    ctx.to_htmx_or_json(FollowUserList { list: followers })
+    ctx.to_htmx_or_json(UserListView { items: followers })
 }
 
 async fn get_following(
@@ -87,9 +89,9 @@ async fn get_following(
     .user_following(user_id)
     .await?
     .into_iter()
-    .map(FollowUser::from)
+    .map(UserItemView::from)
     .collect();
-    ctx.to_htmx_or_json(FollowUserList { list: following })
+    ctx.to_htmx_or_json(UserListView { items: following })
 }
 
 async fn follow_user(

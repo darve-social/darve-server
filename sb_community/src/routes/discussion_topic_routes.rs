@@ -8,7 +8,7 @@ use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use futures::{TryFutureExt};
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tokio::io::AsyncWriteExt;
@@ -20,7 +20,7 @@ use crate::entity::discussion_topic_entitiy::{DiscussionTopic, DiscussionTopicDb
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{IdentIdName};
+use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
