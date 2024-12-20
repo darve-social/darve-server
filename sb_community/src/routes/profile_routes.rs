@@ -15,6 +15,7 @@ use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use std::string::ToString;
+use axum::http::Request;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -23,7 +24,7 @@ use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::post_stream_entitiy::PostStreamDbService;
-use crate::routes::discussion_routes::{get_discussion_view, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
+use crate::routes::discussion_routes::{get_discussion_view, DiscussionInput, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
 use futures::stream::Stream as FStream;
 use once_cell::sync::Lazy;
 use sb_middleware::ctx::Ctx;
@@ -31,12 +32,13 @@ use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
-use sb_middleware::utils::extractor_utils::DiscussionParams;
+use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
+use sb_user_auth::routes::follow_routes::{UserItemView, UserListView};
 use sb_user_auth::routes::user_notification_routes::create_user_notifications_sse;
 use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
@@ -51,6 +53,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user_chat/list/sse", get(get_chats_sse))
+        .route("/api/user/search", post(search_users))
         .route(
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
@@ -74,6 +77,7 @@ pub struct ProfileSettingsFormInput {
     pub username: String,
     #[validate(email(message = "Email expected"))]
     pub email: String,
+    pub full_name: String,
     #[form_data(limit = "1MiB")]
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
@@ -166,6 +170,12 @@ pub struct FollowingStreamView {
     pub post_list: Vec<DiscussionPostView>,
 }
 
+#[derive(Deserialize, Serialize, Validate, Debug)]
+pub struct SearchInput {
+    #[validate(length(min = 3, message = "Min 3 characters"))]
+    pub query: String,
+}
+
 async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<ProfileFormPage> {
     let user = LocalUserDbService {
         db: &ctx_state._db,
@@ -211,6 +221,11 @@ async fn profile_save(
         Some(body_value.email.trim().to_string())
     } else {
         user.email
+    };
+    user.full_name = if body_value.full_name.trim().len() > 0 {
+        Some(body_value.full_name.trim().to_string())
+    } else {
+        user.full_name
     };
 
     user.username = if body_value.username.trim().len() > 0 {
@@ -460,7 +475,7 @@ async fn get_create_chat_discussion(
             topic_id: None,
             start: None,
             count: None,
-        }),
+        }).await?,
     };
     ctx.to_htmx_or_json(ProfileChat {
         discussion,
@@ -577,4 +592,22 @@ async fn get_user_posts(
     )
         .await?;
     ctx.to_htmx_or_json(profile_disc_view)
+}
+
+async fn search_users(
+    ctx: Ctx,
+    State(ctx_state): State<CtxState>,
+    JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
+) -> CtxResult<Html<String>> {
+    let local_user_db_service = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    // require logged in
+    local_user_db_service.get_ctx_user_thing().await?;
+    let items: Vec<UserItemView> = local_user_db_service.search(form_value.query).await?
+        .into_iter()
+        .map(|u|u.into())
+        .collect();
+    ctx.to_htmx_or_json(UserListView{items})
 }

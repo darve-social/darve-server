@@ -10,7 +10,7 @@ mod tests {
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
     use sb_user_auth::entity::follow_entitiy::FollowDbService;
-    use sb_user_auth::routes::follow_routes::FollowUserList;
+    use sb_user_auth::routes::follow_routes::UserListView;
     use sb_user_auth::routes::login_routes::LoginInput;
     use uuid::Uuid;
     use sb_middleware::db;
@@ -132,9 +132,9 @@ mod tests {
         let create_response = server
             .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
             .await;
-        let created = &create_response.json::<FollowUserList>();
-        assert_eq!(created.list.len(), 2);
-        let f_usernames: Vec<String> = created.list.iter().map(|fu| fu.username.clone()).collect();
+        let created = &create_response.json::<UserListView>();
+        assert_eq!(created.items.len(), 2);
+        let f_usernames: Vec<String> = created.items.iter().map(|fu| fu.username.clone()).collect();
         assert_eq!(f_usernames.contains(&username2.clone()), true);
         assert_eq!(f_usernames.contains(&username3.clone()), true);
         assert_eq!(f_usernames.contains(&username1.clone()), false);
@@ -143,8 +143,8 @@ mod tests {
         let create_response = server
             .get(format!("/api/user/{}/following", user_ident1.clone()).as_str())
             .await;
-        let created = &create_response.json::<FollowUserList>();
-        assert_eq!(created.list.len(), 0);
+        let created = &create_response.json::<UserListView>();
+        assert_eq!(created.items.len(), 0);
 
         // user3 get followers stream
         let create_response = server.get("/u/following/posts").await;
@@ -269,8 +269,8 @@ mod tests {
         let create_response = server
             .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
             .await;
-        let created = &create_response.json::<FollowUserList>();
-        assert_eq!(created.list.len(), 1);
+        let created = &create_response.json::<UserListView>();
+        assert_eq!(created.items.len(), 1);
 
         // check user3 unfollowed user1
         let create_response = server

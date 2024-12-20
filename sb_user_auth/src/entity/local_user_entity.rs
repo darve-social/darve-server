@@ -74,6 +74,10 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE INDEX local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
+
+    DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
+    DEFINE INDEX username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -139,6 +143,14 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn get_username(&self, ident: IdentIdName) -> CtxResult<String> {
         let u_view = self.get_view::<UsernameView>(ident).await?;
         Ok(u_view.username)
+    }
+
+    pub async fn search(&self, find: String) -> CtxResult<Vec<LocalUser>> {
+        let qry = format!("SELECT id, username, full_name, image_uri FROM {TABLE_NAME} WHERE username @@ $find OR full_name @@ $find;");
+        let res = self.db.query(qry)
+            .bind(("find", find));
+        let res: Vec<LocalUser> = res.await?.take(0)?;
+        Ok(res)
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
