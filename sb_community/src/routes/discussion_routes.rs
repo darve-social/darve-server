@@ -47,8 +47,8 @@ pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new().route(
         "/community/:community_id/discussion",
         get(create_update_form),
-    );
-    // .route("/discussion/:discussion_id", get(display_discussion));
+    )
+    .route("/discussion/:discussion_id", get(display_discussion));
 
     Router::new()
         .merge(view_routes)
@@ -211,20 +211,12 @@ async fn display_discussion(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<DiscussionPage> {
+) -> CtxResult<axum::Json<DiscussionView>> {
     println!("->> {:<12} - get discussion", "HANDLER");
 
     let dis_view =
         get_discussion_view(&_db, &ctx, get_string_thing(discussion_id)?, q_params).await?;
-    let dis_template = DiscussionPage {
-        nav_top_title: "top nav".to_string(),
-        header_title: "headdd".to_string(),
-        footer_text: "foo".to_string(),
-        theme_name: "emerald".to_string(),
-        window_title: "hello wind".to_string(),
-        discussion_view: dis_view,
-    };
-    Ok(dis_template)
+    Ok(axum::Json(dis_view))
 }
 
 pub async fn get_discussion_view(
