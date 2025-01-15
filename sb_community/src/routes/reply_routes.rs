@@ -73,7 +73,7 @@ async fn get_post_replies(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(discussion_id__post_ident): Path<(String, String)>,
-) -> CtxResult<PostReplyList> {
+) -> CtxResult<Html<String>> {
     println!("->> {:<12} - get post", "HANDLER");
 
     let diss_db = DiscussionDbService {
@@ -99,7 +99,8 @@ async fn get_post_replies(
     }
     .get_by_post_desc_view::<PostReplyView>(ident, 0, 120)
     .await?;
-    Ok(PostReplyList {
+
+    ctx.to_htmx_or_json(PostReplyList {
         replies: post_replies,
     })
 }
