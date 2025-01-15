@@ -8,6 +8,7 @@ use axum_htmx::HxRequest;
 use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
+use chrono::Duration;
 use tower_cookies::{Cookie, Cookies};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
@@ -17,6 +18,7 @@ pub struct CtxState {
     pub _db: db::Db,
     pub key_enc: EncodingKey,
     pub key_dec: DecodingKey,
+    pub jwt_duration: Duration,
     pub start_password: String,
     pub is_development: bool,
     pub stripe_key: String,
@@ -37,6 +39,7 @@ pub fn create_ctx_state(
     start_password: String,
     is_development: bool,
     jwt_secret: String,
+    jwt_duration: Duration,
     stripe_key: String,
     stripe_wh_secret: String,
     uploads_dir: String,
@@ -52,6 +55,7 @@ pub fn create_ctx_state(
         is_development,
         stripe_key,
         stripe_wh_secret,
+        jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
         uploads_serve_dir: ServeDir::new(uploads_dir.clone())

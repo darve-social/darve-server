@@ -8,6 +8,7 @@ use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
+use chrono::Duration;
 use uuid::Uuid;
 
 pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
@@ -31,6 +32,7 @@ pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
         "123".to_string(),
         is_dev,
         "".to_string(),
+        Duration::days(7),
         "".to_string(),
         "".to_string(),
         "uploads".to_string(),

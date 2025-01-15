@@ -440,7 +440,7 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(CtxState { _db, key_enc, .. }): State<CtxState>,
+    State(CtxState { _db, key_enc, jwt_duration, .. }): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
     Extension(app_state): Extension<AppState>,
@@ -491,7 +491,7 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserHasNoCredentials);
             }
 
-            cookie_utils::issue_login_jwt(&key_enc, cookies, exists_id);
+            cookie_utils::issue_login_jwt(&key_enc, cookies, exists_id, jwt_duration);
             // let mut users_guard = app_state.users.lock().await;
             // Update the credential counter, if possible.
             /*users_guard

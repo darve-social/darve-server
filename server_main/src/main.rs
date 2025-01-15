@@ -6,6 +6,7 @@ use askama_axum::Template;
 use axum::handler::Handler;
 use axum::{middleware, Router};
 use axum_htmx::AutoVaryLayer;
+use chrono::Duration;
 use dotenv::dotenv;
 use error::AppResult;
 use surrealdb::engine::local::Db;
@@ -65,6 +66,7 @@ async fn main() -> AppResult<()> {
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
+    let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
     runMigrations(db, is_dev).await?;
@@ -73,6 +75,7 @@ async fn main() -> AppResult<()> {
         init_server_password,
         is_dev,
         jwt_secret,
+        jwt_duration,
         stripe_key,
         stripe_wh_secret,
         uploads_dir,
