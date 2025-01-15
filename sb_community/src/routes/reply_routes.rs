@@ -57,6 +57,7 @@ pub struct PostReplyList {
 #[template(path = "nera2/post-reply-1.html")]
 pub struct PostReplyView {
     pub id: Thing,
+    pub username: String,
     pub title: String,
     pub content: String,
     pub r_created: String,
@@ -64,7 +65,7 @@ pub struct PostReplyView {
 
 impl ViewFieldSelector for PostReplyView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, title, content, r_created".to_string()
+        "id, title, content, r_created, created_by.username as username".to_string()
     }
 }
 
