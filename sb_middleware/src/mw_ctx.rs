@@ -1,13 +1,14 @@
 use crate::db;
 use crate::{ctx::Ctx, error::AppError, error::AppResult, error::CtxResult};
 use axum::body::Body;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
 use axum_htmx::HxRequest;
 use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
+use axum::http::header::ACCEPT;
 use chrono::Duration;
 use tower_cookies::{Cookie, Cookies};
 use tower_http::services::ServeDir;
@@ -83,9 +84,21 @@ pub async fn mw_ctx_constructor(
     State(CtxState { _db, key_dec, .. }): State<CtxState>,
     cookies: Cookies,
     HxRequest(is_htmx): HxRequest,
+    headers: HeaderMap,
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
+
+    let is_htmx = if !is_htmx {
+        match headers.get(ACCEPT).map(|x| x.as_bytes()) {
+            Some(b"application/json") => false,
+            Some(b"text/plain") =>
+                true,
+            Some(b"text/html") =>
+                true,
+            _ => true
+        }
+    }else { true };
     // println!("->> {:<12} - mw_ctx_constructor", "MIDDLEWARE");
 
     let uuid = Uuid::new_v4();
