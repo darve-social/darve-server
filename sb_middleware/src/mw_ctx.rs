@@ -92,10 +92,10 @@ pub async fn mw_ctx_constructor(
     let is_htmx = if !is_htmx {
         match headers.get(ACCEPT).map(|x| x.as_bytes()) {
             Some(b"application/json") => false,
-            Some(b"text/plain") =>
-                true,
-            Some(b"text/html") =>
-                true,
+            Some(b"text/plain") => true,
+            Some(b"text/html") =>  true,
+            // leave as it is for sse
+            Some(b"text/event-stream") =>  false,
             _ => true
         }
     }else { true };
