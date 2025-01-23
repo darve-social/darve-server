@@ -139,6 +139,7 @@ pub struct ProfilePostView {
     pub r_title_uri: Option<String>,
     pub title: String,
     pub content: String,
+    pub media_links: Option<Vec<String>>,
     pub r_created: String,
     pub replies_nr: i64,
 }
@@ -146,7 +147,7 @@ pub struct ProfilePostView {
 impl ViewFieldSelector for ProfilePostView {
     // post fields selct qry for view
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, created_by.username as username, r_title_uri, title, content, r_created, belongs_to.id as belongs_to_id, replies_nr".to_string()
+        "id, created_by.username as username, r_title_uri, title, content, media_links, r_created, belongs_to.id as belongs_to_id, replies_nr".to_string()
     }
 }
 
