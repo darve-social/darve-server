@@ -58,7 +58,7 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
         )
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 1))
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 15))
         .with_state(state)
 }
 
