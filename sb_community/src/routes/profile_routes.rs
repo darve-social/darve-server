@@ -58,7 +58,7 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
         )
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 15))
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 5))
         .with_state(state)
 }
 
@@ -78,7 +78,7 @@ pub struct ProfileSettingsFormInput {
     // #[validate(email(message = "Email expected"))]
     pub email: String,
     pub full_name: String,
-    #[form_data(limit = "2MiB")]
+    #[form_data(limit = "5MiB")]
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
 
