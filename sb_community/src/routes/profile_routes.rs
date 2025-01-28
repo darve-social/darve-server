@@ -73,12 +73,12 @@ pub struct ProfileSettingsForm {
 
 #[derive(Validate, TryFromMultipart)]
 pub struct ProfileSettingsFormInput {
-    #[validate(length(min = 5, message = "Min 5 characters"))]
+    // #[validate(length(min = 5, message = "Min 5 characters"))]
     pub username: String,
-    #[validate(email(message = "Email expected"))]
+    // #[validate(email(message = "Email expected"))]
     pub email: String,
     pub full_name: String,
-    #[form_data(limit = "1MiB")]
+    #[form_data(limit = "2MiB")]
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
 
