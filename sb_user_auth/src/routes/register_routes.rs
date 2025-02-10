@@ -17,7 +17,7 @@ use crate::routes::login_routes::{login, LoginInput};
 use crate::utils::askama_filter_util::filters;
 use crate::utils::template_utils::ProfileFormPage;
 use sb_middleware::db::Db;
-use sb_middleware::error::CtxResult;
+use sb_middleware::error::{AppResult, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::UsernameIdent;
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
@@ -32,6 +32,11 @@ pub fn routes(state: CtxState) -> Router {
 }
 
 static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap());
+pub fn validate_username(u: &String) -> AppResult<()> {
+    if USERNAME_REGEX.is_match(u) {
+        Ok(())
+    }else { Err(AppError::Generic {description: "Username not valid".to_string()}) }
+}
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct RegisterInput {
