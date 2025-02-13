@@ -225,7 +225,6 @@ impl<'a> AuthenticationDbService<'a> {
             auth.clone(),
             true,
         )?;
-        println!("authenticate select id={}", id);
         let q = "SELECT id FROM <record>$id;".to_string();
         let mut select_authentication = self.db.query(q).bind(("id", id)).await?;
         let rec_found: Option<Thing> = select_authentication.take("id")?;
