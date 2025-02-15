@@ -48,7 +48,7 @@ impl<'a> PostStreamDbService<'a> {
     }*/
 
     pub async fn add_to_users_stream(&self, user_ids: Vec<Thing>, post: &Thing) -> AppResult<()> {
-        let qry: Vec<QryBindingsVal> = user_ids
+        let qry: Vec<QryBindingsVal<String>> = user_ids
             .into_iter()
             .enumerate()
             .map(|i_uid| self.create_qry(post, &i_uid.1, i_uid.0).ok())
@@ -78,7 +78,7 @@ impl<'a> PostStreamDbService<'a> {
         post_id: &Thing,
         user_id: &Thing,
         qry_ident: usize,
-    ) -> AppResult<QryBindingsVal> {
+    ) -> AppResult<QryBindingsVal<String>> {
         let mut bindings: HashMap<String, String> = HashMap::new();
         bindings.insert(format!("in_{qry_ident}"), user_id.to_raw());
         bindings.insert(format!("out_{qry_ident}"), post_id.to_raw());

@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use strum::Display;
@@ -103,17 +103,19 @@ impl From<UsernameIdent> for IdentIdName {
     }
 }
 
-#[derive(Debug)]
-pub struct QryBindingsVal(String, HashMap<String, String>);
+type SerializableQryValsHash<T: Serialize + 'static + Clone> = HashMap<String, T>;
 
-impl QryBindingsVal {
-    pub fn new(qry: String, bindings: HashMap<String, String>) -> Self {
+#[derive(Debug)]
+pub struct QryBindingsVal<T: Serialize + 'static + Clone>(String, SerializableQryValsHash<T>);
+
+impl<T: Serialize + 'static + Clone> QryBindingsVal<T> {
+    pub fn new(qry: String, bindings: HashMap<String, T>) -> Self {
         QryBindingsVal(qry, bindings)
     }
     pub fn get_query_string(&self) -> String {
         self.0.clone()
     }
-    pub fn get_bindings(&self) -> HashMap<String, String> {
+    pub fn get_bindings(&self) -> HashMap<String, T> {
         self.1.clone()
     }
     pub fn into_query(self, db: &Db) -> Query<SurDb> {
@@ -153,7 +155,7 @@ fn get_entity_query_str(
     select_fields_or_id: Option<&str>,
     pagination: Option<Pagination>,
     table_name: String,
-) -> Result<QryBindingsVal, AppError> {
+) -> Result<QryBindingsVal<String>, AppError> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
 
     let query_string = match ident.clone() {
@@ -276,7 +278,7 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
 
 async fn get_query<T: for<'a> Deserialize<'a>>(
     db: &Db,
-    query_string: QryBindingsVal,
+    query_string: QryBindingsVal<String>,
 ) -> Result<Option<T>, CtxError> {
     let qry = create_db_qry(db, query_string);
 
@@ -318,7 +320,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
 
 pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     db: &Db,
-    query_string: QryBindingsVal,
+    query_string: QryBindingsVal<String>,
 ) -> CtxResult<Vec<T>> {
     if query_string.is_empty_qry() {
         return Ok(vec![]);
@@ -330,7 +332,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     Ok(res)
 }
 
-fn create_db_qry(db: &Db, query_string: QryBindingsVal) -> Query<surrealdb::engine::local::Db> {
+fn create_db_qry(db: &Db, query_string: QryBindingsVal<String>) -> Query<surrealdb::engine::local::Db> {
     // let qry = db.query(query_string.0);
     // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
     //     acc.bind(name_value)

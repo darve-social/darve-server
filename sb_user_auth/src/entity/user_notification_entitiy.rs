@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use strum::Display;
-use surrealdb::sql::{Id, Thing};
+use surrealdb::sql::{to_value, Id, Thing, Value};
 
 use crate::entity::follow_entitiy::FollowDbService;
 use sb_middleware::db;
@@ -26,6 +26,7 @@ pub struct UserNotification {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
 pub enum UserNotificationEvent {
+    // !!! NOTE when changing enum also change db DEFINE FIELD event type
     UserFollowAdded {
         username: String,
         follows_username: String,
@@ -56,13 +57,14 @@ pub struct UserNotificationDbService<'a> {
 }
 
 impl<'a> UserNotificationDbService<'a> {
+
     pub async fn notify_users(
         &self,
         user_ids: Vec<Thing>,
         event: &UserNotificationEvent,
         content: &str,
     ) -> AppResult<()> {
-        let qry: Vec<QryBindingsVal> = user_ids
+        let qry: Vec<QryBindingsVal<Value>> = user_ids
             .into_iter()
             .enumerate()
             .map(|i_uid| {
@@ -118,13 +120,13 @@ impl<'a> UserNotificationDbService<'a> {
         &self,
         u_notification: &UserNotification,
         qry_ident: usize,
-    ) -> AppResult<QryBindingsVal> {
-        let event_json = serde_json::to_string(&u_notification.event)?;
-        let mut bindings: HashMap<String, String> = HashMap::new();
-        bindings.insert(format!("event_json_{qry_ident}"), event_json);
-        bindings.insert(format!("content_{qry_ident}"), String::new());
-        bindings.insert(format!("user_id_{qry_ident}"), u_notification.user.to_raw());
-        let qry = format!("INSERT INTO {TABLE_NAME} {{user: (type::record($user_id_{qry_ident})), event:$event_json_{qry_ident}, content:$content_{qry_ident} }};");
+    ) -> AppResult<QryBindingsVal<Value>> {
+        let mut bindings: HashMap<String, Value> = HashMap::new();
+        let event_val = to_value(u_notification.event.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?;
+        bindings.insert(format!("event_json_{qry_ident}"), event_val);
+        bindings.insert(format!("content_{qry_ident}"), to_value(String::new()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert(format!("user_id_{qry_ident}"), to_value(u_notification.user.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        let qry = format!("INSERT INTO {TABLE_NAME} {{user: (type::record($user_id_{qry_ident})), event:($event_json_{qry_ident}), content:($content_{qry_ident}) }};");
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }
@@ -138,10 +140,17 @@ impl<'a> UserNotificationDbService<'a> {
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
-    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE {{UserFollowAdded:{{username: string}}}} | {{UserTaskRequestComplete:{{task_id: record, delivered_by: record<{USER_TABLE}>, requested_by: record<{USER_TABLE}>, deliverables: set<string>}}}};
+    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE
+     {{UserFollowAdded:{{username: string, follows_username: string}}}}
+     | {{UserTaskRequestComplete:{{task_id: record, delivered_by: record<{USER_TABLE}>, requested_by: record<{USER_TABLE}>, deliverables: set<string>}}}}
+     | {{UserTaskRequestCreated:{{task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}}}
+     | {{UserTaskRequestReceived:{{task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}}}
+     | \"UserChatMessage\"
+     | \"UserCommunityPost\";
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     // will use ulid to sort by time DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
+    // DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
 
 ");
 

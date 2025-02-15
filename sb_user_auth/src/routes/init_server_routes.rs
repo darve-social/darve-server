@@ -31,7 +31,7 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/init", get(get_init_form))
         .route("/init", post(post_init_form))
-        .route("/backup", post(backup))
+        .route("/backup", get(backup))
         .with_state(state)
 }
 
