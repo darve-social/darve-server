@@ -14,6 +14,8 @@ mod tests {
     use sb_user_auth::routes::login_routes::LoginInput;
     use uuid::Uuid;
     use sb_middleware::db;
+    use sb_user_auth::entity::user_notification_entitiy;
+    use sb_user_auth::entity::user_notification_entitiy::UserNotification;
 
     #[tokio::test]
     async fn get_user_followers() {
@@ -45,7 +47,7 @@ mod tests {
         assert_eq!(is_following, false);
 
         let profile1_response = server
-            .get(format!("/u/{}", username1.clone()).as_str())
+            .get(format!("/u/{}", username1.clone()).as_str()).add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 0);
@@ -53,7 +55,7 @@ mod tests {
         // logged in as username2
         // follow user_ident1
         let create_response = server
-            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
             .await;
         let created = &create_response.json::<CreatedResponse>();
@@ -61,7 +63,7 @@ mod tests {
 
         // refollow error
         let create_response = server
-            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
             .await;
         create_response.assert_status_failure();
@@ -84,7 +86,7 @@ mod tests {
         assert_eq!(is_following, true);
 
         let profile1_response = server
-            .get(format!("/u/{}", username1.clone()).as_str())
+            .get(format!("/u/{}", username1.clone()).as_str()).add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 1);
@@ -94,7 +96,7 @@ mod tests {
 
         // follow u1
         let create_response = server
-            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
             .await;
         let created = &create_response.json::<CreatedResponse>();
@@ -102,7 +104,7 @@ mod tests {
 
         // refollow error
         let create_response = server
-            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
             .await;
         create_response.assert_status_failure();
@@ -117,6 +119,7 @@ mod tests {
         // check nr of followers
         let profile1_response = server
             .get(format!("/u/{}", username1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 2);
@@ -124,6 +127,7 @@ mod tests {
         // check if follows user1
         let create_response = server
             .get(format!("/api/user/follows/{}", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
@@ -131,6 +135,7 @@ mod tests {
         // check followers for user1
         let create_response = server
             .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<UserListView>();
         assert_eq!(created.items.len(), 2);
@@ -142,12 +147,15 @@ mod tests {
         // user1 follows 0
         let create_response = server
             .get(format!("/api/user/{}/following", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<UserListView>();
         assert_eq!(created.items.len(), 0);
 
         // user3 get followers stream
-        let create_response = server.get("/u/following/posts").await;
+        let create_response = server.get("/u/following/posts")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<FollowingStreamView>();
         assert_eq!(created.post_list.len(), 0);
 
@@ -160,6 +168,7 @@ mod tests {
                 password: "some3242paSs#$".to_string(),
                 next: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
 
@@ -173,6 +182,7 @@ mod tests {
                     .add_text("content", "contentttt")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
@@ -180,6 +190,7 @@ mod tests {
 
         let response = server
             .get(format!("/api/user/{}/posts", username1).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let parsed_response = response.json::<ProfileDiscussionView>();
         &create_post.assert_status_success();
@@ -198,16 +209,21 @@ mod tests {
                 password: "some3242paSs#$".to_string(),
                 next: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
 
         // user3 get followers stream
-        let create_response = server.get("/u/following/posts").await;
+        let create_response = server.get("/u/following/posts")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<FollowingStreamView>();
         assert_eq!(created.post_list.len(), 1);
 
         // login user1
-        server.get("/logout").await;
+        server.get("/logout")
+            .add_header("Accept", "application/json")
+            .await;
         let login_response = server
             .post("/api/login")
             .json(&LoginInput {
@@ -215,6 +231,7 @@ mod tests {
                 password: "some3242paSs#$".to_string(),
                 next: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
 
@@ -228,6 +245,7 @@ mod tests {
                     .add_text("content", "contentttt22")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
@@ -247,13 +265,16 @@ mod tests {
         login_response.assert_status_success();
 
         // user3 get followers stream
-        let create_response = server.get("/u/following/posts").await;
+        let create_response = server.get("/u/following/posts")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<FollowingStreamView>();
         assert_eq!(created.post_list.len(), 2);
 
         // user3 unfollow user1
         let create_response = server
             .delete(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
@@ -261,6 +282,7 @@ mod tests {
         // check nr of user1 followers
         let profile1_response = server
             .get(format!("/u/{}", username1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 1);
@@ -268,6 +290,7 @@ mod tests {
         // check nr of user1 followers
         let create_response = server
             .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<UserListView>();
         assert_eq!(created.items.len(), 1);
@@ -275,6 +298,7 @@ mod tests {
         // check user3 unfollowed user1
         let create_response = server
             .get(format!("/api/user/follows/{}", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, false);
@@ -301,6 +325,7 @@ mod tests {
                     .add_text("content", "contentttt3")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
@@ -315,13 +340,20 @@ mod tests {
                 password: "some3242paSs#$".to_string(),
                 next: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
 
         // user3 get followers stream
-        let create_response = server.get("/u/following/posts").await;
+        let create_response = server.get("/u/following/posts")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<FollowingStreamView>();
         assert_eq!(created.post_list.len(), 2);
+
+        let notifications: surrealdb::Result<Vec<UserNotification>> = ctx_state._db.select(user_notification_entitiy::TABLE_NAME).await;
+        dbg!(&notifications);
+        assert_eq!(notifications.is_ok(), true);
     }
 
 }
