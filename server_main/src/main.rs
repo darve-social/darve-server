@@ -42,11 +42,9 @@ use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{
-    access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
-    register_routes,
-};
+use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes, user_notification_routes};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 
@@ -170,6 +168,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
+    UserNotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
     Ok(())
 }
 
@@ -197,6 +196,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(profile_routes::routes(ctx_state.clone()))
         .merge(task_request_routes::routes(ctx_state.clone()))
         .merge(follow_routes::routes(ctx_state.clone()))
+        .merge(user_notification_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
         .layer(middleware::map_response(mw_req_logger::mw_req_logger))
