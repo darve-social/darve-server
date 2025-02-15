@@ -68,7 +68,6 @@ impl<'a> PostStreamDbService<'a> {
             .into_iter()
             .fold(qry, |qry, n_val| qry.bind(n_val));
         let res = qry.await?;
-        println!("RRRRR={:?}", &res);
         res.check()?;
         Ok(())
     }
