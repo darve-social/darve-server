@@ -148,8 +148,8 @@ impl<'a> TaskRequestDbService<'a> {
         if post_id.is_some() {
             filter_by.push(
                 IdentIdName::ColumnIdent {
-                    column: "request_post".to_string(),
-                    val: post_id.to_raw(),
+                    column: "request_post".to_string(),π
+                    val: post_id.expect("checked is some").to_raw(),
                     rec: true,
                 })
         }
