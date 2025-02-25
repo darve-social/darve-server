@@ -47,8 +47,16 @@ pub fn routes(state: CtxState) -> Router {
             get(post_requests_received),
         )
         .route(
+            "/api/task_request/received",
+            get(user_requests_received),
+        )
+        .route(
             "/api/task_request/given/post/:post_id",
             get(post_requests_given),
+        )
+        .route(
+            "/api/task_request/given",
+            get(user_requests_given),
         )
         .route(
             "/api/task_request/:task_id/accept",
@@ -105,13 +113,33 @@ async fn post_requests_received(
     }
     .get_ctx_user_thing()
     .await?;
-    let post_id = get_string_thing(post_id)?;
+    let post_id = Some(get_string_thing(post_id)?);
 
     let list = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::ToUser, to_user, post_id)
+    .user_post_list(UserTaskRole::ToUser, to_user, post_id, None)
+    .await?;
+    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+}
+
+async fn user_requests_received(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+) -> CtxResult<String> {
+    let to_user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+
+    let list = TaskRequestDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .user_post_list(UserTaskRole::ToUser, to_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -127,13 +155,33 @@ async fn post_requests_given(
     }
     .get_ctx_user_thing()
     .await?;
-    let post_id = get_string_thing(post_id)?;
+    let post_id = Some(get_string_thing(post_id)?);
 
     let list = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::FromUser, from_user, post_id)
+    .user_post_list(UserTaskRole::FromUser, from_user, post_id, None)
+    .await?;
+    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+}
+
+async fn user_requests_given(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+) -> CtxResult<String> {
+    let from_user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+
+    let list = TaskRequestDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .user_post_list(UserTaskRole::FromUser, from_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }

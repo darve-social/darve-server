@@ -1,7 +1,5 @@
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{
-    get_entity, get_entity_list, with_not_found_err, IdentIdName,
-};
+use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName, Pagination};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -137,26 +135,31 @@ impl<'a> TaskRequestDbService<'a> {
         &self,
         user_task_role: UserTaskRole,
         user: Thing,
-        post_id: Thing,
+        post_id: Option<Thing>,
+        pagination: Option<Pagination>,
     ) -> CtxResult<Vec<TaskRequest>> {
-        get_entity_list::<TaskRequest>(
-            self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::ColumnIdentAnd(vec![
-                IdentIdName::ColumnIdent {
-                    column: user_task_role.to_string(),
-                    val: user.to_raw(),
-                    rec: true,
-                },
+        let mut filter_by = vec![
+            IdentIdName::ColumnIdent {
+                column: user_task_role.to_string(),
+                val: user.to_raw(),
+                rec: true,
+            },
+        ];
+        if post_id.is_some() {
+            filter_by.push(
                 IdentIdName::ColumnIdent {
                     column: "request_post".to_string(),
                     val: post_id.to_raw(),
                     rec: true,
-                },
-            ]),
-            None,
+                })
+        }
+        get_entity_list::<TaskRequest>(
+            self.db,
+            TABLE_NAME.to_string(),
+            &IdentIdName::ColumnIdentAnd(filter_by),
+            pagination,
         )
-        .await
+            .await
     }
 
     pub async fn request_post_list(&self, post_id: Thing) -> CtxResult<Vec<TaskRequest>> {
@@ -170,7 +173,7 @@ impl<'a> TaskRequestDbService<'a> {
             },
             None,
         )
-        .await
+            .await
     }
 
     pub async fn user_status_list(
@@ -196,7 +199,7 @@ impl<'a> TaskRequestDbService<'a> {
             ]),
             None,
         )
-        .await
+            .await
     }
 
     pub async fn update_status_received_by_user(
