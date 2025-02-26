@@ -68,7 +68,11 @@ pub fn routes(state: CtxState) -> Router {
         )
         .route(
             "/api/task_request/:task_id/offer",
-            post(add_task_request_offer),
+            post(create_task_request_offer),
+        )
+        .route(
+            "/api/task_offer/:task_offer_id/participate",
+            post(participate_task_request_offer),
         )
         .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
@@ -286,7 +290,7 @@ async fn create_entity(
         id: None,
         task_request: t_req_id.clone(),
         user: from_user.clone(),
-        amount: offer_amount,
+        participants: offer_amount,
         r_created: None,
         r_updated: None,
     })
@@ -506,7 +510,7 @@ async fn notify_task_donors(
     Ok(())
 }
 
-async fn add_task_request_offer(
+async fn create_task_request_offer(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(task_id): Path<String>,
@@ -522,12 +526,42 @@ async fn add_task_request_offer(
         db: &_db,
         ctx: &ctx,
     }
-    .add_to_task_offers(
+    .create_task_offer(
         get_string_thing(task_id)?,
         from_user,
         t_request_offer_input.amount,
     )
     .await?;
+
+    ctx.to_htmx_or_json(CreatedResponse {
+        success: true,
+        id: task_offer.id.unwrap().to_raw(),
+        uri: None,
+    })
+}
+
+
+async fn participate_task_request_offer(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(task_offer_id): Path<String>,
+    JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
+) -> CtxResult<Html<String>> {
+    let from_user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+    let task_request_offer_db_service = TaskRequestOfferDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
+    // let task_offer = task_request_offer_db_service
+    // .get(IdentIdName::Id(get_string_thing(task_offer_id)?))
+    // .await?;
+
+   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, t_request_offer_input.amount).await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,

@@ -7,7 +7,31 @@ use sb_middleware::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use strum::Display;
+use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
+
+#[derive(Display, Clone, Debug)]
+pub enum RewardType {
+    // needs to be same as col name
+    // #[strum(to_string = "on_delivery")]
+    OnDelivery, // paid when delivered
+    // #[strum(to_string = "vote_winner")]
+    VoteWinner{voting_period_min: u32}, // paid after voting
+}
+
+#[derive(Display, Clone, Debug, Serialize, Deserialize)]
+pub struct RewardVote {
+    deliverable_ident: String,
+    points: i32,
+}
+
+#[derive(Display, Clone, Debug, Serialize, Deserialize)]
+pub struct RewardParticipant {
+    amount: i64,
+    user_id: Thing,
+    votes: Option<Vec<RewardVote>>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequestOffer {
@@ -15,7 +39,8 @@ pub struct TaskRequestOffer {
     pub id: Option<Thing>,
     pub task_request: Thing,
     pub user: Thing,
-    pub amount: i64,
+    pub reward_type: RewardType,
+    pub participants: Vec<RewardParticipant>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,7 +64,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
-    DEFINE FIELD amount ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user_id: record<TABLE_COL_USER>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
@@ -50,14 +75,14 @@ impl<'a> TaskRequestOfferDbService<'a> {
         Ok(())
     }
 
-    pub async fn add_to_task_offers(
+    pub async fn create_task_offer(
         &self,
         task_request: Thing,
         user: Thing,
         amount: i64,
     ) -> CtxResult<TaskRequestOffer> {
         // get task offer or create
-        let offer = self
+        /*let offer = self
             .get(IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "user".to_string(),
@@ -74,26 +99,31 @@ impl<'a> TaskRequestOfferDbService<'a> {
         let existing_offer_id = match offer.ok() {
             None => None,
             Some(offer) => offer.id,
-        };
+        };*/
         let offer = self
             .create_update(TaskRequestOffer {
-                id: existing_offer_id.clone(),
+                id: None,
                 task_request: task_request.clone(),
                 user,
-                amount,
+                reward_type: RewardType::OnDelivery,
+                participants: vec![RewardParticipant{
+                    amount,
+                    user_id: user,
+                    votes: None,
+                }],
                 r_created: None,
                 r_updated: None,
             })
             .await?;
 
-        if existing_offer_id.is_none() {
+        // if existing_offer_id.is_none() {
             TaskRequestDbService {
                 db: self.db,
                 ctx: self.ctx,
             }
             .add_offer(task_request, offer.id.clone().unwrap())
             .await?;
-        }
+        // }
 
         Ok(offer)
     }
@@ -112,6 +142,34 @@ impl<'a> TaskRequestOfferDbService<'a> {
             .await
             .map_err(CtxError::from(self.ctx))
             .map(|v: Option<TaskRequestOffer>| v.unwrap())
+    }
+
+
+    pub async fn add_participation(&self, offer_id: Thing,user_id: Thing, amount: i64) -> CtxResult<TaskRequestOffer> {
+        let mut offer = self.get(IdentIdName::Id(offer_id)).await?;
+
+        let partic_old = offer.participants.iter().find(|rp| rp.user_id==user_id);
+
+        if match partic_old {
+            None => {}
+            Some(reward_old) => {}
+        }...
+
+        let res: Option<TaskRequestOffer> = self
+            .db
+            .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+            .patch(PatchOp::add("/participants", [RewardParticipant{
+                amount,
+                user_id,
+                votes: None,
+            }]))
+            .await
+            .map_err(CtxError::from(self.ctx))?;
+        res.ok_or_else(|| {
+            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                ident: offer_id.to_raw(),
+            })
+        })
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<TaskRequestOffer> {
