@@ -1,5 +1,5 @@
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName, Pagination};
+use sb_middleware::utils::db_utils::{get_entity, get_entity_list, get_entity_list_view, with_not_found_err, IdentIdName, Pagination};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -162,8 +162,8 @@ impl<'a> TaskRequestDbService<'a> {
             .await
     }
 
-    pub async fn request_post_list(&self, post_id: Thing) -> CtxResult<Vec<TaskRequest>> {
-        get_entity_list::<TaskRequest>(
+    pub async fn request_post_list_view<T>(&self, post_id: Thing) -> CtxResult<Vec<T>> {
+        get_entity_list_view::<T>(
             self.db,
             TABLE_NAME.to_string(),
             &IdentIdName::ColumnIdent {

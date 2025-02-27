@@ -11,9 +11,12 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
+    use sb_task::entity::task_request_entitiy::TaskRequest;
+    use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
+    use sb_task::routes::task_request_routes::TaskRequestInput;
 
     #[tokio::test]
-    async fn create_post() {
+    async fn create_request_offer() {
         let (server, ctx_state) = create_test_server().await;
         let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
@@ -36,7 +39,7 @@ mod tests {
         let comm_name = created.uri.clone().unwrap();
         &create_response.assert_status_success();
 
-        let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
         let community_db_service = CommunityDbService {
             db: &ctx_state._db,
             ctx: &ctx,
@@ -61,62 +64,37 @@ mod tests {
             )
             .add_header("Accept", "application/json")
             .await;
-        let created = create_post.json::<CreatedResponse>();
+        let created_post = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
-        assert_eq!(created.id.len() > 0, true);
+        assert_eq!(created_post.id.len() > 0, true);
 
-        let post_name2 = "post title Name 2?&$^%! <>end".to_string();
-        let create_response2 = server
-            .post(format!("/api/discussion/{community_discussion_id}/post").as_str())
-            .multipart(
-                MultipartForm::new()
-                    .add_text("title", post_name2.clone())
-                    .add_text("content", "contentttt222")
-                    .add_text("topic_id", ""),
-            )
+        let ctx_no_user = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
+
+        let task_request = server
+            .post("/api/task_request")
+            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: Some(11), to_user: user_ident, content: "contdad".to_string() })
             .add_header("Accept", "application/json")
             .await;
 
-        let create_response4 = server
-            .post(format!("/api/discussion/{community_discussion_id}/post").as_str())
-            .multipart(
-                MultipartForm::new()
-                    .add_text("title", post_name2.clone())
-                    .add_text("content", "contentttt444442")
-                    .add_text("topic_id", ""),
-            )
-            .add_header("Accept", "application/json")
-            .await;
-        let created = &create_response.json::<CreatedResponse>();
-        let created2 = &create_response2.json::<CreatedResponse>();
+        let created_task = task_request.json::<CreatedResponse>();
+        &task_request.assert_status_success();
 
-        &create_response2.assert_status_success();
-        // can't have same title
-        &create_response4.assert_status_bad_request();
-
-        let comm_posts_response = server
-            .get(format!("/api/discussion/{community_discussion_id}/post").as_str())
+        let post_tasks_req = server
+            .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        let comm_view = get_community(
-            State(ctx_state),
-            ctx,
-            Path(comm_name),
-            DiscussionParams {
-                topic_id: None,
-                start: None,
-                count: None,
-            },
-        )
-        .await
-        .expect("community page");
-        let posts = comm_view
-            .community_view
-            .unwrap()
-            .profile_discussion_view
-            .unwrap()
-            .posts;
-        assert_eq!(posts.len(), 2);
+        let post_tasks = post_tasks_req.json::<Vec<TaskRequest>>();
+        &post_tasks_req.assert_status_success();
+
+        let task = post_tasks.get(0).unwrap();
+
+        assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
+
+        dbg!(task);
+        // let tro_db = TaskRequestOfferDbService{db:&ctx_state._db, ctx: &ctx_no_user};
+
+        // tro_db.create_task_offer()
+
     }
 }

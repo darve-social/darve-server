@@ -1,7 +1,7 @@
 use crate::entity::task_request_entitiy::{
     TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME,
 };
-use crate::entity::task_request_offer_entity::{TaskRequestOffer, TaskRequestOfferDbService};
+use crate::entity::task_request_offer_entity::{RewardParticipant, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
@@ -15,7 +15,7 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::IdentIdName;
+use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, IdentIdName};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -81,9 +81,9 @@ pub fn routes(state: CtxState) -> Router {
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct TaskRequestInput {
-    #[validate(length(min = 5, message = "Min 5 characters"))]
+    #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
-    #[validate(length(min = 5, message = "Min 5 characters"))]
+    #[validate(length(min = 5, message = "Min 5 characters for to_user"))]
     pub to_user: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
@@ -104,6 +104,47 @@ pub struct AcceptTaskRequestInput {
 pub struct DeliverTaskRequestInput {
     #[form_data(limit = "30MiB")]
     pub file_1: FieldData<NamedTempFile>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TaskRequestView {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub from_user: Thing,
+    pub to_user: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_post: Option<Thing>,
+    pub request_txt: String,
+    pub offers: Vec<TaskRequestOfferView>,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables_post: Option<Vec<Thing>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_created: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_updated: Option<String>,
+}
+... impl query
+
+pub struct TaskRequestOfferView {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub username: String,
+    pub user_id: Thing,
+    pub reward_type: RewardType,
+    pub participants: Vec<RewardParticipantView>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_created: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_updated: Option<String>,
+}
+
+pub struct RewardParticipantView {
+    pub(crate) amount: i64,
+    pub(crate) username: String,
+    pub user_id: Thing,
 }
 
 async fn post_requests_received(
@@ -199,8 +240,9 @@ async fn post_task_requests(
         db: &_db,
         ctx: &ctx,
     }
-    .request_post_list(get_string_thing(post_id)?)
+    .request_post_list_view<>(get_string_thing(post_id)?)
     .await?;
+
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -290,7 +332,12 @@ async fn create_entity(
         id: None,
         task_request: t_req_id.clone(),
         user: from_user.clone(),
-        participants: offer_amount,
+        reward_type: RewardType::OnDelivery,
+        participants: vec![RewardParticipant{
+            amount: offer_amount,
+            user_id: from_user.clone(),
+            votes:None
+        }],
         r_created: None,
         r_updated: None,
     })
@@ -561,7 +608,7 @@ async fn participate_task_request_offer(
     // .get(IdentIdName::Id(get_string_thing(task_offer_id)?))
     // .await?;
 
-   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, t_request_offer_input.amount).await?;
+   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,

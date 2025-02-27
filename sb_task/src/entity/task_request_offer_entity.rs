@@ -9,28 +9,31 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum::Display;
 use surrealdb::opt::PatchOp;
+use surrealdb::opt::Resource::RecordId;
 use surrealdb::sql::{Id, Thing};
+use tower::ServiceExt;
 
-#[derive(Display, Clone, Debug)]
+#[derive(Display, Clone, Debug, Serialize, Deserialize)]
 pub enum RewardType {
     // needs to be same as col name
     // #[strum(to_string = "on_delivery")]
     OnDelivery, // paid when delivered
     // #[strum(to_string = "vote_winner")]
-    VoteWinner{voting_period_min: u32}, // paid after voting
+    VoteWinner { voting_period_min: i64 }, // paid after voting
 }
 
-#[derive(Display, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RewardVote {
     deliverable_ident: String,
     points: i32,
 }
 
-#[derive(Display, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RewardParticipant {
-    amount: i64,
-    user_id: Thing,
-    votes: Option<Vec<RewardVote>>,
+    pub(crate) amount: i64,
+    pub(crate) user_id: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) votes: Option<Vec<RewardVote>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,7 +67,8 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
-    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user_id: record<TABLE_COL_USER>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
+    DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE \"OnDelivery\" | {{VoteWinner: {{ voting_period_min: int }} }};
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user_id: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
@@ -104,9 +108,9 @@ impl<'a> TaskRequestOfferDbService<'a> {
             .create_update(TaskRequestOffer {
                 id: None,
                 task_request: task_request.clone(),
-                user,
+                user: user.clone(),
                 reward_type: RewardType::OnDelivery,
-                participants: vec![RewardParticipant{
+                participants: vec![RewardParticipant {
                     amount,
                     user_id: user,
                     votes: None,
@@ -117,10 +121,10 @@ impl<'a> TaskRequestOfferDbService<'a> {
             .await?;
 
         // if existing_offer_id.is_none() {
-            TaskRequestDbService {
-                db: self.db,
-                ctx: self.ctx,
-            }
+        TaskRequestDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
             .add_offer(task_request, offer.id.clone().unwrap())
             .await?;
         // }
@@ -145,24 +149,27 @@ impl<'a> TaskRequestOfferDbService<'a> {
     }
 
 
-    pub async fn add_participation(&self, offer_id: Thing,user_id: Thing, amount: i64) -> CtxResult<TaskRequestOffer> {
-        let mut offer = self.get(IdentIdName::Id(offer_id)).await?;
+    pub async fn add_participation(&self, offer_id: Thing, user_id: Thing, amount: i64) -> CtxResult<TaskRequestOffer> {
+        // update existing item from user or push new one
+        let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
 
-        let partic_old = offer.participants.iter().find(|rp| rp.user_id==user_id);
-
-        if match partic_old {
-            None => {}
-            Some(reward_old) => {}
-        }...
+        match offer.participants.iter().position(|rp| rp.user_id == user_id) {
+            None =>
+                offer.participants.push(RewardParticipant {
+                    amount,
+                    user_id,
+                    votes: None,
+                }),
+            Some(i) => {
+                let partic = &mut offer.participants[i];
+                partic.amount = amount;
+            }
+        }
 
         let res: Option<TaskRequestOffer> = self
             .db
             .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
-            .patch(PatchOp::add("/participants", [RewardParticipant{
-                amount,
-                user_id,
-                votes: None,
-            }]))
+            .patch(PatchOp::replace("/participants", offer.participants))
             .await
             .map_err(CtxError::from(self.ctx))?;
         res.ok_or_else(|| {
@@ -170,6 +177,37 @@ impl<'a> TaskRequestOfferDbService<'a> {
                 ident: offer_id.to_raw(),
             })
         })
+    }
+
+    pub async fn remove_participation(&self, offer_id: Thing, user_id: Thing) -> CtxResult<Option<TaskRequestOffer>> {
+        // if last user remove task request else update participants
+        let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+
+        if let Some(i) = offer.participants.iter().position(|partic| partic.user_id == user_id) {
+            if offer.participants.len() < 2 {
+                self.delete(offer.id.expect("existing offer has id"));
+                return Ok(None);
+            }
+            offer.participants.remove(i);
+            let res: Option<TaskRequestOffer> = self
+                .db
+                .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+                .patch(PatchOp::replace("/participants", offer.participants))
+                .await
+                .map_err(CtxError::from(self.ctx))?;
+
+            if res.is_some() { Ok(res) } else {
+                Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                    ident: offer_id.to_raw(),
+                }))
+            }
+        } else { Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: "User participation not found".to_string() })) }
+    }
+
+    // not public - can only be deleted by removing participants
+    async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
+        let res: Option<TaskRequestOffer> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
+        Ok(true)
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<TaskRequestOffer> {
