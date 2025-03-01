@@ -1,6 +1,7 @@
 use crate::entity::task_request_entitiy::{
     TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME,
 };
+use askama_axum::Template;
 use crate::entity::task_request_offer_entity::{RewardParticipant, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
@@ -15,11 +16,11 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, IdentIdName};
+use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::{
     UserNotificationDbService, UserNotificationEvent,
 };
@@ -106,12 +107,12 @@ pub struct DeliverTaskRequestInput {
     pub file_1: FieldData<NamedTempFile>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub from_user: Thing,
-    pub to_user: Thing,
+    pub from_user: UserView,
+    pub to_user: UserView,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
@@ -126,13 +127,19 @@ pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
 }
-... impl query
 
+impl ViewFieldSelector for TaskRequestView {
+    fn get_select_query_fields(ident: &IdentIdName) -> String {
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables, deliverables_post".to_string()
+    }
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
 pub struct TaskRequestOfferView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub username: String,
-    pub user_id: Thing,
+    pub user: Option<UserView>,
     pub reward_type: RewardType,
     pub participants: Vec<RewardParticipantView>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -141,10 +148,20 @@ pub struct TaskRequestOfferView {
     pub r_updated: Option<String>,
 }
 
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct UserView {
+    pub id: Thing,
+    pub username: String,
+    pub full_name: Option<String>,
+}
+
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
 pub struct RewardParticipantView {
-    pub(crate) amount: i64,
-    pub(crate) username: String,
-    pub user_id: Thing,
+    pub amount: i64,
+    pub user: UserView,
 }
 
 async fn post_requests_received(
@@ -164,7 +181,7 @@ async fn post_requests_received(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::ToUser, to_user, post_id, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, post_id, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -184,7 +201,7 @@ async fn user_requests_received(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::ToUser, to_user, None, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -206,7 +223,7 @@ async fn post_requests_given(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::FromUser, from_user, post_id, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, post_id, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -226,7 +243,7 @@ async fn user_requests_given(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::FromUser, from_user, None, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -240,7 +257,7 @@ async fn post_task_requests(
         db: &_db,
         ctx: &ctx,
     }
-    .request_post_list_view<>(get_string_thing(post_id)?)
+    .request_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
 
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
@@ -335,7 +352,7 @@ async fn create_entity(
         reward_type: RewardType::OnDelivery,
         participants: vec![RewardParticipant{
             amount: offer_amount,
-            user_id: from_user.clone(),
+            user: from_user.clone(),
             votes:None
         }],
         r_created: None,

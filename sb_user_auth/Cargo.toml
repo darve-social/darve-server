@@ -17,7 +17,7 @@ tower = { version = "0.5.1"}
 rand = "0.8.5"
 validator = { version = "0.18.1", features = ["derive"] }
 base64 = "0.22.1"
-surrealdb = { version = "2.0.3", features = ["kv-mem"] }
+surrealdb = { version = "2.2.1", features = ["kv-mem"] }
 log = "0.4.22"
 uuid = { version = "1.10.0", features = ["v4"] }
 chrono = { version = "0.4.38", features = ["serde"] }

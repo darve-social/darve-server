@@ -7,7 +7,7 @@ edition = "2021"
 sb_community={path = "../sb_community"}
 sb_middleware={path = "../sb_middleware"}
 sb_user_auth={path = "../sb_user_auth"}
-surrealdb = "2.0.4"
+surrealdb = "2.2.1"
 serde = { version = "1.0.214", features = ["derive"] }
 serde_json = "1.0.132"
 axum = { version = "0.7.7", features = ["multipart", "http2"] }
@@ -17,3 +17,5 @@ axum_typed_multipart = "0.13.0"
 tempfile = "3.13.0"
 tower-http = { version = "0.6.1", features = ["fs"] }
 tower = "0.5.1"
+askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
+askama = { git = "https://github.com/djc/askama.git", branch = "main", features = ["serde-json"] }

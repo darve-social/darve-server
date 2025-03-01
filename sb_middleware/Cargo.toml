@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-surrealdb = "2.0.4"
+surrealdb = "2.2.1"
 uuid = "1.11.0"
 serde="1.0.210"
 axum="0.7.7"

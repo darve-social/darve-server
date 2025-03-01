@@ -13,13 +13,17 @@ mod tests {
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_task::entity::task_request_entitiy::TaskRequest;
     use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
-    use sb_task::routes::task_request_routes::TaskRequestInput;
+    use sb_task::routes::task_request_routes::{TaskRequestInput, TaskRequestView};
 
     #[tokio::test]
     async fn create_request_offer() {
         let (server, ctx_state) = create_test_server().await;
         let server = server.unwrap();
-        let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+        let username0 = "usnnnn0".to_string();
+        let username1 = "usnnnn1".to_string();
+        let username2 = "usnnnn2".to_string();
+        let (server, user_ident0) = create_login_test_user(&server, username0.clone()).await;
+        let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
 
         let comm_name = "comm-naMMe1".to_lowercase();
 
@@ -39,7 +43,7 @@ mod tests {
         let comm_name = created.uri.clone().unwrap();
         &create_response.assert_status_success();
 
-        let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
         let community_db_service = CommunityDbService {
             db: &ctx_state._db,
             ctx: &ctx,
@@ -68,11 +72,16 @@ mod tests {
         &create_post.assert_status_success();
         assert_eq!(created_post.id.len() > 0, true);
 
-        let ctx_no_user = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
+        let ctx_no_user = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
 
+        // user 2 creates offer for user 0
+        let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
+
+        let offer_amount = Some(11);
+        let offer_content = "contdad".to_string();
         let task_request = server
             .post("/api/task_request")
-            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: Some(11), to_user: user_ident, content: "contdad".to_string() })
+            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: offer_amount.clone(), to_user: user_ident0, content: offer_content.clone() })
             .add_header("Accept", "application/json")
             .await;
 
@@ -84,17 +93,41 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
 
-        let post_tasks = post_tasks_req.json::<Vec<TaskRequest>>();
+        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
         &post_tasks_req.assert_status_success();
 
         let task = post_tasks.get(0).unwrap();
 
         assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
+        assert_eq!(post_tasks.get(0).unwrap().offers.get(0).unwrap().participants.get(0).unwrap().amount, offer_amount.unwrap());
+        assert_eq!(post_tasks.get(0).unwrap().from_user.username, username2);
+        assert_eq!(post_tasks.get(0).unwrap().to_user.username, username0);
+        assert_eq!(post_tasks.get(0).unwrap().offers.get(0).unwrap().participants.get(0).unwrap().user.username, username2);
 
         dbg!(task);
         // let tro_db = TaskRequestOfferDbService{db:&ctx_state._db, ctx: &ctx_no_user};
 
-        // tro_db.create_task_offer()
+        // all tasks given by user on post
+        let given_post_tasks_req = server
+            .get(format!("/api/task_request/given/post/{}", created_post.id.clone()).as_str())
+            .add_header("Accept", "application/json")
+            .await;
+
+        let given_post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
+        &post_tasks_req.assert_status_success();
+
+        assert_eq!(given_post_tasks.len(), 1);
+
+        // all tasks given by user
+        let given_post_tasks_req = server
+            .get("/api/task_request/given")
+            .add_header("Accept", "application/json")
+            .await;
+
+        let given_post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
+        &post_tasks_req.assert_status_success();
+
+        assert_eq!(given_post_tasks.len(), 1);
 
     }
 }

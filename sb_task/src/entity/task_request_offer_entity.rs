@@ -31,7 +31,7 @@ pub struct RewardVote {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RewardParticipant {
     pub(crate) amount: i64,
-    pub(crate) user_id: Thing,
+    pub(crate) user: Thing,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) votes: Option<Vec<RewardVote>>,
 }
@@ -68,7 +68,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
     DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE \"OnDelivery\" | {{VoteWinner: {{ voting_period_min: int }} }};
-    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user_id: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
@@ -112,7 +112,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
                 reward_type: RewardType::OnDelivery,
                 participants: vec![RewardParticipant {
                     amount,
-                    user_id: user,
+                    user: user,
                     votes: None,
                 }],
                 r_created: None,
@@ -153,11 +153,11 @@ impl<'a> TaskRequestOfferDbService<'a> {
         // update existing item from user or push new one
         let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
 
-        match offer.participants.iter().position(|rp| rp.user_id == user_id) {
+        match offer.participants.iter().position(|rp| rp.user == user_id) {
             None =>
                 offer.participants.push(RewardParticipant {
                     amount,
-                    user_id,
+                    user: user_id,
                     votes: None,
                 }),
             Some(i) => {
@@ -183,7 +183,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
         // if last user remove task request else update participants
         let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
 
-        if let Some(i) = offer.participants.iter().position(|partic| partic.user_id == user_id) {
+        if let Some(i) = offer.participants.iter().position(|partic| partic.user == user_id) {
             if offer.participants.len() < 2 {
                 self.delete(offer.id.expect("existing offer has id"));
                 return Ok(None);
