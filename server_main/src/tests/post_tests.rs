@@ -28,6 +28,7 @@ mod tests {
                 name_uri: comm_name.clone(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
 
@@ -58,6 +59,7 @@ mod tests {
                     .add_text("content", "contentttt")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
@@ -72,6 +74,7 @@ mod tests {
                     .add_text("content", "contentttt222")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
 
         let create_response4 = server
@@ -82,6 +85,7 @@ mod tests {
                     .add_text("content", "contentttt444442")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         let created2 = &create_response2.json::<CreatedResponse>();
@@ -92,6 +96,7 @@ mod tests {
 
         let comm_posts_response = server
             .get(format!("/api/discussion/{community_discussion_id}/post").as_str())
+            .add_header("Accept", "application/json")
             .await;
 
         let comm_view = get_community(

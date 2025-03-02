@@ -1,5 +1,5 @@
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{get_entity, get_entity_list, with_not_found_err, IdentIdName, Pagination};
+use sb_middleware::utils::db_utils::{get_entity, get_entity_list, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, ViewFieldSelector};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -131,13 +131,13 @@ impl<'a> TaskRequestDbService<'a> {
         })
     }
 
-    pub async fn user_post_list(
+    pub async fn user_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user_task_role: UserTaskRole,
         user: Thing,
         post_id: Option<Thing>,
         pagination: Option<Pagination>,
-    ) -> CtxResult<Vec<TaskRequest>> {
+    ) -> CtxResult<Vec<T>> {
         let mut filter_by = vec![
             IdentIdName::ColumnIdent {
                 column: user_task_role.to_string(),
@@ -153,7 +153,7 @@ impl<'a> TaskRequestDbService<'a> {
                     rec: true,
                 })
         }
-        get_entity_list::<TaskRequest>(
+        get_entity_list_view::<T>(
             self.db,
             TABLE_NAME.to_string(),
             &IdentIdName::ColumnIdentAnd(filter_by),
@@ -162,8 +162,8 @@ impl<'a> TaskRequestDbService<'a> {
             .await
     }
 
-    pub async fn request_post_list(&self, post_id: Thing) -> CtxResult<Vec<TaskRequest>> {
-        get_entity_list::<TaskRequest>(
+    pub async fn request_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, post_id: Thing) -> CtxResult<Vec<T>> {
+        get_entity_list_view::<T>(
             self.db,
             TABLE_NAME.to_string(),
             &IdentIdName::ColumnIdent {

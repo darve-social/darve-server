@@ -1,7 +1,8 @@
 use crate::entity::task_request_entitiy::{
     TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME,
 };
-use crate::entity::task_request_offer_entity::{TaskRequestOffer, TaskRequestOfferDbService};
+use askama_axum::Template;
+use crate::entity::task_request_offer_entity::{RewardParticipant, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
@@ -15,11 +16,11 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::IdentIdName;
+use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::{
     UserNotificationDbService, UserNotificationEvent,
 };
@@ -68,7 +69,11 @@ pub fn routes(state: CtxState) -> Router {
         )
         .route(
             "/api/task_request/:task_id/offer",
-            post(add_task_request_offer),
+            post(create_task_request_offer),
+        )
+        .route(
+            "/api/task_offer/:task_offer_id/participate",
+            post(participate_task_request_offer),
         )
         .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
         .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
@@ -77,9 +82,9 @@ pub fn routes(state: CtxState) -> Router {
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct TaskRequestInput {
-    #[validate(length(min = 5, message = "Min 5 characters"))]
+    #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
-    #[validate(length(min = 5, message = "Min 5 characters"))]
+    #[validate(length(min = 5, message = "Min 5 characters for to_user"))]
     pub to_user: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
@@ -102,6 +107,63 @@ pub struct DeliverTaskRequestInput {
     pub file_1: FieldData<NamedTempFile>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TaskRequestView {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub from_user: UserView,
+    pub to_user: UserView,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_post: Option<Thing>,
+    pub request_txt: String,
+    pub offers: Vec<TaskRequestOfferView>,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliverables_post: Option<Vec<Thing>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_created: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_updated: Option<String>,
+}
+
+impl ViewFieldSelector for TaskRequestView {
+    fn get_select_query_fields(ident: &IdentIdName) -> String {
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables, deliverables_post".to_string()
+    }
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct TaskRequestOfferView {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    pub user: Option<UserView>,
+    pub reward_type: RewardType,
+    pub participants: Vec<RewardParticipantView>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_created: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r_updated: Option<String>,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct UserView {
+    pub id: Thing,
+    pub username: String,
+    pub full_name: Option<String>,
+}
+
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct RewardParticipantView {
+    pub amount: i64,
+    pub user: UserView,
+}
+
 async fn post_requests_received(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -119,7 +181,7 @@ async fn post_requests_received(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::ToUser, to_user, post_id, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, post_id, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -139,7 +201,7 @@ async fn user_requests_received(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::ToUser, to_user, None, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -161,7 +223,7 @@ async fn post_requests_given(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::FromUser, from_user, post_id, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, post_id, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -181,7 +243,7 @@ async fn user_requests_given(
         db: &_db,
         ctx: &ctx,
     }
-    .user_post_list(UserTaskRole::FromUser, from_user, None, None)
+    .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -195,8 +257,9 @@ async fn post_task_requests(
         db: &_db,
         ctx: &ctx,
     }
-    .request_post_list(get_string_thing(post_id)?)
+    .request_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
+
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -286,7 +349,12 @@ async fn create_entity(
         id: None,
         task_request: t_req_id.clone(),
         user: from_user.clone(),
-        amount: offer_amount,
+        reward_type: RewardType::OnDelivery,
+        participants: vec![RewardParticipant{
+            amount: offer_amount,
+            user: from_user.clone(),
+            votes:None
+        }],
         r_created: None,
         r_updated: None,
     })
@@ -506,7 +574,7 @@ async fn notify_task_donors(
     Ok(())
 }
 
-async fn add_task_request_offer(
+async fn create_task_request_offer(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(task_id): Path<String>,
@@ -522,12 +590,42 @@ async fn add_task_request_offer(
         db: &_db,
         ctx: &ctx,
     }
-    .add_to_task_offers(
+    .create_task_offer(
         get_string_thing(task_id)?,
         from_user,
         t_request_offer_input.amount,
     )
     .await?;
+
+    ctx.to_htmx_or_json(CreatedResponse {
+        success: true,
+        id: task_offer.id.unwrap().to_raw(),
+        uri: None,
+    })
+}
+
+
+async fn participate_task_request_offer(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    Path(task_offer_id): Path<String>,
+    JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
+) -> CtxResult<Html<String>> {
+    let from_user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+    let task_request_offer_db_service = TaskRequestOfferDbService {
+        db: &_db,
+        ctx: &ctx,
+    };
+    // let task_offer = task_request_offer_db_service
+    // .get(IdentIdName::Id(get_string_thing(task_offer_id)?))
+    // .await?;
+
+   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,
