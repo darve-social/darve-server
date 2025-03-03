@@ -12,8 +12,10 @@ mod tests {
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_task::entity::task_request_entitiy::TaskRequest;
+    use sb_task::entity::task_request_entitiy::TaskStatus;
     use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
-    use sb_task::routes::task_request_routes::{TaskRequestInput, TaskRequestView};
+    use sb_task::routes::task_request_routes::{AcceptTaskRequestInput, TaskRequestInput, TaskRequestView};
+    use sb_user_auth::routes::login_routes::LoginInput;
 
     #[tokio::test]
     async fn create_request_offer() {
@@ -105,29 +107,63 @@ mod tests {
         assert_eq!(post_tasks.get(0).unwrap().offers.get(0).unwrap().participants.get(0).unwrap().user.username, username2);
 
         dbg!(task);
-        // let tro_db = TaskRequestOfferDbService{db:&ctx_state._db, ctx: &ctx_no_user};
-
-        // all tasks given by user on post
-        let given_post_tasks_req = server
-            .get(format!("/api/task_request/given/post/{}", created_post.id.clone()).as_str())
-            .add_header("Accept", "application/json")
-            .await;
-
-        let given_post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
-        &post_tasks_req.assert_status_success();
-
-        assert_eq!(given_post_tasks.len(), 1);
 
         // all tasks given by user
-        let given_post_tasks_req = server
+        let given_user_tasks_req = server
             .get("/api/task_request/given")
             .add_header("Accept", "application/json")
             .await;
 
-        let given_post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
-        &post_tasks_req.assert_status_success();
+        &given_user_tasks_req.assert_status_success();
+        let given_post_tasks = given_user_tasks_req.json::<Vec<TaskRequestView>>();
 
         assert_eq!(given_post_tasks.len(), 1);
+
+        // login user 0 and check tasks
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username0.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+        login_response.assert_status_success();
+
+        let received_post_tasks_req = server
+            .get("/api/task_request/received")
+            .add_header("Accept", "application/json")
+            .await;
+
+        &received_post_tasks_req.assert_status_success();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(received_post_tasks.len(), 1);
+        let received_task = received_post_tasks.get(0).unwrap();
+        assert_eq!(received_task.status, TaskStatus::Requested.to_string());
+
+        let accept_response = server
+            .post(format!("/api/task_request/{}/accept",received_task.id.clone().unwrap()).as_str())
+            .json(&AcceptTaskRequestInput {
+                accept: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+
+        let received_post_tasks_req = server
+            .get("/api/task_request/received")
+            .add_header("Accept", "application/json")
+            .await;
+
+        &received_post_tasks_req.assert_status_success();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(received_post_tasks.len(), 1);
+        let received_task = received_post_tasks.get(0).unwrap();
+        assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
 
     }
 }

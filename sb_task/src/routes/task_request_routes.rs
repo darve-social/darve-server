@@ -532,7 +532,7 @@ async fn deliver_task_request(
     )
     .await?;
 
-    notify_task_donors(&_db, &ctx, &to_user, deliverables, task).await?;
+    notify_task_participants(&_db, &ctx, &to_user, deliverables, task).await?;
     ctx.to_htmx_or_json(CreatedResponse {
         id: task_id.to_raw(),
         uri: None,
@@ -540,7 +540,7 @@ async fn deliver_task_request(
     })
 }
 
-async fn notify_task_donors(
+async fn notify_task_participants(
     _db: &Db,
     ctx: &Ctx,
     to_user: &Thing,
