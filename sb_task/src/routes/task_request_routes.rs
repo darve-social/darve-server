@@ -130,7 +130,7 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables, deliverables_post".to_string()
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables, deliverables_post, r_created, r_updated".to_string()
     }
 }
 
