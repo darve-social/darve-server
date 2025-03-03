@@ -43,18 +43,18 @@ pub fn routes(state: CtxState) -> Router {
             "/api/task_request/list/post/:post_id",
             get(post_task_requests),
         )
-        .route(
+        /*.route(
             "/api/task_request/received/post/:post_id",
             get(post_requests_received),
-        )
+        )*/
         .route(
             "/api/task_request/received",
             get(user_requests_received),
         )
-        .route(
+        /*.route(
             "/api/task_request/given/post/:post_id",
             get(post_requests_given),
-        )
+        )*/
         .route(
             "/api/task_request/given",
             get(user_requests_given),
@@ -67,10 +67,10 @@ pub fn routes(state: CtxState) -> Router {
             "/api/task_request/:task_id/deliver",
             post(deliver_task_request),
         )
-        .route(
+        /*.route(
             "/api/task_request/:task_id/offer",
             post(create_task_request_offer),
-        )
+        )*/
         .route(
             "/api/task_offer/:task_offer_id/participate",
             post(participate_task_request_offer),
@@ -164,7 +164,7 @@ pub struct RewardParticipantView {
     pub user: UserView,
 }
 
-async fn post_requests_received(
+/*async fn post_requests_received(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(post_id): Path<String>,
@@ -185,7 +185,7 @@ async fn post_requests_received(
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
-
+*/
 async fn user_requests_received(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -206,7 +206,7 @@ async fn user_requests_received(
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
-async fn post_requests_given(
+/*async fn post_requests_given(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(post_id): Path<String>,
@@ -227,7 +227,7 @@ async fn post_requests_given(
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
-
+*/
 async fn user_requests_given(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -453,6 +453,7 @@ async fn accept_task_request(
     Path(task_id): Path<String>,
     Json(t_request_input): Json<AcceptTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
+    println!("accept_task_request CALLED");
     let to_user = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
@@ -464,6 +465,7 @@ async fn accept_task_request(
         true => TaskStatus::Accepted,
         false => TaskStatus::Rejected,
     };
+    println!("accept_task_request CALLED");
     TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
@@ -574,7 +576,7 @@ async fn notify_task_donors(
     Ok(())
 }
 
-async fn create_task_request_offer(
+/*async fn create_task_request_offer(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(task_id): Path<String>,
@@ -603,7 +605,7 @@ async fn create_task_request_offer(
         uri: None,
     })
 }
-
+*/
 
 async fn participate_task_request_offer(
     State(CtxState { _db, .. }): State<CtxState>,

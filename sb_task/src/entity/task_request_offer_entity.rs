@@ -79,31 +79,14 @@ impl<'a> TaskRequestOfferDbService<'a> {
         Ok(())
     }
 
-    pub async fn create_task_offer(
+   /* pub async fn create_task_offer(
         &self,
         task_request: Thing,
         user: Thing,
         amount: i64,
     ) -> CtxResult<TaskRequestOffer> {
         // get task offer or create
-        /*let offer = self
-            .get(IdentIdName::ColumnIdentAnd(vec![
-                IdentIdName::ColumnIdent {
-                    column: "user".to_string(),
-                    val: user.to_raw(),
-                    rec: true,
-                },
-                IdentIdName::ColumnIdent {
-                    column: "task_request".to_string(),
-                    val: task_request.to_raw(),
-                    rec: true,
-                },
-            ]))
-            .await;
-        let existing_offer_id = match offer.ok() {
-            None => None,
-            Some(offer) => offer.id,
-        };*/
+
         let offer = self
             .create_update(TaskRequestOffer {
                 id: None,
@@ -130,7 +113,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
         // }
 
         Ok(offer)
-    }
+    }*/
 
     pub async fn create_update(&self, mut record: TaskRequestOffer) -> CtxResult<TaskRequestOffer> {
         let resource = record
