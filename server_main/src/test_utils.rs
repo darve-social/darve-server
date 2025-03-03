@@ -98,14 +98,19 @@ pub async fn create_dev_env(
     full_name: Option<String>,
 ) {
     let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
-    let admin = register_user(
+    let bio = Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
+    let full_name = Some("Katsuki Bakugo".to_string());
+    let image_uri =
+        Some("https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq"
+            .to_string());
+    register_user(
         &ctx_state._db,
         &ctx,
         &RegisterInput {
-            username: username.clone().to_string(),
-            password: pass.clone(),
-            password1: pass.clone(),
-            email: email.clone(),
+            username: "test0".to_string(),
+            password: "000000".to_string(),
+            password1: "000000".to_string(),
+            email: Some("test0@mail.com".to_string()),
             bio: bio.clone(),
             full_name: full_name.clone(),
             image_uri: image_uri.clone(),
@@ -114,5 +119,7 @@ pub async fn create_dev_env(
     )
     .await
     .unwrap();
-    let user = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test".to_string(), password: "test123".to_string(), password1: "test123".to_string(), email: None,bio:None, full_name:Some("Shigaraki".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
+    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test1".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test1".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
+    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test2".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test2 User2".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
+    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test3".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test3".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
 }
