@@ -33,6 +33,7 @@ use sb_community::routes::{
 use sb_middleware::ctx::Ctx;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
+use sb_task::entity::task_deliverable_entitiy::TaskDeliverableDbService;
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
 use sb_task::routes::task_request_routes;
@@ -155,6 +156,9 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
         .mutate_db()
         .await?;
     TaskRequestOfferDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    TaskDeliverableDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     WalletDbService {

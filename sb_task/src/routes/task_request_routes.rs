@@ -119,9 +119,7 @@ pub struct TaskRequestView {
     pub offers: Vec<TaskRequestOfferView>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables_post: Option<Vec<Thing>>,
+    pub deliverables: Option<Vec<DeliverableView>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,7 +128,7 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables, deliverables_post, r_created, r_updated".to_string()
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables.*.{id, deliverables, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
 }
 
@@ -156,11 +154,18 @@ pub struct UserView {
     pub full_name: Option<String>,
 }
 
-
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
 pub struct RewardParticipantView {
     pub amount: i64,
+    pub user: UserView,
+}
+
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct DeliverableView {
+    pub id: Thing,
+    pub deliverables: Option<Vec<String>>,
     pub user: UserView,
 }
 
@@ -366,13 +371,12 @@ async fn create_entity(
     .create(TaskRequest {
         id: Some(t_req_id.clone()),
         from_user: from_user.clone(),
-        to_user: to_user.clone(),
+        to_user: Some(to_user.clone()),
         request_post: post,
         request_txt: content,
         offers: vec![offer.id.unwrap()],
         status: TaskStatus::Requested.to_string(),
         deliverables: None,
-        deliverables_post: None,
         r_created: None,
         r_updated: None,
     })

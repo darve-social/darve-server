@@ -11,7 +11,8 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
-    use sb_task::entity::task_request_entitiy::TaskRequest;
+    use sb_middleware::utils::string_utils::get_string_thing;
+    use sb_task::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService};
     use sb_task::entity::task_request_entitiy::TaskStatus;
     use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
     use sb_task::routes::task_request_routes::{AcceptTaskRequestInput, TaskRequestInput, TaskRequestView};
@@ -83,7 +84,7 @@ mod tests {
         let offer_content = "contdad".to_string();
         let task_request = server
             .post("/api/task_request")
-            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: offer_amount.clone(), to_user: user_ident0, content: offer_content.clone() })
+            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: offer_amount.clone(), to_user: user_ident0.clone(), content: offer_content.clone() })
             .add_header("Accept", "application/json")
             .await;
 
@@ -105,8 +106,6 @@ mod tests {
         assert_eq!(post_tasks.get(0).unwrap().from_user.username, username2);
         assert_eq!(post_tasks.get(0).unwrap().to_user.username, username0);
         assert_eq!(post_tasks.get(0).unwrap().offers.get(0).unwrap().participants.get(0).unwrap().user.username, username2);
-
-        dbg!(task);
 
         // all tasks given by user
         let given_user_tasks_req = server
@@ -143,6 +142,7 @@ mod tests {
         assert_eq!(received_post_tasks.len(), 1);
         let received_task = received_post_tasks.get(0).unwrap();
         assert_eq!(received_task.status, TaskStatus::Requested.to_string());
+        assert_eq!(received_task.deliverables.is_none(), true);
 
         let accept_response = server
             .post(format!("/api/task_request/{}/accept",received_task.id.clone().unwrap()).as_str())
@@ -164,6 +164,35 @@ mod tests {
         assert_eq!(received_post_tasks.len(), 1);
         let received_task = received_post_tasks.get(0).unwrap();
         assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
+
+        let deliverables = vec!["/deliverable/file/uri".to_string()];
+        let task = TaskRequestDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        }
+            .update_status_received_by_user(
+                get_string_thing(user_ident0.clone()).expect("id"),
+                received_task.id.clone().unwrap(),
+                TaskStatus::Delivered,
+                Some(deliverables.clone()),
+            )
+            .await.unwrap();
+        assert_eq!(task.status, TaskStatus::Delivered.to_string());
+        dbg!(&task);
+
+        let binding = task.deliverables.unwrap();
+        let deliverable = binding.get(0).unwrap();
+        assert_eq!(!deliverable.id.to_raw().is_empty(), true);
+
+        let received_post_tasks_req = server
+            .get("/api/task_request/received")
+            .add_header("Accept", "application/json")
+            .await;
+
+        &received_post_tasks_req.assert_status_success();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+        dbg!(&received_post_tasks);
+        // assert_eq!(received_post_tasks.get(0).unwrap().deliverables.unwrap().is_empty(), false);
 
     }
 }
