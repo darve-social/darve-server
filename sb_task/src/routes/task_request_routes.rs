@@ -146,7 +146,7 @@ pub struct TaskRequestOfferView {
     pub r_updated: Option<String>,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/default-content.html")]
 pub struct UserView {
     pub id: Thing,
@@ -161,7 +161,7 @@ pub struct RewardParticipantView {
     pub user: UserView,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/default-content.html")]
 pub struct DeliverableView {
     pub id: Thing,
@@ -457,7 +457,6 @@ async fn accept_task_request(
     Path(task_id): Path<String>,
     Json(t_request_input): Json<AcceptTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
-    println!("accept_task_request CALLED");
     let to_user = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
@@ -469,7 +468,6 @@ async fn accept_task_request(
         true => TaskStatus::Accepted,
         false => TaskStatus::Rejected,
     };
-    println!("accept_task_request CALLED");
     TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
