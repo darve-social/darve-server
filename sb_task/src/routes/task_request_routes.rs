@@ -1,6 +1,4 @@
-use crate::entity::task_request_entitiy::{
-    TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME,
-};
+use crate::entity::task_request_entitiy::{DeliverableType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
 use askama_axum::Template;
 use crate::entity::task_request_offer_entity::{RewardParticipant, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
@@ -374,6 +372,7 @@ async fn create_entity(
         to_user: Some(to_user.clone()),
         request_post: post,
         request_txt: content,
+        deliverable_type: DeliverableType::PublicPost,
         offers: vec![offer.id.unwrap()],
         status: TaskStatus::Requested.to_string(),
         deliverables: None,

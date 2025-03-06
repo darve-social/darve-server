@@ -14,6 +14,7 @@ use surrealdb::sql::{Id, Thing};
 use tower::ServiceExt;
 
 #[derive(Display, Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum RewardType {
     // needs to be same as col name
     // #[strum(to_string = "on_delivery")]
@@ -67,7 +68,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
-    DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE \"OnDelivery\" | {{VoteWinner: {{ voting_period_min: int }} }};
+    DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
     DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();

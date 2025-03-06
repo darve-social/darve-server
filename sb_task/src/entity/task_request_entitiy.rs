@@ -19,6 +19,7 @@ pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
+    pub deliverable_type: DeliverableType,
     pub offers: Vec<Thing>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -36,6 +37,13 @@ pub enum TaskStatus {
     Rejected,
     Delivered,
     Complete,
+}
+
+#[derive(EnumString, Display, Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum DeliverableType {
+    PublicPost,
+    // Participants,
 }
 
 #[derive(Display)]
@@ -76,6 +84,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE INDEX from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
     DEFINE FIELD to_user ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_USER}>>;
     DEFINE INDEX to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
+    DEFINE FIELD deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
         ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej}','{t_stat_del}','{t_stat_com}'];
