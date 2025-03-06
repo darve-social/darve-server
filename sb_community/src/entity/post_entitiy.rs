@@ -33,6 +33,8 @@ pub struct Post {
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media_links: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Vec<String>>,
     // #[serde(skip_serializing)]
     pub r_created: Option<String>,
     // #[serde(skip_serializing)]
@@ -73,6 +75,7 @@ impl<'a> PostDbService<'a> {
     DEFINE INDEX {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
+    DEFINE FIELD metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();

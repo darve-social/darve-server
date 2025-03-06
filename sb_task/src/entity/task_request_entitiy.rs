@@ -213,20 +213,21 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn update_status_received_by_user(
         &self,
         user: Thing,
-        record: Thing,
+        task_ident: Thing,
         status: TaskStatus,
-        deliverables: Option<Vec<String>>,
-    ) -> CtxResult<TaskRequest> {
-        let task = self.get(IdentIdName::Id(record.clone())).await?;
+        delivered_urls: Option<Vec<String>>,
+        delivered_post: Option<Thing>,
+    ) -> CtxResult<(TaskRequest, Option<Thing>)> {
+        let task = self.get(IdentIdName::Id(task_ident.clone())).await?;
         if task.to_user.is_none() || task.to_user.clone().expect("is some") == user {
             let update_op = self
                 .db
-                .update((record.tb.clone(), record.id.clone().to_raw()));
+                .update((task_ident.tb.clone(), task_ident.id.clone().to_raw()));
 
-            let res_builder = match status {
+            let (update_op, deliverable_id) = match status {
                 TaskStatus::Delivered => {
 
-                    if deliverables.is_none() || !deliverables.iter().all(|v| v.len() > 0) {
+                    if delivered_urls.is_none() && delivered_post.is_none() {
                         return Err(self.ctx.to_ctx_error(AppError::Generic {
                             description: "Deliverable empty".to_string(),
                         }));
@@ -235,19 +236,20 @@ impl<'a> TaskRequestDbService<'a> {
                     let deliverable_id = deliverables_service.create(TaskDeliverable{
                             id: None,
                             user,
-                            task_request: record.clone(),
-                            deliverables,
-                            deliverables_post: None,
+                            task_request: task_ident.clone(),
+                        urls: delivered_urls,
+                        post: delivered_post,
                             r_created: None,
                             r_updated: None,
                         }).await?.id.expect("is saved");
-                    update_op
+                    let update_op = update_op
                         .patch(PatchOp::replace("/status", status.to_string()))
-                        .patch(PatchOp::add("/deliverables/-", [deliverable_id]))
+                        .patch(PatchOp::add("/deliverables/-", [deliverable_id.clone()]));
+                    (update_op, Some(deliverable_id))
                 }
                 _ => {
                     if task.to_user.is_some(){
-                        update_op.patch(PatchOp::replace("/status", status.to_string()))
+                        (update_op.patch(PatchOp::replace("/status", status.to_string())), None)
                     }else {
                         return Err(self.ctx.to_ctx_error(AppError::AuthorizationFail {
                             required:"User needs task privileges to update status".to_string(),
@@ -256,12 +258,13 @@ impl<'a> TaskRequestDbService<'a> {
                 },
             };
 
-            let res: Option<TaskRequest> = res_builder.await.map_err(CtxError::from(self.ctx))?;
-            res.ok_or_else(|| {
+            let res: Option<TaskRequest> = update_op.await.map_err(CtxError::from(self.ctx))?;
+            let task = res.ok_or_else(|| {
                 self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                    ident: record.to_raw(),
+                    ident: task_ident.to_raw(),
                 })
-            })
+            })?;
+            Ok((task, deliverable_id))
         } else {
             Err(self.ctx.to_ctx_error(AppError::AuthorizationFail {
                 required: "Task set to user".to_string(),

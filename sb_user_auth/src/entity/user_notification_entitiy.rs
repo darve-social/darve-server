@@ -25,6 +25,7 @@ pub struct UserNotification {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
+#[serde(tag = "type")]
 pub enum UserNotificationEvent {
     // !!! NOTE when changing enum also change db DEFINE FIELD event type
     UserFollowAdded {
@@ -41,11 +42,10 @@ pub enum UserNotificationEvent {
         from_user: Thing,
         to_user: Thing,
     },
-    UserTaskRequestComplete {
+    UserTaskRequestDelivered {
         task_id: Thing,
+        deliverable: Thing,
         delivered_by: Thing,
-        requested_by: Thing,
-        deliverables: Vec<String>,
     },
     UserChatMessage,
     UserCommunityPost,
@@ -141,12 +141,12 @@ impl<'a> UserNotificationDbService<'a> {
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE
-     {{UserFollowAdded:{{username: string, follows_username: string}}}}
-     | {{UserTaskRequestComplete:{{task_id: record, delivered_by: record<{USER_TABLE}>, requested_by: record<{USER_TABLE}>, deliverables: set<string>}}}}
-     | {{UserTaskRequestCreated:{{task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}}}
-     | {{UserTaskRequestReceived:{{task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}}}
-     | \"UserChatMessage\"
-     | \"UserCommunityPost\";
+     {{ type: \"UserFollowAdded\", username: string, follows_username: string}}
+     | {{ type: \"UserTaskRequestDelivered\", task_id: record, delivered_by: record<{USER_TABLE}>, deliverable: record}}
+     | {{ type: \"UserTaskRequestCreated\", task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}
+     | {{ type: \"UserTaskRequestReceived\", task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}}
+     | {{ type: \"UserChatMessage\"}}
+     | {{ type: \"UserCommunityPost\"}};
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     // will use ulid to sort by time DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();

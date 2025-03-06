@@ -16,9 +16,9 @@ pub struct TaskDeliverable {
     pub user: Thing,
     pub task_request: Thing,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables: Option<Vec<String>>,
+    pub urls: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables_post: Option<Vec<Thing>>,
+    pub post: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,8 +45,8 @@ impl<'a> TaskDeliverableDbService<'a> {
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQ}>;
-    DEFINE FIELD deliverables ON TABLE {TABLE_NAME} TYPE option<set<string>>;
-    DEFINE FIELD deliverables_post ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_POST}>>>;
+    DEFINE FIELD urls ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     //DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();

@@ -102,7 +102,8 @@ pub struct AcceptTaskRequestInput {
 #[derive(Validate, TryFromMultipart)]
 pub struct DeliverTaskRequestInput {
     #[form_data(limit = "30MiB")]
-    pub file_1: FieldData<NamedTempFile>,
+    pub file_1: Option<FieldData<NamedTempFile>>,
+    pub post_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -126,7 +127,7 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables.*.{id, deliverables, user.{id, username, full_name}}, r_created, r_updated".to_string()
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
 }
 
@@ -163,7 +164,10 @@ pub struct RewardParticipantView {
 #[template(path = "nera2/default-content.html")]
 pub struct DeliverableView {
     pub id: Thing,
-    pub deliverables: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub urls: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post: Option<Thing>,
     pub user: UserView,
 }
 
@@ -471,7 +475,7 @@ async fn accept_task_request(
         db: &_db,
         ctx: &ctx,
     }
-    .update_status_received_by_user(to_user, task_id.clone(), status, None)
+    .update_status_received_by_user(to_user, task_id.clone(), status, None, None)
     .await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
@@ -489,51 +493,67 @@ async fn deliver_task_request(
     Path(task_id): Path<String>,
     TypedMultipart(t_request_input): TypedMultipart<DeliverTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
-    let to_user = LocalUserDbService {
+    let delivered_by = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
     let task_id = get_string_thing(task_id)?;
-
-    let file_name = t_request_input.file_1.metadata.file_name.unwrap();
-    let ext = file_name.split(".").last().ok_or(AppError::Generic {
-        description: "File has no extension".to_string(),
-    })?;
-
-    let file_name: String = TaskDeliverableFileName {
-        task_id: task_id.clone(),
-        file_nr: 1,
-        ext: ext.to_string(),
-    }
-    .to_string();
-    let path = FPath::new(&uploads_dir).join(file_name.clone());
-    t_request_input
-        .file_1
-        .contents
-        .persist(path.clone())
-        .map_err(|e| {
-            ctx.to_ctx_error(AppError::Generic {
-                description: "Upload failed".to_string(),
-            })
-        })?;
-    let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
-
-    let deliverables = vec![file_uri];
-    let task = TaskRequestDbService {
+    let task_req_ser = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
-    }
+    };
+
+    let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
+
+    let (deliverables, post) = match task.deliverable_type {
+        DeliverableType::PublicPost => {
+            let post_id = get_string_thing(
+                t_request_input.post_id.ok_or(AppError::Generic { description: "Missing post_id".to_string() })? )?;
+            (None, Some(post_id))
+        }
+        /*DeliverableType::Participants => {
+            let file_data = t_request_input.file_1.unwrap();
+            let file_name = file_data.metadata.file_name.unwrap();
+            let ext = file_name.split(".").last().ok_or(AppError::Generic {
+                description: "File has no extension".to_string(),
+            })?;
+
+            let file_name: String = TaskDeliverableFileName {
+                task_id: task_id.clone(),
+                file_nr: 1,
+                ext: ext.to_string(),
+            }
+                .to_string();
+            let path = FPath::new(&uploads_dir).join(file_name.clone());
+            file_data
+                .contents
+                .persist(path.clone())
+                .map_err(|e| {
+                    ctx.to_ctx_error(AppError::Generic {
+                        description: "Upload failed".to_string(),
+                    })
+                })?;
+            let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
+
+            let deliverables = vec![file_uri];
+            (deliverables, None)
+        }*/
+    };
+
+    let (task, deliverable_id) = task_req_ser
     .update_status_received_by_user(
-        to_user.clone(),
+        delivered_by.clone(),
         task_id.clone(),
         TaskStatus::Delivered,
-        Some(deliverables.clone()),
+        deliverables.clone(),
+        post,
     )
     .await?;
+    let deliverable_id = deliverable_id.ok_or(AppError::EntityFailIdNotFound {ident:"deliverable_id not created".to_string()})?;
 
-    notify_task_participants(&_db, &ctx, &to_user, deliverables, task).await?;
+    notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
     ctx.to_htmx_or_json(CreatedResponse {
         id: task_id.to_raw(),
         uri: None,
@@ -544,11 +564,11 @@ async fn deliver_task_request(
 async fn notify_task_participants(
     _db: &Db,
     ctx: &Ctx,
-    to_user: &Thing,
-    deliverables: Vec<String>,
+    delivered_by: Thing,
+    deliverable: Thing,
     task: TaskRequest,
 ) -> Result<(), CtxError> {
-    let mut notify_task_donors_ids: Vec<Thing> = TaskRequestOfferDbService {
+    let mut notify_task_participant_ids: Vec<Thing> = TaskRequestOfferDbService {
         db: &_db,
         ctx: &ctx,
     }
@@ -564,12 +584,11 @@ async fn notify_task_participants(
     };
     u_notification_db_service
         .notify_users(
-            notify_task_donors_ids,
-            &UserNotificationEvent::UserTaskRequestComplete {
+            notify_task_participant_ids,
+            &UserNotificationEvent::UserTaskRequestDelivered {
                 task_id: task.id.unwrap(),
-                delivered_by: to_user.clone(),
-                requested_by: task.from_user,
-                deliverables,
+                deliverable,
+                delivered_by,
             },
             "",
         )

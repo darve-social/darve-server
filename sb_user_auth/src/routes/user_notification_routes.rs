@@ -39,11 +39,10 @@ pub struct UserNotificationFollowView {
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/user_notification_task_request_complete_view_1.html")]
-pub struct UserNotificationTaskCompleteView {
+pub struct UserNotificationTaskDeliveredView {
     task_id: Thing,
     delivered_by: Thing,
-    requested_by: Thing,
-    deliverables: Vec<String>,
+    deliverable: Thing,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -64,11 +63,10 @@ pub struct UserNotificationTaskReceivedView {
 
 static ACCEPT_EVENT_NAMES: Lazy<[String; 4]> = Lazy::new(|| {
     [
-        UserNotificationEvent::UserTaskRequestComplete {
+        UserNotificationEvent::UserTaskRequestDelivered {
             task_id: NO_SUCH_THING.clone(),
+            deliverable: NO_SUCH_THING.clone(),
             delivered_by: NO_SUCH_THING.clone(),
-            requested_by: NO_SUCH_THING.clone(),
-            deliverables: vec![],
         }
         .to_string(),
         UserNotificationEvent::UserTaskRequestReceived {
@@ -167,21 +165,19 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
                 }
             }
         }
-        UserNotificationEvent::UserTaskRequestComplete {
+        UserNotificationEvent::UserTaskRequestDelivered {
             task_id,
+            deliverable,
             delivered_by,
-            requested_by,
-            deliverables,
         } => {
-            match ctx.to_htmx_or_json(UserNotificationTaskCompleteView {
+            match ctx.to_htmx_or_json(UserNotificationTaskDeliveredView {
                 task_id,
                 delivered_by,
-                requested_by,
-                deliverables,
+                deliverable,
             }) {
                 Ok(res) => Event::default().data(res.0).event(event_ident),
                 Err(err) => {
-                    let msg = "ERROR rendering UserNotificationTaskCompleteView";
+                    let msg = "ERROR rendering UserNotificationTaskDeliveredView";
                     println!("{} ERR={}", &msg, err.error);
                     Event::default().data(msg).event("Error".to_string())
                 }

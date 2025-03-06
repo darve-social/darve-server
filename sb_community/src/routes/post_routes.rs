@@ -286,6 +286,7 @@ pub async fn create_post_entity_route(
             r_title_uri: None,
             content: input_value.content,
             media_links: None,
+            metadata: None,
             r_created: None,
             created_by: user_id.clone(),
             r_updated: None,

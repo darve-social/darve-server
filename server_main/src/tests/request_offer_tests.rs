@@ -262,12 +262,13 @@ mod tests {
                 received_task.id.clone().unwrap(),
                 TaskStatus::Delivered,
                 Some(deliverables.clone()),
+                None,
             )
             .await.unwrap();
-        assert_eq!(task.status, TaskStatus::Delivered.to_string());
+        assert_eq!(task.0.status, TaskStatus::Delivered.to_string());
         // dbg!(&task);
 
-        let binding = task.deliverables.unwrap();
+        let binding = task.0.deliverables.unwrap();
         let deliverable = binding.get(0).unwrap();
         assert_eq!(!deliverable.id.to_raw().is_empty(), true);
 
