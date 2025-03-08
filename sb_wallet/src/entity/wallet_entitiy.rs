@@ -121,7 +121,7 @@ impl<'a> WalletDbService<'a> {
         })
     }
 
-    fn get_wallet_id(user_id: &Thing) -> Thing {
+    pub(crate) fn get_wallet_id(user_id: &Thing) -> Thing {
         Thing::from((TABLE_NAME, user_id.id.to_raw().as_str()))
     }
 
