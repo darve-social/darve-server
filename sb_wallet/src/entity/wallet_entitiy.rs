@@ -74,8 +74,8 @@ impl<'a> WalletDbService<'a> {
     }
 
     // creates wallet
-    pub async fn get_balance(&self, user_id: Thing) -> CtxResult<WalletBalanceView> {
-        let user_wallet_id = Self::get_wallet_id(&user_id);
+    pub async fn get_balance(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
+        let user_wallet_id = Self::get_wallet_id(user_id);
         if record_exists(self.db, user_wallet_id.clone()).await.is_ok() {
             self.get_view::<WalletBalanceView>(IdentIdName::Id(user_wallet_id))
                 .await
@@ -84,8 +84,8 @@ impl<'a> WalletDbService<'a> {
         }
     }
 
-    async fn init_wallet(&self, user_id: Thing) -> CtxResult<WalletBalanceView> {
-        let user_wallet_id = Self::get_wallet_id(&user_id);
+    async fn init_wallet(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
+        let user_wallet_id = Self::get_wallet_id(user_id);
         if record_exists(self.db, user_wallet_id.clone()).await.is_ok() {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "Wallet already exists".to_string(),
@@ -98,7 +98,7 @@ impl<'a> WalletDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         }
-        .create_init_record(user_wallet_id.clone(), currency_symbol.clone(), balance)
+        .create_init_record(user_wallet_id.clone(), currency_symbol.clone(), balance, Some(Thing::from(("endowment", "324"))) )
         .await?;
         let wallet = self
             .db
@@ -115,7 +115,7 @@ impl<'a> WalletDbService<'a> {
             .map(|v: Option<Wallet>| v.unwrap())?;
         Ok(WalletBalanceView {
             id: wallet.id.unwrap(),
-            user_id,
+            user_id: user_id.clone(),
             balance: init_tx.balance,
             currency_symbol,
         })
@@ -221,7 +221,7 @@ mod tests {
             ctx: &ctx,
             is_development: false,
         }
-        .get_balance(get_string_thing(usr1.clone()).expect("thing1"))
+        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         // dbg!(&balance_view1);
@@ -277,7 +277,7 @@ mod tests {
             ctx: &ctx,
             is_development: true,
         }
-        .get_balance(get_string_thing(usr1.clone()).expect("thing1"))
+        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         // dbg!(&balance_view1);
@@ -292,7 +292,7 @@ mod tests {
             ctx: &ctx,
             is_development: true,
         }
-        .get_balance(get_string_thing(usr2.clone()).expect("thing2"))
+        .get_balance(&get_string_thing(usr2.clone()).expect("thing2"))
         .await
         .expect("balance");
         // dbg!(&balance_view2)
@@ -305,7 +305,7 @@ mod tests {
         // backup(db).await;
 
         let moved = CurrencyTransactionDbService { db: &db, ctx: &ctx }
-            .move_amount(balance_view1.id, balance_view2.id, 100, CurrencySymbol::USD)
+            .move_amount( &balance_view1.id, &balance_view2.id, 100, &CurrencySymbol::USD)
             .await; //.expect("move balance");
                     // dbg!(moved).expect("dbg");
 
@@ -314,7 +314,7 @@ mod tests {
             ctx: &ctx,
             is_development: true,
         }
-        .get_balance(get_string_thing(usr1.clone()).expect("thing1"))
+        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         dbg!(&balance_view1);
@@ -329,7 +329,7 @@ mod tests {
             ctx: &ctx,
             is_development: true,
         }
-        .get_balance(get_string_thing(usr2.clone()).expect("thing2"))
+        .get_balance(&get_string_thing(usr2.clone()).expect("thing2"))
         .await
         .expect("balance");
         dbg!(&balance_view2);
@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(balance_view2.balance, 200);
 
         let moved = CurrencyTransactionDbService { db: &db, ctx: &ctx }
-            .move_amount(balance_view1.id, balance_view2.id, 1, CurrencySymbol::USD)
+            .move_amount(&balance_view1.id, &balance_view2.id, 1, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), true);
     }

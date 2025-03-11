@@ -12,7 +12,7 @@ use surrealdb::sql::Thing;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use sb_middleware::utils::string_utils::get_string_thing;
-use crate::entity::wallet_entitiy::{Wallet, WalletDbService};
+use crate::entity::wallet_entitiy::{CurrencySymbol, Wallet, WalletDbService};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EndowmentTransaction {
@@ -44,11 +44,16 @@ const TRANSACTION_TABLE: &str = crate::entity::currency_transaction_entitiy::TAB
 
 impl<'a> EndowmentTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
+
+        let curr_usd = CurrencySymbol::USD.to_string();
+        
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
+        ASSERT $value INSIDE ['{curr_usd}'];
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -61,34 +66,33 @@ impl<'a> EndowmentTransactionDbService<'a> {
     }
 
     // creates endowmentTransaction
-    pub(crate) async fn accept_endowment_tx(&self, internal_user: Thing, external_tx_id: String) -> CtxResult<()> {
+    pub(crate) async fn accept_endowment_tx(&self, internal_user: &Thing, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<()> {
         let wallet_service = WalletDbService { db: self.db, ctx: self.ctx, is_development: self.is_development};
 
         // init user wallet
         let bal = wallet_service.get_balance(internal_user).await?;
+        let internal_user_wallet = WalletDbService::get_wallet_id(internal_user);
+        let endowment_wallet = self.get_wallet_id();
 
 
-        let tx_qry = CurrencyTransactionDbService::get_tx_qry(wallet_from, wallet_to, amount, currency, false)?;
+        let tx_qry = CurrencyTransactionDbService::get_tx_qry(&endowment_wallet, &internal_user_wallet, amount, &currency_symbol, true)?;
         let qry = format!("
         BEGIN TRANSACTION;
 
+            LET $tx_ident = rand::ulid();
+
+            LET $endow_tx = INSERT INTO {TABLE_NAME} {{
+                external_tx_id: $ext_tx,
+                external_account_id:$ext_account_id,
+                internal_tx: $tx_ident,
+                currency: $currency,
+            }} RETURN id;
+
+            LET $tx_out_id = $tx_out[0].id;
         COMMIT TRANSACTION;
 
         ");
-        /*let endowment_tx = self
-            .db
-            .create(TABLE_NAME)
-            .content(EndowmentTransaction{
-                id: None,
-                external_tx_id,
-                external_account_id: None,
-                internal_tx: Thing {},
-                r_created: None,
-                r_updated: None,
-            })
-            .await
-            .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<Wallet>| v.unwrap())?;*/
+        
         Ok(())
     }
 
@@ -98,8 +102,8 @@ Ok(())
 
     }
 
-    fn get_wallet_id(&self) -> String {
-        WalletDbService::get_wallet_id(get_string_thing("local_user:endowment_account".to_string()))
+    fn get_wallet_id(&self) -> Thing {
+        WalletDbService::get_wallet_id(&get_string_thing("local_user:endowment_account".to_string()).expect("valid endowment ident"))
     }
 
     // pub async fn get(&self, ident: IdentIdName) -> CtxResult<EndowmentTransaction> {

@@ -7,7 +7,7 @@ use sb_middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{to_value, Id, Thing, Value};
+use surrealdb::sql::{to_value, Thing, Value};
 use sb_middleware::error::AppResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -17,6 +17,7 @@ pub struct CurrencyTransaction {
     pub wallet: Thing,
     pub with_wallet: Thing,
     pub tx_ident: String,
+    pub endowment: Option<Thing>,
     pub currency: CurrencySymbol,
     pub prev_transaction: Thing,
     pub amount_in: Option<i64>,
@@ -35,6 +36,7 @@ pub struct CurrencyTransactionDbService<'a> {
 
 pub const TABLE_NAME: &str = "currency_transaction";
 const WALLET_TABLE: &str = crate::entity::wallet_entitiy::TABLE_NAME;
+const ENDOWMENT_TABLE: &str = crate::entity::endowment_wallet::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = crate::entity::wallet_entitiy::TRANSACTION_HEAD_F;
 
 impl<'a> CurrencyTransactionDbService<'a> {
@@ -46,6 +48,13 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD endowment ON TABLE {TABLE_NAME} TYPE option<record<{ENDOWMENT_TABLE}>> ASSERT {{
+    IF $this.balance > 0 && (type::is::none($this.amount_in) || type::is::none($this.amount_out)) && !record::exists($value) {{
+        THROW \"Tried to make endowment but endowment tx not found\"
+    }} ELSE {{
+        RETURN true
+    }}
+}};
     DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
         ASSERT $value INSIDE ['{curr_usd}'];
     DEFINE FIELD prev_transaction ON TABLE {TABLE_NAME} TYPE record<{TABLE_NAME}>;
@@ -64,10 +73,10 @@ impl<'a> CurrencyTransactionDbService<'a> {
 
     pub async fn move_amount(
         &self,
-        wallet_from: Thing,
-        wallet_to: Thing,
+        wallet_from: &Thing,
+        wallet_to: &Thing,
         amount: i64,
-        currency: CurrencySymbol,
+        currency: &CurrencySymbol,
     ) -> CtxResult<()> {
         let tx_qry = Self::get_tx_qry(wallet_from, wallet_to, amount, currency, false)?;
         let res = tx_qry.into_query(self.db).await?;
@@ -80,12 +89,14 @@ impl<'a> CurrencyTransactionDbService<'a> {
         wallet_id: Thing,
         currency: CurrencySymbol,
         balance: Option<i64>,
+        endowment: Option<Thing>,
     ) -> CtxResult<CurrencyTransaction> {
         let record = CurrencyTransaction {
             id: None,
             wallet: wallet_id.clone(),
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
             tx_ident: wallet_id.id.to_raw(),
+            endowment,
             currency,
             prev_transaction: Thing::from((TABLE_NAME, "zero_tx")),
             amount_in: None,
@@ -109,13 +120,13 @@ impl<'a> CurrencyTransactionDbService<'a> {
     }
 
     pub(crate) fn get_tx_qry(
-        wallet_from: Thing,
-        wallet_to: Thing,
+        wallet_from: &Thing,
+        wallet_to: &Thing,
         amount: i64,
-        currency: CurrencySymbol,
-        exclude_transaction: bool,
+        currency: &CurrencySymbol,
+        exclude_sql_transaction: bool,
     ) -> AppResult<QryBindingsVal<Value>> {
-        let (begin_tx, commit_tx) = if exclude_transaction { ("", "") } else { ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;") };
+        let (begin_tx, commit_tx) = if exclude_sql_transaction { ("", "") } else { ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;") };
         let qry = format!(
             "
         {begin_tx}
@@ -162,10 +173,10 @@ impl<'a> CurrencyTransactionDbService<'a> {
         {commit_tx}
         ");
         let mut bindings = HashMap::new();
-        bindings.insert("w_from_id".to_string(), to_value(wallet_from).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("w_to_id".to_string(), to_value(wallet_to).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("w_from_id".to_string(), to_value(wallet_from.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("w_to_id".to_string(), to_value(wallet_to.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         bindings.insert("amt".to_string(), to_value(amount).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("currency".to_string(), to_value(currency).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("currency".to_string(), to_value(currency.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }
