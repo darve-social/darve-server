@@ -1,4 +1,4 @@
-use crate::{main_router, runMigrations};
+use crate::{main_router, run_migrations};
 use axum_test::{TestServer, TestServerConfig};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db;
@@ -24,7 +24,7 @@ pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
         panic!("DB ERR={:?}", db_start.err().unwrap());
     }
     let is_dev = true;
-    runMigrations(db_start.unwrap(), is_dev)
+    run_migrations(db_start.unwrap(), is_dev)
         .await
         .expect("migrations run");
 

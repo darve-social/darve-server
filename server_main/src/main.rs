@@ -2,8 +2,6 @@ extern crate dotenv;
 
 use std::net::{Ipv4Addr, SocketAddr};
 
-use askama_axum::Template;
-use axum::handler::Handler;
 use axum::{middleware, Router};
 use axum::http::{ StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -71,7 +69,7 @@ async fn main() -> AppResult<()> {
     let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
-    runMigrations(db, is_dev).await?;
+    run_migrations(db, is_dev).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
@@ -128,7 +126,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
