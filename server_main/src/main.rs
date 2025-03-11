@@ -5,6 +5,9 @@ use std::net::{Ipv4Addr, SocketAddr};
 use askama_axum::Template;
 use axum::handler::Handler;
 use axum::{middleware, Router};
+use axum::http::{ StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
 use axum_htmx::AutoVaryLayer;
 use chrono::Duration;
 use dotenv::dotenv;
@@ -178,6 +181,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
 
 pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Router {
     Router::new()
+        .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("./server_main/src/assets"))
         // No requirements
         // Also behind /api, but no auth requirement on this route
@@ -218,4 +222,8 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .layer(CookieManagerLayer::new())
     // .layer(Extension(ctx_state.clone()))
     // .fallback_service(routes_static());
+}
+
+async fn get_hc()-> Response {
+    (StatusCode::OK, "v0.0.1".to_string()).into_response()
 }
