@@ -1,4 +1,5 @@
 use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use askama_axum::Template;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{
     get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -14,7 +15,7 @@ use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use once_cell::sync::Lazy;
 
-pub(crate) static APP_GATEWAY_WALLET:Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_account")));
+pub(crate) static APP_GATEWAY_WALLET:Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Wallet {
@@ -36,34 +37,24 @@ pub enum CurrencySymbol {
 #[derive(Deserialize, Debug)]
 pub struct WalletBalanceView {
     pub id: Thing,
-    pub user_id: Option<Thing>,
+    pub user: UserView,
     pub balance: i64,
     pub currency_symbol: CurrencySymbol,
 }
 
 impl ViewFieldSelector for WalletBalanceView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        format!("id, user as user_id, {TRANSACTION_HEAD_F}.*.balance as balance, {TRANSACTION_HEAD_F}.*.currency as currency_symbol")
+        format!("id, user.{{id, username, full_name}}, {TRANSACTION_HEAD_F}.*.balance as balance, {TRANSACTION_HEAD_F}.*.currency as currency_symbol")
     }
 }
 
-/*#[derive(Display)]
-pub enum WalletIdentType {
-    User,
-    Endowment
+#[derive(Template, Serialize, Deserialize, Debug, Clone)]
+#[template(path = "nera2/default-content.html")]
+pub struct UserView {
+    pub id: Thing,
+    pub username: String,
+    pub full_name: Option<String>,
 }
-
-impl TryFrom<Thing> for WalletIdentType {
-    type Error = AppError;
-
-    fn try_from(value: Thing) -> Result<Self, Self::Error> {
-        match value.tb.as_str() {
-            USER_TABLE => Ok(Self::User),
-            ENDOWMENT_TABLE=> Ok(Self::Endowment),
-            _=>Err(AppError::Generic {description:"Only user or endowment ids are valid for wallet id".to_string()})
-        }
-    }
-}*/
 
 pub struct WalletDbService<'a> {
     pub db: &'a db::Db,
@@ -211,7 +202,7 @@ mod tests {
     use crate::entity::funding_transaction_entity::FundingTransactionDbService;
 
     #[tokio::test]
-    async fn get_qry() {
+    async fn endow_wallet() {
 
         let (db, ctx) = init_db_test().await;
 
@@ -247,8 +238,11 @@ mod tests {
         assert_eq!(gtw_bal.balance, -100);
 
         let user1_wallet = wallet_service.get(IdentIdName::Id(user1_bal.id)).await.expect("wallet");
-        dbg!(user1_wallet);
-        let user_tx = tx_service.get(IdentIdName::Id())
+        let user_tx = tx_service.get(IdentIdName::Id(user1_wallet.transaction_head)).await.expect("user");
+
+        assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
+        assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());
+        // dbg!(&user_tx);
     }
 
     #[tokio::test]
@@ -312,7 +306,7 @@ mod tests {
             db: &db,
             ctx: &ctx,
         }
-        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
+        .get_user_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         // dbg!(&balance_view1);
@@ -367,12 +361,13 @@ mod tests {
 
         let endowment_service = FundingTransactionDbService { db: &db, ctx: &ctx };
         let _endow_usr1 = endowment_service.accept_endowment_tx(&get_string_thing(usr1.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr1".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
+        let _endow_usr2 = endowment_service.accept_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
 
         let balance_view1 = WalletDbService {
             db: &db,
             ctx: &ctx,
         }
-        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
+        .get_user_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         // dbg!(&balance_view1);
@@ -386,7 +381,7 @@ mod tests {
             db: &db,
             ctx: &ctx,
         }
-        .get_balance(&get_string_thing(usr2.clone()).expect("thing2"))
+        .get_user_balance(&get_string_thing(usr2.clone()).expect("thing2"))
         .await
         .expect("balance");
         // dbg!(&balance_view2)
@@ -407,7 +402,7 @@ mod tests {
             db: &db,
             ctx: &ctx,
         }
-        .get_balance(&get_string_thing(usr1.clone()).expect("thing1"))
+        .get_user_balance(&get_string_thing(usr1.clone()).expect("thing1"))
         .await
         .expect("balance");
         dbg!(&balance_view1);
@@ -421,7 +416,7 @@ mod tests {
             db: &db,
             ctx: &ctx,
         }
-        .get_balance(&get_string_thing(usr2.clone()).expect("thing2"))
+        .get_user_balance(&get_string_thing(usr2.clone()).expect("thing2"))
         .await
         .expect("balance");
         dbg!(&balance_view2);
