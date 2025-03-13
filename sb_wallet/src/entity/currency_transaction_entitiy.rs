@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::entity::wallet_entitiy::CurrencySymbol;
+use crate::entity::wallet_entitiy::{CurrencySymbol, APP_GATEWAY_WALLET};
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName, QryBindingsVal};
 use sb_middleware::{
@@ -9,7 +9,6 @@ use sb_middleware::{
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{to_value, Thing, Value};
 use sb_middleware::error::AppResult;
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17,7 +16,7 @@ pub struct CurrencyTransaction {
     pub wallet: Thing,
     pub with_wallet: Thing,
     pub tx_ident: String,
-    pub endowment: Option<Thing>,
+    pub funding_tx: Option<Thing>,
     pub currency: CurrencySymbol,
     pub prev_transaction: Thing,
     pub amount_in: Option<i64>,
@@ -36,11 +35,12 @@ pub struct CurrencyTransactionDbService<'a> {
 
 pub const TABLE_NAME: &str = "currency_transaction";
 const WALLET_TABLE: &str = crate::entity::wallet_entitiy::TABLE_NAME;
-const ENDOWMENT_TABLE: &str = crate::entity::endowment_wallet::TABLE_NAME;
+const FUNDING_TX_TABLE: &str = crate::entity::funding_transaction_entity::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = crate::entity::wallet_entitiy::TRANSACTION_HEAD_F;
 
 impl<'a> CurrencyTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
+        let GATEWAY_WALLET = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();
 
         let sql = format!("
@@ -48,15 +48,16 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD endowment ON TABLE {TABLE_NAME} TYPE option<record<{ENDOWMENT_TABLE}>> ASSERT {{
-    IF $this.balance > 0 && (type::is::none($this.amount_in) || type::is::none($this.amount_out)) && !record::exists($value) {{
-        THROW \"Tried to make endowment but endowment tx not found\"
-    }} ELSE {{
-        RETURN true
-    }}
-}};
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{curr_usd}'];
+    DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// ASSERT {{
+//     IF $this.balance<0 && $this.wallet!={GATEWAY_WALLET} {{
+//         THROW \"Final balance must exceed 0\"
+//     }} ELSE IF $this.balance<0 && !record_exists($value)  {{
+//         THROW \"Tried to make funding_tx but funding_tx tx not found\"
+//     }} ELSE {{
+//         RETURN true
+//     }}
+// }};
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}'];
     DEFINE FIELD prev_transaction ON TABLE {TABLE_NAME} TYPE record<{TABLE_NAME}>;
     DEFINE FIELD amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
@@ -78,30 +79,67 @@ impl<'a> CurrencyTransactionDbService<'a> {
         amount: i64,
         currency: &CurrencySymbol,
     ) -> CtxResult<()> {
-        let tx_qry = Self::get_tx_qry(wallet_from, wallet_to, amount, currency, false)?;
+        let tx_qry = Self::get_tx_qry(wallet_from, wallet_to, amount, currency, None, false)?;
         let res = tx_qry.into_query(self.db).await?;
         res.check()?;
         Ok(())
     }
 
+    // creates user_funding_wallet, transfers from app_gateway_wallet to user_funding_wallet
+/*    pub async fn endow_user_funding_wallet(&self,user: &Thing, endowment_tx: &Thing) -> CtxResult<CurrencyTransaction> {
+        let wallet_service = WalletDbService { db: self.db, ctx: self.ctx };
+        let user_funding_wallet = WalletDbService::get_user_funding_wallet_id(user);
+        let from_wallet: Thing = APP_GATEWAY_WALLET.clone();
+        let user_funding_wallet = wallet_service.get_balance()
+        let record = match record_exists(self.db, &user_funding_wallet).await {
+            Ok(_) => {
+                let qry = format!("
+                LET $tx_in = INSERT INTO {TABLE_NAME} {{
+                // wallet: $w_to_id,
+                with_wallet:$w_from_id,
+                tx_ident: $tx_ident,
+                currency: $currency,
+                prev_transaction: $w_to.{TRANSACTION_HEAD_F}.id,
+                amount_in: type::number($amt),
+                balance: $w_to.{TRANSACTION_HEAD_F}.balance + type::number($amt),
+            }} RETURN id;
+
+            LET $tx_in_id = $tx_in[0].id;
+
+            UPDATE $w_to.id SET {TRANSACTION_HEAD_F}=$tx_in_id; ");
+            },
+            Err(_) => {
+                self.create_init_record(&user_funding_wallet, None, Some(endowment_tx)).await?;
+            }
+        };
+        let qry = format!("");
+    }
+*/
     pub(crate) async fn create_init_record(
         &self,
-        wallet_id: Thing,
-        currency: CurrencySymbol,
-        balance: Option<i64>,
-        endowment: Option<Thing>,
+        wallet_id: &Thing,
+        currency: Option<CurrencySymbol>,
     ) -> CtxResult<CurrencyTransaction> {
+        // let endowment_service = FundingTransactionDbService { db: self.db, ctx: self.ctx };
+        /*let (balance, endowment, currency) = match endowment {
+            None => (0, None, currency.unwrap_or(CurrencySymbol::USD)),
+            Some(endowment_id) => {
+               let endowment = endowment_service.get(IdentIdName::Id(endowment_id.clone())).await?;
+                (endowment.amount, endowment.id, endowment.currency)
+            }
+        };*/
+
         let record = CurrencyTransaction {
             id: None,
             wallet: wallet_id.clone(),
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
             tx_ident: wallet_id.id.to_raw(),
-            endowment,
-            currency,
+            funding_tx: None,
+            currency: currency.unwrap_or(CurrencySymbol::USD),
             prev_transaction: Thing::from((TABLE_NAME, "zero_tx")),
             amount_in: None,
             amount_out: None,
-            balance: balance.unwrap_or(0),
+            balance: 0,
             r_created: None,
             r_updated: None,
         };
@@ -124,6 +162,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
+        funding_tx: Option<Thing>,
         exclude_sql_transaction: bool,
     ) -> AppResult<QryBindingsVal<Value>> {
         let (begin_tx, commit_tx) = if exclude_sql_transaction { ("", "") } else { ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;") };
@@ -136,7 +175,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
 
             LET $updated_from_balance = $w_from.{TRANSACTION_HEAD_F}.balance - type::number($amt);
 
-            IF $updated_from_balance < 0 {{
+            IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
                 THROW \"Not enough funds\";
             }};
 
@@ -150,6 +189,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
                 prev_transaction: $w_from.{TRANSACTION_HEAD_F}.id,
                 amount_out: type::number($amt),
                 balance: $updated_from_balance,
+                funding_tx: $funding_tx_id
             }} RETURN id;
 
             LET $tx_out_id = $tx_out[0].id;
@@ -164,6 +204,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
                 prev_transaction: $w_to.{TRANSACTION_HEAD_F}.id,
                 amount_in: type::number($amt),
                 balance: $w_to.{TRANSACTION_HEAD_F}.balance + type::number($amt),
+                funding_tx: $funding_tx_id
             }} RETURN id;
 
             LET $tx_in_id = $tx_in[0].id;
@@ -177,6 +218,8 @@ impl<'a> CurrencyTransactionDbService<'a> {
         bindings.insert("w_to_id".to_string(), to_value(wallet_to.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         bindings.insert("amt".to_string(), to_value(amount).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         bindings.insert("currency".to_string(), to_value(currency.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("app_gateway_wallet_id".to_string(), to_value(APP_GATEWAY_WALLET.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("funding_tx_id".to_string(), to_value(funding_tx).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }

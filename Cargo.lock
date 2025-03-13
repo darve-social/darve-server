@@ -3810,6 +3810,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "axum_typed_multipart",
+ "log",
+ "once_cell",
  "sb_community",
  "sb_middleware",
  "sb_user_auth",
