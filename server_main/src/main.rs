@@ -164,7 +164,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     WalletDbService {
         db: &db,
         ctx: &c,
-    π}
+    }
     .mutate_db()
     .await?;
     CurrencyTransactionDbService { db: &db, ctx: &c }
