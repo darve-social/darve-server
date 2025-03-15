@@ -22,29 +22,41 @@ pub struct Wallet {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub user: Option<Thing>,
-    pub transaction_head: Thing,
+    pub transaction_head: WalletCurrencyTxHeads,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletCurrencyTxHeads {
+    USD: Option<Thing>,
+    ETH: Option<Thing>,
+    REEF: Option<Thing>,
+}
+
 #[derive(Display, Clone, Serialize, Deserialize, Debug)]
 pub enum CurrencySymbol {
     USD,
+    REEF,
+    ETH,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct WalletBalanceView {
     pub id: Thing,
-    // pub user: UserView,
-    pub balance: i64,
-    pub currency_symbol: CurrencySymbol,
+    pub balance_usd: i64,
+    pub balance_reef: i64,
+    pub balance_eth: i64,
 }
 
 impl ViewFieldSelector for WalletBalanceView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        format!("id, user.{{id, username, full_name}}, {TRANSACTION_HEAD_F}.*.balance as balance, {TRANSACTION_HEAD_F}.*.currency as currency_symbol")
+        let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_reef = CurrencySymbol::REEF.to_string();
+        let curr_eth = CurrencySymbol::ETH.to_string();
+        format!("id, user.{{id, username, full_name}}, {TRANSACTION_HEAD_F}.{curr_usd}.*.balance||0 as balance_usd, {TRANSACTION_HEAD_F}.{curr_reef}.*.balance||0 as balance_reef, {TRANSACTION_HEAD_F}.{curr_eth}.*.balance||0 as balance_eth")
     }
 }
 
@@ -70,10 +82,16 @@ pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
 impl<'a> WalletDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
+        let curr_usd = CurrencySymbol::USD;
+        let curr_reef = CurrencySymbol::REEF;
+        let curr_eth = CurrencySymbol::ETH;
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE option<record<{USER_TABLE}>> VALUE $before OR $value; //TODO type::record({USER_TABLE}:record::id($this.id));
-    DEFINE FIELD {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE record<{TRANSACTION_TABLE}>;
+    DEFINE FIELD {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE object;
+    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_usd} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
+    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
+    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -100,8 +118,9 @@ impl<'a> WalletDbService<'a> {
         } else {
             Ok(WalletBalanceView {
                 id: wallet_id.clone(),
-                balance: 0,
-                currency_symbol: CurrencySymbol::USD,
+                balance_usd: 0,
+                balance_reef: 0,
+                balance_eth: 0,
             })
         }
     }
@@ -113,7 +132,8 @@ impl<'a> WalletDbService<'a> {
         Ok(())
     }
 
-    pub(crate) async fn init_app_gateway_wallet(&self, wallet_id: &Thing) -> CtxResult<WalletBalanceView> {
+    pub(crate) async fn init_app_gateway_wallet(&self) -> CtxResult<WalletBalanceView> {
+        let  wallet_id: &Thing = &APP_GATEWAY_WALLET.clone();
         Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, &wallet_id).await.is_ok() {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
@@ -121,25 +141,43 @@ impl<'a> WalletDbService<'a> {
             }));
         }
         let currency_symbol = CurrencySymbol::USD;
-        let init_tx = CurrencyTransactionDbService {
+        let init_tx_usd = CurrencyTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         }
-        .create_init_record(&wallet_id, Some(currency_symbol.clone())  )
+        .create_init_record(&wallet_id, currency_symbol.clone()  )
+        .await?;
+        let currency_symbol = CurrencySymbol::REEF;
+        let init_tx_reef = CurrencyTransactionDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .create_init_record(&wallet_id, currency_symbol.clone()  )
+        .await?;
+        let currency_symbol = CurrencySymbol::ETH;
+        let init_tx_eth = CurrencyTransactionDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .create_init_record(&wallet_id, currency_symbol.clone()  )
         .await?;
 
-        let gtw_wallet = APP_GATEWAY_WALLET.clone();
-        let user = if wallet_id==&gtw_wallet {
-            None
-        }else{ Some(Self::get_user_id(wallet_id))};
+        // let gtw_wallet = APP_GATEWAY_WALLET.clone();
+        // let user = if wallet_id==&gtw_wallet {
+        //     None
+        // }else{ Some(Self::get_user_id(wallet_id))};
 
         let wallet = self
             .db
             .create(TABLE_NAME)
             .content(Wallet {
                 id: Some(wallet_id.clone()),
-                user,
-                transaction_head: init_tx.id.unwrap(),
+                user: None,
+                transaction_head: WalletCurrencyTxHeads{
+                    USD:Some(init_tx_usd.id.unwrap()),
+                    ETH: Some(init_tx_eth.id.unwrap()),
+                    REEF: Some(init_tx_reef.id.unwrap())
+                },
                 r_created: None,
                 r_updated: None,
             })
@@ -148,8 +186,9 @@ impl<'a> WalletDbService<'a> {
             .map(|v: Option<Wallet>| v.unwrap())?;
         Ok(WalletBalanceView {
             id: wallet.id.unwrap(),
-            balance: init_tx.balance,
-            currency_symbol,
+            balance_usd: init_tx_usd.balance,
+            balance_reef: init_tx_reef.balance,
+            balance_eth: init_tx_eth.balance,
         })
     }
 
@@ -229,16 +268,16 @@ mod tests {
         let tx_service = CurrencyTransactionDbService{ db: &db, ctx: &ctx };
         
         let user1 = get_string_thing(usr1).expect("got thing");
-        let endow_tx_id = fund_service.accept_endowment_tx(&user1, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
+        let endow_tx_id = fund_service.user_endowment_tx(&user1, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
 
         
         let user1_bal = wallet_service.get_user_balance(&user1).await.expect("got balance");
-        assert_eq!(user1_bal.balance, 100);
+        assert_eq!(user1_bal.balance_usd, 100);
         let gtw_bal = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("got balance");
-        assert_eq!(gtw_bal.balance, -100);
+        assert_eq!(gtw_bal.balance_usd, -100);
 
         let user1_wallet = wallet_service.get(IdentIdName::Id(user1_bal.id)).await.expect("wallet");
-        let user_tx = tx_service.get(IdentIdName::Id(user1_wallet.transaction_head)).await.expect("user");
+        let user_tx = tx_service.get(IdentIdName::Id(user1_wallet.transaction_head.USD.unwrap())).await.expect("user");
 
         assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
         assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());
@@ -315,7 +354,7 @@ mod tests {
             balance_view1.id,
             WalletDbService::get_user_wallet_id(&user_thing)
         );
-        assert_eq!(balance_view1.balance, 0);
+        assert_eq!(balance_view1.balance_usd, 0);
     }
 
     #[tokio::test]
@@ -362,6 +401,8 @@ mod tests {
             db: &db,
             ctx: &ctx,
         };
+        let transaction_db_service = CurrencyTransactionDbService { db: &db, ctx: &ctx };
+        
         let user1_thing = get_string_thing(usr1.clone()).expect("thing1");
 
         // endow usr1
@@ -374,15 +415,16 @@ mod tests {
             balance_view1.id.clone(),
             WalletDbService::get_user_wallet_id(&user1_thing)
         );
-        assert_eq!(balance_view1.balance, 0);
+        assert_eq!(balance_view1.balance_usd, 0);
         
         let endowment_service = FundingTransactionDbService { db: &db, ctx: &ctx };
-        let _endow_usr1 = endowment_service.accept_endowment_tx(&get_string_thing(usr1.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr1".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
-        let _endow_usr2 = endowment_service.accept_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
+        let _endow_usr1 = endowment_service.user_endowment_tx(&get_string_thing(usr1.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr1".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
+        let _endow_usr2 = endowment_service.user_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
+        let _endow_usr2r = endowment_service.user_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2-reef".to_string(), 10000, CurrencySymbol::REEF).await.expect("is ok");
         
         
         let gtw_bal = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("got balance");
-        assert_eq!(gtw_bal.balance, -200);
+        assert_eq!(gtw_bal.balance_usd, -200);
         
         let balance_view1 = wallet_service
         .get_user_balance(&user1_thing)
@@ -393,7 +435,7 @@ mod tests {
             balance_view1.id.clone(),
             WalletDbService::get_user_wallet_id(&user1_thing)
         );
-        assert_eq!(balance_view1.balance, 100);
+        assert_eq!(balance_view1.balance_usd, 100);
 
         let user2_thing = get_string_thing(usr2.clone()).expect("thing2");
         let balance_view2 = wallet_service
@@ -405,7 +447,7 @@ mod tests {
             balance_view2.id.clone(),
             WalletDbService::get_user_wallet_id(&user2_thing)
         );
-        assert_eq!(balance_view2.balance, 100);
+        assert_eq!(balance_view2.balance_usd, 100);
 
         let balance_view1_before_tx = wallet_service
             .get_user_balance(&user1_thing)
@@ -413,11 +455,13 @@ mod tests {
             .expect("balance");
         dbg!(&balance_view1_before_tx);
 
-        let transaction_db_service = CurrencyTransactionDbService { db: &db, ctx: &ctx };
         let moved = transaction_db_service
-            .move_amount( &balance_view1.id, &balance_view2.id, 77, &CurrencySymbol::USD)
-            .await; //.expect("move balance");
-                    // dbg!(moved).expect("dbg");
+            .transfer_currency(&balance_view2.id,&balance_view1.id,  432, &CurrencySymbol::REEF)
+            .await;
+        
+        let moved = transaction_db_service
+            .transfer_currency(&balance_view1.id, &balance_view2.id, 77, &CurrencySymbol::USD)
+            .await;
 
         let balance_view1 = wallet_service
         .get_user_balance(&user1_thing)
@@ -428,7 +472,7 @@ mod tests {
             balance_view1.id.clone(),
             WalletDbService::get_user_wallet_id(&user1_thing)
         );
-        assert_eq!(balance_view1.balance, 23);
+        assert_eq!(balance_view1.balance_usd, 23);
 
         let balance_view2 = wallet_service
         .get_user_balance(&user2_thing)
@@ -439,20 +483,47 @@ mod tests {
             balance_view2.id.clone(),
             WalletDbService::get_user_wallet_id(&user2_thing)
         );
-        assert_eq!(balance_view2.balance, 177);
+        assert_eq!(balance_view2.balance_usd, 177);
 
         let moved = transaction_db_service
-            .move_amount(&balance_view1.id, &balance_view2.id, 24, &CurrencySymbol::USD)
+            .transfer_currency(&balance_view1.id, &balance_view2.id, 24, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), true);
         let moved = transaction_db_service
-            .move_amount(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::USD)
+            .transfer_currency(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), false);
         
+        let moved = transaction_db_service
+            .transfer_currency(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::ETH)
+            .await;
+        assert_eq!(moved.is_err(), true);
+        
         let txs = transaction_db_service.user_transaction_list(&WalletDbService::get_user_wallet_id(&user1_thing), None).await.expect("result");
-        dbg!(txs);
+        assert_eq!(txs.len(), 4);
+        let tx_0 = txs.get(0).expect("tx0");
+        assert_eq!(tx_0.balance, 100);
+        assert_eq!(tx_0.amount_in.expect("has amt"), 100);
+        assert_eq!(tx_0.with_wallet.user.is_none(), true);
 
+        let tx_1 = txs.get(1).expect("tx1");
+        assert_eq!(tx_1.balance, 432);
+        assert_eq!(tx_1.amount_in.expect("has amt"), 432);
+        assert_eq!(tx_1.currency.to_string(), CurrencySymbol::REEF.to_string());
+        assert_eq!(tx_1.with_wallet.user.is_none(), false);
+        
+        let tx_2 = txs.get(2).expect("tx2");
+        assert_eq!(tx_2.balance, 23);
+        assert_eq!(tx_2.amount_out.expect("has amt"), 77);
+        assert_eq!(tx_2.with_wallet.user.is_none(), false);
+
+        let tx_3 = txs.get(3).expect("tx3");
+        assert_eq!(tx_3.balance, 0);
+        assert_eq!(tx_3.amount_out.expect("has amt"), 23);
+        assert_eq!(tx_3.with_wallet.user.is_none(), false);
+
+        let gateway_wallet = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("wallet");
+        dbg!(gateway_wallet);
     }
 
     // derive Display only stringifies enum ident, serde also serializes the value
@@ -554,7 +625,7 @@ mod tests {
         }
     }
 
-    async fn runMigrations(db: Surreal<Db>) -> AppResult<()> {
+    async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
         let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
 
         LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
@@ -575,7 +646,7 @@ mod tests {
         let db = db::start(Some("test".to_string())).await.expect("db initialized");
         let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
-        runMigrations(db.clone()).await.expect("init migrations");
+        run_migrations(db.clone()).await.expect("init migrations");
         (db, ctx)
     }
 }

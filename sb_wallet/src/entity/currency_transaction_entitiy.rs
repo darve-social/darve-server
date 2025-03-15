@@ -45,10 +45,12 @@ impl<'a> CurrencyTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let GATEWAY_WALLET = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_reef = CurrencySymbol::REEF.to_string();
+        let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}'];
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
@@ -80,11 +82,11 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
         mutation.check().expect("should mutate currencyTransaction");
 
-        WalletDbService{db:self.db, ctx: self.ctx}.init_app_gateway_wallet(&APP_GATEWAY_WALLET.clone()).await.expect("inited");
+        WalletDbService{db:self.db, ctx: self.ctx}.init_app_gateway_wallet().await.expect("inited");
         Ok(())
     }
 
-    pub async fn move_amount(
+    pub async fn transfer_currency(
         &self,
         wallet_from: &Thing,
         wallet_to: &Thing,
@@ -109,7 +111,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
     pub(crate) async fn create_init_record(
         &self,
         wallet_id: &Thing,
-        currency: Option<CurrencySymbol>,
+        currency: CurrencySymbol,
     ) -> CtxResult<CurrencyTransaction> {
 
         let record = CurrencyTransaction {
@@ -118,7 +120,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
             tx_ident: wallet_id.id.to_raw(),
             funding_tx: None,
-            currency: currency.unwrap_or(CurrencySymbol::USD),
+            currency,
             prev_transaction: None,
             amount_in: None,
             amount_out: None,
@@ -153,17 +155,17 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         let qry = format!(
             "{begin_tx}
 
-            LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F};
+            LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F}.{currency};
             LET $w_to = SELECT * FROM ONLY $w_to_id;
 
             $w_to = IF $w_to == NONE {{
                 LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
             
                 LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
-                RETURN CREATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}=$w_to_prev_tx;
+                RETURN CREATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
             }}ELSE{{RETURN $w_to;}};
 
-            LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.balance) - type::number($amt);
+            LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
 
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
                 THROW \"Not enough funds\";
@@ -178,7 +180,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 with_wallet:$w_to_id,
                 tx_ident: $tx_ident,
                 currency: $currency,
-                prev_transaction: $w_from.{TRANSACTION_HEAD_F}.id,
+                prev_transaction: $w_from.{TRANSACTION_HEAD_F}.{currency}.id,
                 amount_out: type::number($amt),
                 balance: $updated_from_balance,
                 funding_tx: $funding_tx_id
@@ -186,11 +188,11 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
             LET $tx_out_id = $tx_out[0].id;
 
-            UPDATE $w_from.id SET {TRANSACTION_HEAD_F}=$tx_out_id;
+            UPDATE $w_from.id SET {TRANSACTION_HEAD_F}.{currency}=$tx_out_id;
 
             LET $in_tx_id = rand::ulid();
-            LET $prev_in_tx = $w_to.{TRANSACTION_HEAD_F}.id;
-            LET $w_to_prev_balance = $w_to.{TRANSACTION_HEAD_F}.balance;
+            LET $prev_in_tx = $w_to.{TRANSACTION_HEAD_F}.{currency}.id;
+            LET $w_to_prev_balance = $w_to.{TRANSACTION_HEAD_F}.{currency}.balance;
             $w_to_prev_balance = IF $w_to_prev_balance == NONE {{
                 RETURN 0; 
             }}ELSE{{RETURN $w_to_prev_balance;}};
@@ -208,7 +210,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
             LET $tx_in_id = $tx_in[0].id;
 
-            UPDATE $w_to.id SET {TRANSACTION_HEAD_F}=$tx_in_id;
+            UPDATE $w_to.id SET {TRANSACTION_HEAD_F}.{currency}=$tx_in_id;
 
         {commit_tx}
         ");

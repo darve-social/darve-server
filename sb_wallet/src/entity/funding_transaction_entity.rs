@@ -44,7 +44,9 @@ const TRANSACTION_TABLE: &str = crate::entity::currency_transaction_entitiy::TAB
 impl<'a> FundingTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
 
-        let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_usd = CurrencySymbol::USD;
+        let curr_reef = CurrencySymbol::REEF;
+        let curr_eth = CurrencySymbol::ETH;
 
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
@@ -55,7 +57,7 @@ impl<'a> FundingTransactionDbService<'a> {
     DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{curr_usd}'];
+        ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -68,15 +70,15 @@ impl<'a> FundingTransactionDbService<'a> {
     }
 
     // creates fundingTransaction
-    pub(crate) async fn accept_endowment_tx(&self, user: &Thing, external_account: String, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<Thing> {
+    pub(crate) async fn user_endowment_tx(&self, user: &Thing, external_account: String, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<Thing> {
         let wallet_service = WalletDbService { db: self.db, ctx: self.ctx};
 
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         // init user wallet
-        let _ = wallet_service.get_balance(&user_wallet).await?;
+        // let _ = wallet_service.get_balance(&user_wallet).await?;
         
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
-        let _ = wallet_service.get_balance(&gwy_wallet).await?;
+        // let _ = wallet_service.get_balance(&gwy_wallet).await?;
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
 
@@ -116,14 +118,13 @@ impl<'a> FundingTransactionDbService<'a> {
         });
 
         let mut fund_res = qry.await?;
-
         fund_res=fund_res.check()?;
         let res:Option<Thing> = fund_res.take(0)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Error in endowment tx".to_string()}))
     }
 
 
-    pub(crate) async fn create_withdrawal_tx(&self) -> CtxResult<()> {
+    pub(crate) async fn user_withdrawal_tx(&self) -> CtxResult<()> {
         todo!()
     }
 
