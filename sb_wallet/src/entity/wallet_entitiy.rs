@@ -93,7 +93,7 @@ impl<'a> WalletDbService<'a> {
     }
     // creates wallet
     pub async fn get_balance(&self, wallet_id: &Thing) -> CtxResult<WalletBalanceView> {
-        self.is_wallet_id(wallet_id)?;
+        Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, wallet_id).await.is_ok() {
             self.get_view::<WalletBalanceView>(IdentIdName::Id(wallet_id.clone()))
                 .await
@@ -106,15 +106,15 @@ impl<'a> WalletDbService<'a> {
         }
     }
 
-    fn is_wallet_id(&self, wallet_id: &Thing) -> CtxResult<()> {
+    pub fn is_wallet_id(ctx: Ctx, wallet_id: &Thing) -> CtxResult<()> {
         if wallet_id.tb != TABLE_NAME {
-            return Err(self.ctx.to_ctx_error(AppError::Generic { description: "wrong tb in wallet_id".to_string() }));
+            return Err(ctx.to_ctx_error(AppError::Generic { description: "wrong tb in wallet_id".to_string() }));
         }
         Ok(())
     }
 
     pub(crate) async fn init_app_gateway_wallet(&self, wallet_id: &Thing) -> CtxResult<WalletBalanceView> {
-        self.is_wallet_id(wallet_id)?;
+        Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, &wallet_id).await.is_ok() {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "Wallet already exists".to_string(),
@@ -412,8 +412,9 @@ mod tests {
             .await
             .expect("balance");
         dbg!(&balance_view1_before_tx);
-        
-        let moved = CurrencyTransactionDbService { db: &db, ctx: &ctx }
+
+        let transaction_db_service = CurrencyTransactionDbService { db: &db, ctx: &ctx };
+        let moved = transaction_db_service
             .move_amount( &balance_view1.id, &balance_view2.id, 77, &CurrencySymbol::USD)
             .await; //.expect("move balance");
                     // dbg!(moved).expect("dbg");
@@ -440,14 +441,18 @@ mod tests {
         );
         assert_eq!(balance_view2.balance, 177);
 
-        let moved = CurrencyTransactionDbService { db: &db, ctx: &ctx }
+        let moved = transaction_db_service
             .move_amount(&balance_view1.id, &balance_view2.id, 24, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), true);
-        let moved = CurrencyTransactionDbService { db: &db, ctx: &ctx }
+        let moved = transaction_db_service
             .move_amount(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), false);
+        
+        let txs = transaction_db_service.user_transaction_list(&WalletDbService::get_user_wallet_id(&user1_thing), None).await.expect("result");
+        dbg!(txs);
+
     }
 
     // derive Display only stringifies enum ident, serde also serializes the value

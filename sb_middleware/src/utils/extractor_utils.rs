@@ -167,6 +167,7 @@ where
     }
 }
 
+// TODO make DiscussionParams more generic so can be used elswhere for pagination like wallet routes
 #[derive(Debug, Deserialize, Clone)]
 pub struct DiscussionParams {
     pub topic_id: Option<Thing>,

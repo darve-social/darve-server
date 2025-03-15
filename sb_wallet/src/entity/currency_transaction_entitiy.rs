@@ -1,7 +1,7 @@
 use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 use sb_middleware::db;
 use sb_middleware::error::AppResult;
-use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName, QryBindingsVal};
+use sb_middleware::utils::db_utils::{get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -9,6 +9,8 @@ use sb_middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{to_value, Thing, Value};
+use crate::routes::wallet_routes::CurrencyTransactionView;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,7 +48,8 @@ impl<'a> CurrencyTransactionDbService<'a> {
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
-    DEFINE INDEX wallet_idx ON {TABLE_NAME} FIELDS wallet;
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}'];
+    DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
@@ -58,7 +61,6 @@ impl<'a> CurrencyTransactionDbService<'a> {
 //         RETURN true
 //     }}
 // }};
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}'];
     DEFINE FIELD prev_transaction ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
     DEFINE FIELD amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
@@ -93,6 +95,15 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         let res = tx_qry.into_query(self.db).await?;
         res.check()?;
         Ok(())
+    }
+    
+    pub async fn user_transaction_list (&self, wallet_id: &Thing, pagination: Option<Pagination>) -> CtxResult<Vec<CurrencyTransactionView>> {
+        WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
+        get_entity_list_view::<CurrencyTransactionView>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {
+            column: "wallet".to_string(),
+            val: wallet_id.to_raw(),
+            rec: true,
+        }, pagination).await
     }
 
     pub(crate) async fn create_init_record(
