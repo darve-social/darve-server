@@ -348,7 +348,7 @@ pub async fn exists_entity(
 ) -> CtxResult<Option<Thing>> {
     match ident {
         IdentIdName::Id(id) => {
-            record_exists(db, id.clone()).await?;
+            record_exists(db, id).await?;
             Ok(Some(id.clone()))
         }
         _ => {
@@ -365,7 +365,7 @@ pub async fn exists_entity(
     }
 }
 
-pub async fn record_exists(db: &Db, record_id: Thing) -> AppResult<()> {
+pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
     let qry = format!("RETURN record::exists(r\"{}\");", record_id.to_raw());
     let mut res = db.query(qry).await?;
     let res: Option<bool> = res.take(0)?;

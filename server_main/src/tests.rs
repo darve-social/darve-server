@@ -11,3 +11,4 @@ mod post_tests;
 mod profile_tests;
 mod reply_test;
 mod request_offer_tests;
+mod wallet_test;

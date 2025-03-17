@@ -506,7 +506,7 @@ async fn create_chat_discussion<'a>(
         .await?;
     let exists = record_exists(
         comm_db_service.db,
-        CommunityDbService::get_profile_community_id(user_id.clone()),
+        &CommunityDbService::get_profile_community_id(user_id.clone()),
     )
         .await;
     if exists.is_err() {
@@ -515,7 +515,7 @@ async fn create_chat_discussion<'a>(
     }
     let exists = record_exists(
         comm_db_service.db,
-        CommunityDbService::get_profile_community_id(other_user_id.clone()),
+        &CommunityDbService::get_profile_community_id(other_user_id.clone()),
     )
         .await;
     if exists.is_err() {
