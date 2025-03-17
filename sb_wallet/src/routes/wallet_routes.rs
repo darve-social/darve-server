@@ -18,7 +18,7 @@ use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/api/user/:user_id/wallet_history", get(get_wallet_history))
+        .route("/api/user/wallet/history", get(get_wallet_history))
         .with_state(state)
 }
 
