@@ -196,6 +196,11 @@ impl<'a> WalletDbService<'a> {
         // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
         Thing::from((TABLE_NAME, user_id.id.clone()))
     }
+    
+    pub(crate) fn get_user_lock_wallet_id(user_id: &Thing) -> Thing {
+        // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
+        Thing::from((TABLE_NAME, format!("{}_{}",user_id.id.clone(), "locked").as_str()))
+    }
 
     // pub(crate) fn get_user_funding_wallet_id(ident: &Thing) -> Thing {
     //     Thing::from((TABLE_NAME, format!("{}_f", ident.id).as_str()))
@@ -221,7 +226,7 @@ impl<'a> WalletDbService<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+    use crate::entity::currency_transaction_entitiy::{CurrencyTransaction, CurrencyTransactionDbService};
     use crate::entity::funding_transaction_entity::FundingTransactionDbService;
     use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
     use sb_middleware::ctx::Ctx;
@@ -238,6 +243,7 @@ mod tests {
     use surrealdb::{Surreal, Uuid};
     use tokio::io::AsyncWriteExt;
     use tokio_stream::StreamExt;
+    use crate::entity::lock_transaction_entity::{LockTransaction, LockTransactionDbService, UnlockTrigger};
 
     #[tokio::test]
     async fn endow_wallet() {
@@ -264,6 +270,7 @@ mod tests {
             .expect("user id");
 
         let fund_service = FundingTransactionDbService { db: &db, ctx: &ctx };
+        let lock_service = LockTransactionDbService { db: &db, ctx: &ctx };
         let wallet_service = WalletDbService{ db: &db, ctx: &ctx };
         let tx_service = CurrencyTransactionDbService{ db: &db, ctx: &ctx };
         
@@ -282,6 +289,41 @@ mod tests {
         assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
         assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());
         // dbg!(&user_tx);
+        
+        let lock_tx=lock_service.lock_user_asset_tx(
+            &user1,
+            33,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::UserRequest{user_id:user1.clone()}, UnlockTrigger::Delivery {post_id:user1.clone()} ],
+        ).await.expect("locked");
+
+        let mut lock_tx =lock_service.db.query(format!("SELECT * FROM {lock_tx} ")).await.unwrap();
+        let lck :Option<LockTransaction>=lock_tx.take(0).unwrap();
+        let lck = lck.unwrap();
+
+        assert_eq!(lck.unlock_triggers.len(), 2);
+
+        let mut lock_transfer_tx = tx_service.db.query(format!("SELECT * FROM {} ", lck.lock_tx_out.unwrap().to_raw())).await.unwrap();
+        let c_tx:Option<CurrencyTransaction>=lock_transfer_tx.take(0).unwrap();
+        let curr_tx = c_tx.unwrap();
+
+        assert_eq!(curr_tx.amount_out.unwrap(), 33);
+        assert_eq!(curr_tx.balance, 67);
+
+        let lock_w_id = WalletDbService::get_user_lock_wallet_id(&user1);
+        let lock_wallet = wallet_service.get_balance(&lock_w_id).await.unwrap();
+        let user_wallet = wallet_service.get_user_balance(&user1).await.unwrap();
+
+        assert_eq!(lock_wallet.balance_usd, 33);
+        assert_eq!(user_wallet.balance_usd, 100-33);
+
+        let lock_tx=lock_service.lock_user_asset_tx(
+            &user1,
+            33333,
+            CurrencySymbol::REEF,
+            vec![UnlockTrigger::UserRequest{user_id:user1.clone()}, UnlockTrigger::Delivery {post_id:user1.clone()} ],
+        ).await;
+        assert_eq!(lock_tx.is_err(), true);
     }
 
     #[tokio::test]
@@ -636,6 +678,9 @@ mod tests {
         .mutate_db()
         .await?;
         CurrencyTransactionDbService { db: &db, ctx: &c}
+            .mutate_db()
+            .await?;
+        LockTransactionDbService { db: &db, ctx: &c}
             .mutate_db()
             .await?;
         

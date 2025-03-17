@@ -74,15 +74,12 @@ impl<'a> FundingTransactionDbService<'a> {
         let wallet_service = WalletDbService { db: self.db, ctx: self.ctx};
 
         let user_wallet = WalletDbService::get_user_wallet_id(user);
-        // init user wallet
-        // let _ = wallet_service.get_balance(&user_wallet).await?;
         
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
-        // let _ = wallet_service.get_balance(&gwy_wallet).await?;
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
 
-        let funding_2_user_tx = CurrencyTransactionDbService::get_tx_qry(&gwy_wallet, &user_wallet, amount, &currency_symbol, Some(fund_tx_id.clone()), true)?;
+        let funding_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(&gwy_wallet, &user_wallet, amount, &currency_symbol, Some(fund_tx_id.clone()), None, true)?;
         let funding_2_user_qry = funding_2_user_tx.get_query_string();
 
         let fund_qry = format!("
