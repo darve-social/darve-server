@@ -17,7 +17,7 @@ use stripe::{
     CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
     CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
     CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product,
+    PaymentLink, Price, Product 
 };
 use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
