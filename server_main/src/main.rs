@@ -167,7 +167,6 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     WalletDbService {
         db: &db,
         ctx: &c,
-        is_development,
     }
     .mutate_db()
     .await?;

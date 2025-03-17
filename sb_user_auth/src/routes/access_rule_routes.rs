@@ -148,7 +148,7 @@ async fn create_update(
     .await?;
 
     let comm_id = get_string_thing(form_value.target_entity_id.clone())?;
-    record_exists(&ctx_state._db, comm_id.clone()).await?;
+    record_exists(&ctx_state._db, &comm_id.clone()).await?;
     let required_diss_auth = Authorization {
         authorize_record_id: comm_id.clone(),
         authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
