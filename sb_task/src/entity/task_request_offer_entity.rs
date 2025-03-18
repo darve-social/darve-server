@@ -7,11 +7,14 @@ use sb_middleware::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use chrono::{DateTime, Utc};
 use strum::Display;
 use surrealdb::opt::PatchOp;
 use surrealdb::opt::Resource::RecordId;
 use surrealdb::sql::{Id, Thing};
 use tower::ServiceExt;
+use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 
 #[derive(Display, Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -30,9 +33,11 @@ pub struct RewardVote {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RewardParticipant {
+pub struct ParticipantReward {
     pub(crate) amount: i64,
+    pub(crate) currency: CurrencySymbol,
     pub(crate) user: Thing,
+    pub(crate) lock: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) votes: Option<Vec<RewardVote>>,
 }
@@ -44,7 +49,9 @@ pub struct TaskRequestOffer {
     pub task_request: Thing,
     pub user: Thing,
     pub reward_type: RewardType,
-    pub participants: Vec<RewardParticipant>,
+    pub participants: Vec<ParticipantReward>,
+    pub valid_until: DateTime<Utc>,
+    pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,9 +66,13 @@ pub struct TaskRequestOfferDbService<'a> {
 pub const TABLE_NAME: &str = "task_request_offer";
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 const TABLE_COL_TASK_REQUEST: &str = crate::entity::task_request_entitiy::TABLE_NAME;
+const LOCK_TABLE_NAME: &str = sb_wallet::entity::lock_transaction_entity::TABLE_NAME;
 
 impl<'a> TaskRequestOfferDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
+        let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_reef = CurrencySymbol::REEF.to_string();
+        let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
@@ -69,7 +80,8 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
     DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
-    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>> }}>;
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int, currency:'{curr_usd}'|'{curr_reef}'|'{curr_eth}', lock: record<{LOCK_TABLE_NAME}>}}>> }}>;
+    DEFINE FIELD valid_until ON TABLE {TABLE_NAME} TYPE datetime;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
@@ -136,16 +148,28 @@ impl<'a> TaskRequestOfferDbService<'a> {
     pub async fn add_participation(&self, offer_id: Thing, user_id: Thing, amount: i64) -> CtxResult<TaskRequestOffer> {
         // update existing item from user or push new one
         let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
 
         match offer.participants.iter().position(|rp| rp.user == user_id) {
-            None =>
-                offer.participants.push(RewardParticipant {
+            None => {
+                let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
+                offer.participants.push(ParticipantReward {
                     amount,
+                    lock,
                     user: user_id,
                     votes: None,
-                }),
+                    currency: offer.currency,
+                })
+            }
             Some(i) => {
                 let partic = &mut offer.participants[i];
+                // unlock and lock different amt
+                let existing_lock_id = partic.lock.clone();
+                if let Some(lock) = existing_lock_id{
+                    lock_service.unlock_user_asset_tx(&lock).await?;
+                }
+                let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
+                partic.lock = Some(lock);
                 partic.amount = amount;
             }
         }

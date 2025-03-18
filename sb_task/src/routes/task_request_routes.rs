@@ -1,6 +1,6 @@
 use crate::entity::task_request_entitiy::{DeliverableType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
 use askama_axum::Template;
-use crate::entity::task_request_offer_entity::{RewardParticipant, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
+use crate::entity::task_request_offer_entity::{ParticipantReward, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
@@ -26,11 +26,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
 use std::path::Path as FPath;
+use chrono::{Days, Duration, Utc};
 use surrealdb::sql::{Id, Thing};
 use tempfile::NamedTempFile;
 use tower::util::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
 use validator::Validate;
+use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 
 pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
@@ -92,6 +95,7 @@ pub struct TaskRequestInput {
 #[derive(Deserialize, Serialize, Validate)]
 pub struct TaskRequestOfferInput {
     pub amount: i64,
+    pub currency: Option<CurrencySymbol>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -339,6 +343,8 @@ async fn create_entity(
     };
 
     let offer_amount = t_request_input.offer_amount.unwrap_or(0);
+    let offer_currency = CurrencySymbol::USD;
+    let valid_until = Utc::now().checked_add_signed(Duration::days(5)).unwrap();
 
     let post_id = t_request_input.post_id.unwrap_or("".to_string());
     let post = if post_id.len() > 0 {
@@ -347,6 +353,10 @@ async fn create_entity(
         None
     };
 
+    let lock = if offer_amount>0 {
+        let lock_service = LockTransactionDbService { db: &_db, ctx: &ctx };
+        Some(lock_service.lock_user_asset_tx(&from_user, offer_amount, offer_currency.clone(), vec![UnlockTrigger::Timestamp { at: valid_until.clone() }]).await?)
+    } else { None };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
     let offer = TaskRequestOfferDbService {
         db: &_db,
@@ -357,9 +367,13 @@ async fn create_entity(
         task_request: t_req_id.clone(),
         user: from_user.clone(),
         reward_type: RewardType::OnDelivery,
-        participants: vec![RewardParticipant{
+        valid_until,
+        currency: offer_currency.clone(),
+        participants: vec![ParticipantReward {
             amount: offer_amount,
+            currency: offer_currency.clone(),
             user: from_user.clone(),
+            lock,
             votes:None
         }],
         r_created: None,
@@ -643,9 +657,6 @@ async fn participate_task_request_offer(
         db: &_db,
         ctx: &ctx,
     };
-    // let task_offer = task_request_offer_db_service
-    // .get(IdentIdName::Id(get_string_thing(task_offer_id)?))
-    // .await?;
 
    let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
 
