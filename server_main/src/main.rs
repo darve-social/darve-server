@@ -50,7 +50,7 @@ use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes, user_notification_routes};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
-use sb_wallet::routes::wallet_routes;
+use sb_wallet::routes::{wallet_routes, wallet_endowment_routes};
 
 mod mw_response_transformer;
 mod test_utils;
@@ -213,6 +213,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(user_notification_routes::routes(ctx_state.clone()))
         .merge(user_notification_routes::routes(ctx_state.clone()))
         .merge(wallet_routes::routes(ctx_state.clone()))
+        .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
         .layer(middleware::map_response(mw_req_logger::mw_req_logger))
