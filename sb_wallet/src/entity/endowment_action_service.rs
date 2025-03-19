@@ -42,10 +42,10 @@ pub struct EndowmentActionDbService<'a> {
     pub ctx: &'a Ctx,
 }
 
-pub const TABLE_NAME: &str = "join_action";
+pub const TABLE_NAME: &str = "endowments_action";
 const TABLE_COL_ACCESS_RIGHT: &str = "endowment_access_right";
 const TABLE_COL_ACCESS_RULE: &str = "endowment_access_rule";
-const TABLE_COL_LOCAL_USER: &str = "";
+const TABLE_COL_LOCAL_USER: &str = "local_user";
 
 impl<'a> EndowmentActionDbService<'a> {
     pub fn get_table_name() -> &'static str {
