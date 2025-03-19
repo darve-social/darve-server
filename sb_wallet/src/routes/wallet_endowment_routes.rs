@@ -12,9 +12,9 @@ use futures::TryFutureExt;
 use stripe::{
     Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
     CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
-    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
+    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentIntent, CreatePaymentLink,
     CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product, CreatePaymentIntent
+    PaymentLink, Price, Product,
 };
 use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
@@ -33,12 +33,15 @@ const PRICE_USER_ID_KEY: &str = "user_id";
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/api/user/wallet/endowment/:amount", get(request_endowment_intent))
+        .route(
+            "/api/user/wallet/endowment/:amount",
+            get(request_endowment_intent),
+        )
         .route("/api/stripe/endowment/webhook", post(handle_webhook))
         .with_state(state)
 }
 
-struct EndowmentIdent{
+struct EndowmentIdent {
     user_id: Thing,
     amount: u32,
     pub action: String,
@@ -46,7 +49,12 @@ struct EndowmentIdent{
 
 impl From<EndowmentIdent> for ProductId {
     fn from(value: EndowmentIdent) -> Self {
-        let stripe_prod_id = format!("{}~{}~{}",value.user_id.to_raw().replace(":", "-"),value.amount, value.action );
+        let stripe_prod_id = format!(
+            "{}~{}~{}",
+            value.user_id.to_raw().replace(":", "-"),
+            value.amount,
+            value.action
+        );
         ProductId::from_str(stripe_prod_id.as_str()).unwrap()
     }
 }
@@ -58,12 +66,27 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
 
     fn try_from(value: MyStripeProductId) -> Result<Self, Self::Error> {
         let mut spl = value.0.as_str().split("~");
-        let user_ident = spl.next().ok_or(AppError::Generic {description:"missing user_id part".to_string()})?;
-        let amount = spl.next().ok_or(AppError::Generic {description:"missing amount part".to_string()})?;
-        let amount = amount.parse::<u32>().map_err(|e| AppError::Generic {description:e.to_string()})?;
-        let action = spl.next().ok_or(AppError::Generic {description:"missing action part".to_string()})?.to_string();
+        let user_ident = spl.next().ok_or(AppError::Generic {
+            description: "missing user_id part".to_string(),
+        })?;
+        let amount = spl.next().ok_or(AppError::Generic {
+            description: "missing amount part".to_string(),
+        })?;
+        let amount = amount.parse::<u32>().map_err(|e| AppError::Generic {
+            description: e.to_string(),
+        })?;
+        let action = spl
+            .next()
+            .ok_or(AppError::Generic {
+                description: "missing action part".to_string(),
+            })?
+            .to_string();
         let user_id = get_string_thing(user_ident.replace("-", ":"))?;
-        Ok(EndowmentIdent{user_id, amount, action})
+        Ok(EndowmentIdent {
+            user_id,
+            amount,
+            action,
+        })
     }
 }
 
@@ -85,24 +108,21 @@ async fn request_endowment_intent(
 
     let price_amount = amount;
 
-    let acc_id = AccountId::from_str(
-        stripe_connect_account_id
-            .as_str(),
-    )
-        .map_err(|e1| {
-            ctx.to_ctx_error(AppError::Stripe {
-                source: e1.to_string(),
-            })
-        })?;
+    let acc_id = AccountId::from_str(stripe_connect_account_id.as_str()).map_err(|e1| {
+        ctx.to_ctx_error(AppError::Stripe {
+            source: e1.to_string(),
+        })
+    })?;
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
         let product_title = "wallet_endowment".to_string();
-        let pr_id: ProductId = EndowmentIdent{
+        let pr_id: ProductId = EndowmentIdent {
             user_id: get_string_thing(user_id.clone())?,
             amount: price_amount,
             action: product_title.clone(),
-        }.into();
+        }
+        .into();
         let prod_res = Product::retrieve(&client, &pr_id, &[]).await;
 
         if prod_res.is_err() {
@@ -168,69 +188,52 @@ async fn request_endowment_intent(
         }
     };*/
 
-    // TODO use CreatePaymentIntent - don't need recurring
-    let create_pl = CreatePaymentLink {
-        after_completion: None,
-        allow_promotion_codes: None,
-        line_items: vec![CreatePaymentLinkLineItems {
-            quantity: 1,
-            price: price.id.to_string(),
-            ..Default::default()
-        }],
+    let create_pi = CreatePaymentIntent {
+        amount: price.unit_amount.unwrap_or(0),
+        currency: price.currency.clone().unwrap_or(Currency::USD),
         metadata: Some(std::collections::HashMap::from([(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        // on_behalf_of:Some(acc_id.as_str()),
-        on_behalf_of: None,
-        payment_intent_data: None,
-        payment_method_collection: None,
-        payment_method_types: None,
-        phone_number_collection: None,
-        restrictions: None,
-        shipping_address_collection: None,
-        shipping_options: None,
-        submit_type: None,
-        subscription_data: None,
-        tax_id_collection: None,
-        // transfer_data: Some(CreatePaymentLinkTransferData{destination: acc_id.to_string(), ..Default::default()}),
+        on_behalf_of: Some(acc_id.as_str()),
         transfer_data: None,
-        automatic_tax: None,
-        billing_address_collection: None,
-        consent_collection: None,
-        currency: None,
-        custom_fields: None,
-        custom_text: None,
-        customer_creation: None,
+        application_fee_amount: Some(platform_fee),
+        automatic_payment_methods: None,
+        capture_method: None,
+        confirm: Some(false),
+        customer: None,
+        description: None,
+        payment_method: None,
+        receipt_email: None,
+        return_url: None,
+        setup_future_usage: None,
+        shipping: None,
+        statement_descriptor: None,
+        statement_descriptor_suffix: None,
+        transfer_group: None,
+        use_stripe_sdk: None,
+        mandate: None,
+        mandate_data: None,
+        off_session: None,
+        payment_method_options: None,
+        payment_method_types: None,
+        confirmation_method: None,
+        error_on_requires_action: None,
         expand: &[],
-        inactive_message: None,
-        // value with 2 decimals - 1500 is $15s
-        application_fee_amount: match price.recurring.is_some() {
-            true => None,
-            false => Some(platform_fee),
-        },
-        application_fee_percent: match price.recurring.is_some() {
-            false => None,
-            true => Some((ctx_state.platform_fee_rel * 100 as f64) as f64),
-        },
-        invoice_creation: match price.recurring.is_some() {
-            true => None,
-            false => Some(CreatePaymentLinkInvoiceCreation {
-                enabled: true,
-                invoice_data: Some(CreatePaymentLinkInvoiceCreationInvoiceData {
-                    ..Default::default()
-                }),
-            }),
-        },
+        payment_method_configuration: None,
+        payment_method_data: None,
+        radar_options: None,
     };
 
-    let mut payment_link = PaymentLink::create(&client, create_pl).await.map_err(|e| {
-        ctx.to_ctx_error(AppError::Stripe {
-            source: e.to_string(),
-        })
-    })?;
+    let payment_intent = stripe::PaymentIntent::create(&client, create_pi)
+        .await
+        .map_err(|e| {
+            ctx.to_ctx_error(AppError::Stripe {
+                source: e.to_string(),
+            })
+        })?;
 
-    Ok((StatusCode::OK, payment_link.url.as_str()).into_response())
+    Ok((StatusCode::OK, payment_intent.client_secret.unwrap()).into_response())
 }
 
 struct StripeEvent(Event);
@@ -268,7 +271,6 @@ async fn handle_webhook(
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
     match event.type_ {
-        
         EventType::InvoicePaymentFailed => {
             if let EventObject::Invoice(invoice) = event.data.object {
                 let external_ident = Some(invoice.id.as_str().clone().to_string());
@@ -279,23 +281,23 @@ async fn handle_webhook(
                     .0
                     .clone();
 
-                //TODO create EndowmentActionDbService like AccessGainActionDbService 
+                //TODO create EndowmentActionDbService like AccessGainActionDbService
                 EndowmentActionDbService {
                     db: &ctx_state._db,
                     ctx: &ctx,
                 }
-                    .create_update(EndowmentAction {
-                        id: None,
-                        external_ident,
-                        access_rule_pending: None,
-                        access_rights: None,
-                        local_user: Option::from(u_id),
-                        action_type: EndowmentActionType::Stripe,
-                        action_status: EndowmentActionStatus::Failed,
-                        r_created: None,
-                        r_updated: None,
-                    })
-                    .await?;
+                .create_update(EndowmentAction {
+                    id: None,
+                    external_ident,
+                    access_rule_pending: None,
+                    access_rights: None,
+                    local_user: Option::from(u_id),
+                    action_type: EndowmentActionType::Stripe,
+                    action_status: EndowmentActionStatus::Failed,
+                    r_created: None,
+                    r_updated: None,
+                })
+                .await?;
             }
         }
         EventType::InvoicePaid => {
@@ -347,15 +349,15 @@ async fn handle_webhook(
                         ctx: &ctx,
                         db: &ctx_state._db,
                     }
-                        .add_paid_access_right(
-                            usr_id.clone(),
-                            a_rule_thing.clone(),
-                            j_action
-                                .id
-                                .clone()
-                                .expect("must be saved already, having id"),
-                        )
-                        .await?;
+                    .add_paid_access_right(
+                        usr_id.clone(),
+                        a_rule_thing.clone(),
+                        j_action
+                            .id
+                            .clone()
+                            .expect("must be saved already, having id"),
+                    )
+                    .await?;
                     a_rights.push(a_right.id.expect("AccessRight to be saved"));
                 }
                 j_action.access_rights = Some(a_rights);
@@ -437,4 +439,3 @@ async fn extract_invoice_data(
         Ok(user_access_rules)
     }
 }
-
