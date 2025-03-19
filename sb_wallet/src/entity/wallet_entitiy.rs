@@ -103,13 +103,17 @@ impl<'a> WalletDbService<'a> {
 
         Ok(())
     }
-
-    // creates wallet
+    
     pub async fn get_user_balance(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
         let user_wallet_id = &Self::get_user_wallet_id(user_id);
         self.get_balance(user_wallet_id).await
     }
-    // creates wallet
+    
+    pub async fn get_user_balance_locked(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
+        let user_wallet_id = &Self::get_user_lock_wallet_id(user_id);
+        self.get_balance(user_wallet_id).await
+    }
+    
     pub async fn get_balance(&self, wallet_id: &Thing) -> CtxResult<WalletBalanceView> {
         Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, wallet_id).await.is_ok() {
@@ -247,7 +251,7 @@ mod tests {
     use crate::entity::lock_transaction_entity::{LockTransaction, LockTransactionDbService, UnlockTrigger};
 
     #[tokio::test]
-    async fn endow_wallet() {
+    async fn endow_lock_wallet() {
 
         let (db, ctx) = init_db_test().await;
 

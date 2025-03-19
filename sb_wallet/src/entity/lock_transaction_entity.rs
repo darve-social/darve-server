@@ -147,7 +147,6 @@ impl<'a> LockTransactionDbService<'a> {
         });
 
         let mut lock_res = qry.await?;
-        dbg!(&lock_res);
         lock_res = lock_res.check()?;
         let res:Option<Thing> = lock_res.take(0)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Error in unlock tx".to_string()}))

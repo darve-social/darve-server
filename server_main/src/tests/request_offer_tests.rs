@@ -17,6 +17,8 @@ mod tests {
     use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
     use sb_task::routes::task_request_routes::{AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView};
     use sb_user_auth::routes::login_routes::LoginInput;
+    use sb_wallet::entity::funding_transaction_entity::FundingTransactionDbService;
+    use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 
     #[tokio::test]
     async fn create_request_offer() {
@@ -88,7 +90,10 @@ mod tests {
 
 
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
+        let user2_thing = get_string_thing(user_ident2).unwrap();
 
+        let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+        fund_service.user_endowment_tx(&user2_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
         let offer_amount = Some(2);
         let offer_content = "contdad".to_string();
         let task_request = server
@@ -97,16 +102,16 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
 
-        let created_task = task_request.json::<CreatedResponse>();
         &task_request.assert_status_success();
+        let created_task = task_request.json::<CreatedResponse>();
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
         &post_tasks_req.assert_status_success();
+        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.offers.get(0).unwrap();
@@ -145,11 +150,17 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
+        
+        let user3_thing = get_string_thing(user_ident3).unwrap();
+        let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+        fund_service.user_endowment_tx(&user3_thing.clone(), "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
 
+// TODO check if balance was locked
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", offer0.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: 3,
+                currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
@@ -157,13 +168,20 @@ mod tests {
         participate_response.assert_status_success();
         let res = participate_response.json::<CreatedResponse>();
 
+
+        let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
+        let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
+        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
+        assert_eq!(balance.balance_usd, 97);
+        assert_eq!(balance_locked.balance_usd, 3);
+        
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
         &post_tasks_req.assert_status_success();
+        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.offers.get(0).unwrap();
@@ -172,11 +190,11 @@ mod tests {
         assert_eq!(participant.amount, 3);
 
         // change amount to 33 by sending another participation req
-
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", offer0.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: 33,
+                currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
@@ -184,13 +202,19 @@ mod tests {
         participate_response.assert_status_success();
         let res = participate_response.json::<CreatedResponse>();
 
+        let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
+        let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
+        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
+        assert_eq!(balance.balance_usd, 67);
+        assert_eq!(balance_locked.balance_usd, 33);
+
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
         &post_tasks_req.assert_status_success();
+        let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.offers.get(0).unwrap();

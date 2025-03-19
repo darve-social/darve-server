@@ -80,8 +80,9 @@ impl<'a> TaskRequestOfferDbService<'a> {
     DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQUEST}>;
     DEFINE INDEX user_treq_idx ON TABLE {TABLE_NAME} COLUMNS user, task_request UNIQUE;
     DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
-    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int, currency:'{curr_usd}'|'{curr_reef}'|'{curr_eth}', lock: record<{LOCK_TABLE_NAME}>}}>> }}>;
-    DEFINE FIELD valid_until ON TABLE {TABLE_NAME} TYPE datetime;
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<{{ amount: int, user: record<{TABLE_COL_USER}>, votes: option<array<{{deliverable_ident: string, points: int}}>>, currency:'{curr_usd}'|'{curr_reef}'|'{curr_eth}', lock: record<{LOCK_TABLE_NAME}> }}>;
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
+    DEFINE FIELD valid_until ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");

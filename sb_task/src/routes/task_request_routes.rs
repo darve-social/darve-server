@@ -353,6 +353,7 @@ async fn create_entity(
         None
     };
 
+    // TODO in db transaction
     let lock = if offer_amount>0 {
         let lock_service = LockTransactionDbService { db: &_db, ctx: &ctx };
         Some(lock_service.lock_user_asset_tx(&from_user, offer_amount, offer_currency.clone(), vec![UnlockTrigger::Timestamp { at: valid_until.clone() }]).await?)
