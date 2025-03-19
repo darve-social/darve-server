@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 use axum::{async_trait, Router};
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use stripe::{
-    AccountId, CreatePaymentLink,
+    AccountId, CreatePaymentIntent,
     CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
     Client,
     PaymentLink, Price, Product
@@ -243,7 +243,7 @@ async fn request_endowment_intent(
             })
         })?;
 
-    Ok((StatusCode::OK, payment_link.url.clone()).into_response())
+        Ok((StatusCode::OK, payment_intent.client_secret.unwrap()).into_response())
 }
 
 struct StripeEvent(Event);
@@ -394,52 +394,52 @@ where
 //     Ok("".into_response())
 // }
 
-async fn extract_invoice_data(
-    _ctx_state: &CtxState,
-    ctx: &Ctx,
-    invoice: Invoice,
-) -> Result<Vec<(Thing, Thing)>, CtxError> {
-    let mut user_access_rules: Vec<(Thing, Thing)> = vec![];
-    if let Some(list) = invoice.lines {
-        for item in list.data {
-            if let Some(price) = item.price {
-                if let Some(mut md) = price.metadata {
-                    let user_id = md.remove(PRICE_USER_ID_KEY);
-                    if user_id.is_some() {
-                        let usr_id = get_string_thing(user_id.clone().unwrap());
-                        let product_id = price.product.unwrap().id();
-                        if usr_id.is_ok() {
-                            let access_rule_thing: Result<Thing, AppError> = MyStripeProductId(product_id.clone()).to_thing();
+// async fn extract_invoice_data(
+//     _ctx_state: &CtxState,
+//     ctx: &Ctx,
+//     invoice: Invoice,
+// ) -> Result<Vec<(Thing, Thing)>, CtxError> {
+//     let mut user_access_rules: Vec<(Thing, Thing)> = vec![];
+//     if let Some(list) = invoice.lines {
+//         for item in list.data {
+//             if let Some(price) = item.price {
+//                 if let Some(mut md) = price.metadata {
+//                     let user_id = md.remove(PRICE_USER_ID_KEY);
+//                     if user_id.is_some() {
+//                         let usr_id = get_string_thing(user_id.clone().unwrap());
+//                         let product_id = price.product.unwrap().id();
+//                         if usr_id.is_ok() {
+//                             let access_rule_thing: Result<Thing, AppError> = MyStripeProductId(product_id.clone()).to_thing();
 
-                            if access_rule_thing.is_ok() {
-                                user_access_rules
-                                    .push((usr_id.unwrap(), access_rule_thing.unwrap()));
-                                // return Ok((usr_id.unwrap(), access_rule_thing.unwrap()));
-                            } else {
-                                println!(
-                                    "ERROR stripe wh parse product id {} into thing invoice={}",
-                                    product_id.as_str(),
-                                    invoice.id.as_str()
-                                )
-                            }
-                        } else {
-                            println!(
-                                "ERROR stripe wh parse user id {:?} into thing invoice={}",
-                                user_id.unwrap(),
-                                invoice.id.as_str()
-                            )
-                        }
-                    } else {
-                        println!(
-                            "ERROR stripe wh no user id for price {} invoice={}",
-                            price.id.as_str(),
-                            invoice.id.as_str()
-                        );
-                    }
-                }
-            }
-        }
-    };
+//                             if access_rule_thing.is_ok() {
+//                                 user_access_rules
+//                                     .push((usr_id.unwrap(), access_rule_thing.unwrap()));
+//                                 // return Ok((usr_id.unwrap(), access_rule_thing.unwrap()));
+//                             } else {
+//                                 println!(
+//                                     "ERROR stripe wh parse product id {} into thing invoice={}",
+//                                     product_id.as_str(),
+//                                     invoice.id.as_str()
+//                                 )
+//                             }
+//                         } else {
+//                             println!(
+//                                 "ERROR stripe wh parse user id {:?} into thing invoice={}",
+//                                 user_id.unwrap(),
+//                                 invoice.id.as_str()
+//                             )
+//                         }
+//                     } else {
+//                         println!(
+//                             "ERROR stripe wh no user id for price {} invoice={}",
+//                             price.id.as_str(),
+//                             invoice.id.as_str()
+//                         );
+//                     }
+//                 }
+//             }
+//         }
+//     }
 
 //     if user_access_rules.len() == 0 {
 //         Err(ctx.to_ctx_error(AppError::Generic {
