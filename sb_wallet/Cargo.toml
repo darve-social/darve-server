@@ -11,6 +11,7 @@ serde = { version = "1.0.214", features = ["derive"] }
 serde_json = "1.0.132"
 axum = { version = "0.7.7", features = ["multipart", "http2"] }
 strum = { version = "0.26.3", features = ["derive"] }
+async-stripe = { version = "0.40.1", features = ["checkout", "runtime-tokio-hyper"] }
 tokio = "1.40.0"
 tokio-stream = "0.1.16"
 log = "0.4.22"

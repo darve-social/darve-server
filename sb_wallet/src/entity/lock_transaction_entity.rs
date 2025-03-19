@@ -53,7 +53,7 @@ impl<'a> LockTransactionDbService<'a> {
     DEFINE FIELD lock_tx_out ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD unlock_tx_in ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE FIELD unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"UserRequest\":{{ \"user_id\":record}} }}|{{\"Delivery\":{{ \"post_id\":record}}|{{\"Timestamp\":{{ \"at\":string}} }}>;
+    DEFINE FIELD unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"UserRequest\":{{ \"user_id\":record}} }}|{{\"Delivery\":{{ \"post_id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 

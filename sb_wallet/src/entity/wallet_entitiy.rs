@@ -226,6 +226,7 @@ impl<'a> WalletDbService<'a> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Duration, Utc};
     use crate::entity::currency_transaction_entitiy::{CurrencyTransaction, CurrencyTransactionDbService};
     use crate::entity::funding_transaction_entity::FundingTransactionDbService;
     use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
@@ -289,41 +290,51 @@ mod tests {
         assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
         assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());
         // dbg!(&user_tx);
-        
+
+        let lock_amount = 33;
         let lock_tx=lock_service.lock_user_asset_tx(
             &user1,
-            33,
+            lock_amount,
             CurrencySymbol::USD,
-            vec![UnlockTrigger::UserRequest{user_id:user1.clone()}, UnlockTrigger::Delivery {post_id:user1.clone()} ],
+            vec![UnlockTrigger::Timestamp{at:Utc::now().checked_add_signed(Duration::days(5)).unwrap()} ],
         ).await.expect("locked");
 
         let mut lock_tx =lock_service.db.query(format!("SELECT * FROM {lock_tx} ")).await.unwrap();
         let lck :Option<LockTransaction>=lock_tx.take(0).unwrap();
         let lck = lck.unwrap();
 
-        assert_eq!(lck.unlock_triggers.len(), 2);
+        assert_eq!(lck.unlock_triggers.len(), 1);
 
         let mut lock_transfer_tx = tx_service.db.query(format!("SELECT * FROM {} ", lck.lock_tx_out.unwrap().to_raw())).await.unwrap();
         let c_tx:Option<CurrencyTransaction>=lock_transfer_tx.take(0).unwrap();
         let curr_tx = c_tx.unwrap();
 
-        assert_eq!(curr_tx.amount_out.unwrap(), 33);
+        assert_eq!(curr_tx.amount_out.unwrap(), lock_amount);
         assert_eq!(curr_tx.balance, 67);
 
         let lock_w_id = WalletDbService::get_user_lock_wallet_id(&user1);
         let lock_wallet = wallet_service.get_balance(&lock_w_id).await.unwrap();
         let user_wallet = wallet_service.get_user_balance(&user1).await.unwrap();
 
-        assert_eq!(lock_wallet.balance_usd, 33);
-        assert_eq!(user_wallet.balance_usd, 100-33);
+        assert_eq!(lock_wallet.balance_usd, lock_amount);
+        assert_eq!(user_wallet.balance_usd, 100- lock_amount);
 
         let lock_tx=lock_service.lock_user_asset_tx(
             &user1,
             33333,
             CurrencySymbol::REEF,
-            vec![UnlockTrigger::UserRequest{user_id:user1.clone()}, UnlockTrigger::Delivery {post_id:user1.clone()} ],
+            vec![UnlockTrigger::Timestamp{at:Utc::now().checked_add_signed(Duration::days(5)).unwrap()} ],
         ).await;
         assert_eq!(lock_tx.is_err(), true);
+
+        let unlck = lock_service.unlock_user_asset_tx(&lck.id.unwrap()).await.unwrap();
+        
+        let lock_wallet = wallet_service.get_balance(&lock_w_id).await.unwrap();
+        let user_wallet = wallet_service.get_user_balance(&user1).await.unwrap();
+
+        assert_eq!(lock_wallet.balance_usd, 0);
+        assert_eq!(user_wallet.balance_usd, 100);
+        
     }
 
     #[tokio::test]
@@ -566,6 +577,7 @@ mod tests {
 
         let gateway_wallet = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("wallet");
         dbg!(gateway_wallet);
+        
     }
 
     // derive Display only stringifies enum ident, serde also serializes the value

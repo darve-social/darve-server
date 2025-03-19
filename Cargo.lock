@@ -417,9 +417,9 @@ dependencies = [
 
 [[package]]
 name = "async-stripe"
-version = "0.39.1"
+version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58d670cf4d47a1b8ffef54286a5625382e360a34ee76902fd93ad8c7032a0c30"
+checksum = "e757b8d9d76544daaf1fce136221628207180fc5d7d6ee955109d74e75a38cad"
 dependencies = [
  "chrono",
  "futures-util",
@@ -3812,6 +3812,7 @@ version = "0.1.0"
 dependencies = [
  "askama",
  "askama_axum",
+ "async-stripe",
  "axum",
  "chrono",
  "log",

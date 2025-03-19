@@ -155,7 +155,7 @@ impl<'a> TaskRequestOfferDbService<'a> {
                 let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
                 offer.participants.push(ParticipantReward {
                     amount,
-                    lock,
+                    lock: Some(lock),
                     user: user_id,
                     votes: None,
                     currency: offer.currency,
@@ -192,6 +192,11 @@ impl<'a> TaskRequestOfferDbService<'a> {
         let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
 
         if let Some(i) = offer.participants.iter().position(|partic| partic.user == user_id) {
+            let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
+            let existing_lock_id = offer.participants[i].lock.clone();
+            if let Some(lock) = existing_lock_id{
+                lock_service.unlock_user_asset_tx(&lock).await?;
+            }
             if offer.participants.len() < 2 {
                 self.delete(offer.id.expect("existing offer has id"));
                 return Ok(None);
@@ -214,6 +219,14 @@ impl<'a> TaskRequestOfferDbService<'a> {
 
     // not public - can only be deleted by removing participants
     async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
+        let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
+        let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        for partic in offer.participants {
+            let existing_lock_id = partic.lock.clone();
+            if let Some(lock) = existing_lock_id {
+                lock_service.unlock_user_asset_tx(&lock).await?;
+            }
+        }
         let res: Option<TaskRequestOffer> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
         Ok(true)
     }
