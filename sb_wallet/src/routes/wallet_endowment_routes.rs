@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use axum::response::{Redirect, Response};
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
-use futures::TryFutureExt;
+// use futures::TryFutureExt;
 use stripe::{
     Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
     CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
@@ -37,7 +37,7 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
-        .route("/api/stripe/endowment/webhook", post(handle_webhook))
+        // .route("/api/stripe/endowment/webhook", post(handle_webhook))
         .with_state(state)
 }
 
@@ -265,177 +265,177 @@ where
     }
 }
 
-async fn handle_webhook(
-    State(ctx_state): State<CtxState>,
-    ctx: Ctx,
-    StripeEvent(event): StripeEvent,
-) -> CtxResult<Response> {
-    match event.type_ {
-        EventType::InvoicePaymentFailed => {
-            if let EventObject::Invoice(invoice) = event.data.object {
-                let external_ident = Some(invoice.id.as_str().clone().to_string());
-                let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
-                let u_id = invoice_rules
-                    .get(0)
-                    .expect("invoice should have items")
-                    .0
-                    .clone();
+// async fn handle_webhook(
+//     State(ctx_state): State<CtxState>,
+//     ctx: Ctx,
+//     StripeEvent(event): StripeEvent,
+// ) -> CtxResult<Response> {
+//     match event.type_ {
+//         EventType::InvoicePaymentFailed => {
+//             if let EventObject::Invoice(invoice) = event.data.object {
+//                 let external_ident = Some(invoice.id.as_str().clone().to_string());
+//                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
+//                 let u_id = invoice_rules
+//                     .get(0)
+//                     .expect("invoice should have items")
+//                     .0
+//                     .clone();
 
-                //TODO create EndowmentActionDbService like AccessGainActionDbService
-                EndowmentActionDbService {
-                    db: &ctx_state._db,
-                    ctx: &ctx,
-                }
-                .create_update(EndowmentAction {
-                    id: None,
-                    external_ident,
-                    access_rule_pending: None,
-                    access_rights: None,
-                    local_user: Option::from(u_id),
-                    action_type: EndowmentActionType::Stripe,
-                    action_status: EndowmentActionStatus::Failed,
-                    r_created: None,
-                    r_updated: None,
-                })
-                .await?;
-            }
-        }
-        EventType::InvoicePaid => {
-            if let EventObject::Invoice(invoice) = event.data.object {
-                // dbg!(&invoice);
-                /*let id = Thing::try_from((
-                    EndowmentActionDbService::get_table_name().to_string(),
-                    Id::from(invoice.id.as_str()),
-                ))
-                .unwrap();*/
-                let j_action_db = EndowmentActionDbService {
-                    db: &ctx_state._db,
-                    ctx: &ctx,
-                };
-                let mut j_action = EndowmentAction {
-                    id: None,
-                    external_ident: Some(invoice.id.to_string()),
-                    access_rule_pending: None,
-                    access_rights: None,
-                    local_user: None,
-                    action_type: EndowmentActionType::Stripe,
-                    action_status: EndowmentActionStatus::Failed,
-                    r_created: None,
-                    r_updated: None,
-                };
-                if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
-                    || invoice.paid.is_none()
-                    || invoice.paid.unwrap() == false
-                {
-                    j_action_db.create_update(j_action).await?;
-                    // don't process partially paid
-                    return Ok(StatusCode::OK.into_response());
-                }
+//                 //TODO create EndowmentActionDbService like AccessGainActionDbService
+//                 EndowmentActionDbService {
+//                     db: &ctx_state._db,
+//                     ctx: &ctx,
+//                 }
+//                 .create_update(EndowmentAction {
+//                     id: None,
+//                     external_ident,
+//                     access_rule_pending: None,
+//                     access_rights: None,
+//                     local_user: Option::from(u_id),
+//                     action_type: EndowmentActionType::Stripe,
+//                     action_status: EndowmentActionStatus::Failed,
+//                     r_created: None,
+//                     r_updated: None,
+//                 })
+//                 .await?;
+//             }
+//         }
+//         EventType::InvoicePaid => {
+//             if let EventObject::Invoice(invoice) = event.data.object {
+//                 // dbg!(&invoice);
+//                 /*let id = Thing::try_from((
+//                     EndowmentActionDbService::get_table_name().to_string(),
+//                     Id::from(invoice.id.as_str()),
+//                 ))
+//                 .unwrap();*/
+//                 let j_action_db = EndowmentActionDbService {
+//                     db: &ctx_state._db,
+//                     ctx: &ctx,
+//                 };
+//                 let mut j_action = EndowmentAction {
+//                     id: None,
+//                     external_ident: Some(invoice.id.to_string()),
+//                     access_rule_pending: None,
+//                     access_rights: None,
+//                     local_user: None,
+//                     action_type: EndowmentActionType::Stripe,
+//                     action_status: EndowmentActionStatus::Failed,
+//                     r_created: None,
+//                     r_updated: None,
+//                 };
+//                 if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
+//                     || invoice.paid.is_none()
+//                     || invoice.paid.unwrap() == false
+//                 {
+//                     j_action_db.create_update(j_action).await?;
+//                     // don't process partially paid
+//                     return Ok(StatusCode::OK.into_response());
+//                 }
 
-                let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
-                let mut a_rights = vec![];
-                j_action.local_user = Some(
-                    invoice_rules
-                        .get(0)
-                        .expect("invoice must have items")
-                        .0
-                        .clone(),
-                );
-                j_action.action_status = EndowmentActionStatus::Complete;
-                j_action = j_action_db.create_update(j_action).await?;
-                for user_a_rule in invoice_rules {
-                    let (usr_id, a_rule_thing) = user_a_rule;
-                    let a_right = AccessRightDbService {
-                        ctx: &ctx,
-                        db: &ctx_state._db,
-                    }
-                    .add_paid_access_right(
-                        usr_id.clone(),
-                        a_rule_thing.clone(),
-                        j_action
-                            .id
-                            .clone()
-                            .expect("must be saved already, having id"),
-                    )
-                    .await?;
-                    a_rights.push(a_right.id.expect("AccessRight to be saved"));
-                }
-                j_action.access_rights = Some(a_rights);
-                j_action_db.create_update(j_action).await?;
-            }
-        }
-        /*EventType::SubscriptionScheduleCreated => {
-            if let EventObject::SubscriptionSchedule(subs_sched) = event.data.object {
-                println!("Received subscription schedule webhook: {:?}", subs_sched.id);
-                dbg!(subs_sched);
-            }
-        }
-        EventType::AccountUpdated => {
-            if let EventObject::Account(account) = event.data.object {
-                println!("Received account updated webhook for account: {:?}", account.id);
-            }
-        }*/
-        _ => {
-            if ctx_state.is_development {
-                println!("Unknown event encountered in webhook: {:?}", event.type_);
-            }
-        }
-    }
-    Ok("".into_response())
-}
+//                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
+//                 let mut a_rights = vec![];
+//                 j_action.local_user = Some(
+//                     invoice_rules
+//                         .get(0)
+//                         .expect("invoice must have items")
+//                         .0
+//                         .clone(),
+//                 );
+//                 j_action.action_status = EndowmentActionStatus::Complete;
+//                 j_action = j_action_db.create_update(j_action).await?;
+//                 for user_a_rule in invoice_rules {
+//                     let (usr_id, a_rule_thing) = user_a_rule;
+//                     let a_right = AccessRightDbService {
+//                         ctx: &ctx,
+//                         db: &ctx_state._db,
+//                     }
+//                     .add_paid_access_right(
+//                         usr_id.clone(),
+//                         a_rule_thing.clone(),
+//                         j_action
+//                             .id
+//                             .clone()
+//                             .expect("must be saved already, having id"),
+//                     )
+//                     .await?;
+//                     a_rights.push(a_right.id.expect("AccessRight to be saved"));
+//                 }
+//                 j_action.access_rights = Some(a_rights);
+//                 j_action_db.create_update(j_action).await?;
+//             }
+//         }
+//         /*EventType::SubscriptionScheduleCreated => {
+//             if let EventObject::SubscriptionSchedule(subs_sched) = event.data.object {
+//                 println!("Received subscription schedule webhook: {:?}", subs_sched.id);
+//                 dbg!(subs_sched);
+//             }
+//         }
+//         EventType::AccountUpdated => {
+//             if let EventObject::Account(account) = event.data.object {
+//                 println!("Received account updated webhook for account: {:?}", account.id);
+//             }
+//         }*/
+//         _ => {
+//             if ctx_state.is_development {
+//                 println!("Unknown event encountered in webhook: {:?}", event.type_);
+//             }
+//         }
+//     }
+//     Ok("".into_response())
+// }
 
-async fn extract_invoice_data(
-    _ctx_state: &CtxState,
-    ctx: &Ctx,
-    invoice: Invoice,
-) -> Result<Vec<(Thing, Thing)>, CtxError> {
-    let mut user_access_rules: Vec<(Thing, Thing)> = vec![];
-    if let Some(list) = invoice.lines {
-        for item in list.data {
-            if let Some(price) = item.price {
-                if let Some(mut md) = price.metadata {
-                    let user_id = md.remove(PRICE_USER_ID_KEY);
-                    if user_id.is_some() {
-                        let usr_id = get_string_thing(user_id.clone().unwrap());
-                        let product_id = price.product.unwrap().id();
-                        if usr_id.is_ok() {
-                            let access_rule_thing: Result<Thing, AppError> =
-                                MyStripeProductId(product_id.clone()).try_into();
-                            if access_rule_thing.is_ok() {
-                                user_access_rules
-                                    .push((usr_id.unwrap(), access_rule_thing.unwrap()));
-                                // return Ok((usr_id.unwrap(), access_rule_thing.unwrap()));
-                            } else {
-                                println!(
-                                    "ERROR stripe wh parse product id {} into thing invoice={}",
-                                    product_id.as_str(),
-                                    invoice.id.as_str()
-                                )
-                            }
-                        } else {
-                            println!(
-                                "ERROR stripe wh parse user id {:?} into thing invoice={}",
-                                user_id.unwrap(),
-                                invoice.id.as_str()
-                            )
-                        }
-                    } else {
-                        println!(
-                            "ERROR stripe wh no user id for price {} invoice={}",
-                            price.id.as_str(),
-                            invoice.id.as_str()
-                        );
-                    }
-                }
-            }
-        }
-    };
+// async fn extract_invoice_data(
+//     _ctx_state: &CtxState,
+//     ctx: &Ctx,
+//     invoice: Invoice,
+// ) -> Result<Vec<(Thing, Thing)>, CtxError> {
+//     let mut user_access_rules: Vec<(Thing, Thing)> = vec![];
+//     if let Some(list) = invoice.lines {
+//         for item in list.data {
+//             if let Some(price) = item.price {
+//                 if let Some(mut md) = price.metadata {
+//                     let user_id = md.remove(PRICE_USER_ID_KEY);
+//                     if user_id.is_some() {
+//                         let usr_id = get_string_thing(user_id.clone().unwrap());
+//                         let product_id = price.product.unwrap().id();
+//                         if usr_id.is_ok() {
+//                             let access_rule_thing: Result<Thing, AppError> =
+//                                 MyStripeProductId(product_id.clone()).try_into();
+//                             if access_rule_thing.is_ok() {
+//                                 user_access_rules
+//                                     .push((usr_id.unwrap(), access_rule_thing.unwrap()));
+//                                 // return Ok((usr_id.unwrap(), access_rule_thing.unwrap()));
+//                             } else {
+//                                 println!(
+//                                     "ERROR stripe wh parse product id {} into thing invoice={}",
+//                                     product_id.as_str(),
+//                                     invoice.id.as_str()
+//                                 )
+//                             }
+//                         } else {
+//                             println!(
+//                                 "ERROR stripe wh parse user id {:?} into thing invoice={}",
+//                                 user_id.unwrap(),
+//                                 invoice.id.as_str()
+//                             )
+//                         }
+//                     } else {
+//                         println!(
+//                             "ERROR stripe wh no user id for price {} invoice={}",
+//                             price.id.as_str(),
+//                             invoice.id.as_str()
+//                         );
+//                     }
+//                 }
+//             }
+//         }
+//     };
 
-    if user_access_rules.len() == 0 {
-        Err(ctx.to_ctx_error(AppError::Generic {
-            description: "extract invoice data err".to_string(),
-        }))
-    } else {
-        Ok(user_access_rules)
-    }
-}
+//     if user_access_rules.len() == 0 {
+//         Err(ctx.to_ctx_error(AppError::Generic {
+//             description: "extract invoice data err".to_string(),
+//         }))
+//     } else {
+//         Ok(user_access_rules)
+//     }
+// }
