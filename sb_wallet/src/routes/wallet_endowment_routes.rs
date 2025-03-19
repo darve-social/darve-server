@@ -1,24 +1,21 @@
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
-use axum::response::{Redirect, Response};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
-use futures::TryFutureExt;
+use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use stripe::{
-    Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
-    CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
-    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
+    AccountId, CreatePaymentLink,
     CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product, CreatePaymentIntent
+    Client,
+    PaymentLink, Price, Product
 };
 use stripe::{
-    CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
-    CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
+    CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,EventObject, EventType, Invoice, ProductId,
 };
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
@@ -26,8 +23,11 @@ use surrealdb::sql::Thing;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::string_utils::get_string_thing;
+use crate::entity::endowment_action_service::EndowmentActionDbService;
+use crate::entity::endowment_action_service::EndowmentAction;
+use crate::entity::endowment_action_service::EndowmentActionType;
+use crate::entity::endowment_action_service::EndowmentActionStatus;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
 
@@ -53,6 +53,16 @@ impl From<EndowmentIdent> for ProductId {
 
 struct MyStripeProductId(ProductId);
 
+impl MyStripeProductId {
+    fn to_thing(&self) -> Result<Thing, AppError> {
+        let mut spl = self.0.as_str().split("~");
+        let user_ident = spl.next().ok_or(AppError::Generic { description: "missing user_id part".to_string() })?;
+        let user_id = get_string_thing(user_ident.replace("-", ":"))?;
+        Ok(user_id)
+    }
+}
+
+
 impl TryFrom<MyStripeProductId> for EndowmentIdent {
     type Error = AppError;
 
@@ -76,7 +86,6 @@ async fn request_endowment_intent(
 
     let user_id = ctx.user_id()?;
 
-    // TODO set/get stripe account in env
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
 
     if ctx_state.is_development {
@@ -230,7 +239,7 @@ async fn request_endowment_intent(
         })
     })?;
 
-    Ok((StatusCode::OK, payment_link.url.as_str()).into_response())
+    Ok((StatusCode::OK, payment_link.url.clone()).into_response())
 }
 
 struct StripeEvent(Event);
@@ -397,8 +406,8 @@ async fn extract_invoice_data(
                         let usr_id = get_string_thing(user_id.clone().unwrap());
                         let product_id = price.product.unwrap().id();
                         if usr_id.is_ok() {
-                            let access_rule_thing: Result<Thing, AppError> =
-                                MyStripeProductId(product_id.clone()).try_into();
+                            let access_rule_thing: Result<Thing, AppError> = MyStripeProductId(product_id.clone()).to_thing();
+
                             if access_rule_thing.is_ok() {
                                 user_access_rules
                                     .push((usr_id.unwrap(), access_rule_thing.unwrap()));
