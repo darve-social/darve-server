@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
@@ -99,7 +98,6 @@ async fn request_endowment_intent(
 
     let user_id = ctx.user_id()?;
 
-    // TODO set/get stripe account in env
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
 
     if ctx_state.is_development {
@@ -188,8 +186,9 @@ async fn request_endowment_intent(
         }
     };*/
 
+    let amt = price.unit_amount.ok_or(ctx.to_ctx_error(AppError::Generic {description:"amount not set on product".to_string()}))?;
     let create_pi = CreatePaymentIntent {
-        amount: price.unit_amount.unwrap_or(0),
+        amount: amt,
         currency: price.currency.clone().unwrap_or(Currency::USD),
         metadata: Some(std::collections::HashMap::from([(
             String::from(PRICE_USER_ID_KEY),
