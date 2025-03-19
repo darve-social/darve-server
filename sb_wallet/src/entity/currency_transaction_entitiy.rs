@@ -100,7 +100,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         res.check()?;
         Ok(())
     }
-    
+
     pub async fn user_transaction_list (&self, wallet_id: &Thing, pagination: Option<Pagination>) -> CtxResult<Vec<CurrencyTransactionView>> {
         WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
         get_entity_list_view::<CurrencyTransactionView>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {
@@ -137,7 +137,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             .map_err(CtxError::from(self.ctx))
             .map(|v: Option<CurrencyTransaction>| v.unwrap())
     }
-    
+
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<CurrencyTransaction> {
         let opt =
             get_entity::<CurrencyTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
@@ -163,7 +163,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
             $w_to = IF $w_to == NONE {{
                 LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
-            
+
                 LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
                 RETURN CREATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
             }}ELSE{{RETURN $w_to;}};
@@ -198,7 +198,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             LET $prev_in_tx = $w_to.{TRANSACTION_HEAD_F}.{currency}.id;
             LET $w_to_prev_balance = $w_to.{TRANSACTION_HEAD_F}.{currency}.balance;
             $w_to_prev_balance = IF $w_to_prev_balance == NONE {{
-                RETURN 0; 
+                RETURN 0;
             }}ELSE{{RETURN $w_to_prev_balance;}};
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
                 id: $in_tx_id,

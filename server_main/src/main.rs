@@ -2,9 +2,10 @@ extern crate dotenv;
 
 use std::net::{Ipv4Addr, SocketAddr};
 
-use askama_axum::Template;
-use axum::handler::Handler;
 use axum::{middleware, Router};
+use axum::http::{ StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
 use axum_htmx::AutoVaryLayer;
 use chrono::Duration;
 use dotenv::dotenv;
@@ -69,7 +70,7 @@ async fn main() -> AppResult<()> {
     let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
-    runMigrations(db, is_dev).await?;
+    run_migrations(db, is_dev).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
@@ -126,7 +127,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -181,6 +182,7 @@ async fn runMigrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
 
 pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Router {
     Router::new()
+        .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("./server_main/src/assets"))
         // No requirements
         // Also behind /api, but no auth requirement on this route
@@ -221,4 +223,8 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .layer(CookieManagerLayer::new())
     // .layer(Extension(ctx_state.clone()))
     // .fallback_service(routes_static());
+}
+
+async fn get_hc()-> Response {
+    (StatusCode::OK, "v0.0.1".to_string()).into_response()
 }

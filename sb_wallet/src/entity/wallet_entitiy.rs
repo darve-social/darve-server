@@ -196,7 +196,7 @@ impl<'a> WalletDbService<'a> {
         // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
         Thing::from((TABLE_NAME, user_id.id.clone()))
     }
-    
+
     pub(crate) fn get_user_lock_wallet_id(user_id: &Thing) -> Thing {
         // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
         Thing::from((TABLE_NAME, format!("{}_{}",user_id.id.clone(), "locked").as_str()))
@@ -250,7 +250,7 @@ mod tests {
     async fn endow_wallet() {
 
         let (db, ctx) = init_db_test().await;
-        
+
         let user_db_service = LocalUserDbService { db: &db, ctx: &ctx };
         let usr1 = user_db_service
             .create(
@@ -274,11 +274,11 @@ mod tests {
         let lock_service = LockTransactionDbService { db: &db, ctx: &ctx };
         let wallet_service = WalletDbService{ db: &db, ctx: &ctx };
         let tx_service = CurrencyTransactionDbService{ db: &db, ctx: &ctx };
-        
+
         let user1 = get_string_thing(usr1).expect("got thing");
         let endow_tx_id = fund_service.user_endowment_tx(&user1, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
 
-        
+
         let user1_bal = wallet_service.get_user_balance(&user1).await.expect("got balance");
         assert_eq!(user1_bal.balance_usd, 100);
         let gtw_bal = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("got balance");
@@ -328,13 +328,13 @@ mod tests {
         assert_eq!(lock_tx.is_err(), true);
 
         let unlck = lock_service.unlock_user_asset_tx(&lck.id.unwrap()).await.unwrap();
-        
+
         let lock_wallet = wallet_service.get_balance(&lock_w_id).await.unwrap();
         let user_wallet = wallet_service.get_user_balance(&user1).await.unwrap();
 
         assert_eq!(lock_wallet.balance_usd, 0);
         assert_eq!(user_wallet.balance_usd, 100);
-        
+
     }
 
     #[tokio::test]
@@ -455,7 +455,7 @@ mod tests {
             ctx: &ctx,
         };
         let transaction_db_service = CurrencyTransactionDbService { db: &db, ctx: &ctx };
-        
+
         let user1_thing = get_string_thing(usr1.clone()).expect("thing1");
 
         // endow usr1
@@ -469,16 +469,16 @@ mod tests {
             WalletDbService::get_user_wallet_id(&user1_thing)
         );
         assert_eq!(balance_view1.balance_usd, 0);
-        
+
         let endowment_service = FundingTransactionDbService { db: &db, ctx: &ctx };
         let _endow_usr1 = endowment_service.user_endowment_tx(&get_string_thing(usr1.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr1".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
         let _endow_usr2 = endowment_service.user_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2".to_string(), 100, CurrencySymbol::USD).await.expect("is ok");
         let _endow_usr2r = endowment_service.user_endowment_tx(&get_string_thing(usr2.clone()).unwrap(),"ext_acc333".to_string(), "endow_tx_usr2-reef".to_string(), 10000, CurrencySymbol::REEF).await.expect("is ok");
-        
-        
+
+
         let gtw_bal = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("got balance");
         assert_eq!(gtw_bal.balance_usd, -200);
-        
+
         let balance_view1 = wallet_service
         .get_user_balance(&user1_thing)
         .await
@@ -511,7 +511,7 @@ mod tests {
         let moved = transaction_db_service
             .transfer_currency(&balance_view2.id,&balance_view1.id,  432, &CurrencySymbol::REEF)
             .await;
-        
+
         let moved = transaction_db_service
             .transfer_currency(&balance_view1.id, &balance_view2.id, 77, &CurrencySymbol::USD)
             .await;
@@ -546,12 +546,12 @@ mod tests {
             .transfer_currency(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::USD)
             .await; //.expect("move balance");
         assert_eq!(moved.is_err(), false);
-        
+
         let moved = transaction_db_service
             .transfer_currency(&balance_view1.id, &balance_view2.id, 23, &CurrencySymbol::ETH)
             .await;
         assert_eq!(moved.is_err(), true);
-        
+
         let txs = transaction_db_service.user_transaction_list(&WalletDbService::get_user_wallet_id(&user1_thing), None).await.expect("result");
         assert_eq!(txs.len(), 4);
         let tx_0 = txs.get(0).expect("tx0");
@@ -564,7 +564,7 @@ mod tests {
         assert_eq!(tx_1.amount_in.expect("has amt"), 432);
         assert_eq!(tx_1.currency.to_string(), CurrencySymbol::REEF.to_string());
         assert_eq!(tx_1.with_wallet.user.is_none(), false);
-        
+
         let tx_2 = txs.get(2).expect("tx2");
         assert_eq!(tx_2.balance, 23);
         assert_eq!(tx_2.amount_out.expect("has amt"), 77);
@@ -577,7 +577,7 @@ mod tests {
 
         let gateway_wallet = wallet_service.get_balance(&APP_GATEWAY_WALLET.clone()).await.expect("wallet");
         dbg!(gateway_wallet);
-        
+
     }
 
     // derive Display only stringifies enum ident, serde also serializes the value
@@ -695,7 +695,7 @@ mod tests {
         LockTransactionDbService { db: &db, ctx: &c}
             .mutate_db()
             .await?;
-        
+
         Ok(())
     }
 
