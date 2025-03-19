@@ -39,6 +39,7 @@ use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
+use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
@@ -63,6 +64,7 @@ async fn main() -> AppResult<()> {
         .eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
     let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
+    let stripe_platform_account = std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
     let stripe_wh_secret =
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =
@@ -154,6 +156,9 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
         .mutate_db()
         .await?;
     AccessGainActionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    EndowmentActionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
