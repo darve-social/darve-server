@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{get_entity, get_entity_list, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, ViewFieldSelector};
 use sb_middleware::{
@@ -8,23 +9,29 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
+use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use crate::entity::task_deliverable_entitiy::{TaskDeliverable, TaskDeliverableDbService};
+use crate::entity::task_request_offer_entity::{TaskOfferParticipant, TaskOfferParticipantDbService};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub from_user: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub to_user: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_post: Option<Thing>,
+    pub on_post: Option<Thing>,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
-    // TODO looks like offers could just be single TaskRequestOffer since there is an array of ParticipantRewards in it for different user amount participations 
-    pub offers: Vec<Thing>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deliverables: Option<Vec<Thing>>,
+    pub reward_type: RewardType,
+    pub participants: Vec<Thing>,
+    pub valid_until: DateTime<Utc>,
+    pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,6 +45,16 @@ pub enum TaskStatus {
     Rejected,
     Delivered,
     Complete,
+}
+
+#[derive(Display, Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum RewardType {
+    // needs to be same as col name
+    // #[strum(to_string = "on_delivery")]
+    OnDelivery, // paid when delivered
+    // #[strum(to_string = "vote_winner")]
+    VoteWinner { voting_period_min: i64 }, // paid after voting
 }
 
 #[derive(EnumString, Display, Clone, Debug, Serialize, Deserialize)]
@@ -66,8 +83,8 @@ impl<'a> TaskRequestDbService<'a> {}
 pub const TABLE_NAME: &str = "task_request";
 const TABLE_COL_POST: &str = sb_community::entity::post_entitiy::TABLE_NAME;
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
-const TABLE_COL_OFFER: &str = crate::entity::task_request_offer_entity::TABLE_NAME;
 const TABLE_COL_DELIVERABLE: &str = crate::entity::task_deliverable_entitiy::TABLE_NAME;
+const TABLE_PARTICIPANT_REWARD: &str = crate::entity::task_request_offer_entity::TABLE_NAME;
 
 impl<'a> TaskRequestDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -77,10 +94,14 @@ impl<'a> TaskRequestDbService<'a> {
         let t_stat_del = TaskStatus::Delivered.to_string();
         let t_stat_com = TaskStatus::Complete.to_string();
 
+        let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_reef = CurrencySymbol::REEF.to_string();
+        let curr_eth = CurrencySymbol::ETH.to_string();
+        
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD request_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
-    DEFINE INDEX request_post_idx ON TABLE {TABLE_NAME} COLUMNS request_post;
+    DEFINE FIELD on_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
+    DEFINE INDEX on_post_idx ON TABLE {TABLE_NAME} COLUMNS on_post;
     DEFINE FIELD from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
     DEFINE FIELD to_user ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_USER}>>;
@@ -90,7 +111,10 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
         ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej}','{t_stat_del}','{t_stat_com}'];
     DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
-    DEFINE FIELD offers ON TABLE {TABLE_NAME} TYPE set<record<{TABLE_COL_OFFER}>>;
+    DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
+    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<record<{TABLE_PARTICIPANT_REWARD}>>;
+    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
+    DEFINE FIELD valid_until ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD deliverables ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_DELIVERABLE}>>>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     //DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
@@ -157,7 +181,7 @@ impl<'a> TaskRequestDbService<'a> {
         if post_id.is_some() {
             filter_by.push(
                 IdentIdName::ColumnIdent {
-                    column: "request_post".to_string(),
+                    column: "on_post".to_string(),
                     val: post_id.expect("checked is some").to_raw(),
                     rec: true,
                 })
@@ -171,12 +195,12 @@ impl<'a> TaskRequestDbService<'a> {
             .await
     }
 
-    pub async fn request_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, post_id: Thing) -> CtxResult<Vec<T>> {
+    pub async fn on_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(&self, post_id: Thing) -> CtxResult<Vec<T>> {
         get_entity_list_view::<T>(
             self.db,
             TABLE_NAME.to_string(),
             &IdentIdName::ColumnIdent {
-                column: "request_post".to_string(),
+                column: "on_post".to_string(),
                 val: post_id.to_raw(),
                 rec: true,
             },
@@ -272,4 +296,127 @@ impl<'a> TaskRequestDbService<'a> {
             }))
         }
     }
+
+    pub async fn add_participation(&self, offer_id: Thing, user_id: Thing, amount: i64) -> CtxResult<TaskRequest> {
+        // update existing item from user or push new one
+        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
+        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
+
+        let mut participants = partic_service.get_ids(offer.participants).await?;
+        match participants.iter().position(|op| op.user == user_id) {
+            None => {
+                let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
+                let partic_new = partic_service.create_update(TaskOfferParticipant {
+                    id: None,
+                    amount,
+                    lock: Some(lock),
+                    user: user_id,
+                    votes: None,
+                    currency: offer.currency,
+                }).await?;
+                participants.push(partic_new);
+            }
+            Some(i) => {
+                let partic = &mut participants[i];
+                // unlock and lock different amt
+                let existing_lock_id = partic.lock.clone();
+                if let Some(lock) = existing_lock_id {
+                    lock_service.unlock_user_asset_tx(&lock).await?;
+                }
+                let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
+                partic.lock = Some(lock);
+                partic.amount = amount;
+            }
+        }
+
+        let partic_ids: Vec<Thing> = participants.iter().map(|p| p.id.clone().expect("Saved participants with existing id")).collect();
+        let res: Option<TaskRequest> = self
+            .db
+            .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+            .patch(PatchOp::replace("/participants", partic_ids))
+            .await
+            .map_err(CtxError::from(self.ctx))?;
+        res.ok_or_else(|| {
+            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                ident: offer_id.to_raw(),
+            })
+        })
+    }
+
+    pub async fn remove_participation(&self, offer_id: Thing, user_id: Thing) -> CtxResult<Option<TaskRequest>> {
+        // if last user remove task request else update participants
+        let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
+        let mut participants = partic_service.get_ids(offer.participants).await?;
+        
+        if let Some(i) = participants.iter().position(|partic| partic.user == user_id) {
+            let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
+            let existing_lock_id = participants[i].lock.clone();
+            if let Some(lock) = existing_lock_id{
+                lock_service.unlock_user_asset_tx(&lock).await?;
+            }
+            if participants.len() == 1 {
+                self.delete(offer.id.expect("existing offer has id")).await?;
+                return Ok(None);
+            }
+            participants.remove(i);
+            let partic_ids: Vec<Thing> = participants.iter().map(|p| p.id.clone().expect("Saved participants with existing id")).collect();
+            let res: Option<TaskRequest> = self
+                .db
+                .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+                .patch(PatchOp::replace("/participants", partic_ids))
+                .await
+                .map_err(CtxError::from(self.ctx))?;
+
+            if res.is_some() { Ok(res) } else {
+                Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                    ident: offer_id.to_raw(),
+                }))
+            }
+        } else { Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound { ident: "User participation not found".to_string() })) }
+    }
+
+    // not public - can only be deleted by removing participants
+    async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
+        let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
+        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
+        
+        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        if offer.participants.len() >1 {
+            return  Err(self.ctx.to_ctx_error(AppError::Generic {description:"Can not delete with other participants".to_string()}));
+        }
+        let participants = partic_service.get_ids(offer.participants).await?;
+        
+        for partic in participants {
+            let existing_lock_id = partic.lock.clone();
+            if let Some(lock) = existing_lock_id {
+                lock_service.unlock_user_asset_tx(&lock).await?;
+            }
+            partic_service.delete(partic.id.unwrap()).await?;
+        }
+        let _: Option<TaskRequest> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
+        Ok(true)
+    }
+
+/*    pub async fn get_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<TaskRequest>> {
+        let mut bindings: HashMap<String, String> = HashMap::new();
+        let mut ids_str: Vec<String> = vec![];
+        ids.into_iter().enumerate().for_each(|i_id| {
+            let param_name = format!("id_{}", i_id.0);
+            bindings.insert(param_name.clone(), i_id.1.to_raw());
+            ids_str.push(format!("<record>${param_name}"));
+        });
+        let ids_str = ids_str.into_iter().collect::<Vec<String>>().join(",");
+
+        let qry = format!("SELECT * FROM {};", ids_str);
+        let query = self.db.query(qry);
+        let query = bindings
+            .into_iter()
+            .fold(query, |query, n_val| query.bind(n_val));
+        let mut res = query.await?;
+        let res: Vec<TaskRequest> = res.take(0)?;
+        Ok(res)
+    }
+*/
 }

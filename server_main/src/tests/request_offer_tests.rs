@@ -14,7 +14,7 @@ mod tests {
     use sb_middleware::utils::string_utils::get_string_thing;
     use sb_task::entity::task_request_entitiy::{TaskRequest, TaskRequestDbService};
     use sb_task::entity::task_request_entitiy::TaskStatus;
-    use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
+    use sb_task::entity::task_request_offer_entity::TaskOfferParticipantDbService;
     use sb_task::routes::task_request_routes::{AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView};
     use sb_user_auth::routes::login_routes::LoginInput;
     use sb_wallet::entity::funding_transaction_entity::FundingTransactionDbService;
@@ -114,7 +114,7 @@ mod tests {
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        let offer0 = task.offers.get(0).unwrap();
+        let offer0 = task.participants.get(0).unwrap();
 
         assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
 

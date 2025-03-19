@@ -1,6 +1,6 @@
-use crate::entity::task_request_entitiy::{DeliverableType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
+use crate::entity::task_request_entitiy::{DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
+use crate::entity::task_request_offer_entity::{TaskOfferParticipant, TaskOfferParticipantDbService};
 use askama_axum::Template;
-use crate::entity::task_request_offer_entity::{ParticipantReward, RewardType, RewardVote, TaskRequestOffer, TaskRequestOfferDbService};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
 use axum::http::uri::PathAndQuery;
@@ -9,31 +9,30 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
+use chrono::{DateTime, Duration, Utc};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
-use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::user_notification_entitiy::{
     UserNotificationDbService, UserNotificationEvent,
 };
+use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
-use std::path::Path as FPath;
-use chrono::{Days, Duration, Utc};
 use surrealdb::sql::{Id, Thing};
 use tempfile::NamedTempFile;
 use tower::util::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
 use validator::Validate;
-use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
-use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 
 pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
@@ -119,8 +118,11 @@ pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
-    pub offers: Vec<TaskRequestOfferView>,
+    pub participants: Vec<TaskRequestOfferView>,
     pub status: String,
+    pub reward_type: RewardType,
+    pub valid_until: DateTime<Utc>,
+    pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deliverables: Option<Vec<DeliverableView>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -131,7 +133,7 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, request_post, request_txt, offers.*.{id, user.{id, username, full_name}, reward_type, participants.{amount, user.{id, username, full_name}} } as offers, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
+        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, on_post, request_txt, reward_type, valid_until, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
 }
 
@@ -141,8 +143,8 @@ pub struct TaskRequestOfferView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub user: Option<UserView>,
-    pub reward_type: RewardType,
-    pub participants: Vec<RewardParticipantView>,
+    pub currency: CurrencySymbol,
+    pub amount: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -155,13 +157,6 @@ pub struct UserView {
     pub id: Thing,
     pub username: String,
     pub full_name: Option<String>,
-}
-
-#[derive(Template, Serialize, Deserialize, Debug)]
-#[template(path = "nera2/default-content.html")]
-pub struct RewardParticipantView {
-    pub amount: i64,
-    pub user: UserView,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug, Clone)]
@@ -268,7 +263,7 @@ async fn post_task_requests(
         db: &_db,
         ctx: &ctx,
     }
-    .request_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
+    .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
 
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
@@ -359,26 +354,17 @@ async fn create_entity(
         Some(lock_service.lock_user_asset_tx(&from_user, offer_amount, offer_currency.clone(), vec![UnlockTrigger::Timestamp { at: valid_until.clone() }]).await?)
     } else { None };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
-    let offer = TaskRequestOfferDbService {
+    let participant = TaskOfferParticipantDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .create_update(TaskRequestOffer {
+    .create_update(TaskOfferParticipant {
         id: None,
-        task_request: t_req_id.clone(),
+        amount: offer_amount,
         user: from_user.clone(),
-        reward_type: RewardType::OnDelivery,
-        valid_until,
+        lock,
         currency: offer_currency.clone(),
-        participants: vec![ParticipantReward {
-            amount: offer_amount,
-            currency: offer_currency.clone(),
-            user: from_user.clone(),
-            lock,
-            votes:None
-        }],
-        r_created: None,
-        r_updated: None,
+        votes: None,
     })
     .await?;
     let t_request = TaskRequestDbService {
@@ -389,11 +375,14 @@ async fn create_entity(
         id: Some(t_req_id.clone()),
         from_user: from_user.clone(),
         to_user: Some(to_user.clone()),
-        request_post: post,
+        on_post: post,
         request_txt: content,
         deliverable_type: DeliverableType::PublicPost,
-        offers: vec![offer.id.unwrap()],
+        participants: vec![participant.id.unwrap()],
         status: TaskStatus::Requested.to_string(),
+        reward_type: RewardType::OnDelivery,
+        valid_until,
+        currency: offer_currency,
         deliverables: None,
         r_created: None,
         r_updated: None,
@@ -583,11 +572,11 @@ async fn notify_task_participants(
     deliverable: Thing,
     task: TaskRequest,
 ) -> Result<(), CtxError> {
-    let mut notify_task_participant_ids: Vec<Thing> = TaskRequestOfferDbService {
+    let mut notify_task_participant_ids: Vec<Thing> = TaskOfferParticipantDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .get_ids(task.offers)
+    .get_ids(task.participants)
     .await?
     .into_iter()
     .map(|t| t.user)
@@ -654,7 +643,7 @@ async fn participate_task_request_offer(
     }
     .get_ctx_user_thing()
     .await?;
-    let task_request_offer_db_service = TaskRequestOfferDbService {
+    let task_request_offer_db_service = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
     };
