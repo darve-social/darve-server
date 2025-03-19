@@ -20,6 +20,7 @@ pub struct TaskRequest {
     pub request_post: Option<Thing>,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
+    // TODO looks like offers could just be single TaskRequestOffer since there is an array of ParticipantRewards in it for different user amount participations 
     pub offers: Vec<Thing>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,7 +122,7 @@ impl<'a> TaskRequestDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub(crate) async fn add_offer(
+    /*pub(crate) async fn add_offer(
         &self,
         task_id: Thing,
         offer_id: Thing,
@@ -137,7 +138,7 @@ impl<'a> TaskRequestDbService<'a> {
                 ident: offer_id.to_raw(),
             })
         })
-    }
+    }*/
 
     pub async fn user_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
