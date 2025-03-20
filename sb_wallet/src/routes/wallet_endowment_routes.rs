@@ -50,7 +50,8 @@ struct EndowmentIdent {
 impl From<EndowmentIdent> for ProductId {
     fn from(value: EndowmentIdent) -> Self {
         let stripe_prod_id = format!(
-            "{}~{}~{}",
+            //@anukulpandey : replaced tilde with hypen as product id can't contain ~
+            "{}-{}-{}",
             value.user_id.to_raw().replace(":", "-"),
             value.amount,
             value.action
@@ -108,11 +109,13 @@ async fn request_endowment_intent(
     println!("->> {:<12} - request endowment payment ", "HANDLER");
 
     let user_id = ctx.user_id()?;
+    println!("User ID retrieved: {:?}", user_id);
 
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
+    println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
     if ctx_state.is_development {
-        stripe_connect_account_id = "acct_1Q29UUEdDBSaSZL3".to_string();
+        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
     }
 
     let price_amount = amount;
@@ -122,7 +125,9 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    //TODO: undo anukul , commented this for testing as I don't have Stripe Connect account 
+    // let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(ctx_state.stripe_key);
 
     let product = {
         let product_title = "wallet_endowment".to_string();
@@ -132,23 +137,24 @@ async fn request_endowment_intent(
             action: product_title.clone(),
         }
         .into();
-        let prod_res = Product::retrieve(&client, &pr_id, &[]).await;
-
-        if prod_res.is_err() {
-            let mut create_product = CreateProduct::new(product_title.as_str());
-            create_product.id = Some(pr_id.as_str());
-            Product::create(&client, create_product).await.unwrap()
-        } else {
-            prod_res.unwrap()
+    
+        println!("Attempting to retrieve product with ID: {}", pr_id);
+        match Product::retrieve(&client, &pr_id, &[]).await {
+            Ok(prod) => {
+                println!("Product retrieved successfully: {:?}", prod);
+                prod
+            },
+            Err(_) => {
+                println!("Product not found, creating a new one with ID: {}", pr_id);
+                let mut create_product = CreateProduct::new(product_title.as_str());
+                create_product.id = Some(pr_id.as_str());
+                let new_prod = Product::create(&client, create_product).await.unwrap();
+                println!("New product created: {:?}", new_prod);
+                new_prod
+            }
         }
-        /*create_product.metadata = Some(std::collections::HashMap::from([(
-            String::from("access-rule-id"),
-            access_rule_id,
-        ),(
-            String::from("user-id"),
-            user_id,
-        )]));*/
-    };
+        
+    };    
 
     // and add a price for it in USD
     let price = {
@@ -198,6 +204,7 @@ async fn request_endowment_intent(
     };*/
 
     let amt = price.unit_amount.ok_or(ctx.to_ctx_error(AppError::Generic {description:"amount not set on product".to_string()}))?;
+
     let create_pi = CreatePaymentIntent {
         amount: amt,
         currency: price.currency.clone().unwrap_or(Currency::USD),
@@ -205,7 +212,9 @@ async fn request_endowment_intent(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        on_behalf_of: Some(acc_id.as_str()),
+        //@anukulpandey commented this as the Stripe Connect account I have doesn't have LLC details so it cant modify other accounts , read here : https://docs.stripe.com/error-codes#platform-account-required
+        on_behalf_of: None, 
+        // on_behalf_of: Some(acc_id.as_str()),
         transfer_data: None,
         application_fee_amount: Some(platform_fee),
         automatic_payment_methods: None,
