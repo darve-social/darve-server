@@ -118,11 +118,11 @@ mod tests {
 
         assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
 
-        assert_eq!(offer0.participants.get(0).unwrap().amount, offer_amount.unwrap());
+        assert_eq!(offer0.amount.clone(), offer_amount.unwrap());
         assert_eq!(post_tasks.get(0).unwrap().from_user.username, username2);
         assert_eq!(post_tasks.get(0).unwrap().to_user.username, username0);
-        assert_eq!(offer0.participants.len(), 1);
-        assert_eq!(offer0.participants.get(0).unwrap().user.username, username2);
+        assert_eq!(task.participants.len(), 1);
+        assert_eq!(offer0.user.clone().unwrap().username, username2);
 
         // all tasks given by user
         let given_user_tasks_req = server
@@ -184,9 +184,9 @@ mod tests {
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        let offer0 = task.offers.get(0).unwrap();
-        assert_eq!(offer0.participants.len(), 2);
-        let participant = task.offers.get(0).unwrap().participants.iter().find(|p| p.user.username == username3).unwrap();
+        // let offer0 = task.offers.get(0).unwrap();
+        assert_eq!(task.participants.len(), 2);
+        let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
         assert_eq!(participant.amount, 3);
 
         // change amount to 33 by sending another participation req
@@ -217,9 +217,8 @@ mod tests {
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        let offer0 = task.offers.get(0).unwrap();
-        assert_eq!(offer0.participants.len(), 2);
-        let participant = task.offers.get(0).unwrap().participants.iter().find(|p| p.user.username == username3).unwrap();
+        assert_eq!(task.participants.len(), 2);
+        let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
         assert_eq!(participant.amount, 33);
 
 
