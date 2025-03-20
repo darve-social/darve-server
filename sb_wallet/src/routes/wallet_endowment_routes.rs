@@ -125,9 +125,8 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    //TODO: undo anukul , commented this for testing as I don't have Stripe Connect account 
-    // let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
-    let client = Client::new(ctx_state.stripe_key);
+
+    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
         let product_title = "wallet_endowment".to_string();
