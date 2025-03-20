@@ -116,7 +116,7 @@ async fn request_endowment_intent(
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
-        let product_title = "wallet_endowment".to_string();
+        let product_title = "wallet-endowment".to_string();
         let pr_id: ProductId = EndowmentIdent {
             user_id: get_string_thing(user_id.clone())?,
             amount: price_amount,
@@ -191,9 +191,11 @@ async fn request_endowment_intent(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        on_behalf_of: Some(acc_id.as_str()),
+        // on_behalf_of: Some(acc_id.as_str()), //todo revert
+        on_behalf_of: None, //todo remove
+        // application_fee_amount: Some(platform_fee), //todo revert
+        application_fee_amount: None, //todo remove
         transfer_data: None,
-        application_fee_amount: Some(platform_fee),
         automatic_payment_methods: None,
         capture_method: None,
         confirm: Some(false),
