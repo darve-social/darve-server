@@ -9,13 +9,10 @@ use axum::routing::{get, post};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
-    Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
-    CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
-    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentIntent, CreatePaymentLink,
-    CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product,
+    Account, AccountId, AccountLink, AccountLinkType, AccountType, AttachPaymentMethod, Client, CreateAccount, CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments, CreateAccountCapabilitiesTransfers, CreateAccountLink, CreateCustomer, CreatePaymentIntent, CreatePaymentLink, CreatePaymentLinkLineItems, CreatePaymentMethodCardUnion, CreatePrice, CreateProduct, Currency, Customer, Event, IdOrCreate, PaymentIntentConfirmParams, PaymentLink, PaymentMethodId, PaymentMethodTypeFilter, Price, Product, UpdatePaymentIntent
 };
 use stripe::{
+    PaymentMethod,CreatePaymentMethod,CardParams,CardDetailsParams,PaymentIntent,
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
     CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
 };
@@ -36,9 +33,137 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
-        // .route("/api/stripe/endowment/webhook", post(handle_webhook))
+        .route("/api/stripe/endowment/webhook", post(handle_webhook))
+        .route(
+            "/api/stripe/test/payment/:amount/:client_secret",
+            post(test_payment),
+        )
         .with_state(state)
 }
+
+async fn test_payment(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path((amount, client_secret)): Path<(u32, String)>,
+) -> CtxResult<Response> {
+    println!(
+        "->> {:<12} - Test payment initiated with amount: {} and client_secret: {}",
+        "HANDLER", amount, client_secret
+    );
+
+    let user_id = ctx.user_id()?;
+    println!("User ID retrieved: {:?}", user_id);
+
+    let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
+
+    let mut stripe_key = ctx_state.stripe_key;
+
+    println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
+
+    if ctx_state.is_development {
+        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+        stripe_key = "sk_test_51R3u5oJ2SO8dU9QJJVyHQAe0fboTBQJJiQ1WDsJyodJjjV15EWc30bVsUc34bM87sAsnU6klLp27zoEEZt0ISgAm00BN9Ix7FZ".to_string();
+    }
+
+
+    let acc_id = AccountId::from_str(stripe_connect_account_id.as_str()).map_err(|e1| {
+        ctx.to_ctx_error(AppError::Stripe {
+            source: e1.to_string(),
+        })
+    })?;
+    
+    let client = Client::new(stripe_key).with_stripe_account(acc_id.clone());
+
+
+    // Create a test payment method using a token
+    println!("Creating test payment intent...");
+
+let payment_intent = {
+    let mut create_intent = CreatePaymentIntent::new(1000, Currency::USD);
+    create_intent.payment_method_types = Some(vec!["card".to_string()]);
+    create_intent.metadata =
+        Some([("color".to_string(), "red".to_string())].iter().cloned().collect());
+
+    PaymentIntent::create(&client, create_intent).await.unwrap()
+};
+
+println!("Creating test payment customer...");
+let customer = Customer::create(
+    &client,
+    CreateCustomer {
+        name: Some("Alexander Lyon"),
+        email: Some("test@async-stripe.com"),
+        description: Some(
+            "A fake customer that is used to illustrate the examples in async-stripe.",
+        ),
+        metadata: Some(std::collections::HashMap::from([(
+            String::from("async-stripe"),
+            String::from("true"),
+        )])),
+
+        ..Default::default()
+    },
+)
+.await
+.unwrap();
+
+println!("Creating test payment method...");
+
+let payment_method_id = "pm_card_visa".parse::<PaymentMethodId>().unwrap();
+
+
+let payment_method = {
+    let pm = PaymentMethod::create(
+        &client,
+        CreatePaymentMethod {
+            payment_method: Some(payment_method_id),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // println!("Creating test payment method2...");
+    // PaymentMethod::attach(
+    //     &client,
+    //     &pm.id,
+    //     AttachPaymentMethod { customer: customer.id.clone() },
+    // )
+    // .await
+    // .unwrap();
+
+    pm
+};
+
+println!("Confirming payment intent with client_secret: {}", client_secret);
+
+let payment_intent = PaymentIntent::update(
+    &client,
+    &payment_intent.id,
+    UpdatePaymentIntent {
+        payment_method: Some(payment_method.id),
+        customer: Some(customer.id),
+        ..Default::default()
+    },
+)
+.await
+.unwrap();
+
+
+println!("updated payment intent with status '{}'", payment_intent.status);
+
+let payment_intent = PaymentIntent::confirm(
+    &client,
+    &payment_intent.id,
+    PaymentIntentConfirmParams { ..Default::default() },
+)
+.await
+.unwrap();
+
+
+    Ok((StatusCode::OK, format!("Payment status: {:?}", payment_intent.status)).into_response())
+}
+
 
 struct EndowmentIdent {
     user_id: Thing,
@@ -100,10 +225,14 @@ async fn request_endowment_intent(
     println!("User ID retrieved: {:?}", user_id);
 
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
+
+    let mut stripe_key = ctx_state.stripe_key;
+
     println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
     if ctx_state.is_development {
         stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+        stripe_key = "sk_test_51R3u5oJ2SO8dU9QJJVyHQAe0fboTBQJJiQ1WDsJyodJjjV15EWc30bVsUc34bM87sAsnU6klLp27zoEEZt0ISgAm00BN9Ix7FZ".to_string();
     }
 
     let price_amount = amount;
@@ -113,7 +242,7 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
         let product_title = "wallet-endowment".to_string();
@@ -255,7 +384,7 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
+        let wh_secret = "whsec_d986694e5223877df088a3dc9068301efa61d5a60e28e58634b89d6fa3cc6e80";
         Ok(Self(
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), wh_secret)
                 .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,
