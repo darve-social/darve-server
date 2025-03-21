@@ -26,7 +26,7 @@ mod tests{
 
         // endow using user2 by calling /api/dev/endow/:user_id/:amount
         let endow_user_response = server
-            .get(&format!("/api/dev/endow/{}/{}",user1_id.to_string(),32))
+            .get(&format!("/api/dev/endow/{}/{}",user2_id.to_string(),32))
             .add_header("Accept", "application/json")
             .json("")
             .await;
