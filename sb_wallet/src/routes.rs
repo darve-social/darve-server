@@ -1,2 +1,2 @@
 pub mod wallet_routes;
-mod wallet_endowment_routes;
+pub mod wallet_endowment_routes;
