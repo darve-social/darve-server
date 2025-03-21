@@ -129,15 +129,13 @@ async fn endowment_transaction(
 ) -> CtxResult<Response> {
     println!("->> {:<12} - request endowment_transaction ", "HANDLER");
 
-    // // Ensure the request is made in development mode
-    // if !ctx_state.is_development {
-    //     return Err(AppError::Unauthorized {
-    //         reason: "Endpoint only available in development mode".to_string(),
-    //     }
-    //     .into());
-    // }
+    if !ctx_state.is_development {
+        return Err(AppError::AuthorizationFail {
+            required: "Endpoint only available in development mode".to_string(),
+        }
+        .into());
+    }
 
-    // Validate user ID
     let another_user_thing = get_string_thing(another_user_id).expect("got thing");
 
     print!("another_user_id");
@@ -145,7 +143,6 @@ async fn endowment_transaction(
     let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
     let wallet_service = WalletDbService{ db: &ctx_state._db, ctx: &ctx };
 
-    // Call the user endowment transaction function
     fund_service.user_endowment_tx(&another_user_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), amount, CurrencySymbol::USD).await.expect("created");
 
     let user1_bal = wallet_service.get_user_balance(&another_user_thing).await.expect("got balance");
