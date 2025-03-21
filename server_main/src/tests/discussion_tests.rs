@@ -35,6 +35,7 @@ mod tests {
                 name_uri: disc_name.clone(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -52,6 +53,7 @@ mod tests {
                 title: "The Discussion".to_string(),
                 image_uri: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -69,6 +71,7 @@ mod tests {
                 hidden: None,
                 access_rule_id: "".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         dbg!(&topic_resp);
         &topic_resp.assert_status_success();
@@ -92,6 +95,7 @@ mod tests {
                     .add_text("content", "contentttt111")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         &create_post.assert_status_success();
 
@@ -104,6 +108,7 @@ mod tests {
                     .add_text("content", "contentttt222")
                     .add_text("topic_id", topic_id.clone().to_raw()),
             )
+            .add_header("Accept", "application/json")
             .await;
         &create_response2.assert_status_success();
 
@@ -154,6 +159,7 @@ mod tests {
                 name_uri: disc_name.clone(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -171,6 +177,7 @@ mod tests {
                 title: "The Discussion".to_string(),
                 image_uri: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);

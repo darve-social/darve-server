@@ -40,7 +40,7 @@ mod tests{
             .add_header("Accept", "application/json")
             .await;
 
-       
+       transaction_history_response.assert_status_success();
         let response_text = transaction_history_response.text();
         println!("transaction_history_response: {}", response_text);
 
