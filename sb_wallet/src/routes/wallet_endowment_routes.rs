@@ -6,6 +6,13 @@ use axum::extract::{FromRequest, Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::response::{Redirect, Response};
 use axum::routing::{get, post};
+use sb_middleware::db;
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use surrealdb::engine::local::Db;
+use surrealdb::{Surreal, Uuid};
+use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use crate::entity::funding_transaction_entity::FundingTransactionDbService;
+use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
@@ -20,7 +27,7 @@ use stripe::{
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{AppError, CtxError, CtxResult};
+use sb_middleware::error::{AppError, AppResult, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -33,137 +40,13 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
-        .route("/api/stripe/endowment/webhook", post(handle_webhook))
         .route(
-            "/api/stripe/test/payment/:amount/:client_secret",
-            post(test_payment),
+            "/api/dev/endow/:another_user_id/:amount",
+            get(endowment_transaction),
         )
+        .route("/api/stripe/endowment/webhook", post(handle_webhook))
         .with_state(state)
 }
-
-async fn test_payment(
-    State(ctx_state): State<CtxState>,
-    ctx: Ctx,
-    Path((amount, client_secret)): Path<(u32, String)>,
-) -> CtxResult<Response> {
-    println!(
-        "->> {:<12} - Test payment initiated with amount: {} and client_secret: {}",
-        "HANDLER", amount, client_secret
-    );
-
-    let user_id = ctx.user_id()?;
-    println!("User ID retrieved: {:?}", user_id);
-
-    let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
-
-    let mut stripe_key = ctx_state.stripe_key;
-
-    println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
-
-    if ctx_state.is_development {
-        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
-        stripe_key = "sk_test_51R3u5oJ2SO8dU9QJJVyHQAe0fboTBQJJiQ1WDsJyodJjjV15EWc30bVsUc34bM87sAsnU6klLp27zoEEZt0ISgAm00BN9Ix7FZ".to_string();
-    }
-
-
-    let acc_id = AccountId::from_str(stripe_connect_account_id.as_str()).map_err(|e1| {
-        ctx.to_ctx_error(AppError::Stripe {
-            source: e1.to_string(),
-        })
-    })?;
-    
-    let client = Client::new(stripe_key).with_stripe_account(acc_id.clone());
-
-
-    // Create a test payment method using a token
-    println!("Creating test payment intent...");
-
-let payment_intent = {
-    let mut create_intent = CreatePaymentIntent::new(1000, Currency::USD);
-    create_intent.payment_method_types = Some(vec!["card".to_string()]);
-    create_intent.metadata =
-        Some([("color".to_string(), "red".to_string())].iter().cloned().collect());
-
-    PaymentIntent::create(&client, create_intent).await.unwrap()
-};
-
-println!("Creating test payment customer...");
-let customer = Customer::create(
-    &client,
-    CreateCustomer {
-        name: Some("Alexander Lyon"),
-        email: Some("test@async-stripe.com"),
-        description: Some(
-            "A fake customer that is used to illustrate the examples in async-stripe.",
-        ),
-        metadata: Some(std::collections::HashMap::from([(
-            String::from("async-stripe"),
-            String::from("true"),
-        )])),
-
-        ..Default::default()
-    },
-)
-.await
-.unwrap();
-
-println!("Creating test payment method...");
-
-let payment_method_id = "pm_card_visa".parse::<PaymentMethodId>().unwrap();
-
-
-let payment_method = {
-    let pm = PaymentMethod::create(
-        &client,
-        CreatePaymentMethod {
-            payment_method: Some(payment_method_id),
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap();
-
-    // println!("Creating test payment method2...");
-    // PaymentMethod::attach(
-    //     &client,
-    //     &pm.id,
-    //     AttachPaymentMethod { customer: customer.id.clone() },
-    // )
-    // .await
-    // .unwrap();
-
-    pm
-};
-
-println!("Confirming payment intent with client_secret: {}", client_secret);
-
-let payment_intent = PaymentIntent::update(
-    &client,
-    &payment_intent.id,
-    UpdatePaymentIntent {
-        payment_method: Some(payment_method.id),
-        customer: Some(customer.id),
-        ..Default::default()
-    },
-)
-.await
-.unwrap();
-
-
-println!("updated payment intent with status '{}'", payment_intent.status);
-
-let payment_intent = PaymentIntent::confirm(
-    &client,
-    &payment_intent.id,
-    PaymentIntentConfirmParams { ..Default::default() },
-)
-.await
-.unwrap();
-
-
-    Ok((StatusCode::OK, format!("Payment status: {:?}", payment_intent.status)).into_response())
-}
-
 
 struct EndowmentIdent {
     user_id: Thing,
@@ -184,6 +67,31 @@ impl From<EndowmentIdent> for ProductId {
 }
 
 struct MyStripeProductId(ProductId);
+
+// async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
+//     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
+
+//     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
+//     WalletDbService {
+//         db: &db,
+//         ctx: &c,
+//     }
+//     .mutate_db()
+//     .await?;
+//     CurrencyTransactionDbService { db: &db, ctx: &c}
+//         .mutate_db()
+//         .await?;
+    
+//     Ok(())
+// }
+
+// async fn init_db_test() -> (Surreal<Db>, Ctx) {
+//     let db = db::start(Some("test".to_string())).await.expect("db initialized");
+//     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+
+//     run_migrations(db.clone()).await.expect("init migrations");
+//     (db, ctx)
+// }
 
 impl TryFrom<MyStripeProductId> for EndowmentIdent {
     type Error = AppError;
@@ -213,6 +121,39 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
         })
     }
 }
+
+async fn endowment_transaction(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path((another_user_id, amount)): Path<(String, i64)>,
+) -> CtxResult<Response> {
+    println!("->> {:<12} - request endowment_transaction ", "HANDLER");
+
+    // // Ensure the request is made in development mode
+    // if !ctx_state.is_development {
+    //     return Err(AppError::Unauthorized {
+    //         reason: "Endpoint only available in development mode".to_string(),
+    //     }
+    //     .into());
+    // }
+
+    // Validate user ID
+    let another_user_thing = get_string_thing(another_user_id).expect("got thing");
+
+    print!("another_user_id");
+
+    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+    let wallet_service = WalletDbService{ db: &ctx_state._db, ctx: &ctx };
+
+    // Call the user endowment transaction function
+    fund_service.user_endowment_tx(&another_user_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), amount, CurrencySymbol::USD).await.expect("created");
+
+    let user1_bal = wallet_service.get_user_balance(&another_user_thing).await.expect("got balance");
+
+    Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
+}
+
+
 
 async fn request_endowment_intent(
     State(ctx_state): State<CtxState>,
