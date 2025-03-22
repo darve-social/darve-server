@@ -48,6 +48,7 @@ mod tests {
 
         let profile1_response = server
             .get(format!("/u/{}", username1.clone()).as_str()).add_header("Accept", "application/json")
+            .add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 0);
@@ -57,6 +58,7 @@ mod tests {
         let create_response = server
             .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         assert_eq!(created.success, true);
@@ -65,6 +67,7 @@ mod tests {
         let create_response = server
             .post(format!("/api/follow/{}", user_ident1.clone()).as_str()).add_header("Accept", "application/json")
             .json("")
+            .add_header("Accept", "application/json")
             .await;
         create_response.assert_status_failure();
 
@@ -87,6 +90,7 @@ mod tests {
 
         let profile1_response = server
             .get(format!("/u/{}", username1.clone()).as_str()).add_header("Accept", "application/json")
+            .add_header("Accept", "application/json")
             .await;
         let created = profile1_response.json::<ProfilePage>();
         assert_eq!(created.profile_view.unwrap().followers_nr, 1);

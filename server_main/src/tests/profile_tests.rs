@@ -30,29 +30,42 @@ mod tests {
                 .add_text("username", "username_new")
                 .add_text("full_name", "Full Name Userset")
                 .add_text("email", "ome@email.com")
-        ).await;
+        )
+            .add_header("Accept", "application/json")
+            .await;
         request.assert_status_success();
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"rset".to_string()}).await;
+        let request = server.post("/api/user/search").json(&SearchInput{query:"rset".to_string()})
+            .add_header("Accept", "application/json")
+            .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 0);
-        let request = server.post("/api/user/search").json(&SearchInput{query:"Userset".to_string()}).await;
+        let request = server.post("/api/user/search").json(&SearchInput{query:"Userset".to_string()})
+            .add_header("Accept", "application/json")
+            .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 1);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"one".to_string()}).await;
+        let request = server.post("/api/user/search").json(&SearchInput{query:"one".to_string()})
+            .add_header("Accept", "application/json")
+            .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 1);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"unknown".to_string()}).await;
+        let request = server.post("/api/user/search").json(&SearchInput{query:"unknown".to_string()})
+            .add_header("Accept", "application/json")
+            .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 0);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"its".to_string()}).await;
+        let request = server.post("/api/user/search").json(&SearchInput{query:"its".to_string()})
+            .add_header("Accept", "application/json")
+            .await;
+        
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 2);
@@ -70,7 +83,9 @@ mod tests {
 
         // logged in as username2
         // get user chats
-        let create_response = server.get("/api/user_chat/list").await;
+        let create_response = server.get("/api/user_chat/list")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<ProfileChatList>();
         assert_eq!(created.discussions.len(), 0);
         assert_eq!(created.user_id.to_raw(), user_ident2);
@@ -78,6 +93,7 @@ mod tests {
         // create chat with user_ident1
         let create_response = server
             .get(format!("/api/user_chat/with/{}", user_ident1.as_str()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         &create_response.assert_status_success();
         let created = &create_response.json::<ProfileChat>();
@@ -93,13 +109,16 @@ mod tests {
                     .add_text("content", "contentttt")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
 
         // check chat exists in list
-        let create_response = server.get("/api/user_chat/list").await;
+        let create_response = server.get("/api/user_chat/list")
+            .add_header("Accept", "application/json")
+            .await;
         let created = &create_response.json::<ProfileChatList>();
         assert_eq!(created.discussions.len(), 1);
         assert_eq!(created.user_id.to_raw(), user_ident2);
@@ -115,12 +134,15 @@ mod tests {
                 password: "some3242paSs#$".to_string(),
                 next: None,
             })
+            .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
 
         // logged in as username1
         // check user1 also has chat with user2
-        let create_response = server.get("/api/user_chat/list").await;
+        let create_response = server.get("/api/user_chat/list")
+            .add_header("Accept", "application/json")
+            .await;
         create_response.assert_status_success();
         let created = &create_response.json::<ProfileChatList>();
         assert_eq!(created.discussions.len(), 1);
@@ -131,6 +153,7 @@ mod tests {
         // respond to chat
         let create_response = server
             .get(format!("/api/user_chat/with/{}", user_ident2.as_str()).as_str())
+            .add_header("Accept", "application/json")
             .await;
         &create_response.assert_status_success();
         let created = &create_response.json::<ProfileChat>();
@@ -187,6 +210,7 @@ mod tests {
                     .add_text("content", "contentttt2")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         dbg!(&create_post);
         &create_post.assert_status_failure();

@@ -11,7 +11,7 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
-
+ 
     #[tokio::test]
     async fn create_post() {
         let (server, ctx_state) = create_test_server().await;

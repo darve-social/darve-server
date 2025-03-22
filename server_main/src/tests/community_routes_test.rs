@@ -27,6 +27,7 @@ mod tests {
                 name_uri: disc_name.clone(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -52,7 +53,9 @@ mod tests {
             .await;
         assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
 
-        let get_response = server.get(format!("/community/{comm_uri}").as_str()).await;
+        let get_response = server.get(format!("/community/{comm_uri}").as_str())
+            .add_header("Accept", "application/json")
+            .await;
         &get_response.assert_status_success();
         dbg!(get_response);
     }
@@ -72,6 +75,7 @@ mod tests {
                 name_uri: comm_name.clone(),
                 title: "The Community".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -89,6 +93,7 @@ mod tests {
                 name_uri: comm_name_created.clone(),
                 title: "The Community2".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         // dbg!(&create_response2);
         &create_response2.assert_status_bad_request();
@@ -100,6 +105,7 @@ mod tests {
                 name_uri: comm_name2.clone(),
                 title: "The Community2".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         &create_response2.assert_status_success();
         let created_comm2 = create_response2.json::<CreatedResponse>();
@@ -197,6 +203,7 @@ mod tests {
         let community_resp = server
             .get(format!("/community/{comm_name_created}").as_str())
             .add_header(HX_REQUEST, HeaderValue::from_static("true"))
+            .add_header("Accept", "application/json")
             .await;
 
         // dbg!(&community_resp);
@@ -205,6 +212,7 @@ mod tests {
         let community_resp = server
             .get(format!("/community/{comm_name_created}?topic_id=community_topic:345").as_str())
             .add_header(HX_REQUEST, HeaderValue::from_static("true"))
+            .add_header("Accept", "application/json")
             .await;
 
         // dbg!(&community_resp);

@@ -1,5 +1,6 @@
 mod access_rule_tests;
 mod authorization_entity_tests;
+mod wallet_entity_tests;
 #[path = "tests/community_routes_test.rs"]
 mod community_routes_test;
 mod discussion_tests;
