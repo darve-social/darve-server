@@ -12,7 +12,7 @@ use surrealdb::sql::Thing;
 use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use crate::entity::task_deliverable_entitiy::{TaskDeliverable, TaskDeliverableDbService};
-use crate::entity::task_request_offer_entity::{TaskOfferParticipant, TaskOfferParticipantDbService};
+use crate::entity::task_request_participation_entity::{TaskRequestParticipantion, TaskParticipationDbService};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
@@ -84,7 +84,7 @@ pub const TABLE_NAME: &str = "task_request";
 const TABLE_COL_POST: &str = sb_community::entity::post_entitiy::TABLE_NAME;
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 const TABLE_COL_DELIVERABLE: &str = crate::entity::task_deliverable_entitiy::TABLE_NAME;
-const TABLE_PARTICIPANT_REWARD: &str = crate::entity::task_request_offer_entity::TABLE_NAME;
+const TABLE_PARTICIPANT_REWARD: &str = crate::entity::task_request_participation_entity::TABLE_NAME;
 
 impl<'a> TaskRequestDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -299,15 +299,16 @@ impl<'a> TaskRequestDbService<'a> {
 
     pub async fn add_participation(&self, offer_id: Thing, user_id: Thing, amount: i64) -> CtxResult<TaskRequest> {
         // update existing item from user or push new one
+        //TODO convert to db transactions
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
         let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
-        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
-
+        let partic_service = TaskParticipationDbService { db: self.db, ctx: self.ctx };
+        
         let mut participants = partic_service.get_ids(offer.participants).await?;
         match participants.iter().position(|op| op.user == user_id) {
             None => {
                 let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
-                let partic_new = partic_service.create_update(TaskOfferParticipant {
+                let partic_new = partic_service.create_update(TaskRequestParticipantion {
                     id: None,
                     amount,
                     lock: Some(lock),
@@ -324,12 +325,13 @@ impl<'a> TaskRequestDbService<'a> {
                 if let Some(lock) = existing_lock_id {
                     lock_service.unlock_user_asset_tx(&lock).await?;
                 }
+                
                 let lock = lock_service.lock_user_asset_tx(&user_id, amount, offer.currency.clone(), vec![UnlockTrigger::Timestamp {at: offer.valid_until}]).await?;
                 partic.lock = Some(lock);
                 partic.amount = amount;
+                partic_service.create_update(partic.to_owned()).await?;
             }
         }
-
         let partic_ids: Vec<Thing> = participants.iter().map(|p| p.id.clone().expect("Saved participants with existing id")).collect();
         let res: Option<TaskRequest> = self
             .db
@@ -347,7 +349,7 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn remove_participation(&self, offer_id: Thing, user_id: Thing) -> CtxResult<Option<TaskRequest>> {
         // if last user remove task request else update participants
         let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
-        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
+        let partic_service = TaskParticipationDbService { db: self.db, ctx: self.ctx };
         let mut participants = partic_service.get_ids(offer.participants).await?;
         
         if let Some(i) = participants.iter().position(|partic| partic.user == user_id) {
@@ -380,7 +382,7 @@ impl<'a> TaskRequestDbService<'a> {
     // not public - can only be deleted by removing participants
     async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
         let lock_service = LockTransactionDbService { db: self.db, ctx: self.ctx };
-        let partic_service = TaskOfferParticipantDbService { db: self.db, ctx: self.ctx };
+        let partic_service = TaskParticipationDbService { db: self.db, ctx: self.ctx };
         
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
         if offer.participants.len() >1 {

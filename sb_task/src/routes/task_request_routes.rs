@@ -1,5 +1,5 @@
 use crate::entity::task_request_entitiy::{DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
-use crate::entity::task_request_offer_entity::{TaskOfferParticipant, TaskOfferParticipantDbService};
+use crate::entity::task_request_participation_entity::{TaskRequestParticipantion, TaskParticipationDbService};
 use askama_axum::Template;
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
@@ -109,16 +109,17 @@ pub struct DeliverTaskRequestInput {
     pub post_id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub from_user: UserView,
-    pub to_user: UserView,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_user: Option<UserView>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
-    pub participants: Vec<TaskRequestOfferView>,
+    pub participants: Vec<TaskRequestParticipationView>,
     pub status: String,
     pub reward_type: RewardType,
     pub valid_until: DateTime<Utc>,
@@ -133,15 +134,16 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name}, to_user.{id, username, full_name}, on_post, request_txt, reward_type, valid_until, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
+        "id, from_user.{id, username, full_name} as from_user, to_user.{id, username, full_name} as to_user, on_post, request_txt, reward_type, valid_until, currency, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
-pub struct TaskRequestOfferView {
+pub struct TaskRequestParticipationView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<UserView>,
     pub currency: CurrencySymbol,
     pub amount: i64,
@@ -354,11 +356,11 @@ async fn create_entity(
         Some(lock_service.lock_user_asset_tx(&from_user, offer_amount, offer_currency.clone(), vec![UnlockTrigger::Timestamp { at: valid_until.clone() }]).await?)
     } else { None };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
-    let participant = TaskOfferParticipantDbService {
+    let participant = TaskParticipationDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .create_update(TaskOfferParticipant {
+    .create_update(TaskRequestParticipantion {
         id: None,
         amount: offer_amount,
         user: from_user.clone(),
@@ -572,7 +574,7 @@ async fn notify_task_participants(
     deliverable: Thing,
     task: TaskRequest,
 ) -> Result<(), CtxError> {
-    let mut notify_task_participant_ids: Vec<Thing> = TaskOfferParticipantDbService {
+    let mut notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
         db: &_db,
         ctx: &ctx,
     }
@@ -649,7 +651,7 @@ async fn participate_task_request_offer(
     };
 
    let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
-
+    dbg!(&task_offer);
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,
         id: task_offer.id.unwrap().to_raw(),

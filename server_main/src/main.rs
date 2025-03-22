@@ -36,7 +36,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_deliverable_entitiy::TaskDeliverableDbService;
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
-use sb_task::entity::task_request_offer_entity::TaskOfferParticipantDbService;
+use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
@@ -157,7 +157,7 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
     TaskRequestDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    TaskOfferParticipantDbService { db: &db, ctx: &c }
+    TaskParticipationDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     TaskDeliverableDbService { db: &db, ctx: &c }

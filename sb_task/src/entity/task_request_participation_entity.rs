@@ -7,11 +7,10 @@ use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
-// use tower::ServiceExt;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TaskOfferParticipant {
+pub struct TaskRequestParticipantion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub(crate) amount: i64,
@@ -29,17 +28,17 @@ pub struct RewardVote {
     points: i32,
 }
 
-pub struct TaskOfferParticipantDbService<'a> {
+pub struct TaskParticipationDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
 
-pub const TABLE_NAME: &str = "task_offer_participant";
+pub const TABLE_NAME: &str = "task_request_participation";
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
-const TABLE_COL_TASK_REQUEST: &str = crate::entity::task_request_entitiy::TABLE_NAME;
+// const TABLE_COL_TASK_REQUEST: &str = crate::entity::task_request_entitiy::TABLE_NAME;
 const LOCK_TABLE_NAME: &str = sb_wallet::entity::lock_transaction_entity::TABLE_NAME;
 
-impl<'a> TaskOfferParticipantDbService<'a> {
+impl<'a> TaskParticipationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
@@ -56,12 +55,12 @@ impl<'a> TaskOfferParticipantDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate taskRequestOffer");
+        &mutation.check().expect("should mutate taskRequestParticipation");
 
         Ok(())
     }
 
-    pub async fn create_update(&self, record: TaskOfferParticipant) -> CtxResult<TaskOfferParticipant> {
+    pub async fn create_update(&self, record: TaskRequestParticipantion) -> CtxResult<TaskRequestParticipantion> {
         let resource = record
             .id
             .clone()
@@ -72,10 +71,10 @@ impl<'a> TaskOfferParticipantDbService<'a> {
             .content(record)
             .await
             .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<TaskOfferParticipant>| v.unwrap())
+            .map(|v: Option<TaskRequestParticipantion>| v.unwrap())
     }
 
-    pub async fn get_ids(&self, participant_ids: Vec<Thing>) -> CtxResult<Vec<TaskOfferParticipant>> {
+    pub async fn get_ids(&self, participant_ids: Vec<Thing>) -> CtxResult<Vec<TaskRequestParticipantion>> {
         let mut bindings: HashMap<String, String> = HashMap::new();
         let mut ids_str: Vec<String> = vec![];
         participant_ids.into_iter().enumerate().for_each(|i_id| {
@@ -91,12 +90,12 @@ impl<'a> TaskOfferParticipantDbService<'a> {
             .into_iter()
             .fold(query, |query, n_val| query.bind(n_val));
         let mut res = query.await?;
-        let res: Vec<TaskOfferParticipant> = res.take(0)?;
+        let res: Vec<TaskRequestParticipantion> = res.take(0)?;
         Ok(res)
     }
     
     pub async fn delete(&self, participation_id: Thing) -> CtxResult<bool> {
-        let _res: Option<TaskOfferParticipant> = self.db.delete((participation_id.tb, participation_id.id.to_raw())).await?;
+        let _res: Option<TaskRequestParticipantion> = self.db.delete((participation_id.tb, participation_id.id.to_raw())).await?;
         Ok(true)
     }
 }
