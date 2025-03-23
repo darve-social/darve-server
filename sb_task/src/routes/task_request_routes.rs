@@ -512,6 +512,10 @@ async fn deliver_task_request(
     };
 
     let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
+    
+    if task.to_user.is_some() && task.to_user != Some(delivered_by) {
+        return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "This user was not requested to deliver".to_string() }));
+    }
 
     let (deliverables, post) = match task.deliverable_type {
         DeliverableType::PublicPost => {
@@ -519,33 +523,7 @@ async fn deliver_task_request(
                 t_request_input.post_id.ok_or(AppError::Generic { description: "Missing post_id".to_string() })? )?;
             (None, Some(post_id))
         }
-        /*DeliverableType::Participants => {
-            let file_data = t_request_input.file_1.unwrap();
-            let file_name = file_data.metadata.file_name.unwrap();
-            let ext = file_name.split(".").last().ok_or(AppError::Generic {
-                description: "File has no extension".to_string(),
-            })?;
-
-            let file_name: String = TaskDeliverableFileName {
-                task_id: task_id.clone(),
-                file_nr: 1,
-                ext: ext.to_string(),
-            }
-                .to_string();
-            let path = FPath::new(&uploads_dir).join(file_name.clone());
-            file_data
-                .contents
-                .persist(path.clone())
-                .map_err(|e| {
-                    ctx.to_ctx_error(AppError::Generic {
-                        description: "Upload failed".to_string(),
-                    })
-                })?;
-            let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
-
-            let deliverables = vec![file_uri];
-            (deliverables, None)
-        }*/
+        
     };
 
     let (task, deliverable_id) = task_req_ser
@@ -559,6 +537,20 @@ async fn deliver_task_request(
     .await?;
     let deliverable_id = deliverable_id.ok_or(AppError::EntityFailIdNotFound {ident:"deliverable_id not created".to_string()})?;
 
+    let participations_service = TaskParticipationDbService{
+        db: &_db,
+        ctx: &ctx,
+    };
+    
+    match task.reward_type {
+        RewardType::OnDelivery => {
+            participations_service.process_payments(task.to_user.as_ref().unwrap(), task.participants).await?;
+        }
+        RewardType::VoteWinner => {
+            // add action for this reward type
+        }
+    }
+    
     notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
     ctx.to_htmx_or_json(CreatedResponse {
         id: task_id.to_raw(),

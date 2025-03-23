@@ -3,11 +3,14 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
+use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
-
+use validator::ValidateRequired;
+use sb_middleware::error::AppResult;
+use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequestParticipantion {
@@ -92,6 +95,18 @@ impl<'a> TaskParticipationDbService<'a> {
         let mut res = query.await?;
         let res: Vec<TaskRequestParticipantion> = res.take(0)?;
         Ok(res)
+    }
+
+    pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
+        let participations = self.get_ids(participation_ids).await?;
+        let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
+        participations.iter().for_each(|participation| {
+            if participation.lock.is_some() {
+                Some(lock_tx_service.process_locked_payment(participation.lock.as_ref().unwrap(), to_user))
+            }else {  None }
+        });
+        ... https://stackoverflow.com/questions/63434977/how-can-i-spawn-asynchronous-methods-in-a-loop
+        Ok(())
     }
     
     pub async fn delete(&self, participation_id: Thing) -> CtxResult<bool> {

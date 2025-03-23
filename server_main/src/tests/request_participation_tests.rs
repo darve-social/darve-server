@@ -90,6 +90,7 @@ mod tests {
         let user2_thing = get_string_thing(user_ident2).unwrap();
 
         let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+        //TODO use the dev route
         fund_service.user_endowment_tx(&user2_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
         let offer_amount = Some(2);
         let offer_content = "contdad".to_string();
@@ -150,6 +151,7 @@ mod tests {
         
         let user3_thing = get_string_thing(user_ident3).unwrap();
         let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+        //TODO use the dev route
         fund_service.user_endowment_tx(&user3_thing.clone(), "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
 
         let participate_response = server
