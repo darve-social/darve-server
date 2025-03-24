@@ -100,15 +100,24 @@ impl<'a> TaskParticipationDbService<'a> {
     pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
         let participations = self.get_ids(participation_ids).await?;
         let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
-        participations.iter().for_each(|participation| {
-            if participation.lock.is_some() {
-                Some(lock_tx_service.process_locked_payment(participation.lock.as_ref().unwrap(), to_user))
-            }else {  None }
-        });
-        ... https://stackoverflow.com/questions/63434977/how-can-i-spawn-asynchronous-methods-in-a-loop
+
+        let tasks: Vec<_> = participations
+            .into_iter()
+            .map(|mut participation| {
+                tokio::spawn(async move {
+                    if participation.lock.is_some() {
+                        let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
+                        Some(lock_tx_service.process_locked_payment(participation.lock.as_ref().unwrap(), to_user).await.is_ok())
+                    }else {  None }
+                })
+            })
+            .collect();
+        dbg!(tasks);
+        
+        // ... https://stackoverflow.com/questions/63434977/how-can-i-spawn-asynchronous-methods-in-a-loop
         Ok(())
     }
-    
+
     pub async fn delete(&self, participation_id: Thing) -> CtxResult<bool> {
         let _res: Option<TaskRequestParticipantion> = self.db.delete((participation_id.tb, participation_id.id.to_raw())).await?;
         Ok(true)

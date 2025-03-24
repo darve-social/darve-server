@@ -21,3 +21,4 @@ tower = "0.5.1"
 askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
 askama = { git = "https://github.com/djc/askama.git", branch = "main", features = ["serde-json"] }
 chrono = "0.4.40"
+tokio = "1.44.1"

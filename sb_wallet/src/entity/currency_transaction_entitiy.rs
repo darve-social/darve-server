@@ -127,6 +127,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             id: None,
             wallet: wallet_id.clone(),
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
+            transfer_title: None,
             tx_ident: wallet_id.id.to_raw(),
             funding_tx: None,
             currency,
