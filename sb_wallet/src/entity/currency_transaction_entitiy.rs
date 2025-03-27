@@ -38,6 +38,7 @@ pub struct CurrencyTransactionDbService<'a> {
 pub const TABLE_NAME: &str = "currency_transaction";
 const WALLET_TABLE: &str = crate::entity::wallet_entitiy::TABLE_NAME;
 const FUNDING_TX_TABLE: &str = crate::entity::funding_transaction_entity::TABLE_NAME;
+const LOCK_TX_TABLE: &str = crate::entity::lock_transaction_entity::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = crate::entity::wallet_entitiy::TRANSACTION_HEAD_F;
 const USER_TABLE: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 
@@ -54,6 +55,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
     DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
 //     IF $this.balance<0 && $this.wallet!={GATEWAY_WALLET} {{
 //         THROW \"Final balance must exceed 0\"
@@ -93,12 +95,12 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         amount: i64,
         currency: &CurrencySymbol,
     ) -> CtxResult<()> {
-        let tx_qry = Self::get_tx_qry(wallet_from, wallet_to, amount, currency, None, false)?;
+        let tx_qry = Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
         let res = tx_qry.into_query(self.db).await?;
         res.check()?;
         Ok(())
     }
-    
+
     pub async fn user_transaction_list (&self, wallet_id: &Thing, pagination: Option<Pagination>) -> CtxResult<Vec<CurrencyTransactionView>> {
         WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
         get_entity_list_view::<CurrencyTransactionView>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {
@@ -135,19 +137,20 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             .map_err(CtxError::from(self.ctx))
             .map(|v: Option<CurrencyTransaction>| v.unwrap())
     }
-    
+
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<CurrencyTransaction> {
         let opt =
             get_entity::<CurrencyTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub(crate) fn get_tx_qry(
+    pub(crate) fn get_transfer_qry(
         wallet_from: &Thing,
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
         funding_tx: Option<Thing>,
+        lock_tx: Option<Thing>,
         exclude_sql_transaction: bool,
     ) -> AppResult<QryBindingsVal<Value>> {
         let (begin_tx, commit_tx) = if exclude_sql_transaction { ("", "") } else { ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;") };
@@ -160,7 +163,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
             $w_to = IF $w_to == NONE {{
                 LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
-            
+
                 LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
                 RETURN CREATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
             }}ELSE{{RETURN $w_to;}};
@@ -183,7 +186,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 prev_transaction: $w_from.{TRANSACTION_HEAD_F}.{currency}.id,
                 amount_out: type::number($amt),
                 balance: $updated_from_balance,
-                funding_tx: $funding_tx_id
+                funding_tx: $funding_tx_id,
+                lock_tx: $lock_tx_id,
             }} RETURN id;
 
             LET $tx_out_id = $tx_out[0].id;
@@ -194,7 +198,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             LET $prev_in_tx = $w_to.{TRANSACTION_HEAD_F}.{currency}.id;
             LET $w_to_prev_balance = $w_to.{TRANSACTION_HEAD_F}.{currency}.balance;
             $w_to_prev_balance = IF $w_to_prev_balance == NONE {{
-                RETURN 0; 
+                RETURN 0;
             }}ELSE{{RETURN $w_to_prev_balance;}};
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
                 id: $in_tx_id,
@@ -205,7 +209,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 prev_transaction: $prev_in_tx,
                 amount_in: type::number($amt),
                 balance: $w_to_prev_balance + type::number($amt),
-                funding_tx: $funding_tx_id
+                funding_tx: $funding_tx_id,
+                lock_tx: $lock_tx_id,
             }} RETURN id;
 
             LET $tx_in_id = $tx_in[0].id;
@@ -221,6 +226,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         bindings.insert("currency".to_string(), to_value(currency.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         bindings.insert("app_gateway_wallet_id".to_string(), to_value(APP_GATEWAY_WALLET.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         bindings.insert("funding_tx_id".to_string(), to_value(funding_tx).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert("lock_tx_id".to_string(), to_value(lock_tx).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }

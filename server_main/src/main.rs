@@ -36,7 +36,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_deliverable_entitiy::TaskDeliverableDbService;
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
-use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
+use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
@@ -48,6 +48,7 @@ use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes, user_notification_routes};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 
 mod mw_response_transformer;
@@ -156,7 +157,7 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
     TaskRequestDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    TaskRequestOfferDbService { db: &db, ctx: &c }
+    TaskParticipationDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     TaskDeliverableDbService { db: &db, ctx: &c }
@@ -169,6 +170,9 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
     .mutate_db()
     .await?;
     CurrencyTransactionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    LockTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;

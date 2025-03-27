@@ -229,6 +229,7 @@ pub async fn get_entity<T: for<'a> Deserialize<'a>>(
     ident: &IdentIdName,
 ) -> CtxResult<Option<T>> {
     let query_string = get_entity_query_str(ident, Some("*"), None, table_name)?;
+    // println!("QRY={:#?}", query_string);
     get_query(db, query_string).await
 }
 
