@@ -512,9 +512,9 @@ impl From<Authorization> for String {
                 authorize_activity: authorize_ident,
                 authorize_height,
             } => {
-                let idStr: String = id.to_raw();
-                let hStr: String = authorize_height.to_string();
-                format!("{idStr}{AUTH_DOMAIN_ID_AUTHORIZE_DELIM}{authorize_ident}{AUTH_DOMAIN_IDENT_HEIGHT_DELIM}{hStr}")
+                let id_str: String = id.to_raw();
+                let h_str: String = authorize_height.to_string();
+                format!("{id_str}{AUTH_DOMAIN_ID_AUTHORIZE_DELIM}{authorize_ident}{AUTH_DOMAIN_IDENT_HEIGHT_DELIM}{h_str}")
             }
         }
     }
@@ -525,8 +525,8 @@ impl TryFrom<String> for Authorization {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.split_once(AUTH_DOMAIN_ID_AUTHORIZE_DELIM) {
-            Some((domainIdent, auth)) => {
-                let domain: Thing = get_string_thing(domainIdent.to_string()).map_err(|e| {
+            Some((domain_ident, auth)) => {
+                let domain: Thing = get_string_thing(domain_ident.to_string()).map_err(|_e| {
                     AuthorizationError::ParseError {
                         reason: "error parsing domain thing".to_string(),
                     }
@@ -540,7 +540,7 @@ impl TryFrom<String> for Authorization {
                     Some((authorize_ident, height)) => {
                         let authorize_height = match height.parse::<i16>() {
                             Ok(val) => val,
-                            Err(err) => {
+                            Err(_err) => {
                                 return Err(AuthorizationError::ParseError {
                                     reason: "parse int error i16".to_string(),
                                 });

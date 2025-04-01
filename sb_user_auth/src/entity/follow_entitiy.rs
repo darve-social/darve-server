@@ -36,7 +36,7 @@ impl<'a> FollowDbService<'a> {
 ");
 
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }

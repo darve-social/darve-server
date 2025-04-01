@@ -5,7 +5,7 @@ use crate::entity::discussion_notification_entitiy::{
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::reply_entitiy::{Reply, ReplyDbService};
 use crate::routes::community_routes::DiscussionNotificationEvent;
-use askama_axum::axum_core::response::IntoResponse;
+// use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -20,7 +20,7 @@ use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use serde::{Deserialize, Serialize};
-use std::net::ToSocketAddrs;
+// use std::net::ToSocketAddrs;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
@@ -64,7 +64,7 @@ pub struct PostReplyView {
 }
 
 impl ViewFieldSelector for PostReplyView {
-    fn get_select_query_fields(ident: &IdentIdName) -> String {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, title, content, r_created, created_by.username as username".to_string()
     }
 }
@@ -72,7 +72,7 @@ impl ViewFieldSelector for PostReplyView {
 async fn get_post_replies(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    Path(discussion_id__post_ident): Path<(String, String)>,
+    Path(discussion_id_post_ident): Path<(String, String)>,
 ) -> CtxResult<Html<String>> {
     println!("->> {:<12} - get post", "HANDLER");
 
@@ -82,11 +82,11 @@ async fn get_post_replies(
     };
     diss_db
         .must_exist(IdentIdName::Id(get_string_thing(
-            discussion_id__post_ident.0,
+            discussion_id_post_ident.0,
         )?))
         .await?;
 
-    let ident = get_string_thing(discussion_id__post_ident.1)?;
+    let ident = get_string_thing(discussion_id_post_ident.1)?;
     if ident.tb != PostDbService::get_table_name() {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Post ident wrong".to_string(),
@@ -108,7 +108,8 @@ async fn get_post_replies(
 async fn create_entity(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    Path(discussion_id__post_uri): Path<(String, String)>,
+    Path(discussion_id_post_uri
+    ): Path<(String, String)>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
 ) -> CtxResult<Html<String>> {
     println!("->> {:<12} - create_post ", "HANDLER");
@@ -119,7 +120,7 @@ async fn create_entity(
     .get_ctx_user_thing()
     .await?;
 
-    let discussion = get_string_thing(discussion_id__post_uri.0)?;
+    let discussion = get_string_thing(discussion_id_post_uri.0)?;
 
     let post_db_service = PostDbService {
         db: &_db,
@@ -134,7 +135,7 @@ async fn create_entity(
             },
             IdentIdName::ColumnIdent {
                 column: "r_title_uri".to_string(),
-                val: discussion_id__post_uri.1,
+                val: discussion_id_post_uri.1,
                 rec: false,
             },
         ]))
@@ -144,7 +145,7 @@ async fn create_entity(
         db: &_db,
         ctx: &ctx,
     };
-    let mut reply = reply_db_service
+    let reply = reply_db_service
         .create(Reply {
             id: None,
             discussion,

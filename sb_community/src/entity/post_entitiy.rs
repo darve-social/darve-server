@@ -1,4 +1,4 @@
-use std::fmt::Display;
+// use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 use surrealdb::err::Error::IndexExists;
@@ -83,7 +83,7 @@ impl<'a> PostDbService<'a> {
 
 ");
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }

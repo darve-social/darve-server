@@ -356,8 +356,8 @@ async fn save_access_gain_action(
 
 fn create_access_gain_action(
     user_id: &Thing,
-    mut access_rule_pending: Option<Thing>,
-    mut action_status: AccessGainActionStatus,
+    access_rule_pending: Option<Thing>,
+    action_status: AccessGainActionStatus,
 ) -> AccessGainAction {
     AccessGainAction {
         id: None,

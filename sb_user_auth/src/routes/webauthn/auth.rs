@@ -102,12 +102,12 @@ pub async fn start_register(
     let logged_user_id = ctx.user_id().ok();
 
     if logged_user_id.is_none() {
-        let usernameIsAvailable = user_db_service
+        let username_is_available = user_db_service
             .exists(UsernameIdent(username.clone().trim().to_string()).into())
             .await?
             .is_none();
 
-        if !usernameIsAvailable {
+        if !username_is_available {
             return Err(WebauthnError::UserExists);
         }
         register_user_ident = Some(username.clone());
@@ -213,7 +213,7 @@ pub async fn finish_register(
 
     session.remove_value("reg_state").await?;
 
-    let validPasskey = app_state
+    let valid_passkey = app_state
         .webauthn
         .finish_passkey_registration(&reg, &reg_state)
         .ok();
@@ -242,7 +242,7 @@ pub async fn finish_register(
         }
     };*/
 
-    if validPasskey.is_none() {
+    if valid_passkey.is_none() {
         return Ok(StatusCode::BAD_REQUEST);
     }
 
@@ -257,12 +257,12 @@ pub async fn finish_register(
         let username = register_user_ident.clone().trim().to_string();
         validate_username(&username).map_err(|e| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
 
-        let usernameIsAvailable = user_db_service
+        let username_is_available = user_db_service
             .exists(UsernameIdent(username).into())
             .await?
             .is_none();
 
-        if !usernameIsAvailable {
+        if !username_is_available {
             return Err(WebauthnError::UserExists);
         }
         user_db_service
@@ -279,8 +279,8 @@ pub async fn finish_register(
                     image_uri: None,
                 },
                 AuthType::PASSKEY(
-                    Some(validPasskey.as_ref().unwrap().cred_id().clone()),
-                    validPasskey,
+                    Some(valid_passkey.as_ref().unwrap().cred_id().clone()),
+                    valid_passkey,
                 ),
             )
             .await?;

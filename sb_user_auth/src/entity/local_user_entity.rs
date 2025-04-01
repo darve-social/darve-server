@@ -81,7 +81,7 @@ impl<'a> LocalUserDbService<'a> {
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
-        &local_user_mutation
+        local_user_mutation
             .check()
             .expect("should mutate local_user");
 

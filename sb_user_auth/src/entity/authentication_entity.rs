@@ -183,7 +183,7 @@ impl<'a> AuthenticationDbService<'a> {
         );
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate local user");
+        mutation.check().expect("should mutate local user");
 
         /*let sql1 = "CREATE local_user:usn1 SET username = 'username1';";
         let mut result1 = self.db.query(sql1).await.unwrap();
@@ -250,7 +250,7 @@ impl<'a> AuthenticationDbService<'a> {
 
         let a_type = auth_type.as_str();
         let q = "SELECT * FROM type::table($table) WHERE local_user=<record>$local_user_id AND auth_type=$a_type;".to_string();
-        let mut res = self
+        let res = self
             .db
             .query(q)
             .bind(("table", TABLE_NAME))

@@ -18,7 +18,7 @@ use crate::entity::discussion_notification_entitiy::{
 };
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::post_stream_entitiy::PostStreamDbService;
-use crate::entity::reply_entitiy::ReplyDbService;
+// use crate::entity::reply_entitiy::ReplyDbService;
 use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_routes::{
     is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView,
@@ -138,50 +138,51 @@ impl From<Post> for PostPageTemplate {
     }
 }
 
-async fn get_post(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-    Path(disc_id__title_uri): Path<(String, String)>,
-) -> CtxResult<PostPageTemplate> {
-    println!("->> {:<12} - get post", "HANDLER");
+// commenting this out as it not used anywhere - @anukulpandey
+// async fn get_post(
+//     State(CtxState { _db, .. }): State<CtxState>,
+//     ctx: Ctx,
+//     Path(disc_id_title_uri): Path<(String, String)>,
+// ) -> CtxResult<PostPageTemplate> {
+//     println!("->> {:<12} - get post", "HANDLER");
 
-    let comm_db = DiscussionDbService {
-        db: &_db,
-        ctx: &ctx,
-    };
-    let discussion = comm_db
-        .must_exist(IdentIdName::Id(get_string_thing(disc_id__title_uri.0)?))
-        .await?;
+//     let comm_db = DiscussionDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     };
+//     let discussion = comm_db
+//         .must_exist(IdentIdName::Id(get_string_thing(disc_id_title_uri.0)?))
+//         .await?;
 
-    let ident = IdentIdName::ColumnIdentAnd(vec![
-        IdentIdName::ColumnIdent {
-            column: "belongs_to".to_string(),
-            val: discussion.to_raw(),
-            rec: true,
-        },
-        IdentIdName::ColumnIdent {
-            column: "r_title_uri".to_string(),
-            val: disc_id__title_uri.1,
-            rec: false,
-        },
-    ]);
-    let mut post = PostDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .get(ident)
-    .await?;
-    let post_replies = ReplyDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .get_by_post_desc_view::<PostReplyView>(post.id.clone().unwrap(), 0, 120)
-    .await?;
+//     let ident = IdentIdName::ColumnIdentAnd(vec![
+//         IdentIdName::ColumnIdent {
+//             column: "belongs_to".to_string(),
+//             val: discussion.to_raw(),
+//             rec: true,
+//         },
+//         IdentIdName::ColumnIdent {
+//             column: "r_title_uri".to_string(),
+//             val: disc_id_title_uri.1,
+//             rec: false,
+//         },
+//     ]);
+//     let mut post = PostDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .get(ident)
+//     .await?;
+//     let post_replies = ReplyDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .get_by_post_desc_view::<PostReplyView>(post.id.clone().unwrap(), 0, 120)
+//     .await?;
 
-    let mut post_page: PostPageTemplate = post.into();
-    post_page.replies = post_replies;
-    Ok(post_page)
-}
+//     let mut post_page: PostPageTemplate = post.into();
+//     post_page.replies = post_replies;
+//     Ok(post_page)
+// }
 
 async fn create_form(
     State(CtxState { _db, .. }): State<CtxState>,
@@ -359,7 +360,7 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let post_json = serde_json::to_string(&post_comm_view).map_err(|e1| {
+    let post_json = serde_json::to_string(&post_comm_view).map_err(|_e1| {
         ctx.to_ctx_error(AppError::Generic {
             description: "Post to json error for notification event".to_string(),
         })

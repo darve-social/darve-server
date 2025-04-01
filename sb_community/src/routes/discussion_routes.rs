@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::str::FromStr;
+// use std::str::FromStr;
 use std::time::Duration;
 
 use askama_axum::axum_core::response::IntoResponse;
@@ -201,10 +201,11 @@ impl ViewFieldSelector for DiscussionPostView {
     }
 }
 
-#[derive(Debug)]
-struct DiscussionFormParams {
-    id: Option<String>,
-}
+// not used anywhere - so commenting for now - @anukulpandey
+// #[derive(Debug)]
+// struct DiscussionFormParams {
+//     id: Option<String>,
+// }
 
 async fn display_discussion(
     State(CtxState { _db, .. }): State<CtxState>,
@@ -239,7 +240,7 @@ pub async fn get_discussion_view(
             .ok_or(ctx.to_ctx_error(AppError::EntityFailIdNotFound {
                 ident: discussion_id.to_raw(),
             }))?;
-    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion__user_auths(
+    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
         _db,
         ctx,
         &disc_id,
@@ -276,7 +277,7 @@ pub async fn get_discussion_view(
     };*/
     discussion_posts
         .iter_mut()
-        .for_each(|mut discussion_post_view: &mut DiscussionPostView| {
+        .for_each(|discussion_post_view: &mut DiscussionPostView| {
             discussion_post_view.viewer_access_rights = user_auth.clone();
             discussion_post_view.has_view_access = match &discussion_post_view.access_rule {
                 None => true,
@@ -296,7 +297,7 @@ pub async fn get_discussion_view(
     Ok(dis_template)
 }
 
-async fn is_user_chat_discussion__user_auths(
+async fn is_user_chat_discussion_user_auths(
     db: &Db,
     ctx: &Ctx,
     discussion_id: &Thing,
@@ -357,7 +358,7 @@ async fn create_update_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(community_id): Path<String>,
-    Query(mut qry): Query<HashMap<String, String>>,
+    Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService {
         db: &_db,
@@ -491,7 +492,7 @@ async fn discussion_sse(
     .await?;
     let discussion_id = discussion.id.expect("disc id");
 
-    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion__user_auths(
+    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
         &_db,
         &ctx,
         &discussion_id,
@@ -499,7 +500,7 @@ async fn discussion_sse(
     )
     .await?;
 
-    let mut stream = _db.select(discussion_notification_entitiy::TABLE_NAME).live().await?
+    let stream = _db.select(discussion_notification_entitiy::TABLE_NAME).live().await?
         .filter(move |r: &Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
             // TODO check if user still logged in
             // filter out events from other discussion - TODO make last events sub table for each discussion, delete all events older than ~5days

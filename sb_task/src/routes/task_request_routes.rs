@@ -133,7 +133,8 @@ pub struct TaskRequestView {
 }
 
 impl ViewFieldSelector for TaskRequestView {
-    fn get_select_query_fields(ident: &IdentIdName) -> String {
+    // unused ident variable 
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, from_user.{id, username, full_name} as from_user, to_user.{id, username, full_name} as to_user, on_post, request_txt, reward_type, valid_until, currency, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
 }
@@ -271,45 +272,47 @@ async fn post_task_requests(
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
-async fn user_task_requests_accepted(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<String> {
-    let from_user = LocalUserDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .get_ctx_user_thing()
-    .await?;
+// this is not used anywhere. so commenting it for now, might need later - @anukulpandey 31/03/2025
+// async fn user_task_requests_accepted(
+//     State(CtxState { _db, .. }): State<CtxState>,
+//     ctx: Ctx,
+// ) -> CtxResult<String> {
+//     let from_user = LocalUserDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .get_ctx_user_thing()
+//     .await?;
 
-    let list = TaskRequestDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .user_status_list(UserTaskRole::FromUser, from_user, TaskStatus::Accepted)
-    .await?;
-    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
-}
+//     let list = TaskRequestDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .user_status_list(UserTaskRole::FromUser, from_user, TaskStatus::Accepted)
+//     .await?;
+//     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+// }
 
-async fn user_task_requests_delivered(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<String> {
-    let from_user = LocalUserDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .get_ctx_user_thing()
-    .await?;
+// this is not used anywhere. so commenting it for now, might need later - @anukulpandey 31/03/2025
+// async fn user_task_requests_delivered(
+//     State(CtxState { _db, .. }): State<CtxState>,
+//     ctx: Ctx,
+// ) -> CtxResult<String> {
+//     let from_user = LocalUserDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .get_ctx_user_thing()
+//     .await?;
 
-    let list = TaskRequestDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .user_status_list(UserTaskRole::FromUser, from_user, TaskStatus::Delivered)
-    .await?;
-    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
-}
+//     let list = TaskRequestDbService {
+//         db: &_db,
+//         ctx: &ctx,
+//     }
+//     .user_status_list(UserTaskRole::FromUser, from_user, TaskStatus::Delivered)
+//     .await?;
+//     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+// }
 
 async fn create_entity(
     State(CtxState { _db, .. }): State<CtxState>,
@@ -453,7 +456,7 @@ async fn serve_task_deliverable_file(
     let uri = Uri::from(PathAndQuery::try_from(path).unwrap());
     let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
     let res = uploads_serve_dir.oneshot(req).await;
-    res.map_err(|e| {
+    res.map_err(|_e| {
         ctx.to_ctx_error(AppError::Generic {
             description: "Error getting file".to_string(),
         })
@@ -493,7 +496,7 @@ async fn accept_task_request(
 
 async fn deliver_task_request(
     State(CtxState {
-        _db, uploads_dir, ..
+        _db, ..
     }): State<CtxState>,
     ctx: Ctx,
     Path(task_id): Path<String>,
@@ -574,7 +577,7 @@ async fn notify_task_participants(
     deliverable: Thing,
     task: TaskRequest,
 ) -> Result<(), CtxError> {
-    let mut notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
+    let notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
         db: &_db,
         ctx: &ctx,
     }
@@ -692,7 +695,7 @@ impl TryFrom<String> for TaskDeliverableFileName {
 
         let fnr_ext = tid_fname.1.split_once(".").ok_or(error.clone())?;
         let fnr = fnr_ext.0.split_once("_").ok_or(error.clone())?;
-        let file_nr: i8 = from_str(fnr.1).map_err(|e| error.clone())?;
+        let file_nr: i8 = from_str(fnr.1).map_err(|_e| error.clone())?;
         let ext = fnr_ext.1.to_string();
 
         Ok(TaskDeliverableFileName {

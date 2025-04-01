@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fmt::Display;
-use std::str::FromStr;
+// use std::fmt::Display;
+// use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
@@ -133,7 +133,7 @@ pub async fn get_community(
 async fn create_update_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    Query(mut qry): Query<HashMap<String, String>>,
+    Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
     Ok(ProfileFormPage::new(
         Box::new(CommunityForm {

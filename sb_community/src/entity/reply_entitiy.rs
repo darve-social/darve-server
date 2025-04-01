@@ -51,7 +51,7 @@ impl<'a> ReplyDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate reply");
+        mutation.check().expect("should mutate reply");
 
         Ok(())
     }
@@ -80,7 +80,7 @@ impl<'a> ReplyDbService<'a> {
 
     pub async fn get_by_post_desc_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
-        postId: Thing,
+        post_id: Thing,
         from: i32,
         count: i8,
     ) -> CtxResult<Vec<T>> {
@@ -89,14 +89,14 @@ impl<'a> ReplyDbService<'a> {
             TABLE_NAME.to_string(),
             &IdentIdName::ColumnIdent {
                 column: "belongs_to".to_string(),
-                val: postId.to_raw(),
+                val: post_id.to_raw(),
                 rec: true,
             },
             Some(Pagination {
                 order_by: Option::from("r_created".to_string()),
                 order_dir: Some(QryOrder::DESC),
-                count: 20,
-                start: 0,
+                count: count.clone(),
+                start: from.clone(),
             }),
         )
         .await
