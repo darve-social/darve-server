@@ -70,7 +70,7 @@ async fn main() -> AppResult<()> {
     let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
-    run_migrations(db, is_dev).await?;
+    run_migrations(db).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
@@ -127,7 +127,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;

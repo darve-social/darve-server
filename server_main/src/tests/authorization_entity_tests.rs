@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 #[cfg(test)]
 mod tests {
     use crate::test_utils::{create_login_test_user, create_test_server};

@@ -80,6 +80,7 @@ async fn login_form(
         }),
         None,
         None,
+        None,
     )
     .into_response())
 }
@@ -101,6 +102,7 @@ async fn logout_page(
         Box::new(LogoutContent {
             next: qry.remove("next"),
         }),
+        None,
         None,
         None,
     )

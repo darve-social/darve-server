@@ -67,7 +67,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }

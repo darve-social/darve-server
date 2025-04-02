@@ -4,8 +4,6 @@ mod tests {
     use axum_test::multipart::MultipartForm;
     use surrealdb::sql::Thing;
     use uuid::Uuid;
-
-    use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::{get_community, CommunityInput};
     use sb_middleware::ctx::Ctx;

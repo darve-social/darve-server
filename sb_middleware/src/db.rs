@@ -17,7 +17,7 @@ pub async fn start(db_name: Option<String>) -> AppResult<Surreal<LocalDb>> {
     // let db = Surreal::new::<Ws>(addr).await?;
     // NOTE: Also possible to start the DB with ::new without a static ::init
     // let db: Db = Surreal::new::<Mem>(()).await?;
-    let db_conn = DB.connect::<Mem>(()).await?;
+    let _db_conn = DB.connect::<Mem>(()).await?;
 
     /*if let Some(SurrealErr::Api(err)) = db_conn.as_ref().err() {
         match err {

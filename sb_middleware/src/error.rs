@@ -145,8 +145,8 @@ impl IntoResponse for CtxError {
             | AppError::AuthFailCtxNotInRequestExt => StatusCode::FORBIDDEN,
         };
         let err = self.error.clone();
-        let bodyStr = get_error_body(&self, self.is_htmx);
-        let mut response = (status_code, bodyStr.to_string()).into_response();
+        let body_str = get_error_body(&self, self.is_htmx);
+        let mut response = (status_code, body_str.to_string()).into_response();
         // Insert the real Error into the response - for the logger
         response.extensions_mut().insert(err);
         response

@@ -1,4 +1,3 @@
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
@@ -68,7 +67,7 @@ impl<'a> CommunityDbService<'a> {
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }
@@ -166,7 +165,7 @@ impl<'a> CommunityDbService<'a> {
         let p_chats = user_comm.profile_chats.unwrap_or(vec![]);
         if !p_chats.contains(&discussion_id) {
             let comm_id = user_comm.id.clone().unwrap();
-            let res: Option<Community> = self
+            let _res: Option<Community> = self
                 .db
                 .update((comm_id.tb, comm_id.id.to_string()))
                 .patch(PatchOp::add(

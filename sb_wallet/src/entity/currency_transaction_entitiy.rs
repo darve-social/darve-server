@@ -44,7 +44,7 @@ const USER_TABLE: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 
 impl<'a> CurrencyTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let GATEWAY_WALLET = APP_GATEWAY_WALLET.clone();
+        let gateway_wallet = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
@@ -57,7 +57,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
     DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
-//     IF $this.balance<0 && $this.wallet!={GATEWAY_WALLET} {{
+//     IF $this.balance<0 && $this.wallet!={gateway_wallet} {{
 //         THROW \"Final balance must exceed 0\"
 //     }} ELSE IF $this.balance<0 && !record_exists($value)  {{
 //         THROW \"Tried to make funding_tx but funding_tx tx not found\"

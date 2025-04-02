@@ -106,6 +106,7 @@ pub async fn display_register_page(
         }),
         None,
         None,
+        None,
     )
     .into_response())
 }
