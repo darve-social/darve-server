@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::io::Write;
-use std::str::FromStr;
+// use std::io::Write;
+// use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
@@ -10,8 +10,8 @@ use axum::response::{Html, Redirect, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use axum_htmx::HX_REDIRECT;
-use futures::stream::Stream as FStream;
-use futures::{FutureExt, TryFutureExt};
+// use futures::stream::Stream as FStream;
+// use futures::{FutureExt, TryFutureExt};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
@@ -73,7 +73,7 @@ pub struct AccessRuleView {
 }
 
 impl ViewFieldSelector for AccessRuleView {
-    fn get_select_query_fields(ident: &IdentIdName) -> String {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, target_entity_id, access_gain_action_redirect_url, access_gain_action_confirmation"
             .to_string()
     }
@@ -125,6 +125,7 @@ async fn access_gain_action_page(
             next: qry.remove("next"),
             email: user.email,
         }),
+        None,
         None,
         None,
     )
@@ -234,6 +235,7 @@ async fn save_access_gain_action(
     };
 
     // TODO start with failed and check against access_gain_action_confirmation requirements
+    #[allow(unused_assignments)]
     let mut action_status = AccessGainActionStatus::Complete;
     let mut j_action = if access_rule
         .access_gain_action_confirmation
@@ -339,7 +341,7 @@ async fn save_access_gain_action(
                 }
                 Some(url) => url,
             };
-            let mut res = (
+            let res = (
                 StatusCode::OK,
                 format!(
                     "Success, you will be notified when admin accepts your request.\

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
-use std::ops::{Add, Deref};
+use std::ops::Add;
 use std::time::Duration;
 use surrealdb::sql::{Datetime as DatetimeSur, Id, Thing};
 use validator::Validate;
@@ -76,7 +76,7 @@ impl<'a> AccessRightDbService<'a> {
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }
@@ -121,25 +121,23 @@ impl<'a> AccessRightDbService<'a> {
             .map_err(CtxError::from(self.ctx))?;
         Ok(acc_right.unwrap())
     }
-
     pub(crate) async fn has_access_right_ge(
         &self,
         user_id: &Thing,
         authorization: &Authorization,
     ) -> CtxResult<bool> {
         // get hierarchy for authorization record and check every hierarchy item with all user auth records for matches - if any ge return true
-        //
         let auth_list = self.get_authorizations(user_id).await?;
         if auth_list.len() < 1 {
-            return return Ok(false);
+            return Ok(false);
         }
-
+    
         let compare_to_parents_ids =
             get_parent_ids(&authorization.authorize_record_id, None, self.ctx, self.db).await?;
         for compare_parent_id in compare_to_parents_ids {
             if let Some(_user_auth_ge) = auth_list.iter().find(|a| {
                 // find user auth with same parent record id and ge auth values
-                a.deref().authorize_record_id.eq(&compare_parent_id)
+                a.authorize_record_id.eq(&compare_parent_id)
                     && a.ge_equal_ident(&Authorization {
                         authorize_record_id: compare_parent_id.clone(),
                         authorize_activity: authorization.authorize_activity.clone(),
@@ -150,10 +148,10 @@ impl<'a> AccessRightDbService<'a> {
                 return Ok(true);
             }
         }
-
+    
         Ok(false)
     }
-
+    
     pub async fn authorize(
         &self,
         user_id: Thing,

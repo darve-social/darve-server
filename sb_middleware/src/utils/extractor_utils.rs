@@ -11,7 +11,7 @@ use axum::{
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use surrealdb::sql::Thing;
-use tower::ServiceExt;
+// use tower::ServiceExt;
 use validator::{Validate, ValidationErrors};
 
 use crate::error::{to_err_html, ErrorResponseBody};
@@ -143,7 +143,7 @@ where
             if content_type.starts_with("application/json") {
                 let Json(payload) = req.extract().await.map_err(IntoResponse::into_response)?;
                 let validation: Result<(), ValidationErrors> = payload.validate();
-                &validation.map_err(|err| {
+                validation.map_err(|err| {
                     {
                         let body: String = ErrorResponseBody::new(err.to_string(), None).into();
                         (StatusCode::BAD_REQUEST, body)
@@ -156,7 +156,7 @@ where
             if content_type.starts_with("application/x-www-form-urlencoded") {
                 // htmx request
                 let Form(payload) = req.extract().await.map_err(IntoResponse::into_response)?;
-                &payload.validate().map_err(|err| {
+                payload.validate().map_err(|err| {
                     { (StatusCode::BAD_REQUEST, to_err_html(err.to_string())) }.into_response()
                 })?;
                 return Ok(Self(payload));

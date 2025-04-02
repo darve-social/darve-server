@@ -38,6 +38,7 @@ pub struct LocalUser {
     pub image_uri: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct UsernameView {
     id: Thing,
@@ -181,7 +182,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(local_user_id)
     }
 
-    pub async fn update(&self, mut record: LocalUser) -> CtxResult<LocalUser> {
+    pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
         let resource = record.id.clone().ok_or(AppError::Generic {
             description: "can not update user with no id".to_string(),
         })?;

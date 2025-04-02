@@ -52,10 +52,10 @@ impl AuthType {
                 Some(pass) => Some(pass.clone()),
             },
             AuthType::EMAIL(email) => email,
-            AuthType::PASSKEY(passkeyCredId, paksskey) => {
-                let mut cid = match passkeyCredId {
+            AuthType::PASSKEY(passkey_cred_id, paksskey) => {
+                let mut cid = match passkey_cred_id {
                     None => None,
-                    Some(passkeyCId) => Some(passkeyCId.clone()),
+                    Some(passkey_cid) => Some(passkey_cid.clone()),
                 };
                 if cid.is_none() {
                     cid = match paksskey {
@@ -68,7 +68,7 @@ impl AuthType {
                     Some(cid) => Some(STANDARD.encode(cid.to_vec())),
                 }
             }
-            AuthType::PUBLICKEY(pubKey) => pubKey.clone(),
+            AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
         }
     }
 }
@@ -134,8 +134,8 @@ impl Authentication {
                 v.is_some() && id_val_required || v.is_none()
             }
 
-            AuthType::PASSKEY(pkCId, pk) => {
-                ((pkCId.is_some() && id_val_required) || (pk.is_some() && id_val_required))
+            AuthType::PASSKEY(pk_cid, pk) => {
+                ((pk_cid.is_some() && id_val_required) || (pk.is_some() && id_val_required))
                     || !id_val_required
             }
         };
@@ -257,20 +257,16 @@ impl<'a> AuthenticationDbService<'a> {
             .bind(("local_user_id", local_user_id))
             .bind(("a_type", a_type))
             .await;
-        if res.is_err() {
-            dbg!(res);
-            return Ok(vec![]);
-        }
-
-        let mut response = res?;
-        // dbg!(&response);
-        let rec = response.take(0)?;
-
-        /*if let Some(authRec) = rec.clone() {
-                records.push(authRec);
+        match res {
+            Ok(response) => {
+                let mut response = response;
+                let rec = response.take(0)?;
+                Ok(rec)
             }
-        }*/
-        // dbg!(&rec);
-        Ok(rec)
+            Err(e) => {
+                dbg!(e);
+                Ok(vec![])
+            }
+        }
     }
 }
