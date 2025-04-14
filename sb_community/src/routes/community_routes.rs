@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-// use std::fmt::Display;
-// use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;

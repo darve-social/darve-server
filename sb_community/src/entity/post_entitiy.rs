@@ -1,5 +1,3 @@
-// use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
 use surrealdb::err::Error::IndexExists;
 use surrealdb::opt::PatchOp;

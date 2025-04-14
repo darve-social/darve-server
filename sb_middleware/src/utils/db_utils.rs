@@ -6,7 +6,6 @@ use strum::Display;
 use surrealdb::engine::local::Db as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
-// use tower::ServiceExt;
 
 use crate::ctx::Ctx;
 use crate::db::Db;

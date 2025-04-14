@@ -3,7 +3,6 @@ use sb_middleware::db::Db;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-// use std::ops::Deref;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -65,7 +64,6 @@ pub fn has_editor_auth(authorize_ident: &str) -> bool {
             .iter()
             .position(|a| *a == AUTH_ACTIVITY_EDITOR)
 }
-
 
 pub fn is_any_ge_in_list(compare_to: &Authorization, list: &Vec<Authorization>) -> CtxResult<bool> {
     for a in list {
@@ -541,7 +539,7 @@ impl TryFrom<String> for Authorization {
                     Some((authorize_ident, height)) => {
                         let authorize_height = match height.parse::<i16>() {
                             Ok(val) => val,
-                            Err(_err) => {
+                            Err(_) => {
                                 return Err(AuthorizationError::ParseError {
                                     reason: "parse int error i16".to_string(),
                                 });

@@ -12,8 +12,6 @@ use sb_middleware::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use surrealdb::sql::Thing;
-// use tokio::io::AsyncWriteExt;
-// use tokio_stream::StreamExt;
 
 pub(crate) static APP_GATEWAY_WALLET:Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
 

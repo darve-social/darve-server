@@ -95,8 +95,8 @@ impl<'a> ReplyDbService<'a> {
             Some(Pagination {
                 order_by: Option::from("r_created".to_string()),
                 order_dir: Some(QryOrder::DESC),
-                count: count.clone(),
-                start: from.clone(),
+                count,
+                start: from,
             }),
         )
         .await

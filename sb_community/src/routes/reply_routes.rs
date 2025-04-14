@@ -5,7 +5,6 @@ use crate::entity::discussion_notification_entitiy::{
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::reply_entitiy::{Reply, ReplyDbService};
 use crate::routes::community_routes::DiscussionNotificationEvent;
-// use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -20,7 +19,6 @@ use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use serde::{Deserialize, Serialize};
-// use std::net::ToSocketAddrs;
 use surrealdb::sql::Thing;
 use validator::Validate;
 

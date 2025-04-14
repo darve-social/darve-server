@@ -1,5 +1,3 @@
-// use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -33,9 +31,7 @@ pub struct DiscussionNotificationDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "notification";
-// const TABLE_COL_USER: &str = crate::entity::local_user_entity::TABLE_NAME;
 const POST_TABLE: &str = crate::entity::post_entitiy::TABLE_NAME;
-// const COMMUNITY_TABLE: &str = crate::entity::community_entitiy::TABLE_NAME;
 const DISCUSSION_TABLE: &str = crate::entity::discussion_entitiy::TABLE_NAME;
 const TOPIC_TABLE: &str = crate::entity::discussion_topic_entitiy::TABLE_NAME;
 

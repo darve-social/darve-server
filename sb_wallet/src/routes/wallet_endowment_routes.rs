@@ -2,47 +2,27 @@ use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
-use axum::extract::{FromRequest, Path,
-    //  Query,
-      Request, State};
+use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
-use axum::response::{
-    // Redirect,
-     Response};
-use axum::routing::{get,
-    //  post
-    };
+use axum::response::{Response};
+use axum::routing::{get};
 use axum::{async_trait, Router};
-// use futures::TryFutureExt;
 use stripe::{
-    // Account, 
     AccountId,
-    //  AccountLink, AccountLinkType, AccountType, 
     Client, 
-    // CreateAccount,
-    // CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
-    // CreateAccountCapabilitiesTransfers, CreateAccountLink,
      CreatePaymentIntent, 
-    //  CreatePaymentLink,
-    // CreatePaymentLinkLineItems,
      CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    // PaymentLink,
      Price, Product,
 };
 use stripe::{
-    // CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
-    // CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, 
     ProductId,
 };
-// use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, 
-    // CtxError, 
     CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-// use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::string_utils::get_string_thing;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
@@ -271,6 +251,7 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
+        // TODO get wh secret from env
         let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
         Ok(Self(
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), wh_secret)

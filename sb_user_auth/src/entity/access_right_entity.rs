@@ -121,6 +121,7 @@ impl<'a> AccessRightDbService<'a> {
             .map_err(CtxError::from(self.ctx))?;
         Ok(acc_right.unwrap())
     }
+
     pub(crate) async fn has_access_right_ge(
         &self,
         user_id: &Thing,

@@ -1,36 +1,23 @@
-// use std::error::Error;
-// use std::str::FromStr;
-
-// use axum::body::HttpBody;
 use axum::extract::State;
 use axum::{
     extract::{Extension, Json, Path},
     http::StatusCode,
     response::IntoResponse,
 };
-// use base64::Engine;
-// use base64::{engine::general_purpose::STANDARD, Engine as _};
 use log::{error, info};
-// use serde::de::IntoDeserializer;
-// use serde::Serialize;
 use surrealdb::sql::{
-    // value, 
     Thing};
 use tower_cookies::{
-    // Cookie,
      Cookies};
 use tower_sessions::Session;
 // 1. Import the prelude - this contains everything needed for the server to function.
-// use webauthn_rs::prelude::Base64UrlSafeData;
 use webauthn_rs::prelude::*;
 
 use crate::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use crate::routes::webauthn::error::WebauthnError;
-// use crate::routes::webauthn::error::WebauthnError::WebauthnApiError;
 use crate::routes::webauthn::startup::AppState;
 use sb_middleware::ctx::Ctx;
-// use sb_middleware::error::AppError;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::cookie_utils;
 use sb_middleware::utils::db_utils::{IdentIdName, UsernameIdent};
@@ -103,7 +90,7 @@ pub async fn start_register(
     #[allow(unused_assignments)]
     let mut register_user_ident = None;
     let username = username;
-    validate_username(&username).map_err(|_e| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
+    validate_username(&username).map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
     let logged_user_id = ctx.user_id().ok();
 
     if logged_user_id.is_none() {
@@ -120,8 +107,8 @@ pub async fn start_register(
         // user is logged in and has user id
         // registerUuid = RegisterUserUuid::Existing(Uuid::new_v4(), username_user_id);
         let l_user_id = get_string_thing(logged_user_id.clone().unwrap())
-            .map_err(|_e| WebauthnError::CorruptSession)?;
-        let local_user = user_db_service.get(IdentIdName::Id(l_user_id)).await.map_err(|_e|WebauthnError::UserHasNoCredentials)?;
+            .map_err(|_| WebauthnError::CorruptSession)?;
+        let local_user = user_db_service.get(IdentIdName::Id(l_user_id)).await.map_err(|_|WebauthnError::UserHasNoCredentials)?;
         if &local_user.username != &username {
             return Err(WebauthnError::UserNotFound);
         }
@@ -260,7 +247,7 @@ pub async fn finish_register(
     return if logged_user_id.is_none() {
         // user is making passkey for new username
         let username = register_user_ident.clone().trim().to_string();
-        validate_username(&username).map_err(|_e| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
+        validate_username(&username).map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
 
         let username_is_available = user_db_service
             .exists(UsernameIdent(username).into())
@@ -293,9 +280,9 @@ pub async fn finish_register(
 
     } else {
         // user is making passkey for existing username
-        let user_id: Thing = get_string_thing(logged_user_id.unwrap()).map_err(|_e| WebauthnError::CorruptSession)?;
+        let user_id: Thing = get_string_thing(logged_user_id.unwrap()).map_err(|_| WebauthnError::CorruptSession)?;
         let username = register_user_ident.clone().trim().to_string();
-        let local_user = user_db_service.get(IdentIdName::Id(user_id)).await.map_err(|_e| WebauthnError::UserNotFound)?;
+        let local_user = user_db_service.get(IdentIdName::Id(user_id)).await.map_err(|_| WebauthnError::UserNotFound)?;
 
         if local_user.username != username {
             return Err(WebauthnError::UserNotFound);
@@ -456,7 +443,7 @@ pub async fn finish_authentication(
         .await?
         .ok_or(WebauthnError::CorruptSession)?;
     let u_uniq_id =
-        get_string_thing(user_unique_id.clone()).map_err(|_e| WebauthnError::CorruptSession)?;
+        get_string_thing(user_unique_id.clone()).map_err(|_| WebauthnError::CorruptSession)?;
 
     let _ = session.remove_value("auth_state").await.is_ok();
 

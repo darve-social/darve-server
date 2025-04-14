@@ -9,6 +9,7 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
+    use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
     async fn create_post() {

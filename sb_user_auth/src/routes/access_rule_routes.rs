@@ -1,17 +1,11 @@
 use std::collections::HashMap;
-// use std::io::Write;
-// use std::str::FromStr;
-
-// use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-// use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-// use tokio::io::AsyncWriteExt;
 use validator::Validate;
 
 use crate::entity::access_right_entity::AccessRightDbService;
@@ -74,7 +68,6 @@ async fn get_form_page(
     Ok(ProfileFormPage::new(Box::new(form), None,None, None))
 }
 
-#[allow(unused_mut)]
 async fn get_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
@@ -134,7 +127,6 @@ async fn get_form(
         access_rules,
     })
 }
-
 
 async fn create_update(
     State(ctx_state): State<CtxState>,

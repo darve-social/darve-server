@@ -7,7 +7,6 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
-// use serde_json;
 use surrealdb::sql::Thing;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;

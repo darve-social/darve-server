@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-// use std::io::Write;
-// use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
@@ -11,7 +9,6 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_htmx::HX_REDIRECT;
 // use futures::stream::Stream as FStream;
-// use futures::{FutureExt, TryFutureExt};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;

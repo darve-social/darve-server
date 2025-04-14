@@ -133,7 +133,6 @@ pub struct TaskRequestView {
 }
 
 impl ViewFieldSelector for TaskRequestView {
-    // unused ident variable 
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, from_user.{id, username, full_name} as from_user, to_user.{id, username, full_name} as to_user, on_post, request_txt, reward_type, valid_until, currency, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
     }
@@ -456,7 +455,7 @@ async fn serve_task_deliverable_file(
     let uri = Uri::from(PathAndQuery::try_from(path).unwrap());
     let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
     let res = uploads_serve_dir.oneshot(req).await;
-    res.map_err(|_e| {
+    res.map_err(|_| {
         ctx.to_ctx_error(AppError::Generic {
             description: "Error getting file".to_string(),
         })
@@ -695,7 +694,7 @@ impl TryFrom<String> for TaskDeliverableFileName {
 
         let fnr_ext = tid_fname.1.split_once(".").ok_or(error.clone())?;
         let fnr = fnr_ext.0.split_once("_").ok_or(error.clone())?;
-        let file_nr: i8 = from_str(fnr.1).map_err(|_e| error.clone())?;
+        let file_nr: i8 = from_str(fnr.1).map_err(|_| error.clone())?;
         let ext = fnr_ext.1.to_string();
 
         Ok(TaskDeliverableFileName {

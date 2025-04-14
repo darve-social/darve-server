@@ -11,7 +11,6 @@ use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use std::string::ToString;
-// use axum::http::Request;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -406,7 +405,7 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
     let event = match notification.event {
         UserNotificationEvent::UserChatMessage { .. } => {
             let post_view = serde_json::from_str::<DiscussionLatestPostView>(&notification.content)
-                .map_err(|_e| {
+                .map_err(|_| {
                     ctx.to_ctx_error(AppError::Serde {
                         source: notification.content,
                     })

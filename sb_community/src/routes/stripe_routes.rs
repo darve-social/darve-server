@@ -22,7 +22,6 @@ use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
     CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
 };
-// use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::{Thing};
 
 use crate::entity::community_entitiy::CommunityDbService;
@@ -38,7 +37,6 @@ use sb_user_auth::entity::access_gain_action_entitiy::{
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authorization_entity::Authorization;
-// use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::register_routes::display_register_page;
 
 const PRICE_USER_ID_KEY: &str = "user_id";

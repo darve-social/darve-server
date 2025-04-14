@@ -18,7 +18,6 @@ use crate::entity::discussion_notification_entitiy::{
 };
 use crate::entity::post_entitiy::{Post, PostDbService};
 use crate::entity::post_stream_entitiy::PostStreamDbService;
-// use crate::entity::reply_entitiy::ReplyDbService;
 use crate::routes::community_routes::DiscussionNotificationEvent;
 use crate::routes::discussion_routes::{
     is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView,
@@ -361,7 +360,7 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let post_json = serde_json::to_string(&post_comm_view).map_err(|_e1| {
+    let post_json = serde_json::to_string(&post_comm_view).map_err(|_| {
         ctx.to_ctx_error(AppError::Generic {
             description: "Post to json error for notification event".to_string(),
         })

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-// use std::fmt::Display;
 use strum::Display;
 use surrealdb::sql::{to_value, Id, Thing, Value};
 

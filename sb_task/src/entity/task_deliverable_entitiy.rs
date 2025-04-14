@@ -1,5 +1,5 @@
-use sb_middleware::db;
 use sb_middleware::{
+    db,
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
@@ -31,7 +31,6 @@ impl<'a> TaskDeliverableDbService<'a> {}
 
 pub const TABLE_NAME: &str = "task_deliverable";
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
-// const TABLE_COL_OFFER: &str = crate::entity::task_request_participation_entity::TABLE_NAME;
 const TABLE_COL_POST: &str = sb_community::entity::post_entitiy::TABLE_NAME;
 const TABLE_COL_TASK_REQ: &str = crate::entity::task_request_entitiy::TABLE_NAME;
 
