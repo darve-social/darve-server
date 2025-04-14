@@ -8,18 +8,28 @@ use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{get, post};
+use axum::response::{Response};
+use axum::routing::{get};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
+    AccountId,
+    Client,
+     CreatePaymentIntent,
+     CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
+     Price, Product,
     AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event, IdOrCreate, Price, Product
 };
 use stripe::{
+    ProductId,
     EventObject, EventType, Invoice, ProductId,
 };
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
+use sb_middleware::error::{AppError,
+    CtxResult};
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -33,13 +43,13 @@ pub fn routes(state: CtxState) -> Router {
             get(request_endowment_intent),
         )
         .route("/api/stripe/endowment/webhook", post(handle_webhook));
-    
+
     let routes = if state.is_development {
     routes.route(
         "/test/api/endow/:another_user_id/:amount",
         get(test_endowment_transaction))
     } else { routes };
-    
+
     routes.with_state(state)
 }
 
@@ -76,7 +86,7 @@ struct MyStripeProductId(ProductId);
 //     CurrencyTransactionDbService { db: &db, ctx: &c}
 //         .mutate_db()
 //         .await?;
-    
+
 //     Ok(())
 // }
 
@@ -158,15 +168,12 @@ async fn request_endowment_intent(
     println!("User ID retrieved: {:?}", user_id);
 
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
-
-    let mut stripe_key = ctx_state.stripe_key;
-
     println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
-    if ctx_state.is_development {
-        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
-        stripe_key = "sk_test_51R3u5oJ2SO8dU9QJJVyHQAe0fboTBQJJiQ1WDsJyodJjjV15EWc30bVsUc34bM87sAsnU6klLp27zoEEZt0ISgAm00BN9Ix7FZ".to_string();
-    }
+    // taken from ctx_state/env
+    // if ctx_state.is_development {
+    //     stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+    // }
 
     let price_amount = amount;
 
@@ -175,10 +182,10 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
-        let product_title = "wallet-endowment".to_string();
+        let product_title = "wallet_endowment".to_string();
         let pr_id: ProductId = EndowmentIdent {
             user_id: get_string_thing(user_id.clone())?,
             amount: price_amount,
@@ -253,11 +260,9 @@ async fn request_endowment_intent(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        // on_behalf_of: Some(acc_id.as_str()), //todo revert
-        on_behalf_of: None, //todo remove
-        // application_fee_amount: Some(platform_fee), //todo revert
-        application_fee_amount: None, //todo remove
+        on_behalf_of: Some(acc_id.as_str()),
         transfer_data: None,
+        application_fee_amount: Some(platform_fee),
         automatic_payment_methods: None,
         capture_method: None,
         confirm: Some(false),
@@ -296,6 +301,7 @@ async fn request_endowment_intent(
         Ok((StatusCode::OK, payment_intent.client_secret.unwrap()).into_response())
 }
 
+#[allow(dead_code)]
 struct StripeEvent(Event);
 
 #[async_trait]
@@ -317,7 +323,8 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret = "whsec_d986694e5223877df088a3dc9068301efa61d5a60e28e58634b89d6fa3cc6e80";
+        // TODO get wh secret from env
+        let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
         Ok(Self(
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), wh_secret)
                 .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,
@@ -325,107 +332,109 @@ where
     }
 }
 
-async fn handle_webhook(
-    State(ctx_state): State<CtxState>,
-    ctx: Ctx,
-    StripeEvent(event): StripeEvent,
-) -> CtxResult<Response> {
-    match event.type_ {
-        /*EventType::InvoicePaymentFailed => {
-// ignore
-        }*/
-        EventType::InvoicePaid => {
+//commenting for now - @anukulpandey
+// async fn handle_webhook(
+//     State(ctx_state): State<CtxState>,
+//     ctx: Ctx,
+//     StripeEvent(event): StripeEvent,
+// ) -> CtxResult<Response> {
+//     match event.type_ {
+//         /*EventType::InvoicePaymentFailed => {
+// // ignore
+//         }*/
+//         EventType::InvoicePaid => {
 
-            if let EventObject::Invoice(invoice) = event.data.object {
-                // dbg!(&invoice);
+//             if let EventObject::Invoice(invoice) = event.data.object {
+//                 // dbg!(&invoice);
 
-                if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
-                    || invoice.paid.is_none()
-                    || invoice.paid.unwrap() == false
-                {
-                    //TODO if partially paid get the amount and endow for that amount instead of values in extract_invoice_data
-                    // if you get all info return here so items are not processed
-                }
+//                 if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
+//                     || invoice.paid.is_none()
+//                     || invoice.paid.unwrap() == false
+//                 {
+//                     //TODO if partially paid get the amount and endow for that amount instead of values in extract_invoice_data
+//                     // if you get all info return here so items are not processed
+//                 }
 
-                let endowments = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
-                //TODO sum endowments into total amount
-                // and call user_endowment_tx with some stripe identifier for invoice or transfer id in external_tx_id
-                // for external_account we can use if there's some user's stripe id
-            }
-        }
-        /*EventType::SubscriptionScheduleCreated => {
-            if let EventObject::SubscriptionSchedule(subs_sched) = event.data.object {
-                println!("Received subscription schedule webhook: {:?}", subs_sched.id);
-                dbg!(subs_sched);
-            }
-        }
-        EventType::AccountUpdated => {
-            if let EventObject::Account(account) = event.data.object {
-                println!("Received account updated webhook for account: {:?}", account.id);
-            }
-        }*/
-        _ => {
-            if ctx_state.is_development {
-                println!("Unknown event encountered in webhook: {:?}", event.type_);
-            }
-        }
-    }
-    Ok("".into_response())
-}
+//                 let endowments = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
+//                 //TODO sum endowments into total amount
+//                 // and call user_endowment_tx with some stripe identifier for invoice or transfer id in external_tx_id
+//                 // for external_account we can use if there's some user's stripe id
+//             }
+//         }
+//         /*EventType::SubscriptionScheduleCreated => {
+//             if let EventObject::SubscriptionSchedule(subs_sched) = event.data.object {
+//                 println!("Received subscription schedule webhook: {:?}", subs_sched.id);
+//                 dbg!(subs_sched);
+//             }
+//         }
+//         EventType::AccountUpdated => {
+//             if let EventObject::Account(account) = event.data.object {
+//                 println!("Received account updated webhook for account: {:?}", account.id);
+//             }
+//         }*/
+//         _ => {
+//             if ctx_state.is_development {
+//                 println!("Unknown event encountered in webhook: {:?}", event.type_);
+//             }
+//         }
+//     }
+//     Ok("".into_response())
+// }
 
-async fn extract_invoice_data(
-    _ctx_state: &CtxState,
-    ctx: &Ctx,
-    invoice: Invoice,
-) -> Result<Vec<EndowmentIdent>, CtxError> {
-    let mut endowments: Vec<EndowmentIdent> = vec![];
-    if let Some(list) = invoice.lines {
-        for item in list.data {
-            if let Some(price) = item.price {
-                //TODO probably we don't need metadata just EndowmentIdent since user id is there
-                if let Some(mut md) = price.metadata {
-                    let user_id = md.remove(PRICE_USER_ID_KEY);
-                    if user_id.is_some() {
-                        let usr_id = get_string_thing(user_id.clone().unwrap());
-                        let product_id = price.product.unwrap().id();
-                        if usr_id.is_ok() {
-                            // product id has can be converted into EndowmentIdent that has userid info
-                            let endowment_ident: Result<EndowmentIdent, AppError> =
-                                MyStripeProductId(product_id.clone()).try_into();
-                            if endowment_ident.is_ok() {
-                                endowments
-                                    .push(endowment_ident.expect("checked to be ok"));
-                            } else {
-                                println!(
-                                    "ERROR stripe wh parse product id {} into thing invoice={}",
-                                    product_id.as_str(),
-                                    invoice.id.as_str()
-                                )
-                            }
-                        } else {
-                            println!(
-                                "ERROR stripe wh parse user id {:?} into thing invoice={}",
-                                user_id.unwrap(),
-                                invoice.id.as_str()
-                            )
-                        }
-                    } else {
-                        println!(
-                            "ERROR stripe wh no user id for price {} invoice={}",
-                            price.id.as_str(),
-                            invoice.id.as_str()
-                        );
-                    }
-                }
-            }
-        }
-    };
+//commenting for now @anukulpandey
+// async fn extract_invoice_data(
+//     _ctx_state: &CtxState,
+//     ctx: &Ctx,
+//     invoice: Invoice,
+// ) -> Result<Vec<EndowmentIdent>, CtxError> {
+//     let mut endowments: Vec<EndowmentIdent> = vec![];
+//     if let Some(list) = invoice.lines {
+//         for item in list.data {
+//             if let Some(price) = item.price {
+//                 //TODO probably we don't need metadata just EndowmentIdent since user id is there
+//                 if let Some(mut md) = price.metadata {
+//                     let user_id = md.remove(PRICE_USER_ID_KEY);
+//                     if user_id.is_some() {
+//                         let usr_id = get_string_thing(user_id.clone().unwrap());
+//                         let product_id = price.product.unwrap().id();
+//                         if usr_id.is_ok() {
+//                             // product id has can be converted into EndowmentIdent that has userid info
+//                             let endowment_ident: Result<EndowmentIdent, AppError> =
+//                                 MyStripeProductId(product_id.clone()).try_into();
+//                             if endowment_ident.is_ok() {
+//                                 endowments
+//                                     .push(endowment_ident.expect("checked to be ok"));
+//                             } else {
+//                                 println!(
+//                                     "ERROR stripe wh parse product id {} into thing invoice={}",
+//                                     product_id.as_str(),
+//                                     invoice.id.as_str()
+//                                 )
+//                             }
+//                         } else {
+//                             println!(
+//                                 "ERROR stripe wh parse user id {:?} into thing invoice={}",
+//                                 user_id.unwrap(),
+//                                 invoice.id.as_str()
+//                             )
+//                         }
+//                     } else {
+//                         println!(
+//                             "ERROR stripe wh no user id for price {} invoice={}",
+//                             price.id.as_str(),
+//                             invoice.id.as_str()
+//                         );
+//                     }
+//                 }
+//             }
+//         }
+//     };
 
-    if endowments.len() == 0 {
-        Err(ctx.to_ctx_error(AppError::Generic {
-            description: "extract invoice data err".to_string(),
-        }))
-    } else {
-        Ok(endowments)
-    }
-}
+//     if endowments.len() == 0 {
+//         Err(ctx.to_ctx_error(AppError::Generic {
+//             description: "extract invoice data err".to_string(),
+//         }))
+//     } else {
+//         Ok(endowments)
+//     }
+// }

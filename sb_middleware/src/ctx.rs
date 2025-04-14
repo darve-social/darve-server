@@ -35,12 +35,12 @@ impl Ctx {
 
     pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
         let rendered_string = match self.is_htmx {
-            true => object.render().map_err(|e| {
+            true => object.render().map_err(|_| {
                 self.to_ctx_error(AppError::Generic {
                     description: "Render template error".to_string(),
                 })
             })?,
-            false => serde_json::to_string(&object).map_err(|e| {
+            false => serde_json::to_string(&object).map_err(|_| {
                 self.to_ctx_error(AppError::Generic {
                     description: "Render json error".to_string(),
                 })

@@ -36,7 +36,7 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_deliverable_entitiy::TaskDeliverableDbService;
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
-use sb_task::entity::task_request_offer_entity::TaskRequestOfferDbService;
+use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
@@ -49,6 +49,7 @@ use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes, user_notification_routes};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 use sb_wallet::routes::{wallet_routes, wallet_endowment_routes};
 
@@ -73,7 +74,7 @@ async fn main() -> AppResult<()> {
     let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
-    run_migrations(db, is_dev).await?;
+    run_migrations(db).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
@@ -131,7 +132,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -164,7 +165,7 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
     TaskRequestDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    TaskRequestOfferDbService { db: &db, ctx: &c }
+    TaskParticipationDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     TaskDeliverableDbService { db: &db, ctx: &c }
@@ -177,6 +178,9 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
     .mutate_db()
     .await?;
     CurrencyTransactionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    LockTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;

@@ -1,19 +1,14 @@
-use std::io::Write;
-use std::str::FromStr;
-
-use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum::Router;
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use crate::entity::follow_entitiy::FollowDbService;
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use crate::entity::user_notification_entitiy::{
-    UserNotification, UserNotificationDbService, UserNotificationEvent,
+     UserNotificationDbService, UserNotificationEvent,
 };
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;

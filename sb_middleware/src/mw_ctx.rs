@@ -1,7 +1,7 @@
 use crate::db;
 use crate::{ctx::Ctx, error::AppError, error::AppResult, error::CtxResult};
 use axum::body::Body;
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
 use axum_htmx::HxRequest;
@@ -129,7 +129,7 @@ pub async fn mw_ctx_constructor(
 pub async fn mw_require_login(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    mut req: Request<Body>,
+    req: Request<Body>,
     next: Next,
 ) -> Response {
     if ctx.user_id().is_err() {

@@ -67,7 +67,7 @@ impl<'a> AccessGainActionDbService<'a> {
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ", AccessGainActionType::VARIANTS, AccessGainActionStatus::VARIANTS);
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate PaymentAction");
+        mutation.check().expect("should mutate PaymentAction");
 
         Ok(())
     }
@@ -85,7 +85,6 @@ impl<'a> AccessGainActionDbService<'a> {
         record.r_created = None;
         record.r_updated = None;
 
-        let rec_id = record.id.clone();
         let acc_right: Option<AccessGainAction> = self
             .db
             .upsert((resource.tb, resource.id.to_raw()))

@@ -3,7 +3,6 @@ use sb_middleware::db::Db;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::ops::Deref;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -60,10 +59,10 @@ pub fn get_auth_record_index(auth_record_name: &String) -> Option<usize> {
 pub fn has_editor_auth(authorize_ident: &str) -> bool {
     AUTH_ACTIVITY_RANK
         .iter()
-        .position(|a| a.deref().eq(authorize_ident))
+        .position(|a| *a == authorize_ident)
         >= AUTH_ACTIVITY_RANK
             .iter()
-            .position(|a| a.deref().eq(AUTH_ACTIVITY_EDITOR))
+            .position(|a| *a == AUTH_ACTIVITY_EDITOR)
 }
 
 pub fn is_any_ge_in_list(compare_to: &Authorization, list: &Vec<Authorization>) -> CtxResult<bool> {
@@ -243,7 +242,7 @@ async fn get_higher_parent_record_id(
     lower_index: usize,
 ) -> Result<Thing, CtxError> {
     let higher = AUTH_RECORD_TABLE_RANK[lower_index + 1..higher_index + 1].to_vec();
-    let mut q_select_hierarchy = higher.join(".");
+    let q_select_hierarchy = higher.join(".");
     let qry =
         "SELECT type::field($q_select_hierarchy) as id FROM <record>$lower_rec_id;".to_string();
     // println!("qqq={qry}");
@@ -512,9 +511,9 @@ impl From<Authorization> for String {
                 authorize_activity: authorize_ident,
                 authorize_height,
             } => {
-                let idStr: String = id.to_raw();
-                let hStr: String = authorize_height.to_string();
-                format!("{idStr}{AUTH_DOMAIN_ID_AUTHORIZE_DELIM}{authorize_ident}{AUTH_DOMAIN_IDENT_HEIGHT_DELIM}{hStr}")
+                let id_str: String = id.to_raw();
+                let h_str: String = authorize_height.to_string();
+                format!("{id_str}{AUTH_DOMAIN_ID_AUTHORIZE_DELIM}{authorize_ident}{AUTH_DOMAIN_IDENT_HEIGHT_DELIM}{h_str}")
             }
         }
     }
@@ -525,8 +524,8 @@ impl TryFrom<String> for Authorization {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.split_once(AUTH_DOMAIN_ID_AUTHORIZE_DELIM) {
-            Some((domainIdent, auth)) => {
-                let domain: Thing = get_string_thing(domainIdent.to_string()).map_err(|e| {
+            Some((domain_ident, auth)) => {
+                let domain: Thing = get_string_thing(domain_ident.to_string()).map_err(|_e| {
                     AuthorizationError::ParseError {
                         reason: "error parsing domain thing".to_string(),
                     }
@@ -540,7 +539,7 @@ impl TryFrom<String> for Authorization {
                     Some((authorize_ident, height)) => {
                         let authorize_height = match height.parse::<i16>() {
                             Ok(val) => val,
-                            Err(err) => {
+                            Err(_) => {
                                 return Err(AuthorizationError::ParseError {
                                     reason: "parse int error i16".to_string(),
                                 });

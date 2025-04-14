@@ -17,7 +17,7 @@ use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 pub struct WebauthnConfig {
     pub relaying_party_domain: String,
     pub relaying_party_origin_url: String,
-    pub isHttps: bool,
+    pub is_https: bool,
     pub relaying_party_name: String,
 }
 
@@ -25,14 +25,14 @@ pub fn create_webauth_config() -> WebauthnConfig {
     let wa_config = WebauthnConfig {
         relaying_party_domain: String::from("localhost"),
         relaying_party_origin_url: String::from("http://localhost:8080"),
-        isHttps: false,
+        is_https: false,
         relaying_party_name: String::from("NewEra Network"),
     };
     wa_config
 }
 
 pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -> Router {
-    let isHttps = wa_config.isHttps.clone();
+    let is_https = wa_config.is_https.clone();
     // Create the app
     let webauthn_state = AppState::new(wa_config);
 
@@ -47,7 +47,7 @@ pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -
             SessionManagerLayer::new(session_store)
                 .with_name("webauthnrs")
                 .with_same_site(SameSite::Strict)
-                .with_secure(isHttps) // TODO: change this to true when running on an HTTPS/production server instead of locally
+                .with_secure(is_https) // TODO: change this to true when running on an HTTPS/production server instead of locally
                 .with_expiry(Expiry::OnInactivity(Duration::seconds(360))),
         );
 
