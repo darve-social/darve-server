@@ -64,7 +64,6 @@ async fn main() -> AppResult<()> {
         .eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
     let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
-    let stripe_platform_account = std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
     let stripe_wh_secret =
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =

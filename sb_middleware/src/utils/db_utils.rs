@@ -317,7 +317,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
         pagination,
         table_name,
     )?;
-    println!("QQQ={:#?}", &query_string);
+    // println!("QQQ={:#?}", &query_string);
     get_list_qry(db, query_string).await
 }
 
