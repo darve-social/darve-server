@@ -29,6 +29,7 @@ mod tests {
                 name_uri: comm_name.clone().to_string(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -77,6 +78,7 @@ mod tests {
                 hidden: None,
                 access_rule_id: "".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         &topic_resp.assert_status_success();
         let created = &topic_resp.json::<DiscussionTopicItemsEdit>();
@@ -93,6 +95,7 @@ mod tests {
                     .add_text("content", "contentttt111")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
         &create_post.assert_status_success();
@@ -127,6 +130,7 @@ mod tests {
                     .add_text("content", "contentttt111")
                     .add_text("topic_id", topic1_id.clone().unwrap().to_raw()),
             )
+            .add_header("Accept", "application/json")
             .await;
         //.json(&PostInput { title: post_name, content: "contentttt".to_string(), topic_id: topic1_id.clone().unwrap().to_raw() }).await;
         let created = create_post.json::<CreatedResponse>();

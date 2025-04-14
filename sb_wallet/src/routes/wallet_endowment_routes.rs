@@ -1,23 +1,20 @@
 use std::str::FromStr;
 
+use crate::entity::funding_transaction_entity::FundingTransactionDbService;
+use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
-use axum::response::{Redirect, Response};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
-    Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
-    CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
-    CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentIntent, CreatePaymentLink,
-    CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product,
+    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event, IdOrCreate, Price, Product
 };
 use stripe::{
-    CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
-    CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
+    EventObject, EventType, Invoice, ProductId,
 };
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
@@ -25,19 +22,25 @@ use surrealdb::sql::Thing;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::string_utils::get_string_thing;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
 
 pub fn routes(state: CtxState) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route(
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
-        // .route("/api/stripe/endowment/webhook", post(handle_webhook))
-        .with_state(state)
+        .route("/api/stripe/endowment/webhook", post(handle_webhook));
+    
+    let routes = if state.is_development {
+    routes.route(
+        "/test/api/endow/:another_user_id/:amount",
+        get(test_endowment_transaction))
+    } else { routes };
+    
+    routes.with_state(state)
 }
 
 struct EndowmentIdent {
@@ -59,6 +62,31 @@ impl From<EndowmentIdent> for ProductId {
 }
 
 struct MyStripeProductId(ProductId);
+
+// async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
+//     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
+
+//     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
+//     WalletDbService {
+//         db: &db,
+//         ctx: &c,
+//     }
+//     .mutate_db()
+//     .await?;
+//     CurrencyTransactionDbService { db: &db, ctx: &c}
+//         .mutate_db()
+//         .await?;
+    
+//     Ok(())
+// }
+
+// async fn init_db_test() -> (Surreal<Db>, Ctx) {
+//     let db = db::start(Some("test".to_string())).await.expect("db initialized");
+//     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+
+//     run_migrations(db.clone()).await.expect("init migrations");
+//     (db, ctx)
+// }
 
 impl TryFrom<MyStripeProductId> for EndowmentIdent {
     type Error = AppError;
@@ -89,6 +117,36 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
     }
 }
 
+async fn test_endowment_transaction(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path((another_user_id, amount)): Path<(String, i64)>,
+) -> CtxResult<Response> {
+    println!("->> {:<12} - request endowment_transaction ", "HANDLER");
+
+    if !ctx_state.is_development {
+        return Err(AppError::AuthorizationFail {
+            required: "Endpoint only available in development mode".to_string(),
+        }
+        .into());
+    }
+
+    let another_user_thing = get_string_thing(another_user_id).expect("got thing");
+
+    print!("another_user_id");
+
+    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+    let wallet_service = WalletDbService{ db: &ctx_state._db, ctx: &ctx };
+
+    fund_service.user_endowment_tx(&another_user_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), amount, CurrencySymbol::USD).await.expect("created");
+
+    let user1_bal = wallet_service.get_user_balance(&another_user_thing).await.expect("got balance");
+
+    Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
+}
+
+
+
 async fn request_endowment_intent(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
@@ -100,10 +158,14 @@ async fn request_endowment_intent(
     println!("User ID retrieved: {:?}", user_id);
 
     let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
+
+    let mut stripe_key = ctx_state.stripe_key;
+
     println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
     if ctx_state.is_development {
         stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+        stripe_key = "sk_test_51R3u5oJ2SO8dU9QJJVyHQAe0fboTBQJJiQ1WDsJyodJjjV15EWc30bVsUc34bM87sAsnU6klLp27zoEEZt0ISgAm00BN9Ix7FZ".to_string();
     }
 
     let price_amount = amount;
@@ -113,10 +175,10 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(stripe_key).with_stripe_account(acc_id.clone());
 
     let product = {
-        let product_title = "wallet_endowment".to_string();
+        let product_title = "wallet-endowment".to_string();
         let pr_id: ProductId = EndowmentIdent {
             user_id: get_string_thing(user_id.clone())?,
             amount: price_amount,
@@ -191,9 +253,11 @@ async fn request_endowment_intent(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        on_behalf_of: Some(acc_id.as_str()),
+        // on_behalf_of: Some(acc_id.as_str()), //todo revert
+        on_behalf_of: None, //todo remove
+        // application_fee_amount: Some(platform_fee), //todo revert
+        application_fee_amount: None, //todo remove
         transfer_data: None,
-        application_fee_amount: Some(platform_fee),
         automatic_payment_methods: None,
         capture_method: None,
         confirm: Some(false),
@@ -253,7 +317,7 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
+        let wh_secret = "whsec_d986694e5223877df088a3dc9068301efa61d5a60e28e58634b89d6fa3cc6e80";
         Ok(Self(
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), wh_secret)
                 .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,

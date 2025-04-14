@@ -193,12 +193,15 @@ fn get_entity_query_str(
                 Some(pag) => {
                     let mut pag_q = match pag.order_by {
                         None => "".to_string(),
-                        Some(order_by_f) => format!(" ORDER BY {order_by_f} "),
+                        Some(order_by_f) => {
+                            let order_by = format!(" ORDER BY {order_by_f} ");
+                            match pag.order_dir {
+                                None => format!(" {order_by} {} ", QryOrder::DESC.to_string()),
+                                Some(direction) => format!(" {order_by} {} ", direction.to_string()),
+                            }
+                        },
                     };
-                    let mut pag_q = match pag.order_dir {
-                        None => format!(" {pag_q} {} ", QryOrder::DESC.to_string()),
-                        Some(direction) => format!(" {pag_q} {} ", direction.to_string()),
-                    };
+                    
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
                     q_bindings.insert("_count_val".to_string(), count.to_string());
@@ -314,7 +317,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
         pagination,
         table_name,
     )?;
-    // println!("QQQ={:#?}", &query_string);
+    println!("QQQ={:#?}", &query_string);
     get_list_qry(db, query_string).await
 }
 
