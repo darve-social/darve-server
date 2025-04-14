@@ -24,6 +24,7 @@ pub struct CtxState {
     pub is_development: bool,
     pub stripe_key: String,
     pub stripe_wh_secret: String,
+    pub stripe_platform_account: String,
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
     pub uploads_dir: String,
@@ -43,6 +44,7 @@ pub fn create_ctx_state(
     jwt_duration: Duration,
     stripe_key: String,
     stripe_wh_secret: String,
+    stripe_platform_account: String,
     uploads_dir: String,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
@@ -56,6 +58,7 @@ pub fn create_ctx_state(
         is_development,
         stripe_key,
         stripe_wh_secret,
+        stripe_platform_account,
         jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,

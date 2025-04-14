@@ -26,6 +26,7 @@ mod tests {
                 name_uri: "community-123".to_string(),
                 title: "The Community Test".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<CreatedResponse>();
         // dbg!(&created);
@@ -60,6 +61,7 @@ mod tests {
                     .add_text("content", "contentttt111")
                     .add_text("topic_id", ""),
             )
+            .add_header("Accept", "application/json")
             .await;
         &create_response.assert_status_success();
         let created = &create_response.json::<CreatedResponse>();
@@ -75,6 +77,7 @@ mod tests {
                 title: replyName,
                 content: "contentttt".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         dbg!(&create_response);
 
@@ -86,6 +89,7 @@ mod tests {
                 title: replyName2.clone(),
                 content: "contentttt222".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
 
         let create_response3 = server
@@ -95,6 +99,7 @@ mod tests {
                 title: replyName2.clone(),
                 content: "contentttt33332".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
 
         let create_response4 = server
@@ -104,6 +109,7 @@ mod tests {
                 title: replyName2.clone(),
                 content: "contentttt444442".to_string(),
             })
+            .add_header("Accept", "application/json")
             .await;
         // dbg!(&create_response);
         let created = &create_response.json::<CreatedResponse>();

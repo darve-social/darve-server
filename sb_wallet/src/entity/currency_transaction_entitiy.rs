@@ -53,6 +53,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
+    DEFINE INDEX wallet_idx ON {TABLE_NAME} FIELDS wallet;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;

@@ -26,8 +26,8 @@ pub fn routes(state: CtxState) -> Router {
 #[derive(Template, Deserialize, Debug, Serialize)]
 #[template(path = "nera2/default-content.html")]
 pub struct CurrencyTransactionHistoryView {
-    wallet: Thing,
-    transactions: Vec<CurrencyTransactionView>,
+    pub wallet: Thing,
+    pub transactions: Vec<CurrencyTransactionView>,
 }
 #[derive(Template, Deserialize, Debug, Serialize)]
 #[template(path = "nera2/default-content.html")]

@@ -1,40 +1,46 @@
 use std::str::FromStr;
 
+use crate::entity::funding_transaction_entity::FundingTransactionDbService;
+use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
 use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
-use axum::response::{Response};
-use axum::routing::{get};
+use axum::response::Response;
+use axum::routing::{get, post};
 use axum::{async_trait, Router};
+// use futures::TryFutureExt;
 use stripe::{
     AccountId,
-    Client, 
-     CreatePaymentIntent, 
-     CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-     Price, Product,
+    Client, CreatePaymentIntent, CreatePrice, 
+    CreateProduct,
+    Currency, Event,IdOrCreate, Price, Product,ProductId
 };
-use stripe::{
-    ProductId,
-};
+// use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{AppError, 
-    CtxResult};
+use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
 
 pub fn routes(state: CtxState) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route(
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
-        )
-        // .route("/api/stripe/endowment/webhook", post(handle_webhook))
-        .with_state(state)
+        );
+        // .route("/api/stripe/endowment/webhook", post(handle_webhook));
+
+    let routes = if state.is_development {
+    routes.route(
+        "/test/api/endow/:another_user_id/:amount",
+        get(test_endowment_transaction))
+    } else { routes };
+
+    routes.with_state(state)
 }
 
 struct EndowmentIdent {
@@ -56,6 +62,31 @@ impl From<EndowmentIdent> for ProductId {
 }
 
 struct MyStripeProductId(ProductId);
+
+// async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
+//     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
+
+//     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
+//     WalletDbService {
+//         db: &db,
+//         ctx: &c,
+//     }
+//     .mutate_db()
+//     .await?;
+//     CurrencyTransactionDbService { db: &db, ctx: &c}
+//         .mutate_db()
+//         .await?;
+
+//     Ok(())
+// }
+
+// async fn init_db_test() -> (Surreal<Db>, Ctx) {
+//     let db = db::start(Some("test".to_string())).await.expect("db initialized");
+//     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+
+//     run_migrations(db.clone()).await.expect("init migrations");
+//     (db, ctx)
+// }
 
 impl TryFrom<MyStripeProductId> for EndowmentIdent {
     type Error = AppError;
@@ -86,6 +117,36 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
     }
 }
 
+async fn test_endowment_transaction(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    Path((another_user_id, amount)): Path<(String, i64)>,
+) -> CtxResult<Response> {
+    println!("->> {:<12} - request endowment_transaction ", "HANDLER");
+
+    if !ctx_state.is_development {
+        return Err(AppError::AuthorizationFail {
+            required: "Endpoint only available in development mode".to_string(),
+        }
+        .into());
+    }
+
+    let another_user_thing = get_string_thing(another_user_id).expect("got thing");
+
+    print!("another_user_id");
+
+    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+    let wallet_service = WalletDbService{ db: &ctx_state._db, ctx: &ctx };
+
+    fund_service.user_endowment_tx(&another_user_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), amount, CurrencySymbol::USD).await.expect("created");
+
+    let user1_bal = wallet_service.get_user_balance(&another_user_thing).await.expect("got balance");
+
+    Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
+}
+
+
+
 async fn request_endowment_intent(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
@@ -96,12 +157,13 @@ async fn request_endowment_intent(
     let user_id = ctx.user_id()?;
     println!("User ID retrieved: {:?}", user_id);
 
-    let mut stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+    let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
     println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
-    if ctx_state.is_development {
-        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
-    }
+    // taken from ctx_state/env
+    // if ctx_state.is_development {
+    //     stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
+    // }
 
     let price_amount = amount;
 
