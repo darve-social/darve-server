@@ -7,7 +7,6 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use surrealdb::sql::Thing;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
@@ -53,7 +52,7 @@ async fn get_init_form(
             description: "Already initialized".to_string(),
         }))
     } else {
-        Ok(ProfileFormPage::new(Box::new(InitServerForm {}), None, None).into_response())
+        Ok(ProfileFormPage::new(Box::new(InitServerForm {}), None, None, None).into_response())
     }
 }
 

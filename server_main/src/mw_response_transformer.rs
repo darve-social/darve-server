@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 /*pub async fn mw_htmx_transformer(res: Response) -> Response {
     println!("->> {:<12} - mw_response_transformer:", "HTMX TRANSFORMER");
     let is_err = res.status().is_server_error() || res.status().is_client_error();

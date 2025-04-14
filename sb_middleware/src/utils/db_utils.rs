@@ -6,7 +6,6 @@ use strum::Display;
 use surrealdb::engine::local::Db as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
-use tower::ServiceExt;
 
 use crate::ctx::Ctx;
 use crate::db::Db;
@@ -75,8 +74,8 @@ impl Display for IdentIdName {
                 let prefix = if *rec { "<record>" } else { "" };
                 f.write_str(format!("{column}={prefix}${column}").as_str())
             }
-            IdentIdName::ColumnIdentAnd(andFilters) => f.write_str(
-                andFilters
+            IdentIdName::ColumnIdentAnd(add_filters) => f.write_str(
+                add_filters
                     .iter()
                     .map(|f| f.to_string())
                     .collect::<Vec<_>>()
@@ -103,7 +102,8 @@ impl From<UsernameIdent> for IdentIdName {
     }
 }
 
-type SerializableQryValsHash<T: Serialize + 'static + Clone> = HashMap<String, T>;
+type SerializableQryValsHash<T> = HashMap<String, T>;
+// type SerializableQryValsHash<T: Serialize + 'static + Clone> = HashMap<String, T>;
 
 #[derive(Debug)]
 pub struct QryBindingsVal<T: Serialize + 'static + Clone>(String, SerializableQryValsHash<T>);
@@ -158,7 +158,7 @@ fn get_entity_query_str(
 ) -> Result<QryBindingsVal<String>, AppError> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
 
-    let query_string = match ident.clone() {
+    let query_string = match ident {
 
         IdentIdName::Id(id) => {
             if id.to_raw().len() < 3 {
@@ -191,14 +191,17 @@ fn get_entity_query_str(
             let pagination_q = match pagination {
                 None => "".to_string(),
                 Some(pag) => {
-                    let mut pag_q = match pag.order_by {
+                    let pag_q = match pag.order_by {
                         None => "".to_string(),
-                        Some(order_by_f) => format!(" ORDER BY {order_by_f} "),
+                        Some(order_by_f) => {
+                            let order_by = format!(" ORDER BY {order_by_f} ");
+                            match pag.order_dir {
+                                None => format!(" {order_by} {} ", QryOrder::DESC.to_string()),
+                                Some(direction) => format!(" {order_by} {} ", direction.to_string()),
+                            }
+                        },
                     };
-                    let mut pag_q = match pag.order_dir {
-                        None => format!(" {pag_q} {} ", QryOrder::DESC.to_string()),
-                        Some(direction) => format!(" {pag_q} {} ", direction.to_string()),
-                    };
+                    
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
                     q_bindings.insert("_count_val".to_string(), count.to_string());

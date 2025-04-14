@@ -39,6 +39,7 @@ use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
+use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
@@ -50,6 +51,7 @@ use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
+use sb_wallet::routes::{wallet_routes, wallet_endowment_routes};
 
 mod mw_response_transformer;
 mod test_utils;
@@ -65,12 +67,14 @@ async fn main() -> AppResult<()> {
     let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
     let stripe_wh_secret =
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
+    let stripe_platform_account =
+        std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
     let jwt_duration = Duration::days(7);
 
     let db = db::start(None).await?;
-    run_migrations(db, is_dev).await?;
+    run_migrations(db).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
@@ -79,6 +83,7 @@ async fn main() -> AppResult<()> {
         jwt_duration,
         stripe_key,
         stripe_wh_secret,
+        stripe_platform_account,
         uploads_dir,
     );
     let wa_config = webauthn_routes::create_webauth_config();
@@ -127,7 +132,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -151,6 +156,9 @@ async fn run_migrations(db: Surreal<Db>, is_development: bool) -> AppResult<()> 
         .mutate_db()
         .await?;
     AccessGainActionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    EndowmentActionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
@@ -206,6 +214,9 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(task_request_routes::routes(ctx_state.clone()))
         .merge(follow_routes::routes(ctx_state.clone()))
         .merge(user_notification_routes::routes(ctx_state.clone()))
+        .merge(user_notification_routes::routes(ctx_state.clone()))
+        .merge(wallet_routes::routes(ctx_state.clone()))
+        .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
         .layer(middleware::map_response(mw_req_logger::mw_req_logger))

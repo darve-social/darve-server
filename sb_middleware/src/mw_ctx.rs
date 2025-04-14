@@ -1,7 +1,7 @@
 use crate::db;
 use crate::{ctx::Ctx, error::AppError, error::AppResult, error::CtxResult};
 use axum::body::Body;
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
 use axum_htmx::HxRequest;
@@ -24,6 +24,7 @@ pub struct CtxState {
     pub is_development: bool,
     pub stripe_key: String,
     pub stripe_wh_secret: String,
+    pub stripe_platform_account: String,
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
     pub uploads_dir: String,
@@ -43,6 +44,7 @@ pub fn create_ctx_state(
     jwt_duration: Duration,
     stripe_key: String,
     stripe_wh_secret: String,
+    stripe_platform_account: String,
     uploads_dir: String,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
@@ -56,6 +58,7 @@ pub fn create_ctx_state(
         is_development,
         stripe_key,
         stripe_wh_secret,
+        stripe_platform_account,
         jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
@@ -126,7 +129,7 @@ pub async fn mw_ctx_constructor(
 pub async fn mw_require_login(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    mut req: Request<Body>,
+    req: Request<Body>,
     next: Next,
 ) -> Response {
     if ctx.user_id().is_err() {

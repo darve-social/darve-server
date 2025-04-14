@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Display;
 use strum::Display;
 use surrealdb::sql::{to_value, Id, Thing, Value};
 
@@ -155,20 +154,20 @@ impl<'a> UserNotificationDbService<'a> {
 ");
 
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate user_notification");
+        mutation.check().expect("should mutate user_notification");
 
         Ok(())
     }
 
     pub async fn create(&self, mut record: UserNotification) -> CtxResult<UserNotification> {
         record.id = Some(Thing::from((TABLE_NAME, Id::ulid())));
-        let userNotification = self
+        let user_notification = self
             .db
             .create(TABLE_NAME)
             .content(record)
             .await
             .map_err(CtxError::from(self.ctx))
             .map(|v: Option<UserNotification>| v.unwrap())?;
-        Ok(userNotification)
+        Ok(user_notification)
     }
 }
