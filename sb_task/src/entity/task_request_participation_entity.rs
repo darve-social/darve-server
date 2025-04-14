@@ -100,19 +100,29 @@ impl<'a> TaskParticipationDbService<'a> {
     pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
         let participations = self.get_ids(participation_ids).await?;
         let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
-
-        let tasks: Vec<_> = participations
+        
+        /*let tasks: Vec<_> = participations
             .into_iter()
-            .map(|mut participation| {
-                tokio::spawn(async move {
-                    if participation.lock.is_some() {
-                        let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
-                        Some(lock_tx_service.process_locked_payment(participation.lock.as_ref().unwrap(), to_user).await.is_ok())
-                    }else {  None }
+            .map(|p|(p.lock.clone(), to_user.clone()))
+            .map(|lock_tx_touser| {
+                tokio::spawn(async {
+                    if lock_tx_touser.0.is_some() {
+                        let res = lock_tx_service.process_locked_payment(&lock_tx_touser.0.unwrap(), &lock_tx_touser.1).await;
+                    }
                 })
             })
-            .collect();
-        dbg!(tasks);
+            .collect();*/
+        for partic in participations {
+            let task_res = tokio::spawn(async move {
+                if partic.lock.is_some() {
+                    let _ = LockTransactionDbService{db: self.db, ctx: self.ctx}.process_locked_payment(&partic.lock.unwrap(), &to_user).await;
+                }
+            }).await;
+            println!("lock payment task {:?}", task_res);
+        }
+        // dbg!(lock_tx_service);
+        
+        
         
         // ... https://stackoverflow.com/questions/63434977/how-can-i-spawn-asynchronous-methods-in-a-loop
         Ok(())
