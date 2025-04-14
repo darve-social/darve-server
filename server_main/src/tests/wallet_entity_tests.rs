@@ -1,17 +1,15 @@
 #[cfg(test)]
 
 mod tests{
-    use std::ops::Deref;
-    use sb_middleware::utils::request_utils::CreatedResponse;
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use sb_middleware::utils::string_utils::get_string_thing;
     use sb_wallet::routes::wallet_routes::CurrencyTransactionHistoryView;
-    use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
     async fn test_wallet_history(){
         // create test server
         println!("Creating test server");
-        let (server, ctx_state) = create_test_server().await;
+        let (server, _ctx_state) = create_test_server().await;
 
         let server = server.unwrap();
         
