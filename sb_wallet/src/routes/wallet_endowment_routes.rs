@@ -35,17 +35,19 @@ use sb_middleware::utils::string_utils::get_string_thing;
 const PRICE_USER_ID_KEY: &str = "user_id";
 
 pub fn routes(state: CtxState) -> Router {
-    Router::new()
+    let routes = Router::new()
         .route(
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
-        .route(
-            "/api/dev/endow/:another_user_id/:amount",
-            get(endowment_transaction),
-        )
-        .route("/api/stripe/endowment/webhook", post(handle_webhook))
-        .with_state(state)
+        .route("/api/stripe/endowment/webhook", post(handle_webhook));
+    let routes = if state.is_development {
+    routes.route(
+        "/test/api/endow/:another_user_id/:amount",
+        get(test_endowment_transaction))
+    } else { routes };
+    
+    routes.with_state(state)
 }
 
 struct EndowmentIdent {
@@ -122,7 +124,7 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
     }
 }
 
-async fn endowment_transaction(
+async fn test_endowment_transaction(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
     Path((another_user_id, amount)): Path<(String, i64)>,
