@@ -1,18 +1,11 @@
 use std::collections::HashMap;
-use std::io::Write;
-use std::str::FromStr;
-
-use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use tokio::io::AsyncWriteExt;
-use tokio_stream::StreamExt as _;
 use validator::Validate;
 
 use crate::entity::discussion_entitiy::DiscussionDbService;
@@ -74,7 +67,7 @@ async fn get_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
-    Query(mut qry): Query<HashMap<String, String>>,
+    Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<DiscussionTopicItemForm> {
     println!("->> {:<12} - create_update_disc_topic", "HANDLER");
     let user_id = LocalUserDbService {

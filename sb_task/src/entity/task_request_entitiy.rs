@@ -122,7 +122,7 @@ impl<'a> TaskRequestDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate taskRequest");
+        mutation.check().expect("should mutate taskRequest");
 
         Ok(())
     }
@@ -348,7 +348,7 @@ impl<'a> TaskRequestDbService<'a> {
 
     pub async fn remove_participation(&self, offer_id: Thing, user_id: Thing) -> CtxResult<Option<TaskRequest>> {
         // if last user remove task request else update participants
-        let mut offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
         let partic_service = TaskParticipationDbService { db: self.db, ctx: self.ctx };
         let mut participants = partic_service.get_ids(offer.participants).await?;
         

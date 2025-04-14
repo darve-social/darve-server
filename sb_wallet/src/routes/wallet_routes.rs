@@ -1,16 +1,17 @@
-use std::str::FromStr;
 use askama::Template;
 use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use crate::entity::wallet_entitiy::{CurrencySymbol, UserView, WalletDbService};
-use axum::extract::{Path, State};
+use axum::extract::{
+    State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{get_entity_list_view, IdentIdName, Pagination, QryOrder, ViewFieldSelector};
-use sb_middleware::utils::string_utils::get_string_thing;
+use sb_middleware::utils::db_utils::{
+     IdentIdName, Pagination, 
+      ViewFieldSelector};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use sb_middleware::utils::extractor_utils::DiscussionParams;
@@ -18,7 +19,7 @@ use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/api/user/:user_id/wallet_history", get(get_wallet_history))
+        .route("/api/user/wallet/history", get(get_wallet_history))
         .with_state(state)
 }
 

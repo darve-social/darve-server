@@ -1,17 +1,11 @@
 use std::collections::HashMap;
-use std::io::Write;
-use std::str::FromStr;
-
-use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use tokio::io::AsyncWriteExt;
 use validator::Validate;
 
 use crate::entity::access_right_entity::AccessRightDbService;
@@ -71,14 +65,14 @@ async fn get_form_page(
 ) -> CtxResult<ProfileFormPage> {
     println!("->> {:<12} - get_form access rule", "HANDLER");
     let form = get_form(State(ctx_state), ctx, Path(community_id), Query(qry)).await?;
-    Ok(ProfileFormPage::new(Box::new(form), None, None))
+    Ok(ProfileFormPage::new(Box::new(form), None,None, None))
 }
 
 async fn get_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(target_record_id): Path<String>,
-    Query(mut qry): Query<HashMap<String, String>>,
+    Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<AccessRuleForm> {
     println!("->> {:<12} - get_form access rule", "HANDLER");
 

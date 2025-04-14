@@ -43,7 +43,7 @@ impl IntoResponse for WebauthnError {
         };
 
         // its often easiest to implement `IntoResponse` by calling other implementations
-        (StatusCode::INTERNAL_SERVER_ERROR, body.clone()).into_response()
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
     }
 }
 

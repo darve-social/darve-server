@@ -1,9 +1,6 @@
 use crate::routes::post_routes::{create_post_entity_route, PostInput, UPLOADS_URL_BASE};
-use std::io::Write;
-use std::str::FromStr;
-
 use askama_axum::axum_core::extract::DefaultBodyLimit;
-use askama_axum::axum_core::response::{IntoResponse, Response};
+use askama_axum::axum_core::response::{ Response};
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::sse::Event;
@@ -11,11 +8,9 @@ use axum::response::{Html, Sse};
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
-use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path as FPath;
 use std::string::ToString;
-use axum::http::Request;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -24,19 +19,19 @@ use crate::entity::community_entitiy::{Community, CommunityDbService};
 use crate::entity::discussion_entitiy::{Discussion, DiscussionDbService};
 use crate::entity::post_entitiy::PostDbService;
 use crate::entity::post_stream_entitiy::PostStreamDbService;
-use crate::routes::discussion_routes::{get_discussion_view, DiscussionInput, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
+use crate::routes::discussion_routes::{get_discussion_view, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName};
 use futures::stream::Stream as FStream;
 use once_cell::sync::Lazy;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{get_entity_list, get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{ get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use sb_user_auth::entity::local_user_entity::{ LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
 use sb_user_auth::routes::follow_routes::{UserItemView, UserListView};
 use sb_user_auth::routes::user_notification_routes::create_user_notifications_sse;
@@ -194,6 +189,7 @@ async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<
         }),
         None,
         None,
+        None,
     ))
 }
 
@@ -344,7 +340,7 @@ async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<
 async fn get_following_posts(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    q_params: DiscussionParams,
+    _q_params: DiscussionParams,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
         db: &_db,
@@ -409,7 +405,7 @@ fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
     let event = match notification.event {
         UserNotificationEvent::UserChatMessage { .. } => {
             let post_view = serde_json::from_str::<DiscussionLatestPostView>(&notification.content)
-                .map_err(|e| {
+                .map_err(|_| {
                     ctx.to_ctx_error(AppError::Serde {
                         source: notification.content,
                     })

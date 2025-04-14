@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use surrealdb::sql::Thing;
 
 use crate::entity::local_user_entity::LocalUser;
@@ -36,7 +35,7 @@ impl<'a> FollowDbService<'a> {
 ");
 
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io::Write;
 use std::str::FromStr;
 
 use askama_axum::axum_core::response::IntoResponse;
@@ -23,9 +22,7 @@ use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
     CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
 };
-// use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
-use surrealdb::sql::{Id, Thing};
-use tokio::io::AsyncWriteExt;
+use surrealdb::sql::{Thing};
 
 use crate::entity::community_entitiy::CommunityDbService;
 use crate::routes::community_routes::community_admin_access;
@@ -40,7 +37,6 @@ use sb_user_auth::entity::access_gain_action_entitiy::{
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authorization_entity::Authorization;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::register_routes::display_register_page;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
@@ -472,7 +468,7 @@ async fn access_rule_payment(
         },
     };
 
-    let mut payment_link = PaymentLink::create(&client, create_pl).await.map_err(|e| {
+    let payment_link = PaymentLink::create(&client, create_pl).await.map_err(|e| {
         ctx.to_ctx_error(AppError::Stripe {
             source: e.to_string(),
         })
@@ -577,7 +573,7 @@ async fn handle_webhook(
         }*/
         EventType::InvoicePaymentFailed => {
             if let EventObject::Invoice(invoice) = event.data.object {
-                let external_ident = Some(invoice.id.as_str().clone().to_string());
+                let external_ident = Some(invoice.id.as_str().to_string());
                 let invoice_rules = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
                 let u_id = invoice_rules
                     .get(0)

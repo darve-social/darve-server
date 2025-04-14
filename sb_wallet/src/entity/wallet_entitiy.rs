@@ -12,8 +12,6 @@ use sb_middleware::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use surrealdb::sql::Thing;
-use tokio::io::AsyncWriteExt;
-use tokio_stream::StreamExt;
 
 pub(crate) static APP_GATEWAY_WALLET:Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
 
@@ -31,9 +29,9 @@ pub struct Wallet {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WalletCurrencyTxHeads {
-    USD: Option<Thing>,
-    ETH: Option<Thing>,
-    REEF: Option<Thing>,
+    usd: Option<Thing>,
+    eth: Option<Thing>,
+    reef: Option<Thing>,
 }
 
 #[derive(Display, Clone, Serialize, Deserialize, Debug)]
@@ -178,9 +176,9 @@ impl<'a> WalletDbService<'a> {
                 id: Some(wallet_id.clone()),
                 user: None,
                 transaction_head: WalletCurrencyTxHeads{
-                    USD:Some(init_tx_usd.id.unwrap()),
-                    ETH: Some(init_tx_eth.id.unwrap()),
-                    REEF: Some(init_tx_reef.id.unwrap())
+                    usd:Some(init_tx_usd.id.unwrap()),
+                    eth: Some(init_tx_eth.id.unwrap()),
+                    reef: Some(init_tx_reef.id.unwrap())
                 },
                 r_created: None,
                 r_updated: None,
@@ -210,9 +208,10 @@ impl<'a> WalletDbService<'a> {
     //     Thing::from((TABLE_NAME, format!("{}_f", ident.id).as_str()))
     // }
 
-    pub(crate) fn get_user_id(wallet_id: &Thing) -> Thing {
-        Thing::from((USER_TABLE, wallet_id.id.clone()))
-    }
+    // not used anywhere - commenting for now @anukulpandey
+    // pub(crate) fn get_user_id(wallet_id: &Thing) -> Thing {
+    //     Thing::from((USER_TABLE, wallet_id.id.clone()))
+    // }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
@@ -289,7 +288,7 @@ mod tests {
         assert_eq!(gtw_bal.balance_usd, -100);
 
         let user1_wallet = wallet_service.get(IdentIdName::Id(user1_bal.id)).await.expect("wallet");
-        let user_tx = tx_service.get(IdentIdName::Id(user1_wallet.transaction_head.USD.unwrap())).await.expect("user");
+        let user_tx = tx_service.get(IdentIdName::Id(user1_wallet.transaction_head.usd.unwrap())).await.expect("user");
 
         assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
         assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());

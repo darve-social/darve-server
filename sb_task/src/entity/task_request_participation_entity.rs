@@ -55,7 +55,7 @@ impl<'a> TaskParticipationDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate taskRequestParticipation");
+        mutation.check().expect("should mutate taskRequestParticipation");
 
         Ok(())
     }

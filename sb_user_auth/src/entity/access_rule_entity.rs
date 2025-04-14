@@ -65,7 +65,7 @@ impl<'a> AccessRuleDbService<'a> {
     DEFINE FIELD access_gain_action_redirect_url ON TABLE {TABLE_NAME} TYPE option<string>;
 ");
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate domain");
+        mutation.check().expect("should mutate domain");
 
         Ok(())
     }

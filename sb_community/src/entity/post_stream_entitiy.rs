@@ -2,7 +2,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use surrealdb::sql::Thing;
 
-use crate::entity::post_entitiy::Post;
 use sb_middleware::db;
 use sb_middleware::error::AppResult;
 use sb_middleware::utils::db_utils::QryBindingsVal;
@@ -30,7 +29,7 @@ impl<'a> PostStreamDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        &mutation.check().expect("should mutate reply");
+        mutation.check().expect("should mutate reply");
 
         Ok(())
     }

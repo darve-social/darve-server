@@ -112,7 +112,7 @@ pub async fn create_user_notifications_sse(
         .get_ctx_user_thing()
         .await?;
 
-    let mut stream = db
+    let stream = db
         .select(user_notification_entitiy::TABLE_NAME)
         .live()
         .await?

@@ -27,11 +27,6 @@ pub struct FundingTransaction {
     pub r_updated: Option<String>,
 }
 
-enum EndowmentSource {
-    GooglePay,
-    ApplePay,
-}
-
 pub struct FundingTransactionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
@@ -71,8 +66,6 @@ impl<'a> FundingTransactionDbService<'a> {
 
     // creates fundingTransaction
     pub async fn user_endowment_tx(&self, user: &Thing, external_account: String, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<Thing> {
-        let wallet_service = WalletDbService { db: self.db, ctx: self.ctx};
-
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
@@ -121,9 +114,10 @@ impl<'a> FundingTransactionDbService<'a> {
     }
 
 
-    pub(crate) async fn user_withdrawal_tx(&self) -> CtxResult<()> {
-        todo!()
-    }
+    // not used anywhere- so commenting for now - @anukulpandey
+    // pub(crate) async fn user_withdrawal_tx(&self) -> CtxResult<()> {
+    //     todo!()
+    // }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
         let opt = get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
