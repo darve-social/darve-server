@@ -1,8 +1,10 @@
 #[cfg(test)]
 
 mod tests{
+    use std::ops::Deref;
+    use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
-
+    use sb_wallet::routes::wallet_routes::CurrencyTransactionHistoryView;
     use crate::test_utils::{create_login_test_user, create_test_server};
 
     #[tokio::test]
@@ -25,12 +27,14 @@ mod tests{
         let user2_id = get_string_thing(user_ident2.clone()).expect("user2");
 
         // endow using user2 by calling /api/dev/endow/:user_id/:amount
+        let endow_amt = 32;
         let endow_user_response = server
-            .get(&format!("/api/dev/endow/{}/{}",user2_id.to_string(),32))
+            .get(&format!("/api/dev/endow/{}/{}", user2_id.to_string(), endow_amt))
             .add_header("Accept", "application/json")
             .json("")
             .await;
 
+        endow_user_response.assert_status_success();
         let endow_response_text = endow_user_response.text();
         println!("endow_user_response: {}", endow_response_text);
 
@@ -41,8 +45,10 @@ mod tests{
             .await;
 
        transaction_history_response.assert_status_success();
-        let response_text = transaction_history_response.text();
-        println!("transaction_history_response: {}", response_text);
+
+        let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
+        assert_eq!(created.transactions.len(), 1);
+        assert_eq!(created.transactions.get(0).unwrap().amount_in, Some(endow_amt));
 
     }
 }
