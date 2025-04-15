@@ -13,7 +13,7 @@ use axum::routing::{get,
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
-    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event, EventObject, EventType, IdOrCreate, Price, Product, ProductId,Invoice
+    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event, EventObject, EventType, Expandable, IdOrCreate, Invoice, Price, Product, ProductId
 };
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
@@ -318,10 +318,29 @@ async fn handle_webhook(
                     // if you get all info return here so items are not processed
                 }
 
-                let _endowments = extract_invoice_data(&ctx_state, &ctx, invoice).await?;
+                
                 //TODO sum endowments into total amount
                 // and call user_endowment_tx with some stripe identifier for invoice or transfer id in external_tx_id
                 // for external_account we can use if there's some user's stripe id
+
+                let amount: i64 = invoice.amount_paid.unwrap_or(0);
+                let currency_symbol = CurrencySymbol::USD;
+
+                let invoice_clone = invoice.clone();
+                let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
+
+                let external_account = match invoice.customer {
+                    Some(Expandable::Id(ref id)) => id.as_str().to_string(),
+                    Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
+                    None => "unknown_customer".to_string(),
+                };
+                
+                
+                let external_tx_id = invoice.id.clone();
+
+                let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+                
+                fund_service.user_endowment_tx(&endowments[0].user_id, external_account.clone(), external_tx_id.to_string(), amount, currency_symbol).await.expect("created");
             }
         }
         /*EventType::SubscriptionScheduleCreated => {
