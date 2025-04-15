@@ -214,7 +214,6 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(task_request_routes::routes(ctx_state.clone()))
         .merge(follow_routes::routes(ctx_state.clone()))
         .merge(user_notification_routes::routes(ctx_state.clone()))
-        .merge(user_notification_routes::routes(ctx_state.clone()))
         .merge(wallet_routes::routes(ctx_state.clone()))
         .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
