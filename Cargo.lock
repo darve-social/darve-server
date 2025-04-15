@@ -416,31 +416,6 @@ dependencies = [
 
 [[package]]
 name = "async-stripe"
-version = "0.40.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e757b8d9d76544daaf1fce136221628207180fc5d7d6ee955109d74e75a38cad"
-dependencies = [
- "chrono",
- "futures-util",
- "hex",
- "hmac",
- "http-types",
- "hyper 0.14.32",
- "hyper-tls",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "serde_qs 0.10.1",
- "sha2",
- "smart-default",
- "smol_str 0.1.24",
- "thiserror 1.0.69",
- "tokio",
- "uuid 0.8.2",
-]
-
-[[package]]
-name = "async-stripe"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cecbddf002ad7a13d2041eadf1b234cb3f57653ffdd901a01bc3f1c65aa77440"
@@ -3888,7 +3863,7 @@ dependencies = [
  "anyhow",
  "askama",
  "askama_axum",
- "async-stripe 0.40.1",
+ "async-stripe",
  "axum",
  "axum-htmx",
  "axum-test",
@@ -3930,7 +3905,7 @@ version = "0.1.0"
 dependencies = [
  "askama",
  "askama_axum",
- "async-stripe 0.40.1",
+ "async-stripe",
  "axum",
  "axum-htmx",
  "chrono",
@@ -3966,7 +3941,6 @@ dependencies = [
  "strum",
  "surrealdb",
  "tempfile",
- "tokio",
  "tower 0.5.2",
  "tower-http",
  "validator",
@@ -4010,7 +3984,7 @@ version = "0.1.0"
 dependencies = [
  "askama",
  "askama_axum",
- "async-stripe 0.41.0",
+ "async-stripe",
  "axum",
  "chrono",
  "log",
@@ -4229,7 +4203,6 @@ dependencies = [
  "anyhow",
  "askama",
  "askama_axum",
- "async-stripe 0.40.1",
  "axum",
  "axum-htmx",
  "axum-test",

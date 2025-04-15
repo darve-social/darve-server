@@ -7,7 +7,9 @@ use axum::body::Body;
 use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::{get, 
+    // post
+};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
@@ -157,7 +159,7 @@ async fn request_endowment_intent(
     let user_id = ctx.user_id()?;
     println!("User ID retrieved: {:?}", user_id);
 
-    let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
+    let stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
     println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
 
     // taken from ctx_state/env
