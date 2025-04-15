@@ -85,7 +85,6 @@ impl<'a> EndowmentActionDbService<'a> {
         record.r_created = None;
         record.r_updated = None;
 
-        let _rec_id = record.id.clone();
         let acc_right: Option<EndowmentAction> = self
             .db
             .upsert((resource.tb, resource.id.to_raw()))
