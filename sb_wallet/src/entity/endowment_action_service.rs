@@ -67,7 +67,7 @@ impl<'a> EndowmentActionDbService<'a> {
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ", EndowmentActionType::VARIANTS, EndowmentActionStatus::VARIANTS);
         let mutation = self.db.query(sql).await?;
-        &mutation.check().expect("should mutate PaymentAction");
+        mutation.check().expect("should mutate PaymentAction");
 
         Ok(())
     }
@@ -85,7 +85,7 @@ impl<'a> EndowmentActionDbService<'a> {
         record.r_created = None;
         record.r_updated = None;
 
-        let rec_id = record.id.clone();
+        let _rec_id = record.id.clone();
         let acc_right: Option<EndowmentAction> = self
             .db
             .upsert((resource.tb, resource.id.to_raw()))
