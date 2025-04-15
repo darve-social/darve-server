@@ -26,7 +26,7 @@ use sb_middleware::utils::db_utils::NO_SUCH_THING;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        // .route("/api/notification/user/sse", get(user_notification_sse))
+        .route("/api/notification/user/sse", get(user_notification_sse))
         .with_state(state)
 }
 
