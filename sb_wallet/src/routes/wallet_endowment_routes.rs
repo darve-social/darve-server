@@ -304,27 +304,28 @@ async fn handle_webhook(
     match event.type_ {
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
+                
                 let amount_paid = invoice.amount_paid.unwrap_or(0);
-
+                if amount_paid<=0 {
+                    return Ok("No amount paid".into_response()); 
+                }
+                
+                let currency_symbol = CurrencySymbol::USD;
+                let invoice_clone = invoice.clone();
+                let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
+                let external_account = match invoice.customer {
+                    Some(Expandable::Id(ref id)) => id.as_str().to_string(),
+                    Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
+                    None => "unknown_customer".to_string(),
+                };
+                let external_tx_id = invoice.id.clone();
+                let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+                
                 if invoice.amount_remaining.unwrap_or(0) > 0
                     || invoice.paid.unwrap_or(false) == false
                 {
                     let partial_amount = amount_paid;
-                    let currency_symbol = CurrencySymbol::USD;
-
-                    let invoice_clone = invoice.clone();
-                    let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
-
-                    let external_account = match invoice.customer {
-                        Some(Expandable::Id(ref id)) => id.as_str().to_string(),
-                        Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
-                        None => "unknown_customer".to_string(),
-                    };
-
-                    let external_tx_id = invoice.id.clone();
-
-                    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-
+                    
                     fund_service
                         .user_endowment_tx(
                             &endowments[0].user_id,
@@ -339,20 +340,7 @@ async fn handle_webhook(
                     return Ok("Partial payment processed".into_response());
                 }
 
-                let currency_symbol = CurrencySymbol::USD;
-                let invoice_clone = invoice.clone();
-                let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
                 let total_amount: i64 = endowments.iter().map(|e| e.amount as i64).sum();
-
-                let external_account = match invoice.customer {
-                    Some(Expandable::Id(ref id)) => id.as_str().to_string(),
-                    Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
-                    None => "unknown_customer".to_string(),
-                };
-
-                let external_tx_id = invoice.id.clone();
-
-                let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
 
                 fund_service
                     .user_endowment_tx(
@@ -384,7 +372,6 @@ async fn extract_invoice_data(
     if let Some(list) = invoice.lines {
         for item in list.data {
             if let Some(price) = item.price {
-                //TODO probably we don't need metadata just EndowmentIdent since user id is there
                 if let Some(mut md) = price.metadata {
                     let user_id = md.remove(PRICE_USER_ID_KEY);
                     if user_id.is_some() {
