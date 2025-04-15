@@ -203,9 +203,9 @@ pub async fn register_user(
     } else if let AuthType::PASSWORD(_pass) = &auth_type {
         // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
     }
-    return Err(CtxError {
+    Err(CtxError {
         error: AppError::RegisterFail,
         req_id: ctx.req_id(),
         is_htmx: ctx.is_htmx,
-    });
+    })
 }
