@@ -302,58 +302,70 @@ async fn handle_webhook(
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
     match event.type_ {
-        /*EventType::InvoicePaymentFailed => {
-// ignore
-        }*/
         EventType::InvoicePaid => {
-
             if let EventObject::Invoice(invoice) = event.data.object {
-                // dbg!(&invoice);
+                let amount_paid = invoice.amount_paid.unwrap_or(0);
 
-                if (invoice.amount_remaining.is_some() && invoice.amount_remaining.unwrap().gt(&0))
-                    || invoice.paid.is_none()
-                    || invoice.paid.unwrap() == false
+                if invoice.amount_remaining.unwrap_or(0) > 0
+                    || invoice.paid.unwrap_or(false) == false
                 {
-                    //TODO if partially paid get the amount and endow for that amount instead of values in extract_invoice_data
-                    // if you get all info return here so items are not processed
+                    let partial_amount = amount_paid;
+                    let currency_symbol = CurrencySymbol::USD;
+
+                    let invoice_clone = invoice.clone();
+                    let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
+
+                    let external_account = match invoice.customer {
+                        Some(Expandable::Id(ref id)) => id.as_str().to_string(),
+                        Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
+                        None => "unknown_customer".to_string(),
+                    };
+
+                    let external_tx_id = invoice.id.clone();
+
+                    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
+
+                    fund_service
+                        .user_endowment_tx(
+                            &endowments[0].user_id,
+                            external_account,
+                            external_tx_id.to_string(),
+                            partial_amount,
+                            currency_symbol,
+                        )
+                        .await
+                        .expect("Partial endowment created");
+
+                    return Ok("Partial payment processed".into_response());
                 }
 
-                
-                //TODO sum endowments into total amount
-                // and call user_endowment_tx with some stripe identifier for invoice or transfer id in external_tx_id
-                // for external_account we can use if there's some user's stripe id
-
-                let amount: i64 = invoice.amount_paid.unwrap_or(0);
                 let currency_symbol = CurrencySymbol::USD;
-
                 let invoice_clone = invoice.clone();
                 let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
+                let total_amount: i64 = endowments.iter().map(|e| e.amount as i64).sum();
 
                 let external_account = match invoice.customer {
                     Some(Expandable::Id(ref id)) => id.as_str().to_string(),
                     Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
                     None => "unknown_customer".to_string(),
                 };
-                
-                
+
                 let external_tx_id = invoice.id.clone();
 
                 let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-                
-                fund_service.user_endowment_tx(&endowments[0].user_id, external_account.clone(), external_tx_id.to_string(), amount, currency_symbol).await.expect("created");
+
+                fund_service
+                    .user_endowment_tx(
+                        &endowments[0].user_id,
+                        external_account,
+                        external_tx_id.to_string(),
+                        total_amount,
+                        currency_symbol,
+                    )
+                    .await
+                    .expect("Full endowment created");
             }
         }
-        /*EventType::SubscriptionScheduleCreated => {
-            if let EventObject::SubscriptionSchedule(subs_sched) = event.data.object {
-                println!("Received subscription schedule webhook: {:?}", subs_sched.id);
-                dbg!(subs_sched);
-            }
-        }
-        EventType::AccountUpdated => {
-            if let EventObject::Account(account) = event.data.object {
-                println!("Received account updated webhook for account: {:?}", account.id);
-            }
-        }*/
         _ => {
             if ctx_state.is_development {
                 println!("Unknown event encountered in webhook: {:?}", event.type_);
