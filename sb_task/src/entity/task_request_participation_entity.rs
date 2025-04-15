@@ -112,14 +112,14 @@ impl<'a> TaskParticipationDbService<'a> {
                 })
             })
             .collect();*/
-        for partic in participations {
-            let task_res = tokio::spawn(async move {
-                if partic.lock.is_some() {
-                    let _ = LockTransactionDbService{db: self.db, ctx: self.ctx}.process_locked_payment(&partic.lock.unwrap(), &to_user).await;
-                }
-            }).await;
-            println!("lock payment task {:?}", task_res);
-        }
+        // for partic in participations {
+        //     let task_res = tokio::spawn(async move {
+        //         if partic.lock.is_some() {
+        //             let _ = LockTransactionDbService{db: self.db, ctx: self.ctx}.process_locked_payment(&partic.lock.unwrap(), &to_user).await;
+        //         }
+        //     }).await;
+        //     println!("lock payment task {:?}", task_res);
+        // }
         // dbg!(lock_tx_service);
         
         

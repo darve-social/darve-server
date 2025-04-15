@@ -515,7 +515,7 @@ async fn deliver_task_request(
 
     let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
     
-    if task.to_user.is_some() && task.to_user != Some(delivered_by) {
+    if task.to_user.is_some() && task.to_user != Some(delivered_by.clone()) {
         return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "This user was not requested to deliver".to_string() }));
     }
 
@@ -546,9 +546,9 @@ async fn deliver_task_request(
     
     match task.reward_type {
         RewardType::OnDelivery => {
-            participations_service.process_payments(task.to_user.as_ref().unwrap(), task.participants).await?;
+            participations_service.process_payments(task.to_user.as_ref().unwrap(), task.participants.clone()).await?;
         }
-        RewardType::VoteWinner => {
+        RewardType::VoteWinner{..} => {
             // add action for this reward type
         }
     }

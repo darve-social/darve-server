@@ -191,7 +191,7 @@ fn get_entity_query_str(
             let pagination_q = match pagination {
                 None => "".to_string(),
                 Some(pag) => {
-                    let pag_q = match pag.order_by {
+                    let mut pag_q = match pag.order_by {
                         None => "".to_string(),
                         Some(order_by_f) => {
                             let order_by = format!(" ORDER BY {order_by_f} ");
