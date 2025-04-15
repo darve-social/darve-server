@@ -5,16 +5,15 @@ use axum::{
     response::IntoResponse,
 };
 use log::{error, info};
-use surrealdb::sql::{
-    Thing};
-use tower_cookies::{
-     Cookies};
+use surrealdb::sql::Thing;
+use tower_cookies::Cookies;
 use tower_sessions::Session;
 // 1. Import the prelude - this contains everything needed for the server to function.
 use webauthn_rs::prelude::*;
 
 use crate::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use crate::routes::register_routes::validate_username;
 use crate::routes::webauthn::error::WebauthnError;
 use crate::routes::webauthn::startup::AppState;
 use sb_middleware::ctx::Ctx;
@@ -22,7 +21,6 @@ use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::cookie_utils;
 use sb_middleware::utils::db_utils::{IdentIdName, UsernameIdent};
 use sb_middleware::utils::string_utils::get_string_thing;
-use crate::routes::register_routes::validate_username;
 /*
  * Webauthn RS auth handlers.
  * These files use webauthn to process the data received from each route, and are closely tied to axum
@@ -90,7 +88,8 @@ pub async fn start_register(
     #[allow(unused_assignments)]
     let mut register_user_ident = None;
     let username = username;
-    validate_username(&username).map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
+    validate_username(&username)
+        .map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
     let logged_user_id = ctx.user_id().ok();
 
     if logged_user_id.is_none() {
@@ -108,7 +107,10 @@ pub async fn start_register(
         // registerUuid = RegisterUserUuid::Existing(Uuid::new_v4(), username_user_id);
         let l_user_id = get_string_thing(logged_user_id.clone().unwrap())
             .map_err(|_| WebauthnError::CorruptSession)?;
-        let local_user = user_db_service.get(IdentIdName::Id(l_user_id)).await.map_err(|_|WebauthnError::UserHasNoCredentials)?;
+        let local_user = user_db_service
+            .get(IdentIdName::Id(l_user_id))
+            .await
+            .map_err(|_| WebauthnError::UserHasNoCredentials)?;
         if &local_user.username != &username {
             return Err(WebauthnError::UserNotFound);
         }
@@ -156,7 +158,6 @@ pub async fn start_register(
         exclude_credentials,
     ) {
         Ok((ccr, reg_state)) => {
-
             // Note that due to the session store in use being a server side memory store, this is
             // safe to store the reg_state into the session since it is not client controlled and
             // not open to replay attacks. If this was a cookie store, this would be UNSAFE.
@@ -192,16 +193,19 @@ pub async fn finish_register(
 ) -> Result<impl IntoResponse, WebauthnError> {
     // TODO if username exists and user has jwt for that user add new authentication with sk.cred_id().clone()
     // if not exists create new user and add authentication
-    let (register_user_ident, _registration_uuid, reg_state): (String, String, PasskeyRegistration) =
-        match session.get("reg_state").await? {
-            Some((register_user_ident, registration_uuid, reg_state)) => {
-                (register_user_ident, registration_uuid, reg_state)
-            }
-            None => {
-                error!("Failed to get session");
-                return Err(WebauthnError::CorruptSession);
-            }
-        };
+    let (register_user_ident, _registration_uuid, reg_state): (
+        String,
+        String,
+        PasskeyRegistration,
+    ) = match session.get("reg_state").await? {
+        Some((register_user_ident, registration_uuid, reg_state)) => {
+            (register_user_ident, registration_uuid, reg_state)
+        }
+        None => {
+            error!("Failed to get session");
+            return Err(WebauthnError::CorruptSession);
+        }
+    };
 
     session.remove_value("reg_state").await?;
 
@@ -247,7 +251,8 @@ pub async fn finish_register(
     return if logged_user_id.is_none() {
         // user is making passkey for new username
         let username = register_user_ident.clone().trim().to_string();
-        validate_username(&username).map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
+        validate_username(&username)
+            .map_err(|_| WebauthnError::WebauthnApiError("username not valid".to_string()))?;
 
         let username_is_available = user_db_service
             .exists(UsernameIdent(username).into())
@@ -276,13 +281,16 @@ pub async fn finish_register(
                 ),
             )
             .await?;
-         Ok(StatusCode::OK)
-
+        Ok(StatusCode::OK)
     } else {
         // user is making passkey for existing username
-        let user_id: Thing = get_string_thing(logged_user_id.unwrap()).map_err(|_| WebauthnError::CorruptSession)?;
+        let user_id: Thing =
+            get_string_thing(logged_user_id.unwrap()).map_err(|_| WebauthnError::CorruptSession)?;
         let username = register_user_ident.clone().trim().to_string();
-        let local_user = user_db_service.get(IdentIdName::Id(user_id)).await.map_err(|_| WebauthnError::UserNotFound)?;
+        let local_user = user_db_service
+            .get(IdentIdName::Id(user_id))
+            .await
+            .map_err(|_| WebauthnError::UserNotFound)?;
 
         if local_user.username != username {
             return Err(WebauthnError::UserNotFound);
@@ -295,10 +303,7 @@ pub async fn finish_register(
         .entry(user_unique_id)
         .and_modify(|keys| keys.push(sk.clone()))
         .or_insert_with(|| vec![sk.clone()]);*/
-
     };
-
-
 
     // Ok(StatusCode::NOT_ACCEPTABLE)
 }
@@ -431,7 +436,12 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(CtxState { _db, key_enc, jwt_duration, .. }): State<CtxState>,
+    State(CtxState {
+        _db,
+        key_enc,
+        jwt_duration,
+        ..
+    }): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
     Extension(app_state): Extension<AppState>,

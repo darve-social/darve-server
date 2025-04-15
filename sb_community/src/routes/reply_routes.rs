@@ -106,8 +106,7 @@ async fn get_post_replies(
 async fn create_entity(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
-    Path(discussion_id_post_uri
-    ): Path<(String, String)>,
+    Path(discussion_id_post_uri): Path<(String, String)>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
 ) -> CtxResult<Html<String>> {
     println!("->> {:<12} - create_post ", "HANDLER");

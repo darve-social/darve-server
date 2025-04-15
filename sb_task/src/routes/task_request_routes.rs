@@ -1,5 +1,10 @@
-use crate::entity::task_request_entitiy::{DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole, TABLE_NAME};
-use crate::entity::task_request_participation_entity::{TaskRequestParticipantion, TaskParticipationDbService};
+use crate::entity::task_request_entitiy::{
+    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole,
+    TABLE_NAME,
+};
+use crate::entity::task_request_participation_entity::{
+    TaskParticipationDbService, TaskRequestParticipantion,
+};
 use askama_axum::Template;
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Request, State};
@@ -47,18 +52,12 @@ pub fn routes(state: CtxState) -> Router {
             "/api/task_request/received/post/:post_id",
             get(post_requests_received),
         )*/
-        .route(
-            "/api/task_request/received",
-            get(user_requests_received),
-        )
+        .route("/api/task_request/received", get(user_requests_received))
         /*.route(
             "/api/task_request/given/post/:post_id",
             get(post_requests_given),
         )*/
-        .route(
-            "/api/task_request/given",
-            get(user_requests_given),
-        )
+        .route("/api/task_request/given", get(user_requests_given))
         .route(
             "/api/task_request/:task_id/accept",
             post(accept_task_request),
@@ -353,10 +352,26 @@ async fn create_entity(
     };
 
     // TODO in db transaction
-    let lock = if offer_amount>0 {
-        let lock_service = LockTransactionDbService { db: &_db, ctx: &ctx };
-        Some(lock_service.lock_user_asset_tx(&from_user, offer_amount, offer_currency.clone(), vec![UnlockTrigger::Timestamp { at: valid_until.clone() }]).await?)
-    } else { None };
+    let lock = if offer_amount > 0 {
+        let lock_service = LockTransactionDbService {
+            db: &_db,
+            ctx: &ctx,
+        };
+        Some(
+            lock_service
+                .lock_user_asset_tx(
+                    &from_user,
+                    offer_amount,
+                    offer_currency.clone(),
+                    vec![UnlockTrigger::Timestamp {
+                        at: valid_until.clone(),
+                    }],
+                )
+                .await?,
+        )
+    } else {
+        None
+    };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
     let participant = TaskParticipationDbService {
         db: &_db,
@@ -494,9 +509,7 @@ async fn accept_task_request(
 }
 
 async fn deliver_task_request(
-    State(CtxState {
-        _db, ..
-    }): State<CtxState>,
+    State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Path(task_id): Path<String>,
     TypedMultipart(t_request_input): TypedMultipart<DeliverTaskRequestInput>,
@@ -517,49 +530,51 @@ async fn deliver_task_request(
 
     let (deliverables, post) = match task.deliverable_type {
         DeliverableType::PublicPost => {
-            let post_id = get_string_thing(
-                t_request_input.post_id.ok_or(AppError::Generic { description: "Missing post_id".to_string() })? )?;
+            let post_id = get_string_thing(t_request_input.post_id.ok_or(AppError::Generic {
+                description: "Missing post_id".to_string(),
+            })?)?;
             (None, Some(post_id))
-        }
-        /*DeliverableType::Participants => {
-            let file_data = t_request_input.file_1.unwrap();
-            let file_name = file_data.metadata.file_name.unwrap();
-            let ext = file_name.split(".").last().ok_or(AppError::Generic {
-                description: "File has no extension".to_string(),
-            })?;
+        } /*DeliverableType::Participants => {
+              let file_data = t_request_input.file_1.unwrap();
+              let file_name = file_data.metadata.file_name.unwrap();
+              let ext = file_name.split(".").last().ok_or(AppError::Generic {
+                  description: "File has no extension".to_string(),
+              })?;
 
-            let file_name: String = TaskDeliverableFileName {
-                task_id: task_id.clone(),
-                file_nr: 1,
-                ext: ext.to_string(),
-            }
-                .to_string();
-            let path = FPath::new(&uploads_dir).join(file_name.clone());
-            file_data
-                .contents
-                .persist(path.clone())
-                .map_err(|e| {
-                    ctx.to_ctx_error(AppError::Generic {
-                        description: "Upload failed".to_string(),
-                    })
-                })?;
-            let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
+              let file_name: String = TaskDeliverableFileName {
+                  task_id: task_id.clone(),
+                  file_nr: 1,
+                  ext: ext.to_string(),
+              }
+                  .to_string();
+              let path = FPath::new(&uploads_dir).join(file_name.clone());
+              file_data
+                  .contents
+                  .persist(path.clone())
+                  .map_err(|e| {
+                      ctx.to_ctx_error(AppError::Generic {
+                          description: "Upload failed".to_string(),
+                      })
+                  })?;
+              let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
 
-            let deliverables = vec![file_uri];
-            (deliverables, None)
-        }*/
+              let deliverables = vec![file_uri];
+              (deliverables, None)
+          }*/
     };
 
     let (task, deliverable_id) = task_req_ser
-    .update_status_received_by_user(
-        delivered_by.clone(),
-        task_id.clone(),
-        TaskStatus::Delivered,
-        deliverables.clone(),
-        post,
-    )
-    .await?;
-    let deliverable_id = deliverable_id.ok_or(AppError::EntityFailIdNotFound {ident:"deliverable_id not created".to_string()})?;
+        .update_status_received_by_user(
+            delivered_by.clone(),
+            task_id.clone(),
+            TaskStatus::Delivered,
+            deliverables.clone(),
+            post,
+        )
+        .await?;
+    let deliverable_id = deliverable_id.ok_or(AppError::EntityFailIdNotFound {
+        ident: "deliverable_id not created".to_string(),
+    })?;
 
     notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
     ctx.to_htmx_or_json(CreatedResponse {
@@ -652,7 +667,13 @@ async fn participate_task_request_offer(
         ctx: &ctx,
     };
 
-   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
+    let task_offer = task_request_offer_db_service
+        .add_participation(
+            get_string_thing(task_offer_id)?,
+            from_user,
+            t_request_offer_input.amount,
+        )
+        .await?;
     dbg!(&task_offer);
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,

@@ -43,11 +43,12 @@ use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 
 pub fn routes(state: CtxState) -> Router {
-    let view_routes = Router::new().route(
-        "/community/:community_id/discussion",
-        get(create_update_form),
-    )
-    .route("/discussion/:discussion_id", get(display_discussion));
+    let view_routes = Router::new()
+        .route(
+            "/community/:community_id/discussion",
+            get(create_update_form),
+        )
+        .route("/discussion/:discussion_id", get(display_discussion));
 
     Router::new()
         .merge(view_routes)

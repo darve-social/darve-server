@@ -3,15 +3,16 @@ mod tests {
     use crate::test_utils::{create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
     use sb_community::routes::discussion_routes::get_discussion_view;
-    use sb_community::routes::profile_routes::{ProfileChat, ProfileChatList, ProfileSettingsFormInput, SearchInput};
+    use sb_community::routes::profile_routes::{
+        ProfileChat, ProfileChatList, SearchInput,
+    };
     use sb_middleware::ctx::Ctx;
     use sb_middleware::error::AppError;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
+    use sb_user_auth::routes::follow_routes::UserListView;
     use sb_user_auth::routes::login_routes::LoginInput;
     use uuid::Uuid;
-    use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionType::LocalUser;
-    use sb_user_auth::routes::follow_routes::UserListView;
 
     #[tokio::test]
     async fn search_users() {
@@ -24,48 +25,69 @@ mod tests {
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
         let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
 
-        let request = server.post("/api/accounts/edit")
+        let request = server
+            .post("/api/accounts/edit")
             .multipart(
-            MultipartForm::new()
-                .add_text("username", "username_new")
-                .add_text("full_name", "Full Name Userset")
-                .add_text("email", "ome@email.com")
-        )
+                MultipartForm::new()
+                    .add_text("username", "username_new")
+                    .add_text("full_name", "Full Name Userset")
+                    .add_text("email", "ome@email.com"),
+            )
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_success();
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"rset".to_string()})
+        let request = server
+            .post("/api/user/search")
+            .json(&SearchInput {
+                query: "rset".to_string(),
+            })
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 0);
-        let request = server.post("/api/user/search").json(&SearchInput{query:"Userset".to_string()})
+        let request = server
+            .post("/api/user/search")
+            .json(&SearchInput {
+                query: "Userset".to_string(),
+            })
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 1);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"one".to_string()})
+        let request = server
+            .post("/api/user/search")
+            .json(&SearchInput {
+                query: "one".to_string(),
+            })
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 1);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"unknown".to_string()})
+        let request = server
+            .post("/api/user/search")
+            .json(&SearchInput {
+                query: "unknown".to_string(),
+            })
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 0);
 
-        let request = server.post("/api/user/search").json(&SearchInput{query:"its".to_string()})
+        let request = server
+            .post("/api/user/search")
+            .json(&SearchInput {
+                query: "its".to_string(),
+            })
             .add_header("Accept", "application/json")
             .await;
-        
+
         request.assert_status_success();
         let res = &request.json::<UserListView>();
         assert_eq!(res.items.len(), 2);
@@ -83,7 +105,8 @@ mod tests {
 
         // logged in as username2
         // get user chats
-        let create_response = server.get("/api/user_chat/list")
+        let create_response = server
+            .get("/api/user_chat/list")
             .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<ProfileChatList>();
@@ -116,7 +139,8 @@ mod tests {
         assert_eq!(created.id.len() > 0, true);
 
         // check chat exists in list
-        let create_response = server.get("/api/user_chat/list")
+        let create_response = server
+            .get("/api/user_chat/list")
             .add_header("Accept", "application/json")
             .await;
         let created = &create_response.json::<ProfileChatList>();
@@ -140,7 +164,8 @@ mod tests {
 
         // logged in as username1
         // check user1 also has chat with user2
-        let create_response = server.get("/api/user_chat/list")
+        let create_response = server
+            .get("/api/user_chat/list")
             .add_header("Accept", "application/json")
             .await;
         create_response.assert_status_success();

@@ -16,13 +16,13 @@ use stripe::{
     CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
     CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
     CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product 
+    PaymentLink, Price, Product,
 };
 use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
     CreatePriceRecurring, CreatePriceRecurringInterval, EventObject, EventType, Invoice, ProductId,
 };
-use surrealdb::sql::{Thing};
+use surrealdb::sql::Thing;
 
 use crate::entity::community_entitiy::CommunityDbService;
 use crate::routes::community_routes::community_admin_access;

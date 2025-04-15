@@ -7,13 +7,12 @@ use axum::body::Body;
 use axum::extract::{FromRequest, Path, Request, State};
 use axum::http::StatusCode;
 use axum::response::Response;
-use axum::routing::{get, 
-    post
-};
+use axum::routing::{get, post};
 use axum::{async_trait, Router};
 // use futures::TryFutureExt;
 use stripe::{
-    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event, EventObject, EventType, Expandable, IdOrCreate, Invoice, Price, Product, ProductId
+    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event,
+    EventObject, EventType, Expandable, IdOrCreate, Invoice, Price, Product, ProductId,
 };
 // use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
 use surrealdb::sql::Thing;
@@ -34,10 +33,13 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/stripe/endowment/webhook", post(handle_webhook));
 
     let routes = if state.is_development {
-    routes.route(
-        "/test/api/endow/:another_user_id/:amount",
-        get(test_endowment_transaction))
-    } else { routes };
+        routes.route(
+            "/test/api/endow/:another_user_id/:amount",
+            get(test_endowment_transaction),
+        )
+    } else {
+        routes
+    };
 
     routes.with_state(state)
 }
@@ -109,17 +111,33 @@ async fn test_endowment_transaction(
 
     print!("another_user_id");
 
-    let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-    let wallet_service = WalletDbService{ db: &ctx_state._db, ctx: &ctx };
+    let fund_service = FundingTransactionDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    let wallet_service = WalletDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
 
-    fund_service.user_endowment_tx(&another_user_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), amount, CurrencySymbol::USD).await.expect("created");
+    fund_service
+        .user_endowment_tx(
+            &another_user_thing,
+            "ext_acc123".to_string(),
+            "ext_tx_id_123".to_string(),
+            amount,
+            CurrencySymbol::USD,
+        )
+        .await
+        .expect("created");
 
-    let user1_bal = wallet_service.get_user_balance(&another_user_thing).await.expect("got balance");
+    let user1_bal = wallet_service
+        .get_user_balance(&another_user_thing)
+        .await
+        .expect("got balance");
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
 }
-
-
 
 async fn request_endowment_intent(
     State(ctx_state): State<CtxState>,
@@ -165,7 +183,6 @@ async fn request_endowment_intent(
         } else {
             prod_res.unwrap()
         }
-
     };
 
     // and add a price for it in USD
@@ -215,7 +232,11 @@ async fn request_endowment_intent(
         }
     };*/
 
-    let amt = price.unit_amount.ok_or(ctx.to_ctx_error(AppError::Generic {description:"amount not set on product".to_string()}))?;
+    let amt = price
+        .unit_amount
+        .ok_or(ctx.to_ctx_error(AppError::Generic {
+            description: "amount not set on product".to_string(),
+        }))?;
 
     let create_pi = CreatePaymentIntent {
         amount: amt,
@@ -262,7 +283,7 @@ async fn request_endowment_intent(
             })
         })?;
 
-        Ok((StatusCode::OK, payment_intent.client_secret.unwrap()).into_response())
+    Ok((StatusCode::OK, payment_intent.client_secret.unwrap()).into_response())
 }
 
 #[allow(dead_code)]
@@ -304,12 +325,11 @@ async fn handle_webhook(
     match event.type_ {
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
-                
                 let amount_paid = invoice.amount_paid.unwrap_or(0);
-                if amount_paid<=0 {
-                    return Ok("No amount paid".into_response()); 
+                if amount_paid <= 0 {
+                    return Ok("No amount paid".into_response());
                 }
-                
+
                 let currency_symbol = CurrencySymbol::USD;
                 let invoice_clone = invoice.clone();
                 let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
@@ -319,13 +339,16 @@ async fn handle_webhook(
                     None => "unknown_customer".to_string(),
                 };
                 let external_tx_id = invoice.id.clone();
-                let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-                
+                let fund_service = FundingTransactionDbService {
+                    db: &ctx_state._db,
+                    ctx: &ctx,
+                };
+
                 if invoice.amount_remaining.unwrap_or(0) > 0
                     || invoice.paid.unwrap_or(false) == false
                 {
                     let partial_amount = amount_paid;
-                    
+
                     fund_service
                         .user_endowment_tx(
                             &endowments[0].user_id,
@@ -382,8 +405,7 @@ async fn extract_invoice_data(
                             let endowment_ident: Result<EndowmentIdent, AppError> =
                                 MyStripeProductId(product_id.clone()).try_into();
                             if endowment_ident.is_ok() {
-                                endowments
-                                    .push(endowment_ident.expect("checked to be ok"));
+                                endowments.push(endowment_ident.expect("checked to be ok"));
                             } else {
                                 println!(
                                     "ERROR stripe wh parse product id {} into thing invoice={}",

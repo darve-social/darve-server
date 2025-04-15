@@ -132,7 +132,7 @@ impl<'a> AccessRightDbService<'a> {
         if auth_list.len() < 1 {
             return Ok(false);
         }
-    
+
         let compare_to_parents_ids =
             get_parent_ids(&authorization.authorize_record_id, None, self.ctx, self.db).await?;
         for compare_parent_id in compare_to_parents_ids {
@@ -149,10 +149,10 @@ impl<'a> AccessRightDbService<'a> {
                 return Ok(true);
             }
         }
-    
+
         Ok(false)
     }
-    
+
     pub async fn authorize(
         &self,
         user_id: Thing,

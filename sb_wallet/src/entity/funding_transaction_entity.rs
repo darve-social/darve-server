@@ -1,15 +1,13 @@
 use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 use sb_middleware::db;
-use sb_middleware::utils::db_utils::{
-    get_entity, with_not_found_err, IdentIdName,
-};
+use sb_middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
-use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FundingTransaction {
@@ -38,7 +36,6 @@ const TRANSACTION_TABLE: &str = crate::entity::currency_transaction_entitiy::TAB
 
 impl<'a> FundingTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-
         let curr_usd = CurrencySymbol::USD;
         let curr_reef = CurrencySymbol::REEF;
         let curr_eth = CurrencySymbol::ETH;
@@ -65,17 +62,32 @@ impl<'a> FundingTransactionDbService<'a> {
     }
 
     // creates fundingTransaction
-    pub async fn user_endowment_tx(&self, user: &Thing, external_account: String, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<Thing> {
+    pub async fn user_endowment_tx(
+        &self,
+        user: &Thing,
+        external_account: String,
+        external_tx_id: String,
+        amount: i64,
+        currency_symbol: CurrencySymbol,
+    ) -> CtxResult<Thing> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
-        
+
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
-
-        let funding_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(&gwy_wallet, &user_wallet, amount, &currency_symbol, Some(fund_tx_id.clone()), None, true)?;
+        let funding_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(
+            &gwy_wallet,
+            &user_wallet,
+            amount,
+            &currency_symbol,
+            Some(fund_tx_id.clone()),
+            None,
+            true,
+        )?;
         let funding_2_user_qry = funding_2_user_tx.get_query_string();
 
-        let fund_qry = format!("
+        let fund_qry = format!(
+            "
         BEGIN TRANSACTION;
 
             LET $fund_tx = INSERT INTO {TABLE_NAME} {{
@@ -94,25 +106,30 @@ impl<'a> FundingTransactionDbService<'a> {
             RETURN $fund_tx[0].id;
         COMMIT TRANSACTION;
 
-        ");
-        let qry = self.db.query(fund_qry)
+        "
+        );
+        let qry = self
+            .db
+            .query(fund_qry)
             .bind(("fund_tx_id", fund_tx_id))
             .bind(("fund_amt", amount))
             .bind(("user", user.clone()))
             .bind(("ext_tx", external_tx_id))
             .bind(("ext_account_id", external_account))
             .bind(("currency", currency_symbol));
-        
-        let qry = funding_2_user_tx.get_bindings().iter().fold(qry, |q, item|{
-            q.bind((item.0.clone(), item.1.clone()))
-        });
+
+        let qry = funding_2_user_tx
+            .get_bindings()
+            .iter()
+            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut fund_res = qry.await?;
-        fund_res=fund_res.check()?;
-        let res:Option<Thing> = fund_res.take(0)?;
-        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Error in endowment tx".to_string()}))
+        fund_res = fund_res.check()?;
+        let res: Option<Thing> = fund_res.take(0)?;
+        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+            description: "Error in endowment tx".to_string(),
+        }))
     }
-
 
     // not used anywhere- so commenting for now - @anukulpandey
     // pub(crate) async fn user_withdrawal_tx(&self) -> CtxResult<()> {
@@ -120,8 +137,8 @@ impl<'a> FundingTransactionDbService<'a> {
     // }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
-        let opt = get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        let opt =
+            get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 }
-

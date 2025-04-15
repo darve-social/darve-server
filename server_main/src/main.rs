@@ -2,10 +2,10 @@ extern crate dotenv;
 
 use std::net::{Ipv4Addr, SocketAddr};
 
-use axum::{middleware, Router};
-use axum::http::{ StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use axum::{middleware, Router};
 use axum_htmx::AutoVaryLayer;
 use chrono::Duration;
 use dotenv::dotenv;
@@ -39,7 +39,6 @@ use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
-use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
@@ -47,11 +46,15 @@ use sb_user_auth::entity::follow_entitiy::FollowDbService;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
-use sb_user_auth::routes::{access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes, register_routes, user_notification_routes};
+use sb_user_auth::routes::{
+    access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
+    register_routes, user_notification_routes,
+};
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
-use sb_wallet::routes::{wallet_routes, wallet_endowment_routes};
+use sb_wallet::routes::{wallet_endowment_routes, wallet_routes};
 
 mod mw_response_transformer;
 mod test_utils;
@@ -171,12 +174,7 @@ async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
     TaskDeliverableDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    WalletDbService {
-        db: &db,
-        ctx: &c,
-    }
-    .mutate_db()
-    .await?;
+    WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     CurrencyTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
@@ -184,7 +182,9 @@ async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
-    UserNotificationDbService { db: &db, ctx: &c }.mutate_db().await?;
+    UserNotificationDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     Ok(())
 }
 
@@ -235,6 +235,6 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
     // .fallback_service(routes_static());
 }
 
-async fn get_hc()-> Response {
+async fn get_hc() -> Response {
     (StatusCode::OK, "v0.0.1".to_string()).into_response()
 }

@@ -56,7 +56,6 @@ pub struct UserNotificationDbService<'a> {
 }
 
 impl<'a> UserNotificationDbService<'a> {
-
     pub async fn notify_users(
         &self,
         user_ids: Vec<Thing>,
@@ -121,10 +120,23 @@ impl<'a> UserNotificationDbService<'a> {
         qry_ident: usize,
     ) -> AppResult<QryBindingsVal<Value>> {
         let mut bindings: HashMap<String, Value> = HashMap::new();
-        let event_val = to_value(u_notification.event.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?;
+        let event_val =
+            to_value(u_notification.event.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
         bindings.insert(format!("event_json_{qry_ident}"), event_val);
-        bindings.insert(format!("content_{qry_ident}"), to_value(String::new()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert(format!("user_id_{qry_ident}"), to_value(u_notification.user.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert(
+            format!("content_{qry_ident}"),
+            to_value(String::new()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            format!("user_id_{qry_ident}"),
+            to_value(u_notification.user.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
         let qry = format!("INSERT INTO {TABLE_NAME} {{user: (type::record($user_id_{qry_ident})), event:($event_json_{qry_ident}), content:($content_{qry_ident}) }};");
         Ok(QryBindingsVal::new(qry, bindings))
     }

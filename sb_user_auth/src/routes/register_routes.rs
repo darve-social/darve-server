@@ -35,7 +35,11 @@ static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9\_]{6,
 pub fn validate_username(u: &String) -> AppResult<()> {
     if USERNAME_REGEX.is_match(u) {
         Ok(())
-    }else { Err(AppError::Generic {description: "Username not valid".to_string()}) }
+    } else {
+        Err(AppError::Generic {
+            description: "Username not valid".to_string(),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]

@@ -53,7 +53,8 @@ mod tests {
             .await;
         assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
 
-        let get_response = server.get(format!("/community/{comm_uri}").as_str())
+        let get_response = server
+            .get(format!("/community/{comm_uri}").as_str())
             .add_header("Accept", "application/json")
             .await;
         &get_response.assert_status_success();

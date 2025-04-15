@@ -110,7 +110,12 @@ async fn logout_page(
 }
 
 pub async fn login(
-    State(CtxState { _db, key_enc, jwt_duration, .. }): State<CtxState>,
+    State(CtxState {
+        _db,
+        key_enc,
+        jwt_duration,
+        ..
+    }): State<CtxState>,
     cookies: Cookies,
     ctx: Ctx,
     // domainIdent: HostDomainId,
@@ -147,7 +152,12 @@ pub async fn login(
         });
     };
 
-    cookie_utils::issue_login_jwt(&key_enc, cookies, user.id.map(|v| v.to_raw()).clone(), jwt_duration);
+    cookie_utils::issue_login_jwt(
+        &key_enc,
+        cookies,
+        user.id.map(|v| v.to_raw()).clone(),
+        jwt_duration,
+    );
     let mut res = (
         StatusCode::OK,
         Json(LoginSuccess {
