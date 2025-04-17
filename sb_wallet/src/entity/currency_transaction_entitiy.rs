@@ -19,11 +19,17 @@ pub struct CurrencyTransaction {
     pub id: Option<Thing>,
     pub wallet: Thing,
     pub with_wallet: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transfer_title: Option<String>,
     pub tx_ident: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub funding_tx: Option<Thing>,
     pub currency: CurrencySymbol,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prev_transaction: Option<Thing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub amount_in: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub amount_out: Option<i64>,
     pub balance: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,6 +63,7 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
     DEFINE INDEX wallet_idx ON {TABLE_NAME} FIELDS wallet;
     DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
+    DEFINE FIELD transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
     DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
@@ -139,6 +146,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             id: None,
             wallet: wallet_id.clone(),
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
+            transfer_title: None,
             tx_ident: wallet_id.id.to_raw(),
             funding_tx: None,
             currency,
