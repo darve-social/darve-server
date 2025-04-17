@@ -20,7 +20,9 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{exists_entity, record_exists, IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{
+    exists_entity, record_exists, IdentIdName, ViewFieldSelector,
+};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -529,14 +531,19 @@ async fn deliver_task_request(
     let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
 
     if task.to_user.is_some() && task.to_user != Some(delivered_by.clone()) {
-        return Err(ctx.to_ctx_error(AppError::AuthorizationFail { required: "This user was not requested to deliver".to_string() }));
+        return Err(ctx.to_ctx_error(AppError::AuthorizationFail {
+            required: "This user was not requested to deliver".to_string(),
+        }));
     }
 
     let (deliverables, post) = match task.deliverable_type {
         DeliverableType::PublicPost => {
-            let post_id = get_string_thing(
-                t_request_input.post_id.ok_or(AppError::Generic { description: "Missing post_id".to_string() })? )?;
-            record_exists(&_db, &post_id).await.map_err(|e|ctx.to_ctx_error(e))?;
+            let post_id = get_string_thing(t_request_input.post_id.ok_or(AppError::Generic {
+                description: "Missing post_id".to_string(),
+            })?)?;
+            record_exists(&_db, &post_id)
+                .await
+                .map_err(|e| ctx.to_ctx_error(e))?;
             (None, Some(post_id))
         } /*DeliverableType::Participants => {
               let file_data = t_request_input.file_1.unwrap();
@@ -580,18 +587,19 @@ async fn deliver_task_request(
         ident: "deliverable_id not created".to_string(),
     })?;
 
-    let participations_service = TaskParticipationDbService{
+    let participations_service = TaskParticipationDbService {
         db: &_db,
         ctx: &ctx,
     };
 
     match task.reward_type {
         RewardType::OnDelivery => {
-            participations_service.process_payments(task.to_user.as_ref().unwrap(), task.participants.clone()).await?;
-        }
-        /*RewardType::VoteWinner{..} => {
-            // add action for this reward type
-        }*/
+            participations_service
+                .process_payments(task.to_user.as_ref().unwrap(), task.participants.clone())
+                .await?;
+        } /*RewardType::VoteWinner{..} => {
+              // add action for this reward type
+          }*/
     }
 
     notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
@@ -685,7 +693,13 @@ async fn participate_task_request_offer(
         ctx: &ctx,
     };
 
-   let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
+    let task_offer = task_request_offer_db_service
+        .add_participation(
+            get_string_thing(task_offer_id)?,
+            from_user,
+            t_request_offer_input.amount,
+        )
+        .await?;
     // dbg!(&task_offer);
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,

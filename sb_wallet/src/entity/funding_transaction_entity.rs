@@ -62,8 +62,14 @@ impl<'a> FundingTransactionDbService<'a> {
     }
 
     // creates fundingTransaction
-    pub(crate) async fn user_endowment_tx(&self, user: &Thing, external_account: String, external_tx_id: String, amount: i64, currency_symbol: CurrencySymbol) -> CtxResult<Thing> {
-
+    pub(crate) async fn user_endowment_tx(
+        &self,
+        user: &Thing,
+        external_account: String,
+        external_tx_id: String,
+        amount: i64,
+        currency_symbol: CurrencySymbol,
+    ) -> CtxResult<Thing> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();

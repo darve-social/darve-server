@@ -91,7 +91,11 @@ mod tests {
         // endow user 2
         let user2_endow_amt = 100;
         let endow_user_response = server
-            .get(&format!("/test/api/endow/{}/{}", user2_thing.to_string(), user2_endow_amt))
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user2_thing.to_string(),
+                user2_endow_amt
+            ))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -101,7 +105,12 @@ mod tests {
         let offer_content = "contdad".to_string();
         let task_request = server
             .post("/api/task_request")
-            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: Some(user2_offer_amt), to_user: user_ident0.clone(), content: offer_content.clone() })
+            .json(&TaskRequestInput {
+                post_id: Some(created_post.id.clone()),
+                offer_amount: Some(user2_offer_amt),
+                to_user: user_ident0.clone(),
+                content: offer_content.clone(),
+            })
             .add_header("Accept", "application/json")
             .await;
 
@@ -158,7 +167,11 @@ mod tests {
         let user3_endow_amt = 100;
         let user3_offer_amt = 3;
         let endow_user_response = server
-            .get(&format!("/test/api/endow/{}/{}", user3_thing.to_string(), user3_endow_amt))
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user3_thing.to_string(),
+                user3_endow_amt
+            ))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -181,10 +194,13 @@ mod tests {
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        let balance_locked = wallet_service
+            .get_user_balance_locked(&user3_thing)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
         assert_eq!(balance_locked.balance_usd, user3_offer_amt);
-        
+
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
@@ -195,7 +211,11 @@ mod tests {
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
+        let participant = task
+            .participants
+            .iter()
+            .find(|p| p.user.clone().unwrap().username == username3)
+            .unwrap();
         assert_eq!(participant.amount, user3_offer_amt);
 
         // change amount to 33 by sending another participation req
@@ -217,8 +237,11 @@ mod tests {
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        let balance_locked = wallet_service
+            .get_user_balance_locked(&user3_thing)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
         assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
@@ -231,12 +254,14 @@ mod tests {
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let total_task_payment_amt = task.participants.iter().fold(0, |tot,a|tot+a.amount);
-        assert_eq!(total_task_payment_amt, user3_offer_amt+user2_offer_amt);
-        let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
+        let total_task_payment_amt = task.participants.iter().fold(0, |tot, a| tot + a.amount);
+        assert_eq!(total_task_payment_amt, user3_offer_amt + user2_offer_amt);
+        let participant = task
+            .participants
+            .iter()
+            .find(|p| p.user.clone().unwrap().username == username3)
+            .unwrap();
         assert_eq!(participant.amount, user3_offer_amt);
-
-
 
         ////////// login user 0 and check tasks
 
@@ -293,7 +318,6 @@ mod tests {
         let received_task = received_post_tasks.get(0).unwrap();
         assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
 
-
         //////// deliver task
 
         // create post on own profile for task delivery
@@ -313,30 +337,46 @@ mod tests {
         let delivery_post_id = created_post.id.clone();
         assert_eq!(created_post.id.len() > 0, true);
 
-
         // deliver task
-        let delivery_data = MultipartForm::new()
-            .add_text("post_id", delivery_post_id);
-        let delivery_req = server.post(format!("/api/task_request/{}/deliver", received_task.id.clone().unwrap()).as_str()).multipart(delivery_data).await;
+        let delivery_data = MultipartForm::new().add_text("post_id", delivery_post_id);
+        let delivery_req = server
+            .post(
+                format!(
+                    "/api/task_request/{}/deliver",
+                    received_task.id.clone().unwrap()
+                )
+                .as_str(),
+            )
+            .multipart(delivery_data)
+            .await;
         delivery_req.assert_status_success();
 
         // check user 3 balance and no locked
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        let balance_locked = wallet_service
+            .get_user_balance_locked(&user3_thing)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
         assert_eq!(balance_locked.balance_usd, 0);
 
         // check user 2 balance and no locked
         let balance = wallet_service.get_user_balance(&user2_thing).await.unwrap();
-        let balance_locked = wallet_service.get_user_balance_locked(&user2_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, user2_endow_amt-user2_offer_amt);
+        let balance_locked = wallet_service
+            .get_user_balance_locked(&user2_thing)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, user2_endow_amt - user2_offer_amt);
         assert_eq!(balance_locked.balance_usd, 0);
 
         // check user 0 has received rewards
         let user0_thing = get_string_thing(user_ident0).unwrap();
         let balance = wallet_service.get_user_balance(&user0_thing).await.unwrap();
-        let balance_locked = wallet_service.get_user_balance_locked(&user0_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, user3_offer_amt+user2_offer_amt);
+        let balance_locked = wallet_service
+            .get_user_balance_locked(&user0_thing)
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, user3_offer_amt + user2_offer_amt);
         assert_eq!(balance_locked.balance_usd, 0);
 
         // check task deliverables exist

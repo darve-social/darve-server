@@ -124,7 +124,6 @@ impl<'a> LockTransactionDbService<'a> {
     }
 
     pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {
-
         // TODO do checks in db transaction
         let lock = self.get(IdentIdName::Id(lock_id.clone())).await?;
         let (amount, currency_symbol) = if lock.unlock_tx_in.is_some() {
@@ -188,23 +187,49 @@ impl<'a> LockTransactionDbService<'a> {
 
         let mut lock_res = qry.await?;
         lock_res = lock_res.check()?;
-        let res:Option<LockTransaction> = lock_res.take(0)?;
-        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Error in unlock tx".to_string()}))
+        let res: Option<LockTransaction> = lock_res.take(0)?;
+        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+            description: "Error in unlock tx".to_string(),
+        }))
     }
 
-    pub async fn process_locked_payment (&self, lock_id: &Thing, pay_to_user: &Thing) -> CtxResult<()> {
-        let curr_tx_service = CurrencyTransactionDbService{db: self.db, ctx: self.ctx};
+    pub async fn process_locked_payment(
+        &self,
+        lock_id: &Thing,
+        pay_to_user: &Thing,
+    ) -> CtxResult<()> {
+        let curr_tx_service = CurrencyTransactionDbService {
+            db: self.db,
+            ctx: self.ctx,
+        };
 
         // TODO !!! transfers in db transaction
         let unlocked = self.unlock_user_asset_tx(lock_id).await?;
         // dbg!(&unlocked);
-        let unlock_tx_in = unlocked.unlock_tx_in.ok_or(self.ctx.to_ctx_error(AppError::Generic { description: "No unlock tx in id".to_string() }))?;
-        let unlocked_tx_in=curr_tx_service.get(IdentIdName::Id(unlock_tx_in)).await?;
-        let unlocked_amount = unlocked_tx_in.amount_in.ok_or(self.ctx.to_ctx_error(AppError::Generic { description: "No unlocked in amount in unlock tx".to_string() }))?;
+        let unlock_tx_in =
+            unlocked
+                .unlock_tx_in
+                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                    description: "No unlock tx in id".to_string(),
+                }))?;
+        let unlocked_tx_in = curr_tx_service.get(IdentIdName::Id(unlock_tx_in)).await?;
+        let unlocked_amount =
+            unlocked_tx_in
+                .amount_in
+                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                    description: "No unlocked in amount in unlock tx".to_string(),
+                }))?;
 
-        let wallet_to =  WalletDbService::get_user_wallet_id(pay_to_user);
+        let wallet_to = WalletDbService::get_user_wallet_id(pay_to_user);
         let wallet_from = WalletDbService::get_user_wallet_id(&unlocked.user);
-        curr_tx_service.transfer_currency(&wallet_from, &wallet_to, unlocked_amount, &unlocked_tx_in.currency).await?;
+        curr_tx_service
+            .transfer_currency(
+                &wallet_from,
+                &wallet_to,
+                unlocked_amount,
+                &unlocked_tx_in.currency,
+            )
+            .await?;
         Ok(())
     }
 

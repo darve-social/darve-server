@@ -1,16 +1,16 @@
 use sb_middleware::db;
+use sb_middleware::error::AppResult;
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
+use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
+use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
 use validator::ValidateRequired;
-use sb_middleware::error::AppResult;
-use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
-use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequestParticipantion {
@@ -105,32 +105,41 @@ impl<'a> TaskParticipationDbService<'a> {
         Ok(res)
     }
 
-    pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
+    pub async fn process_payments(
+        &self,
+        to_user: &Thing,
+        participation_ids: Vec<Thing>,
+    ) -> AppResult<()> {
         let participations = self.get_ids(participation_ids).await?;
 
         /*let tasks: Vec<_> = participations
-            .into_iter()
-            .map(|p|(p.lock.clone(), to_user.clone()))
-            .map(|lock_tx_touser| {
-                tokio::spawn(async {
-                    if lock_tx_touser.0.is_some() {
-                        let res = lock_tx_service.process_locked_payment(&lock_tx_touser.0.unwrap(), &lock_tx_touser.1).await;
-                    }
-                })
+        .into_iter()
+        .map(|p|(p.lock.clone(), to_user.clone()))
+        .map(|lock_tx_touser| {
+            tokio::spawn(async {
+                if lock_tx_touser.0.is_some() {
+                    let res = lock_tx_service.process_locked_payment(&lock_tx_touser.0.unwrap(), &lock_tx_touser.1).await;
+                }
             })
-            .collect();*/
+        })
+        .collect();*/
         // TODO execute in separate tokio tasks
         for participation in participations {
-                if let Some(locked) = participation.lock {
-                    // not returning on error so successful payments are made
-                    let pay_locked = LockTransactionDbService{db: self.db, ctx: &self.ctx}.process_locked_payment(&locked, &to_user).await;
-                    if let Err(err) = pay_locked {
-                        // TODO - how to save errors to recover funds later
-                        println!("ERR paying task delivery err={:?}", err);
-                    } else {
-                        // println!("PAID {}", locked);
-                    }
+            if let Some(locked) = participation.lock {
+                // not returning on error so successful payments are made
+                let pay_locked = LockTransactionDbService {
+                    db: self.db,
+                    ctx: &self.ctx,
                 }
+                .process_locked_payment(&locked, &to_user)
+                .await;
+                if let Err(err) = pay_locked {
+                    // TODO - how to save errors to recover funds later
+                    println!("ERR paying task delivery err={:?}", err);
+                } else {
+                    // println!("PAID {}", locked);
+                }
+            }
         }
         Ok(())
     }
