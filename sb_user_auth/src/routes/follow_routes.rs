@@ -1,21 +1,19 @@
+use crate::entity::follow_entitiy::FollowDbService;
+use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use crate::entity::user_notification_entitiy::{UserNotificationDbService, UserNotificationEvent};
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{delete, get, post};
 use axum::Router;
-use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
-use crate::entity::follow_entitiy::FollowDbService;
-use crate::entity::local_user_entity::{LocalUser, LocalUserDbService};
-use crate::entity::user_notification_entitiy::{
-     UserNotificationDbService, UserNotificationEvent,
-};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()

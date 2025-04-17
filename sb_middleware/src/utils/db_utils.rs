@@ -39,10 +39,9 @@ impl IdentIdName {
                 bindings
             }
             IdentIdName::Ids(ids) => {
-                ids.into_iter().enumerate()
-                    .for_each(|i_id|{
-                        bindings.insert(format!("id_{}",i_id.0), i_id.1.to_raw());
-                    } );
+                ids.into_iter().enumerate().for_each(|i_id| {
+                    bindings.insert(format!("id_{}", i_id.0), i_id.1.to_raw());
+                });
                 bindings
             }
             IdentIdName::ColumnIdent { val, column, .. } => {
@@ -64,12 +63,14 @@ impl Display for IdentIdName {
         match self {
             IdentIdName::Id(_) => f.write_str("<record>$id"),
             IdentIdName::Ids(ids) => {
-                let ids_qry = ids.iter().enumerate()
+                let ids_qry = ids
+                    .iter()
+                    .enumerate()
                     .map(|i_thg| format!("<record>$id_{}", i_thg.0))
                     .collect::<Vec<String>>()
                     .join(",");
                 f.write_str(ids_qry.as_str())
-            },
+            }
             IdentIdName::ColumnIdent { column, rec, .. } => {
                 let prefix = if *rec { "<record>" } else { "" };
                 f.write_str(format!("{column}={prefix}${column}").as_str())
@@ -124,7 +125,7 @@ impl<T: Serialize + 'static + Clone> QryBindingsVal<T> {
             .fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
     }
     pub fn is_empty_qry(&self) -> bool {
-        self.0.len()<1
+        self.0.len() < 1
     }
 }
 
@@ -159,7 +160,6 @@ fn get_entity_query_str(
     let mut q_bindings: HashMap<String, String> = HashMap::new();
 
     let query_string = match ident {
-
         IdentIdName::Id(id) => {
             if id.to_raw().len() < 3 {
                 return Err(AppError::Generic {
@@ -172,19 +172,15 @@ fn get_entity_query_str(
             format!("SELECT {fields} FROM <record>$id;")
         }
 
-        IdentIdName::Ids(ids)=>{
-            if ids.len()<1 {
+        IdentIdName::Ids(ids) => {
+            if ids.len() < 1 {
                 return Ok(QryBindingsVal::new(String::new(), HashMap::new()));
             }
 
             q_bindings.extend(ident.get_bindings_map());
             let fields = select_fields_or_id.unwrap_or("*");
 
-             format!(
-                "SELECT {fields} FROM {};",
-                ident.to_string()
-             )
-
+            format!("SELECT {fields} FROM {};", ident.to_string())
         }
 
         _ => {
@@ -197,11 +193,12 @@ fn get_entity_query_str(
                             let order_by = format!(" ORDER BY {order_by_f} ");
                             match pag.order_dir {
                                 None => format!(" {order_by} {} ", QryOrder::DESC.to_string()),
-                                Some(direction) => format!(" {order_by} {} ", direction.to_string()),
+                                Some(direction) => {
+                                    format!(" {order_by} {} ", direction.to_string())
+                                }
                             }
-                        },
+                        }
                     };
-                    
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
                     q_bindings.insert("_count_val".to_string(), count.to_string());
@@ -243,22 +240,31 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
     if ids.len() < 1 {
         return Ok(vec![]);
     }
-    let qry_bindings = ids.iter()
+    let qry_bindings = ids
+        .iter()
         .enumerate()
-        .map(|i_t| (format!("<record>$id_{}", i_t.0), (format!("id_{}", i_t.0), i_t.1.to_raw())))
+        .map(|i_t| {
+            (
+                format!("<record>$id_{}", i_t.0),
+                (format!("id_{}", i_t.0), i_t.1.to_raw()),
+            )
+        })
         .collect::<Vec<(String, (String, String))>>();
 
     let query_string = format!(
         "SELECT * FROM {};",
-        qry_bindings.iter()
+        qry_bindings
+            .iter()
             .map(|i_t| i_t.0.clone())
             .collect::<Vec<String>>()
             .join(",")
     );
     // let mut res = db.query(query_string);
-    let mut res = qry_bindings.into_iter().fold(db.query(query_string), |qry, qry_binding| {
-        qry.bind(qry_binding.1)
-    })
+    let mut res = qry_bindings
+        .into_iter()
+        .fold(db.query(query_string), |qry, qry_binding| {
+            qry.bind(qry_binding.1)
+        })
         .await?;
 
     let res = res.take::<Vec<T>>(0)?;
@@ -336,7 +342,10 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     Ok(res)
 }
 
-fn create_db_qry(db: &Db, query_string: QryBindingsVal<String>) -> Query<surrealdb::engine::local::Db> {
+fn create_db_qry(
+    db: &Db,
+    query_string: QryBindingsVal<String>,
+) -> Query<surrealdb::engine::local::Db> {
     // let qry = db.query(query_string.0);
     // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
     //     acc.bind(name_value)

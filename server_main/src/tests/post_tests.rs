@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::{create_login_test_user, create_test_server};
     use axum::extract::{Path, State};
     use axum_test::multipart::MultipartForm;
-    use surrealdb::sql::Thing;
-    use uuid::Uuid;
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::{get_community, CommunityInput};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
     use sb_middleware::utils::request_utils::CreatedResponse;
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use surrealdb::sql::Thing;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn create_post() {

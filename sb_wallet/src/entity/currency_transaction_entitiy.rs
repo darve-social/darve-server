@@ -1,7 +1,10 @@
 use crate::entity::wallet_entitiy::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
+use crate::routes::wallet_routes::CurrencyTransactionView;
 use sb_middleware::db;
 use sb_middleware::error::AppResult;
-use sb_middleware::utils::db_utils::{get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal};
+use sb_middleware::utils::db_utils::{
+    get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal,
+};
 use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -9,7 +12,6 @@ use sb_middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{to_value, Thing, Value};
-use crate::routes::wallet_routes::CurrencyTransactionView;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
@@ -92,7 +94,13 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
         mutation.check().expect("should mutate currencyTransaction");
 
-        WalletDbService{db:self.db, ctx: self.ctx}.init_app_gateway_wallet().await.expect("inited");
+        WalletDbService {
+            db: self.db,
+            ctx: self.ctx,
+        }
+        .init_app_gateway_wallet()
+        .await
+        .expect("inited");
         Ok(())
     }
 
@@ -103,19 +111,30 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         amount: i64,
         currency: &CurrencySymbol,
     ) -> CtxResult<()> {
-        let tx_qry = Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
+        let tx_qry =
+            Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
         let res = tx_qry.into_query(self.db).await?;
         res.check()?;
         Ok(())
     }
 
-    pub async fn user_transaction_list (&self, wallet_id: &Thing, pagination: Option<Pagination>) -> CtxResult<Vec<CurrencyTransactionView>> {
+    pub async fn user_transaction_list(
+        &self,
+        wallet_id: &Thing,
+        pagination: Option<Pagination>,
+    ) -> CtxResult<Vec<CurrencyTransactionView>> {
         WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
-        get_entity_list_view::<CurrencyTransactionView>(self.db, TABLE_NAME.to_string(), &IdentIdName::ColumnIdent {
-            column: "wallet".to_string(),
-            val: wallet_id.to_raw(),
-            rec: true,
-        }, pagination).await
+        get_entity_list_view::<CurrencyTransactionView>(
+            self.db,
+            TABLE_NAME.to_string(),
+            &IdentIdName::ColumnIdent {
+                column: "wallet".to_string(),
+                val: wallet_id.to_raw(),
+                rec: true,
+            },
+            pagination,
+        )
+        .await
     }
 
     pub(crate) async fn create_init_record(
@@ -123,7 +142,6 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         wallet_id: &Thing,
         currency: CurrencySymbol,
     ) -> CtxResult<CurrencyTransaction> {
-
         let record = CurrencyTransaction {
             id: None,
             wallet: wallet_id.clone(),
@@ -162,7 +180,11 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         lock_tx: Option<Thing>,
         exclude_sql_transaction: bool,
     ) -> AppResult<QryBindingsVal<Value>> {
-        let (begin_tx, commit_tx) = if exclude_sql_transaction { ("", "") } else { ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;") };
+        let (begin_tx, commit_tx) = if exclude_sql_transaction {
+            ("", "")
+        } else {
+            ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;")
+        };
 
         let qry = format!(
             "{begin_tx}
@@ -229,14 +251,48 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         {commit_tx}
         ");
         let mut bindings = HashMap::new();
-        bindings.insert("w_from_id".to_string(), to_value(wallet_from.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("w_to_id".to_string(), to_value(wallet_to.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("amt".to_string(), to_value(amount).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("currency".to_string(), to_value(currency.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("app_gateway_wallet_id".to_string(), to_value(APP_GATEWAY_WALLET.clone()).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("funding_tx_id".to_string(), to_value(funding_tx).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
-        bindings.insert("lock_tx_id".to_string(), to_value(lock_tx).map_err(|e| AppError::SurrealDb {source: e.to_string()})?);
+        bindings.insert(
+            "w_from_id".to_string(),
+            to_value(wallet_from.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "w_to_id".to_string(),
+            to_value(wallet_to.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "amt".to_string(),
+            to_value(amount).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "currency".to_string(),
+            to_value(currency.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "app_gateway_wallet_id".to_string(),
+            to_value(APP_GATEWAY_WALLET.clone()).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "funding_tx_id".to_string(),
+            to_value(funding_tx).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "lock_tx_id".to_string(),
+            to_value(lock_tx).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
         Ok(QryBindingsVal::new(qry, bindings))
     }
 }
-

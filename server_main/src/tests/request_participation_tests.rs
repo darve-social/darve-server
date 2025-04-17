@@ -11,9 +11,11 @@ mod tests {
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
-    use sb_task::entity::task_request_entitiy::TaskStatus;
     use sb_task::entity::task_request_entitiy::TaskRequestDbService;
-    use sb_task::routes::task_request_routes::{AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView};
+    use sb_task::entity::task_request_entitiy::TaskStatus;
+    use sb_task::routes::task_request_routes::{
+        AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView,
+    };
     use sb_user_auth::routes::login_routes::LoginInput;
     use sb_wallet::entity::funding_transaction_entity::FundingTransactionDbService;
     use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
@@ -32,9 +34,7 @@ mod tests {
 
         let comm_name = "comm-naMMe1".to_lowercase();
 
-
         ////////// user 1 creates post (user 2 creates task on this post for user 0 who delivers it)
-
 
         // create community
         let create_response = server
@@ -83,9 +83,7 @@ mod tests {
 
         let ctx_no_user = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
 
-
         ////////// user 2 creates offer for user 0
-
 
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
         let user2_thing = get_string_thing(user_ident2).unwrap();
@@ -98,7 +96,7 @@ mod tests {
             .json("")
             .await;
         &endow_user_response.assert_status_success();
-        
+
         let user2_offer_amt = 2;
         let offer_content = "contdad".to_string();
         let task_request = server
@@ -140,9 +138,7 @@ mod tests {
 
         assert_eq!(given_post_tasks.len(), 1);
 
-
         ////////// login user 3 and participate
-
 
         server.get("/logout").await;
         let login_response = server
@@ -155,9 +151,9 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
-        
+
         let user3_thing = get_string_thing(user_ident3).unwrap();
-        
+
         // endow user 3
         let user3_endow_amt = 100;
         let user3_offer_amt = 3;
@@ -180,8 +176,10 @@ mod tests {
         participate_response.assert_status_success();
         let _res = participate_response.json::<CreatedResponse>();
 
-
-        let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
+        let wallet_service = WalletDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
@@ -214,7 +212,10 @@ mod tests {
         participate_response.assert_status_success();
         let _res = participate_response.json::<CreatedResponse>();
 
-        let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
+        let wallet_service = WalletDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
@@ -234,12 +235,10 @@ mod tests {
         assert_eq!(total_task_payment_amt, user3_offer_amt+user2_offer_amt);
         let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
         assert_eq!(participant.amount, user3_offer_amt);
-        
-        
+
 
 
         ////////// login user 0 and check tasks
-
 
         server.get("/logout").await;
         let login_response = server
@@ -269,10 +268,14 @@ mod tests {
 
         // accept received task
         let accept_response = server
-            .post(format!("/api/task_request/{}/accept",received_task.id.clone().unwrap()).as_str())
-            .json(&AcceptTaskRequestInput {
-                accept: true,
-            })
+            .post(
+                format!(
+                    "/api/task_request/{}/accept",
+                    received_task.id.clone().unwrap()
+                )
+                .as_str(),
+            )
+            .json(&AcceptTaskRequestInput { accept: true })
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -292,7 +295,7 @@ mod tests {
 
 
         //////// deliver task
-        
+
         // create post on own profile for task delivery
         let post_name = "delivery post".to_string();
         let create_post = server
@@ -317,7 +320,7 @@ mod tests {
         let delivery_req = server.post(format!("/api/task_request/{}/deliver", received_task.id.clone().unwrap()).as_str()).multipart(delivery_data).await;
         delivery_req.assert_status_success();
 
-        // check user 3 balance and no locked 
+        // check user 3 balance and no locked
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
@@ -346,6 +349,5 @@ mod tests {
         let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
         let task = received_post_tasks.get(0).unwrap();
         assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
-
     }
 }

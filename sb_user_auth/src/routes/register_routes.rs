@@ -35,7 +35,11 @@ static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9\_]{6,
 pub fn validate_username(u: &String) -> AppResult<()> {
     if USERNAME_REGEX.is_match(u) {
         Ok(())
-    }else { Err(AppError::Generic {description: "Username not valid".to_string()}) }
+    } else {
+        Err(AppError::Generic {
+            description: "Username not valid".to_string(),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -199,9 +203,9 @@ pub async fn register_user(
     } else if let AuthType::PASSWORD(_pass) = &auth_type {
         // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
     }
-    return Err(CtxError {
+    Err(CtxError {
         error: AppError::RegisterFail,
         req_id: ctx.req_id(),
         is_htmx: ctx.is_htmx,
-    });
+    })
 }

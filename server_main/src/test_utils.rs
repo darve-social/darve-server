@@ -1,5 +1,6 @@
 use crate::{main_router, run_migrations};
 use axum_test::{TestServer, TestServerConfig};
+use chrono::Duration;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db;
 use sb_middleware::error::{AppError, AppResult};
@@ -8,11 +9,10 @@ use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::Duration;
 use uuid::Uuid;
 
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
-#[allow(dead_code)] 
+#[allow(dead_code)]
 pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
     let db = Some(
         SystemTime::now()
@@ -103,11 +103,12 @@ pub async fn create_dev_env(
     full_name: Option<String>,
 ) {
     let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
-    let hardcoded_bio = Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
+    let hardcoded_bio =
+        Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
     let hardcoded_full_name = Some("Katsuki Bakugo".to_string());
-    let hardcoded_image_uri =
-        Some("https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq"
-            .to_string());
+    let hardcoded_image_uri = Some(
+        "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string(),
+    );
     register_user(
         &ctx_state._db,
         &ctx,
@@ -130,5 +131,20 @@ pub async fn create_dev_env(
 
     // create one more user with the input data
 
-    register_user(&ctx_state._db, &ctx, &RegisterInput { username: username.clone().to_string(), password: pass.clone().to_string(), password1: pass.clone().to_string(), email: email.clone(),bio:bio.clone(), full_name:full_name.clone(),image_uri:image_uri.clone(),next: None }).await.unwrap();
+    register_user(
+        &ctx_state._db,
+        &ctx,
+        &RegisterInput {
+            username: username.clone().to_string(),
+            password: pass.clone().to_string(),
+            password1: pass.clone().to_string(),
+            email: email.clone(),
+            bio: bio.clone(),
+            full_name: full_name.clone(),
+            image_uri: image_uri.clone(),
+            next: None,
+        },
+    )
+    .await
+    .unwrap();
 }

@@ -93,8 +93,7 @@ impl<'a> PostStreamDbService<'a> {
         }
         .user_follower_ids(user_id.clone())
         .await?;
-        self.add_to_users_stream(notify_followers, post_id)
-            .await
+        self.add_to_users_stream(notify_followers, post_id).await
     }
 
     pub async fn user_posts_stream(&self, user: Thing) -> CtxResult<Vec<Thing>> {

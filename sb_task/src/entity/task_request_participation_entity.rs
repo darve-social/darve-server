@@ -58,12 +58,17 @@ impl<'a> TaskParticipationDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        mutation.check().expect("should mutate taskRequestParticipation");
+        mutation
+            .check()
+            .expect("should mutate taskRequestParticipation");
 
         Ok(())
     }
 
-    pub async fn create_update(&self, record: TaskRequestParticipantion) -> CtxResult<TaskRequestParticipantion> {
+    pub async fn create_update(
+        &self,
+        record: TaskRequestParticipantion,
+    ) -> CtxResult<TaskRequestParticipantion> {
         let resource = record
             .id
             .clone()
@@ -77,7 +82,10 @@ impl<'a> TaskParticipationDbService<'a> {
             .map(|v: Option<TaskRequestParticipantion>| v.unwrap())
     }
 
-    pub async fn get_ids(&self, participant_ids: Vec<Thing>) -> CtxResult<Vec<TaskRequestParticipantion>> {
+    pub async fn get_ids(
+        &self,
+        participant_ids: Vec<Thing>,
+    ) -> CtxResult<Vec<TaskRequestParticipantion>> {
         let mut bindings: HashMap<String, String> = HashMap::new();
         let mut ids_str: Vec<String> = vec![];
         participant_ids.into_iter().enumerate().for_each(|i_id| {
@@ -99,7 +107,7 @@ impl<'a> TaskParticipationDbService<'a> {
 
     pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
         let participations = self.get_ids(participation_ids).await?;
-        
+
         /*let tasks: Vec<_> = participations
             .into_iter()
             .map(|p|(p.lock.clone(), to_user.clone()))
@@ -128,7 +136,10 @@ impl<'a> TaskParticipationDbService<'a> {
     }
 
     pub async fn delete(&self, participation_id: Thing) -> CtxResult<bool> {
-        let _res: Option<TaskRequestParticipantion> = self.db.delete((participation_id.tb, participation_id.id.to_raw())).await?;
+        let _res: Option<TaskRequestParticipantion> = self
+            .db
+            .delete((participation_id.tb, participation_id.id.to_raw()))
+            .await?;
         Ok(true)
     }
 }

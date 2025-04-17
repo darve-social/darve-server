@@ -1,21 +1,18 @@
-use askama::Template;
 use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use crate::entity::wallet_entitiy::{CurrencySymbol, UserView, WalletDbService};
-use axum::extract::{
-    State};
+use askama::Template;
+use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{
-     IdentIdName, Pagination, 
-      ViewFieldSelector};
-use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use sb_middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::DiscussionParams;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -59,7 +56,10 @@ pub async fn get_wallet_history(
     ctx: Ctx,
     params: DiscussionParams,
 ) -> CtxResult<Html<String>> {
-    let user_service = LocalUserDbService { db: &ctx_state._db, ctx: &ctx };
+    let user_service = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
     let user_id = user_service.get_ctx_user_thing().await?;
     let pagination = Some(Pagination {
         order_by: None,
@@ -67,10 +67,15 @@ pub async fn get_wallet_history(
         count: params.count.unwrap_or(20),
         start: params.start.unwrap_or(0),
     });
-    let tx_service = CurrencyTransactionDbService{ db: &ctx_state._db, ctx: &ctx };
+    let tx_service = CurrencyTransactionDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
     let user_wallet_id = WalletDbService::get_user_wallet_id(&user_id);
-    let transactions = tx_service.user_transaction_list(&user_wallet_id, pagination).await?;
-    ctx.to_htmx_or_json(CurrencyTransactionHistoryView{
+    let transactions = tx_service
+        .user_transaction_list(&user_wallet_id, pagination)
+        .await?;
+    ctx.to_htmx_or_json(CurrencyTransactionHistoryView {
         wallet: user_wallet_id,
         transactions,
     })

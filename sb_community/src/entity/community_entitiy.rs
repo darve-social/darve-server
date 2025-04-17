@@ -196,7 +196,7 @@ impl<'a> CommunityDbService<'a> {
                         stripe_connect_account_id: None,
                         stripe_connect_complete: false,
                     })
-                        .await
+                    .await
                 } else {
                     Err(self.ctx.to_ctx_error(err.error))
                 }

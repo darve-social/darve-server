@@ -1,6 +1,6 @@
 use sb_middleware::{
-    db,
     ctx::Ctx,
+    db,
     error::{AppError, CtxError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,6 @@ const TABLE_COL_TASK_REQ: &str = crate::entity::task_request_entitiy::TABLE_NAME
 
 impl<'a> TaskDeliverableDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-
         let sql = format!("
     DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
@@ -71,5 +70,4 @@ impl<'a> TaskDeliverableDbService<'a> {
         let opt = get_entity::<TaskDeliverable>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }*/
-
 }

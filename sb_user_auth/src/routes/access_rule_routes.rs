@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
@@ -65,7 +65,7 @@ async fn get_form_page(
 ) -> CtxResult<ProfileFormPage> {
     println!("->> {:<12} - get_form access rule", "HANDLER");
     let form = get_form(State(ctx_state), ctx, Path(community_id), Query(qry)).await?;
-    Ok(ProfileFormPage::new(Box::new(form), None,None, None))
+    Ok(ProfileFormPage::new(Box::new(form), None, None, None))
 }
 
 async fn get_form(

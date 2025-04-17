@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
