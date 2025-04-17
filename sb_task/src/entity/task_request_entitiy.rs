@@ -54,7 +54,7 @@ pub enum RewardType {
     // #[strum(to_string = "on_delivery")]
     OnDelivery, // paid when delivered
     // #[strum(to_string = "vote_winner")]
-    VoteWinner { voting_period_min: i64 }, // paid after voting
+    // VoteWinner { voting_period_min: i64 }, // paid after voting
 }
 
 #[derive(EnumString, Display, Clone, Debug, Serialize, Deserialize)]

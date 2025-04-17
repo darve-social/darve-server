@@ -99,7 +99,6 @@ impl<'a> TaskParticipationDbService<'a> {
 
     pub async fn process_payments(&self, to_user: &Thing, participation_ids: Vec<Thing>)->AppResult<()> {
         let participations = self.get_ids(participation_ids).await?;
-        let lock_tx_service = LockTransactionDbService{db: self.db, ctx: self.ctx};
         
         /*let tasks: Vec<_> = participations
             .into_iter()
@@ -112,19 +111,19 @@ impl<'a> TaskParticipationDbService<'a> {
                 })
             })
             .collect();*/
-        // for partic in participations {
-        //     let task_res = tokio::spawn(async move {
-        //         if partic.lock.is_some() {
-        //             let _ = LockTransactionDbService{db: self.db, ctx: self.ctx}.process_locked_payment(&partic.lock.unwrap(), &to_user).await;
-        //         }
-        //     }).await;
-        //     println!("lock payment task {:?}", task_res);
-        // }
-        // dbg!(lock_tx_service);
-        
-        
-        
-        // ... https://stackoverflow.com/questions/63434977/how-can-i-spawn-asynchronous-methods-in-a-loop
+        // TODO execute in separate tokio tasks
+        for participation in participations {
+                if let Some(locked) = participation.lock {
+                    // not returning on error so successful payments are made
+                    let pay_locked = LockTransactionDbService{db: self.db, ctx: &self.ctx}.process_locked_payment(&locked, &to_user).await;
+                    if let Err(err) = pay_locked {
+                        // TODO - how to save errors to recover funds later
+                        println!("ERR paying task delivery err={:?}", err);
+                    } else {
+                        // println!("PAID {}", locked);
+                    }
+                }
+        }
         Ok(())
     }
 

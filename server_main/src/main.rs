@@ -39,7 +39,6 @@ use sb_task::entity::task_request_entitiy::TaskRequestDbService;
 use sb_task::entity::task_request_participation_entity::TaskParticipationDbService;
 use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
-use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
 use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
@@ -156,9 +155,6 @@ async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
         .mutate_db()
         .await?;
     AccessGainActionDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
-    EndowmentActionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;

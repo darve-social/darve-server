@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use axum_test::multipart::MultipartForm;
+    use axum::body::Bytes;
+    use axum_test::multipart::{MultipartForm, Part};
     use surrealdb::sql::Thing;
     use uuid::Uuid;
 
@@ -89,14 +90,20 @@ mod tests {
         let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
         let user2_thing = get_string_thing(user_ident2).unwrap();
 
-        let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-        //TODO use the dev route
-        fund_service.user_endowment_tx(&user2_thing, "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
-        let offer_amount = Some(2);
+        // endow user 2
+        let user2_endow_amt = 100;
+        let endow_user_response = server
+            .get(&format!("/test/api/endow/{}/{}", user2_thing.to_string(), user2_endow_amt))
+            .add_header("Accept", "application/json")
+            .json("")
+            .await;
+        &endow_user_response.assert_status_success();
+        
+        let user2_offer_amt = 2;
         let offer_content = "contdad".to_string();
         let task_request = server
             .post("/api/task_request")
-            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: offer_amount.clone(), to_user: user_ident0.clone(), content: offer_content.clone() })
+            .json(&TaskRequestInput { post_id: Some(created_post.id.clone()), offer_amount: Some(user2_offer_amt), to_user: user_ident0.clone(), content: offer_content.clone() })
             .add_header("Accept", "application/json")
             .await;
 
@@ -116,7 +123,7 @@ mod tests {
 
         assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
 
-        assert_eq!(offer0.amount.clone(), offer_amount.unwrap());
+        assert_eq!(offer0.amount.clone(), user2_offer_amt);
         assert_eq!(task.from_user.username, username2);
         assert_eq!(task.to_user.clone().unwrap().username, username0);
         assert_eq!(task.participants.len(), 1);
@@ -150,75 +157,85 @@ mod tests {
         login_response.assert_status_success();
         
         let user3_thing = get_string_thing(user_ident3).unwrap();
-        let fund_service = FundingTransactionDbService { db: &ctx_state._db, ctx: &ctx };
-        //TODO use the dev route
-        fund_service.user_endowment_tx(&user3_thing.clone(), "ext_acc123".to_string(), "ext_tx_id_123".to_string(), 100, CurrencySymbol::USD).await.expect("created");
+        
+        // endow user 3
+        let user3_endow_amt = 100;
+        let user3_offer_amt = 3;
+        let endow_user_response = server
+            .get(&format!("/test/api/endow/{}/{}", user3_thing.to_string(), user3_endow_amt))
+            .add_header("Accept", "application/json")
+            .json("")
+            .await;
+        endow_user_response.assert_status_success();
 
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: 3,
+                amount: user3_offer_amt,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
 
         participate_response.assert_status_success();
-        let res = participate_response.json::<CreatedResponse>();
+        let _res = participate_response.json::<CreatedResponse>();
 
 
         let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, 97);
-        assert_eq!(balance_locked.balance_usd, 3);
+        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
         
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        &post_tasks_req.assert_status_success();
+        post_tasks_req.assert_status_success();
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        // let offer0 = task.offers.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
         let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
-        assert_eq!(participant.amount, 3);
+        assert_eq!(participant.amount, user3_offer_amt);
 
         // change amount to 33 by sending another participation req
+        let user3_offer_amt = 33;
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: 33,
+                amount: user3_offer_amt,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
 
         participate_response.assert_status_success();
-        let res = participate_response.json::<CreatedResponse>();
+        let _res = participate_response.json::<CreatedResponse>();
 
         let wallet_service = WalletDbService { db: &ctx_state._db, ctx: &ctx };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
-        assert_eq!(balance.balance_usd, 67);
-        assert_eq!(balance_locked.balance_usd, 33);
+        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
             .add_header("Accept", "application/json")
             .await;
 
-        &post_tasks_req.assert_status_success();
+        post_tasks_req.assert_status_success();
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
+        let total_task_payment_amt = task.participants.iter().fold(0, |tot,a|tot+a.amount);
+        assert_eq!(total_task_payment_amt, user3_offer_amt+user2_offer_amt);
         let participant = task.participants.iter().find(|p| p.user.clone().unwrap().username == username3).unwrap();
-        dbg!(&task.participants);
-        assert_eq!(participant.amount, 33);
+        assert_eq!(participant.amount, user3_offer_amt);
+        
+        
 
 
         ////////// login user 0 and check tasks
@@ -236,12 +253,13 @@ mod tests {
             .await;
         login_response.assert_status_success();
 
+        // check received tasks
         let received_post_tasks_req = server
             .get("/api/task_request/received")
             .add_header("Accept", "application/json")
             .await;
 
-        &received_post_tasks_req.assert_status_success();
+        received_post_tasks_req.assert_status_success();
         let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
 
         assert_eq!(received_post_tasks.len(), 1);
@@ -249,6 +267,7 @@ mod tests {
         assert_eq!(received_task.status, TaskStatus::Requested.to_string());
         assert_eq!(received_task.deliverables.is_none(), true);
 
+        // accept received task
         let accept_response = server
             .post(format!("/api/task_request/{}/accept",received_task.id.clone().unwrap()).as_str())
             .json(&AcceptTaskRequestInput {
@@ -258,12 +277,13 @@ mod tests {
             .await;
         accept_response.assert_status_success();
 
+        // check task is accepted
         let received_post_tasks_req = server
             .get("/api/task_request/received")
             .add_header("Accept", "application/json")
             .await;
 
-        &received_post_tasks_req.assert_status_success();
+        received_post_tasks_req.assert_status_success();
         let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
 
         assert_eq!(received_post_tasks.len(), 1);
@@ -271,35 +291,58 @@ mod tests {
         assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
 
 
-        //////// deliver task (called directly so file is not used)
-
-
-        let deliverables = vec!["/deliverable/file/uri".to_string()];
-        let task = TaskRequestDbService {
-            db: &ctx_state._db,
-            ctx: &ctx,
-        }
-            .update_status_received_by_user(
-                get_string_thing(user_ident0.clone()).expect("id"),
-                received_task.id.clone().unwrap(),
-                TaskStatus::Delivered,
-                Some(deliverables.clone()),
-                None,
+        //////// deliver task
+        
+        // create post on own profile for task delivery
+        let post_name = "delivery post".to_string();
+        let create_post = server
+            .post("/api/user/post")
+            .multipart(
+                MultipartForm::new()
+                    .add_text("title", post_name.clone())
+                    .add_text("content", "delivery contentttt")
+                    .add_text("topic_id", ""),
             )
-            .await.unwrap();
-        assert_eq!(task.0.status, TaskStatus::Delivered.to_string());
-        // dbg!(&task);
+            .add_header("Accept", "application/json")
+            .await;
+        let created_post = create_post.json::<CreatedResponse>();
+        create_post.assert_status_success();
+        let delivery_post_id = created_post.id.clone();
+        assert_eq!(created_post.id.len() > 0, true);
 
-        let binding = task.0.deliverables.unwrap();
-        let deliverable = binding.get(0).unwrap();
-        assert_eq!(!deliverable.id.to_raw().is_empty(), true);
 
+        // deliver task
+        let delivery_data = MultipartForm::new()
+            .add_text("post_id", delivery_post_id);
+        let delivery_req = server.post(format!("/api/task_request/{}/deliver", received_task.id.clone().unwrap()).as_str()).multipart(delivery_data).await;
+        delivery_req.assert_status_success();
+
+        // check user 3 balance and no locked 
+        let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
+        let balance_locked = wallet_service.get_user_balance_locked(&user3_thing).await.unwrap();
+        assert_eq!(balance.balance_usd, user3_endow_amt-user3_offer_amt);
+        assert_eq!(balance_locked.balance_usd, 0);
+
+        // check user 2 balance and no locked
+        let balance = wallet_service.get_user_balance(&user2_thing).await.unwrap();
+        let balance_locked = wallet_service.get_user_balance_locked(&user2_thing).await.unwrap();
+        assert_eq!(balance.balance_usd, user2_endow_amt-user2_offer_amt);
+        assert_eq!(balance_locked.balance_usd, 0);
+
+        // check user 0 has received rewards
+        let user0_thing = get_string_thing(user_ident0).unwrap();
+        let balance = wallet_service.get_user_balance(&user0_thing).await.unwrap();
+        let balance_locked = wallet_service.get_user_balance_locked(&user0_thing).await.unwrap();
+        assert_eq!(balance.balance_usd, user3_offer_amt+user2_offer_amt);
+        assert_eq!(balance_locked.balance_usd, 0);
+
+        // check task deliverables exist
         let received_post_tasks_req = server
             .get("/api/task_request/received")
             .add_header("Accept", "application/json")
             .await;
 
-        &received_post_tasks_req.assert_status_success();
+        received_post_tasks_req.assert_status_success();
         let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
         let task = received_post_tasks.get(0).unwrap();
         assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);

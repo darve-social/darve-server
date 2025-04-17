@@ -15,7 +15,7 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use sb_middleware::utils::db_utils::{exists_entity, record_exists, IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -523,6 +523,7 @@ async fn deliver_task_request(
         DeliverableType::PublicPost => {
             let post_id = get_string_thing(
                 t_request_input.post_id.ok_or(AppError::Generic { description: "Missing post_id".to_string() })? )?;
+            record_exists(&_db, &post_id).await.map_err(|e|ctx.to_ctx_error(e))?;
             (None, Some(post_id))
         }
         
@@ -548,9 +549,9 @@ async fn deliver_task_request(
         RewardType::OnDelivery => {
             participations_service.process_payments(task.to_user.as_ref().unwrap(), task.participants.clone()).await?;
         }
-        RewardType::VoteWinner{..} => {
+        /*RewardType::VoteWinner{..} => {
             // add action for this reward type
-        }
+        }*/
     }
     
     notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
@@ -645,7 +646,7 @@ async fn participate_task_request_offer(
     };
 
    let task_offer = task_request_offer_db_service.add_participation(get_string_thing(task_offer_id)?, from_user, t_request_offer_input.amount).await?;
-    dbg!(&task_offer);
+    // dbg!(&task_offer);
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,
         id: task_offer.id.unwrap().to_raw(),

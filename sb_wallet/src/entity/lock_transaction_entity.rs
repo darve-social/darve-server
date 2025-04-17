@@ -131,7 +131,7 @@ impl<'a> LockTransactionDbService<'a> {
 
            {lock_2_user_qry}
 
-            LET $lock_tx = UPDATE $l_tx_id SET lock_tx_in = $tx_in_id;
+            LET $lock_tx = UPDATE $l_tx_id SET unlock_tx_in = $tx_in_id;
 
             RETURN $lock_tx[0];
         COMMIT TRANSACTION;
@@ -155,6 +155,7 @@ impl<'a> LockTransactionDbService<'a> {
 
         // TODO !!! transfers in db transaction
         let unlocked = self.unlock_user_asset_tx(lock_id).await?;
+        // dbg!(&unlocked);
         let unlock_tx_in = unlocked.unlock_tx_in.ok_or(self.ctx.to_ctx_error(AppError::Generic { description: "No unlock tx in id".to_string() }))?;
         let unlocked_tx_in=curr_tx_service.get(IdentIdName::Id(unlock_tx_in)).await?;
         let unlocked_amount = unlocked_tx_in.amount_in.ok_or(self.ctx.to_ctx_error(AppError::Generic { description: "No unlocked in amount in unlock tx".to_string() }))?;
