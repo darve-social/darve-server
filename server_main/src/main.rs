@@ -51,7 +51,6 @@ use sb_user_auth::routes::{
     register_routes, user_notification_routes,
 };
 use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
-use sb_wallet::entity::endowment_action_service::EndowmentActionDbService;
 use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 use sb_wallet::routes::{wallet_endowment_routes, wallet_routes};

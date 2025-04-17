@@ -4,13 +4,11 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use sb_wallet::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
-use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
+use sb_wallet::entity::wallet_entitiy::{CurrencySymbol};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
-use validator::ValidateRequired;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequestParticipantion {

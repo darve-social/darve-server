@@ -21,7 +21,7 @@ use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{
-    exists_entity, record_exists, IdentIdName, ViewFieldSelector,
+    record_exists, IdentIdName, ViewFieldSelector,
 };
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
