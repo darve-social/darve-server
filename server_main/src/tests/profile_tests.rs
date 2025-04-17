@@ -3,9 +3,7 @@ mod tests {
     use crate::test_utils::{create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
     use sb_community::routes::discussion_routes::get_discussion_view;
-    use sb_community::routes::profile_routes::{
-        ProfileChat, ProfileChatList, SearchInput,
-    };
+    use sb_community::routes::profile_routes::{ProfileChat, ProfileChatList, SearchInput};
     use sb_middleware::ctx::Ctx;
     use sb_middleware::error::AppError;
     use sb_middleware::utils::extractor_utils::DiscussionParams;
