@@ -161,9 +161,6 @@ async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
     AccessGainActionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    EndowmentActionDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
     TaskRequestDbService { db: &db, ctx: &c }
         .mutate_db()
