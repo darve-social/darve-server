@@ -20,9 +20,7 @@ use sb_middleware::db::Db;
 use sb_middleware::error::AppError::AuthorizationFail;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::{
-    record_exists, IdentIdName, ViewFieldSelector,
-};
+use sb_middleware::utils::db_utils::{record_exists, IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;

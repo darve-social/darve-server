@@ -1,7 +1,7 @@
 use askama_axum::Template;
 use axum::extract::State;
 use axum::response::sse::Event;
-use axum::response::Sse;
+use axum::response::{Html, Sse};
 use axum::routing::get;
 use axum::Router;
 use futures::stream::Stream as FStream;
@@ -11,25 +11,105 @@ use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::string::ToString;
 use std::time::Duration;
-use surrealdb::sql::Thing;
+use surrealdb::sql::{json, Thing};
 use surrealdb::{Error, Notification as SdbNotification};
 use tokio_stream::StreamExt as _;
 
 use crate::entity::local_user_entity::LocalUserDbService;
 use crate::entity::user_notification_entitiy;
-use crate::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
+use crate::entity::user_notification_entitiy::{
+    UserNotification, UserNotificationDbService, UserNotificationEvent,
+};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db::Db;
-use sb_middleware::error::{CtxError, CtxResult};
+use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
-use sb_middleware::utils::db_utils::NO_SUCH_THING;
+use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
+use sb_middleware::utils::extractor_utils::DiscussionParams;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/notification/user/sse", get(user_notification_sse))
+        .route(
+            "/api/notification/user/history",
+            get(user_notification_history),
+        )
         .with_state(state)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UserNotificationView {
+    pub id: Thing,
+    pub user: UserView,
+    pub event: UserNotificationEvent,
+    pub task: Option<NotifTaskRequestView>,
+    pub delivered_by: Option<UserView>,
+    pub deliverable: Option<NotifDeliverableView>,
+    pub from_user: Option<UserView>,
+    pub to_user: Option<UserView>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserView {
+    pub id: Thing,
+    pub username: String,
+    pub full_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotifDeliverableView {
+    pub id: Thing,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub urls: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post: Option<NotifProfilePostView>,
+    // pub user: UserView,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotifProfilePostView {
+    pub id: Thing,
+    // pub username: Option<String>,
+    // belongs_to_id=discussion
+    // pub belongs_to_id: Thing,
+    pub r_title_uri: Option<String>,
+    pub title: Option<String>,
+    pub content: String,
+    pub media_links: Option<Vec<String>>,
+    // pub r_created: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NotifTaskRequestView {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Thing>,
+    // pub from_user: sb_task::routes::task_request_routes::UserView,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub to_user: Option<sb_task::routes::task_request_routes::UserView>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_post: Option<Thing>,
+    pub request_txt: String,
+    // pub participants: Vec<TaskRequestParticipationView>,
+    // pub status: String,
+    // pub reward_type: RewardType,
+    // pub valid_until: DateTime<Utc>,
+    // pub currency: CurrencySymbol,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub deliverables: Option<Vec<DeliverableView>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub r_created: Option<String>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // pub r_updated: Option<String>,
+}
+
+impl ViewFieldSelector for UserNotificationView {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, user.* as user, event, event.value.delivered_by.* as delivered_by,\
+           event.d.value.task_id.{id, request_post, request_txt } as task,\
+           event.value.deliverable.{id, urls, post.{id, r_title_uri, title, media_links, content}} as deliverable,\
+           event.value.from_user.* as from_user, event.value.to_user.* as to_user ".to_string()
+    }
+}
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/user_notification_follow_view_1.html")]
 pub struct UserNotificationFollowView {
@@ -88,6 +168,31 @@ static ACCEPT_EVENT_NAMES: Lazy<[String; 4]> = Lazy::new(|| {
         .to_string(),
     ]
 });
+
+async fn user_notification_history(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+    q_params: DiscussionParams,
+) -> CtxResult<Html<String>> {
+    let user = LocalUserDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+    let notifications = UserNotificationDbService {
+        db: &_db,
+        ctx: &ctx,
+    }
+    .get_by_user_view::<UserNotificationView>(user, q_params)
+    .await?;
+    let json = serde_json::to_string(&notifications).map_err(|_| {
+        ctx.to_ctx_error(AppError::Generic {
+            description: "Render json error".to_string(),
+        })
+    })?;
+    Ok(Html(json))
+}
 
 async fn user_notification_sse(
     State(CtxState { _db, .. }): State<CtxState>,

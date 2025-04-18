@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use axum::body::Bytes;
-    use axum_test::multipart::{MultipartForm, Part};
+    use axum_test::multipart::MultipartForm;
     use surrealdb::sql::Thing;
     use uuid::Uuid;
 
@@ -9,15 +8,16 @@ mod tests {
     use sb_community::entity::community_entitiy::{Community, CommunityDbService};
     use sb_community::routes::community_routes::CommunityInput;
     use sb_middleware::ctx::Ctx;
+    use sb_middleware::utils::db_utils::NO_SUCH_THING;
     use sb_middleware::utils::request_utils::CreatedResponse;
     use sb_middleware::utils::string_utils::get_string_thing;
-    use sb_task::entity::task_request_entitiy::TaskRequestDbService;
     use sb_task::entity::task_request_entitiy::TaskStatus;
     use sb_task::routes::task_request_routes::{
         AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView,
     };
+    use sb_user_auth::entity::user_notification_entitiy::UserNotificationEvent;
     use sb_user_auth::routes::login_routes::LoginInput;
-    use sb_wallet::entity::funding_transaction_entity::FundingTransactionDbService;
+    use sb_user_auth::routes::user_notification_routes::UserNotificationView;
     use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
 
     #[tokio::test]
@@ -335,6 +335,7 @@ mod tests {
         let created_post = create_post.json::<CreatedResponse>();
         create_post.assert_status_success();
         let delivery_post_id = created_post.id.clone();
+        println!("DEL POST={}", delivery_post_id.clone());
         assert_eq!(created_post.id.len() > 0, true);
 
         // deliver task
@@ -389,5 +390,40 @@ mod tests {
         let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
         let task = received_post_tasks.get(0).unwrap();
         assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
+
+        // TODO check notifications for other users
+        // login user3 to check notifications
+        server.get("/logout").await;
+        let login_response = server
+            .post("/api/login")
+            .json(&LoginInput {
+                username: username3.clone(),
+                password: "some3242paSs#$".to_string(),
+                next: None,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+        login_response.assert_status_success();
+
+        // check user notifications
+        let notif_history_req = server
+            .get("/api/notification/user/history")
+            .add_header("Accept", "application/json")
+            .await;
+
+        notif_history_req.assert_status_success();
+        let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
+        assert_eq!(received_notifications.len(), 1);
+        let notif = received_notifications.get(0).unwrap();
+
+        assert_eq!(
+            notif.event.to_string(),
+            UserNotificationEvent::UserTaskRequestDelivered {
+                task_id: NO_SUCH_THING.clone(),
+                deliverable: NO_SUCH_THING.clone(),
+                delivered_by: NO_SUCH_THING.clone(),
+            }
+            .to_string()
+        );
     }
 }

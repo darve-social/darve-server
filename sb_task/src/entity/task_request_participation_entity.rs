@@ -5,7 +5,7 @@ use sb_middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
-use sb_wallet::entity::wallet_entitiy::{CurrencySymbol};
+use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
