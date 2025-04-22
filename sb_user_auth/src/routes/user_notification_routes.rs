@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::string::ToString;
 use std::time::Duration;
-use surrealdb::sql::{Thing};
+use surrealdb::sql::Thing;
 use surrealdb::{Error, Notification as SdbNotification};
 use tokio_stream::StreamExt as _;
 

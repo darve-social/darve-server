@@ -3,7 +3,7 @@ use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::db;
-use sb_middleware::error::{AppError, AppResult};
+use sb_middleware::error::{AppError, AppResult, CtxResult};
 use sb_middleware::mw_ctx::{create_ctx_state, CtxState};
 use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
@@ -101,7 +101,7 @@ pub async fn create_dev_env(
     bio: Option<String>,
     image_uri: Option<String>,
     full_name: Option<String>,
-) {
+) -> CtxResult<Vec<String>> {
     let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
     let hardcoded_bio =
         Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
@@ -109,7 +109,7 @@ pub async fn create_dev_env(
     let hardcoded_image_uri = Some(
         "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string(),
     );
-    register_user(
+    let id0 = register_user(
         &ctx_state._db,
         &ctx,
         &RegisterInput {
@@ -124,14 +124,16 @@ pub async fn create_dev_env(
         },
     )
     .await
-    .unwrap();
-    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test1".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test1".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
-    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test2".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test2 User2".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
-    register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test3".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test3".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap();
+    .unwrap()
+    .id;
+
+    let id1 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test1".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test1".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
+    let id2 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test2".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test2 User2".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
+    let id3 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test3".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test3".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
 
     // create one more user with the input data
 
-    register_user(
+    let id4 = register_user(
         &ctx_state._db,
         &ctx,
         &RegisterInput {
@@ -146,5 +148,7 @@ pub async fn create_dev_env(
         },
     )
     .await
-    .unwrap();
+    .unwrap()
+    .id;
+    Ok(vec![id0, id1, id2, id3, id4])
 }

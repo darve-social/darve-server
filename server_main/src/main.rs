@@ -1,7 +1,6 @@
 extern crate dotenv;
 
 use std::net::{Ipv4Addr, SocketAddr};
-
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -20,6 +19,7 @@ use uuid::Uuid;
 use sb_user_auth::routes::webauthn::webauthn_routes;
 
 use crate::test_utils::create_dev_env;
+use reqwest::Client;
 use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
@@ -106,7 +106,7 @@ async fn main() -> AppResult<()> {
         let image_uri =
             "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq"
                 .to_string();
-        create_dev_env(
+        let user_ids = create_dev_env(
             &ctx_state.clone(),
             username.clone(),
             password.clone(),
@@ -115,7 +115,21 @@ async fn main() -> AppResult<()> {
             Some(image_uri.clone()),
             Some(full_name.clone()),
         )
-        .await;
+        .await
+        .expect("create_dev_env");
+
+        tokio::task::spawn(async move {
+            for user_id in user_ids {
+                let endow_url = format!("http://localhost:8080/test/api/endow/{}/100", user_id);
+                println!("endow user: {}", endow_url);
+                Client::new()
+                    .get(endow_url)
+                    .send()
+                    .await
+                    .expect("send request");
+            }
+        });
+
         open::that(format!(
             "http://localhost:8080/login?u={username}&p={password}"
         ))

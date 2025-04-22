@@ -34,7 +34,7 @@ pub fn routes(state: CtxState) -> Router {
 
     let routes = if state.is_development {
         routes.route(
-            "/test/api/endow/:another_user_id/:amount",
+            "/test/api/endow/:endow_user_id/:amount",
             get(test_endowment_transaction),
         )
     } else {
@@ -96,7 +96,7 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
 async fn test_endowment_transaction(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    Path((another_user_id, amount)): Path<(String, i64)>,
+    Path((endow_user_id, amount)): Path<(String, i64)>,
 ) -> CtxResult<Response> {
     println!("->> {:<12} - request endowment_transaction ", "HANDLER");
 
@@ -107,7 +107,7 @@ async fn test_endowment_transaction(
         .into());
     }
 
-    let another_user_thing = get_string_thing(another_user_id).expect("got thing");
+    let another_user_thing = get_string_thing(endow_user_id).expect("got thing");
 
     print!("another_user_id");
 

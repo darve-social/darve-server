@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.87"
-axum = { version = "0.7.7", features = ["multipart", "http2" ] }
+axum = { version = "0.7.7", features = ["multipart", "http2"] }
 jsonwebtoken = "9.3.0"
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
@@ -18,8 +18,10 @@ chrono = { version = "0.4.38", features = ["serde"] }
 blake2 = "0.10.6"
 tower-http = { version = "0.6.1", features = ["fs"] }
 tower-sessions = "0.13.0"
-tower = { version = "0.5.1"}
-webauthn-rs = { version="0.5.0", features=["danger-allow-state-serialisation"]}
+tower = { version = "0.5.1" }
+webauthn-rs = { version = "0.5.0", features = [
+    "danger-allow-state-serialisation",
+] }
 thiserror = "1.0.63"
 base64 = "0.22.1"
 axum-test = "16.1.0"
@@ -35,12 +37,13 @@ tokio-stream = "0.1.16"
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8.5"
 #async-stripe = { version = "0.40.1", features = ["checkout", "runtime-tokio-hyper"] }
-surrealdb =  { version = "2.2.1", features = ["kv-mem"] }
+reqwest = "0.12.15"
+surrealdb = { version = "2.2.1", features = ["kv-mem"] }
 tokio-util = { version = "0.7.12", features = ["io", "futures-io"] }
 axum_typed_multipart = "0.13.0"
 tempfile = "3.13.0"
-sb_community={path = "../sb_community" }
-sb_middleware={path = "../sb_middleware" }
-sb_user_auth={path = "../sb_user_auth" }
-sb_task={path = "../sb_task" }
-sb_wallet={path = "../sb_wallet" }
+sb_community = { path = "../sb_community" }
+sb_middleware = { path = "../sb_middleware" }
+sb_user_auth = { path = "../sb_user_auth" }
+sb_task = { path = "../sb_task" }
+sb_wallet = { path = "../sb_wallet" }
