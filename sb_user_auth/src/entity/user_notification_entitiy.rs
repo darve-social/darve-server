@@ -26,12 +26,6 @@ pub struct UserNotification {
     pub r_created: Option<String>,
 }
 
-impl ViewFieldSelector for UserNotification {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "*".to_string()
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
 #[serde(tag = "type", content = "value")]
 pub enum UserNotificationEvent {
@@ -70,7 +64,6 @@ impl<'a> UserNotificationDbService<'a> {
         user_id: Thing,
         params: DiscussionParams,
     ) -> CtxResult<Vec<T>> {
-
         let pagination = Some(Pagination {
             order_by: None, // uses ulid  so not needed
             order_dir: None,
