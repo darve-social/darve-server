@@ -1,6 +1,5 @@
 extern crate dotenv;
 
-use std::net::{Ipv4Addr, SocketAddr};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -9,6 +8,7 @@ use axum_htmx::AutoVaryLayer;
 use chrono::Duration;
 use dotenv::dotenv;
 use error::AppResult;
+use std::net::{Ipv4Addr, SocketAddr};
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use tokio;
@@ -246,5 +246,5 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
 }
 
 async fn get_hc() -> Response {
-    (StatusCode::OK, "v0.0.1".to_string()).into_response()
+    (StatusCode::OK, "v0.0.1-rc1".to_string()).into_response()
 }
