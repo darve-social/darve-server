@@ -121,19 +121,18 @@ async fn main() -> AppResult<()> {
         tokio::task::spawn(async move {
             for user_id in user_ids {
                 let endow_url = format!("http://localhost:8080/test/api/endow/{}/100", user_id);
-                println!("endow user: {}", endow_url);
-                Client::new()
-                    .get(endow_url)
-                    .send()
-                    .await
-                    .expect("send request");
+                let endowed = Client::new().get(endow_url.clone()).send().await;
+                if let Err(err) = endowed {
+                    println!("Endow test user error: {}", err);
+                } else {
+                    println!("endowed user: {}", endow_url);
+                }
             }
         });
 
-        open::that(format!(
+        let _ = open::that(format!(
             "http://localhost:8080/login?u={username}&p={password}"
-        ))
-        .expect("browser opens");
+        ));
     }
 
     axum::serve(listener, routes_all.into_make_service())

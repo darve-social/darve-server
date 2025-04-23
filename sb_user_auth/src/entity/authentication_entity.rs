@@ -202,7 +202,7 @@ impl<'a> AuthenticationDbService<'a> {
     pub async fn create(&self, auth_input: Authentication) -> CtxResult<bool> {
         // ApiResult<Authentication> {
         let uid = auth_input.clone().id;
-        println!("CREATE AUTH id= {:?}", uid);
+        // println!("CREATE AUTH id= {:?}", uid);
         // let query = format!("CREATE {uid} SET timestamp={auth_input.};");
         // let createAuth = self.db.query(query).await?;
         let create_auth: Option<Authentication> =
