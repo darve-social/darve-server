@@ -291,7 +291,7 @@ async fn handle_webhook(
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
     match event.type_ {
-        // TODO should use
+        // TODO should use payment intent and metadata to determine endowment
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
                 let amount_paid = invoice.amount_paid.unwrap_or(0);
