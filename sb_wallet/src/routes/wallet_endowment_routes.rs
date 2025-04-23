@@ -166,6 +166,8 @@ async fn request_endowment_intent(
     })?;
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
+    // TODO product is not used in payment intent why are we creating it?
+    // should just add product id to metadata
     let product = {
         let product_title = "wallet_endowment".to_string();
         let pr_id: ProductId = EndowmentIdent {
@@ -185,7 +187,6 @@ async fn request_endowment_intent(
         }
     };
 
-    // and add a price for it in USD
     let price = {
         let mut create_price = CreatePrice::new(Currency::USD);
         create_price.product = Some(IdOrCreate::Id(&product.id));
@@ -195,42 +196,9 @@ async fn request_endowment_intent(
         )]));
         create_price.unit_amount = Some((price_amount * 100) as i64);
         create_price.expand = &["product"];
-        // create_price.recurring = match charge_access_rule.available_period_days {
-        //     Some(days_interval) => match days_interval > 0 {
-        //         true => Some(CreatePriceRecurring {
-        //             aggregate_usage: None,
-        //             interval: CreatePriceRecurringInterval::Day,
-        //             interval_count: Some(days_interval),
-        //             trial_period_days: None,
-        //             usage_type: None,
-        //         }),
-        //         false => None,
-        //     },
-        //     None => None,
-        // };
 
         Price::create(&client, create_price).await.unwrap()
     };
-
-    // println!(
-    //     "created a product {:?} at price {} {}",
-    //     product.name.unwrap(),
-    //     price.unit_amount.unwrap() / 100,
-    //     price.currency.unwrap()
-    // );
-
-    let platform_fee = 0;
-    /*let platform_fee = match price.unit_amount {
-        None => ctx_state.min_platform_fee_abs_2dec as i64,
-        Some(amt) => {
-            let rel = (amt as f64 * ctx_state.platform_fee_rel as f64) as i64;
-            if rel < ctx_state.min_platform_fee_abs_2dec as i64 {
-                ctx_state.min_platform_fee_abs_2dec as i64
-            } else {
-                rel
-            }
-        }
-    };*/
 
     let amt = price
         .unit_amount
@@ -240,14 +208,14 @@ async fn request_endowment_intent(
 
     let create_pi = CreatePaymentIntent {
         amount: amt,
-        currency: price.currency.clone().unwrap_or(Currency::USD),
+        currency: Currency::USD,
         metadata: Some(std::collections::HashMap::from([(
             String::from(PRICE_USER_ID_KEY),
             user_id.clone(),
         )])),
-        on_behalf_of: Some(acc_id.as_str()),
+        on_behalf_of: None,
         transfer_data: None,
-        application_fee_amount: Some(platform_fee),
+        application_fee_amount: None,
         automatic_payment_methods: None,
         capture_method: None,
         confirm: Some(false),
@@ -323,6 +291,7 @@ async fn handle_webhook(
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
     match event.type_ {
+        // TODO should use
         EventType::InvoicePaid => {
             if let EventObject::Invoice(invoice) = event.data.object {
                 let amount_paid = invoice.amount_paid.unwrap_or(0);
@@ -380,6 +349,7 @@ async fn handle_webhook(
         _ => {
             if ctx_state.is_development {
                 println!("Unknown event encountered in webhook: {:?}", event.type_);
+                dbg!(event.data.object);
             }
         }
     }
