@@ -9,25 +9,16 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
-// use futures::TryFutureExt;
-use stripe::{
-    AccountId, Client, CreatePaymentIntent, CreatePrice, CreateProduct, Currency, Event,
-    // EventObject, EventType, Expandable,
-     IdOrCreate,
-    //   Invoice, 
-      Price, Product, ProductId,
-};
-// use stripe::resources::checkout::checkout_session_ext::RetrieveCheckoutSessionLineItems;
+use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event, ProductId};
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{AppError,
-    //  CtxError, 
-     CtxResult};
+use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
+const PRODUCT_ID_KEY: &str = "product_id";
 
 pub fn routes(state: CtxState) -> Router {
     let routes = Router::new()
@@ -51,7 +42,7 @@ pub fn routes(state: CtxState) -> Router {
 
 struct EndowmentIdent {
     user_id: Thing,
-    amount: u32,
+    amount: i64,
     pub action: String,
 }
 
@@ -80,7 +71,7 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
         let amount = spl.next().ok_or(AppError::Generic {
             description: "missing amount part".to_string(),
         })?;
-        let amount = amount.parse::<u32>().map_err(|e| AppError::Generic {
+        let amount = amount.parse::<i64>().map_err(|e| AppError::Generic {
             description: e.to_string(),
         })?;
         let action = spl
@@ -154,69 +145,31 @@ async fn request_endowment_intent(
     let user_id = ctx.user_id()?;
     println!("User ID retrieved: {:?}", user_id);
 
-    let mut stripe_connect_account_id = ctx_state.stripe_platform_account.clone();
-    println!("Stripe Connect Account ID: {}", stripe_connect_account_id);
-
-    // taken from ctx_state/env
-    if ctx_state.is_development {
-        stripe_connect_account_id = "acct_1R3u5oJ2SO8dU9QJ".to_string();
-    }
-
-    let price_amount = amount;
-
-    let acc_id = AccountId::from_str(stripe_connect_account_id.as_str()).map_err(|e1| {
+    let acc_id = AccountId::from_str(ctx_state.stripe_platform_account.as_str()).map_err(|e1| {
         ctx.to_ctx_error(AppError::Stripe {
             source: e1.to_string(),
         })
     })?;
     let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
 
-    // TODO product is not used in payment intent why are we creating it?
-    // should just add product id to metadata
-    let product = {
+    let amt = (amount * 100) as i64;
+
+    let product_id: ProductId = {
         let product_title = "wallet_endowment".to_string();
-        let pr_id: ProductId = EndowmentIdent {
+        EndowmentIdent {
             user_id: get_string_thing(user_id.clone())?,
-            amount: price_amount,
+            amount: amt,
             action: product_title.clone(),
         }
-        .into();
-        let prod_res = Product::retrieve(&client, &pr_id, &[]).await;
-
-        if prod_res.is_err() {
-            let mut create_product = CreateProduct::new(product_title.as_str());
-            create_product.id = Some(pr_id.as_str());
-            Product::create(&client, create_product).await.unwrap()
-        } else {
-            prod_res.unwrap()
-        }
+        .into()
     };
-
-    let price = {
-        let mut create_price = CreatePrice::new(Currency::USD);
-        create_price.product = Some(IdOrCreate::Id(&product.id));
-        create_price.metadata = Some(std::collections::HashMap::from([(
-            String::from(PRICE_USER_ID_KEY),
-            String::from(user_id.clone()),
-        )]));
-        create_price.unit_amount = Some((price_amount * 100) as i64);
-        create_price.expand = &["product"];
-
-        Price::create(&client, create_price).await.unwrap()
-    };
-
-    let amt = price
-        .unit_amount
-        .ok_or(ctx.to_ctx_error(AppError::Generic {
-            description: "amount not set on product".to_string(),
-        }))?;
 
     let create_pi = CreatePaymentIntent {
         amount: amt,
         currency: Currency::USD,
         metadata: Some(std::collections::HashMap::from([(
-            String::from(PRICE_USER_ID_KEY),
-            user_id.clone(),
+            String::from(PRODUCT_ID_KEY),
+            product_id.to_string(),
         )])),
         on_behalf_of: None,
         transfer_data: None,
@@ -276,15 +229,18 @@ where
         } else {
             return Err(StatusCode::BAD_REQUEST.into_response());
         };
-    
+
+        // TODO is state ctx_state so we can set from env in main
         let payload = String::from_request(req, state)
             .await
             .map_err(IntoResponse::into_response)?;
-    
-        let wh_secret = std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
-    
-        let event = stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret);
-    
+
+        let wh_secret =
+            std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
+
+        let event =
+            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret);
+
         match event {
             Ok(e) => Ok(Self(e)),
             Err(e) => {
@@ -293,7 +249,6 @@ where
             }
         }
     }
-    
 }
 
 async fn handle_webhook(
@@ -301,76 +256,15 @@ async fn handle_webhook(
     ctx: Ctx,
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
-    // match event.type_ {
-        // TODO should use payment intent and metadata to determine endowment
-        // EventType::InvoicePaid => {
-        //     if let EventObject::Invoice(invoice) = event.data.object {
-        //         let amount_paid = invoice.amount_paid.unwrap_or(0);
-        //         if amount_paid <= 0 {
-        //             return Ok("No amount paid".into_response());
-        //         }
-
-        //         let currency_symbol = CurrencySymbol::USD;
-        //         let invoice_clone = invoice.clone();
-        //         let endowments = extract_invoice_data(&ctx_state, &ctx, invoice_clone).await?;
-        //         let external_account = match invoice.customer {
-        //             Some(Expandable::Id(ref id)) => id.as_str().to_string(),
-        //             Some(Expandable::Object(ref obj)) => obj.id.as_str().to_string(),
-        //             None => "unknown_customer".to_string(),
-        //         };
-        //         let external_tx_id = invoice.id.clone();
-        //         let fund_service = FundingTransactionDbService {
-        //             db: &ctx_state._db,
-        //             ctx: &ctx,
-        //         };
-
-        //         if invoice.amount_remaining.unwrap_or(0) > 0
-        //             || invoice.paid.unwrap_or(false) == false
-        //         {
-        //             let partial_amount = amount_paid;
-
-        //             fund_service
-        //                 .user_endowment_tx(
-        //                     &endowments[0].user_id,
-        //                     external_account,
-        //                     external_tx_id.to_string(),
-        //                     partial_amount,
-        //                     currency_symbol,
-        //                 )
-        //                 .await
-        //                 .expect("Partial endowment created");
-
-        //             return Ok("Partial payment processed".into_response());
-        //         }
-
-        //         let total_amount: i64 = endowments.iter().map(|e| e.amount as i64).sum();
-
-        //         fund_service
-        //             .user_endowment_tx(
-        //                 &endowments[0].user_id,
-        //                 external_account,
-        //                 external_tx_id.to_string(),
-        //                 total_amount,
-        //                 currency_symbol,
-        //             )
-        //             .await
-        //             .expect("Full endowment created");
-        //     }
-        // }
-        // _ => {
-            // if ctx_state.is_development {
-            //     println!("Unknown event encountered in webhook: {:?}", event.type_);
-            //     // dbg!(event.data.object);
-            // }
-        // }
-    // }
+    // TODO why do we need variable outside of match - the match is not looping it's only called once
     let mut amount_received = 0;
 
     match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
             println!("PaymentIntentSucceeded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
-                amount_received = (payment_intent.amount_received+amount_received)/100;
+                // TODO make all values in db fixed with nr of decimals
+                amount_received = (payment_intent.amount_received + amount_received) / 100;
                 if amount_received <= 0 {
                     return Ok("No amount received".into_response());
                 }
@@ -380,30 +274,38 @@ async fn handle_webhook(
                 println!("PaymentIntent ID: {}", payment_intent.id);
                 println!("Amount Received: {}", amount_received);
 
-                let metadata = &payment_intent.metadata;
-                let user_id_str = metadata.get("user_id").unwrap_or(&"unknown".to_string()).clone();
-                let user_id = get_string_thing(user_id_str)?;
-
-                let external_account = payment_intent.customer.as_ref().map_or("unknown_customer".to_string(), |cust| {
-                    match cust {
-                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
-                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
-                    }
-                });
-
-                let external_tx_id = payment_intent.id.clone();
                 let fund_service = FundingTransactionDbService {
                     db: &ctx_state._db,
                     ctx: &ctx,
                 };
 
-                let total_amount = amount_received;
+                let metadata = &payment_intent.metadata;
+                let endowment_id: Option<EndowmentIdent> = metadata
+                    .get(PRODUCT_ID_KEY)
+                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
+                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
+
+                let user_id: Thing = match endowment_id {
+                    Some(end_id) => end_id.user_id,
+                    None => fund_service.unknown_endowment_user_id(),
+                };
+
+                let external_account = payment_intent.customer.as_ref().map_or(
+                    "unknown_customer".to_string(),
+                    |cust| match cust {
+                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
+                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
+                    },
+                );
+
+                let external_tx_id = payment_intent.id.clone();
+
                 fund_service
                     .user_endowment_tx(
                         &user_id,
                         external_account,
                         external_tx_id.to_string(),
-                        total_amount,
+                        amount_received,
                         currency_symbol,
                     )
                     .await
@@ -414,35 +316,33 @@ async fn handle_webhook(
                     ctx: &ctx,
                 };
 
+                // TODO why we need to call get_user_balance?
                 let user1_bal = wallet_service
-                .get_user_balance(&user_id)
-                .await
-                .expect("got balance");
+                    .get_user_balance(&user_id)
+                    .await
+                    .expect("got balance");
 
-                println!("Updated user balance {:?}",user1_bal);
+                println!("Updated user balance {:?}", user1_bal);
 
                 return Ok("Full payment processed".into_response());
             }
         }
-        stripe::EventType::PaymentIntentCanceled => {
-            return Ok("Payment Cancelled".into_response());
-        }
-        stripe::EventType::PaymentIntentPaymentFailed => {
-            return Ok("Failed to process payment".into_response());
-        }
         stripe::EventType::PaymentIntentPartiallyFunded => {
             println!("PaymentIntentPartiallyFunded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = &event.data.object {
+                // TODO payment_intent.amount_received is fixed value so need to divide by 100
                 let partial_amount_received = payment_intent.amount_received;
                 if partial_amount_received <= 0 {
                     return Ok("No partial amount received".into_response());
                 }
 
+                // TODO why are we setting outside variable?
                 amount_received += partial_amount_received;
 
                 println!("Partial Amount Received: {}", partial_amount_received);
                 println!("Total Amount Received (accumulated): {}", amount_received);
 
+                // TODO there is no user_endowment_tx call here - what's the purpose of this event type if not to make endowment_tx call for partial amount?
                 return Ok("Partial payment processed".into_response());
             }
         }
@@ -456,58 +356,3 @@ async fn handle_webhook(
 
     Ok("".into_response())
 }
-
-// async fn extract_invoice_data(
-//     _ctx_state: &CtxState,
-//     ctx: &Ctx,
-//     invoice: Invoice,
-// ) -> Result<Vec<EndowmentIdent>, CtxError> {
-//     let mut endowments: Vec<EndowmentIdent> = vec![];
-//     if let Some(list) = invoice.lines {
-//         for item in list.data {
-//             if let Some(price) = item.price {
-//                 if let Some(mut md) = price.metadata {
-//                     let user_id = md.remove(PRICE_USER_ID_KEY);
-//                     if user_id.is_some() {
-//                         let usr_id = get_string_thing(user_id.clone().unwrap());
-//                         let product_id = price.product.unwrap().id();
-//                         if usr_id.is_ok() {
-//                             // product id has can be converted into EndowmentIdent that has userid info
-//                             let endowment_ident: Result<EndowmentIdent, AppError> =
-//                                 MyStripeProductId(product_id.clone()).try_into();
-//                             if endowment_ident.is_ok() {
-//                                 endowments.push(endowment_ident.expect("checked to be ok"));
-//                             } else {
-//                                 println!(
-//                                     "ERROR stripe wh parse product id {} into thing invoice={}",
-//                                     product_id.as_str(),
-//                                     invoice.id.as_str()
-//                                 )
-//                             }
-//                         } else {
-//                             println!(
-//                                 "ERROR stripe wh parse user id {:?} into thing invoice={}",
-//                                 user_id.unwrap(),
-//                                 invoice.id.as_str()
-//                             )
-//                         }
-//                     } else {
-//                         println!(
-//                             "ERROR stripe wh no user id for price {} invoice={}",
-//                             price.id.as_str(),
-//                             invoice.id.as_str()
-//                         );
-//                     }
-//                 }
-//             }
-//         }
-//     };
-
-//     if endowments.len() == 0 {
-//         Err(ctx.to_ctx_error(AppError::Generic {
-//             description: "extract invoice data err".to_string(),
-//         }))
-//     } else {
-//         Ok(endowments)
-//     }
-// }
