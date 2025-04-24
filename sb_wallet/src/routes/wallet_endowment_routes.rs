@@ -364,15 +364,16 @@ async fn handle_webhook(
             // }
         // }
     // }
+    let mut amount_received = 0;
+
     match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
             println!("PaymentIntentSucceeded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
-                let amount_received = payment_intent.amount_received;
+                amount_received = (payment_intent.amount_received+amount_received)/100;
                 if amount_received <= 0 {
                     return Ok("No amount received".into_response());
                 }
-
 
                 let currency_symbol = CurrencySymbol::USD;
 
@@ -396,21 +397,6 @@ async fn handle_webhook(
                     ctx: &ctx,
                 };
 
-                if amount_received > 0 {
-                    fund_service
-                        .user_endowment_tx(
-                            &user_id,
-                            external_account,
-                            external_tx_id.to_string(),
-                            amount_received,
-                            currency_symbol,
-                        )
-                        .await
-                        .expect("Partial endowment created");
-
-                    return Ok("Partial payment processed".into_response());
-                }
-
                 let total_amount = amount_received;
                 fund_service
                     .user_endowment_tx(
@@ -423,7 +409,41 @@ async fn handle_webhook(
                     .await
                     .expect("Full endowment created");
 
+                let wallet_service = WalletDbService {
+                    db: &ctx_state._db,
+                    ctx: &ctx,
+                };
+
+                let user1_bal = wallet_service
+                .get_user_balance(&user_id)
+                .await
+                .expect("got balance");
+
+                println!("Updated user balance {:?}",user1_bal);
+
                 return Ok("Full payment processed".into_response());
+            }
+        }
+        stripe::EventType::PaymentIntentCanceled => {
+            return Ok("Payment Cancelled".into_response());
+        }
+        stripe::EventType::PaymentIntentPaymentFailed => {
+            return Ok("Failed to process payment".into_response());
+        }
+        stripe::EventType::PaymentIntentPartiallyFunded => {
+            println!("PaymentIntentPartiallyFunded event received");
+            if let stripe::EventObject::PaymentIntent(payment_intent) = &event.data.object {
+                let partial_amount_received = payment_intent.amount_received;
+                if partial_amount_received <= 0 {
+                    return Ok("No partial amount received".into_response());
+                }
+
+                amount_received += partial_amount_received;
+
+                println!("Partial Amount Received: {}", partial_amount_received);
+                println!("Total Amount Received (accumulated): {}", amount_received);
+
+                return Ok("Partial payment processed".into_response());
             }
         }
         _ => {
