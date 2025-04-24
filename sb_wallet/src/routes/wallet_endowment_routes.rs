@@ -49,7 +49,7 @@ struct EndowmentIdent {
 impl From<EndowmentIdent> for ProductId {
     fn from(value: EndowmentIdent) -> Self {
         let stripe_prod_id = format!(
-            "{}_{}_{}",
+            "{}~{}~{}",
             value.user_id.to_raw().replace(":", "-"),
             value.amount,
             value.action
@@ -64,7 +64,7 @@ impl TryFrom<MyStripeProductId> for EndowmentIdent {
     type Error = AppError;
 
     fn try_from(value: MyStripeProductId) -> Result<Self, Self::Error> {
-        let mut spl = value.0.as_str().split("_");
+        let mut spl = value.0.as_str().split("~");
         let user_ident = spl.next().ok_or(AppError::Generic {
             description: "missing user_id part".to_string(),
         })?;
@@ -282,8 +282,14 @@ async fn handle_webhook(
                 let metadata = &payment_intent.metadata;
                 let endowment_id: Option<EndowmentIdent> = metadata
                     .get(PRODUCT_ID_KEY)
-                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
-                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
+                    .and_then(|pr_id| {
+                        println!("{pr_id}");
+                        ProductId::from_str(pr_id).ok()
+                    })
+                    .and_then(|pr_id| {
+                        dbg!("&pr_id");
+                        EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok()
+                    });
 
                 let user_id: Thing = match endowment_id {
                     Some(end_id) => end_id.user_id,
@@ -349,7 +355,7 @@ async fn handle_webhook(
         _ => {
             if ctx_state.is_development {
                 println!("Unknown event encountered in webhook: {:?}", event.type_);
-                dbg!(event.data.object);
+                // dbg!(event.data.object);
             }
         }
     }
