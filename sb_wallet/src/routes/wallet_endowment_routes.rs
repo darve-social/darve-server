@@ -282,14 +282,8 @@ async fn handle_webhook(
                 let metadata = &payment_intent.metadata;
                 let endowment_id: Option<EndowmentIdent> = metadata
                     .get(PRODUCT_ID_KEY)
-                    .and_then(|pr_id| {
-                        println!("{pr_id}");
-                        ProductId::from_str(pr_id).ok()
-                    })
-                    .and_then(|pr_id| {
-                        dbg!("&pr_id");
-                        EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok()
-                    });
+                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
+                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
 
                 let user_id: Thing = match endowment_id {
                     Some(end_id) => end_id.user_id,
