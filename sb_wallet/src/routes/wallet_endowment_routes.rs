@@ -406,8 +406,7 @@ async fn handle_webhook(
                     return Ok("Partial payment processed".into_response());
                 }
 
-                // If the full amount was received, process full endowment
-                let total_amount = amount_received; // Adjust based on your use case
+                let total_amount = amount_received;
                 fund_service
                     .user_endowment_tx(
                         &user_id,
