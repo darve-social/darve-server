@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 use crate::entity::funding_transaction_entity::FundingTransactionDbService;
@@ -9,15 +10,14 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
-use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event, ProductId};
+use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event};
 use surrealdb::sql::Thing;
 
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxResult};
-use sb_middleware::mw_ctx::CtxState;
+use sb_middleware::mw_ctx::{CtxState, StripeConfig};
 use sb_middleware::utils::string_utils::get_string_thing;
 
-// const PRICE_USER_ID_KEY: &str = "user_id";
 const PRODUCT_ID_KEY: &str = "product_id";
 
 pub fn routes(state: CtxState) -> Router {
@@ -46,25 +46,23 @@ struct EndowmentIdent {
     pub action: String,
 }
 
-impl From<EndowmentIdent> for ProductId {
-    fn from(value: EndowmentIdent) -> Self {
-        let stripe_prod_id = format!(
+impl Display for EndowmentIdent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
             "{}~{}~{}",
-            value.user_id.to_raw().replace(":", "-"),
-            value.amount,
-            value.action
-        );
-        ProductId::from_str(stripe_prod_id.as_str()).unwrap()
+            self.user_id.to_raw().replace(":", "-"),
+            self.amount,
+            self.action
+        )
     }
 }
 
-struct MyStripeProductId(ProductId);
-
-impl TryFrom<MyStripeProductId> for EndowmentIdent {
+impl TryFrom<&String> for EndowmentIdent {
     type Error = AppError;
 
-    fn try_from(value: MyStripeProductId) -> Result<Self, Self::Error> {
-        let mut spl = value.0.as_str().split("~");
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        let mut spl = value.as_str().split("~");
         let user_ident = spl.next().ok_or(AppError::Generic {
             description: "missing user_id part".to_string(),
         })?;
@@ -154,14 +152,11 @@ async fn request_endowment_intent(
 
     let amt = (amount * 100) as i64;
 
-    let product_id: ProductId = {
-        let product_title = "wallet_endowment".to_string();
-        EndowmentIdent {
-            user_id: get_string_thing(user_id.clone())?,
-            amount: amt,
-            action: product_title.clone(),
-        }
-        .into()
+    let product_title = "wallet_endowment".to_string();
+    let endowment_id = EndowmentIdent {
+        user_id: get_string_thing(user_id.clone())?,
+        amount: amt,
+        action: product_title.clone(),
     };
 
     let create_pi = CreatePaymentIntent {
@@ -169,7 +164,7 @@ async fn request_endowment_intent(
         currency: Currency::USD,
         metadata: Some(std::collections::HashMap::from([(
             String::from(PRODUCT_ID_KEY),
-            product_id.to_string(),
+            endowment_id.to_string(),
         )])),
         on_behalf_of: None,
         transfer_data: None,
@@ -215,14 +210,15 @@ async fn request_endowment_intent(
 #[allow(dead_code)]
 struct StripeEvent(Event);
 
+// TODO merge duplicate code in stripe_utils
 #[async_trait]
 impl<S> FromRequest<S> for StripeEvent
 where
     String: FromRequest<S>,
-    S: Send + Sync,
+    S: Send + Sync + StripeConfig,
 {
     type Rejection = Response;
-
+    
     async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
         let signature = if let Some(sig) = req.headers().get("stripe-signature") {
             sig.to_owned()
@@ -230,13 +226,11 @@ where
             return Err(StatusCode::BAD_REQUEST.into_response());
         };
 
-        // TODO is state ctx_state so we can set from env in main
         let payload = String::from_request(req, state)
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret =
-            std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
+        let wh_secret = state.get_webhook_secret();
 
         let event =
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret);
@@ -261,104 +255,71 @@ async fn handle_webhook(
         ctx: &ctx,
     };
 
-    match event.type_ {
+    let payment_intent = match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
-                let amount_received = payment_intent.amount_received / 100;
-                if amount_received <= 0 {
-                    return Ok("No amount received".into_response());
-                }
-
-                let currency_symbol = CurrencySymbol::USD;
-
-                println!("PaymentIntent ID: {}", payment_intent.id);
-                println!("Amount Received: {}", amount_received);
-
-                let metadata = &payment_intent.metadata;
-                let endowment_id: Option<EndowmentIdent> = metadata
-                    .get(PRODUCT_ID_KEY)
-                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
-                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
-
-                let user_id: Thing = match endowment_id {
-                    Some(end_id) => end_id.user_id,
-                    None => fund_service.unknown_endowment_user_id(),
-                };
-
-                let external_account = payment_intent.customer.as_ref().map_or(
-                    "unknown_customer".to_string(),
-                    |cust| match cust {
-                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
-                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
-                    },
-                );
-
-                let external_tx_id = payment_intent.id.clone();
-
-                fund_service
-                    .user_endowment_tx(
-                        &user_id,
-                        external_account,
-                        external_tx_id.to_string(),
-                        amount_received,
-                        currency_symbol,
-                    )
-                    .await
-                    .expect("Full endowment created");
-
-                return Ok("Full payment processed".into_response());
+                Some(payment_intent)
+            } else {
+                None
             }
         }
         stripe::EventType::PaymentIntentPartiallyFunded => {
-            if let stripe::EventObject::PaymentIntent(payment_intent) = &event.data.object {
-                let partial_amount_received = payment_intent.amount_received / 100;
-                if partial_amount_received <= 0 {
-                    return Ok("No partial amount received".into_response());
-                }
-
-                let external_account = payment_intent.customer.as_ref().map_or(
-                    "unknown_customer".to_string(),
-                    |cust| match cust {
-                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
-                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
-                    },
-                );
-
-                let external_tx_id = payment_intent.id.clone();
-
-                let metadata = &payment_intent.metadata;
-
-                let endowment_id: Option<EndowmentIdent> = metadata
-                    .get(PRODUCT_ID_KEY)
-                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
-                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
-
-                let user_id: Thing = match endowment_id {
-                    Some(end_id) => end_id.user_id,
-                    None => fund_service.unknown_endowment_user_id(),
-                };
-
-                fund_service
-                    .user_endowment_tx(
-                        &user_id,
-                        external_account,
-                        external_tx_id.to_string(),
-                        partial_amount_received,
-                        CurrencySymbol::USD,
-                    )
-                    .await
-                    .expect("Full endowment created");
-
-                return Ok("Partial payment processed".into_response());
+            if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
+                Some(payment_intent)
+            } else {
+                None
             }
         }
         _ => {
             if ctx_state.is_development {
                 println!("Unknown event encountered in webhook: {:?}", event.type_);
-                // dbg!(event.data.object);
             }
+            None
         }
-    }
+    };
 
-    Ok("".into_response())
+    match payment_intent {
+        Some(payment_intent) => {
+            // TODO -fixed_decimals- amount in db should be in fixed with decimals
+            let amount_received = payment_intent.amount_received / 100;
+            if amount_received <= 0 {
+                return Ok("No amount received".into_response());
+            }
+
+            let endowment_id: Option<EndowmentIdent> = payment_intent
+                .metadata
+                .get(PRODUCT_ID_KEY)
+                .and_then(|pr_id| EndowmentIdent::try_from(pr_id).ok());
+
+            let user_id: Thing = match endowment_id {
+                Some(end_id) => end_id.user_id,
+                None => fund_service.unknown_endowment_user_id(),
+            };
+
+            let external_account =
+                payment_intent
+                    .customer
+                    .as_ref()
+                    .map_or("unknown_customer".to_string(), |cust| match cust {
+                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
+                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
+                    });
+
+            let external_tx_id = payment_intent.id;
+
+            fund_service
+                .user_endowment_tx(
+                    &user_id,
+                    external_account,
+                    external_tx_id.to_string(),
+                    amount_received,
+                    CurrencySymbol::USD,
+                )
+                .await
+                .expect("Full endowment created");
+
+            Ok("Full payment processed".into_response())
+        }
+        None => Ok("No valid data to process".into_response()),
+    }
 }
