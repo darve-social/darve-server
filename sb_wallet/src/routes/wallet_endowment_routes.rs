@@ -17,7 +17,7 @@ use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::string_utils::get_string_thing;
 
-const PRICE_USER_ID_KEY: &str = "user_id";
+// const PRICE_USER_ID_KEY: &str = "user_id";
 const PRODUCT_ID_KEY: &str = "product_id";
 
 pub fn routes(state: CtxState) -> Router {
@@ -256,15 +256,11 @@ async fn handle_webhook(
     ctx: Ctx,
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
-    // TODO why do we need variable outside of match - the match is not looping it's only called once
-    let mut amount_received = 0;
-
     match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
             println!("PaymentIntentSucceeded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
-                // TODO make all values in db fixed with nr of decimals
-                amount_received = (payment_intent.amount_received + amount_received) / 100;
+                let amount_received = payment_intent.amount_received / 100;
                 if amount_received <= 0 {
                     return Ok("No amount received".into_response());
                 }
@@ -311,38 +307,55 @@ async fn handle_webhook(
                     .await
                     .expect("Full endowment created");
 
-                let wallet_service = WalletDbService {
-                    db: &ctx_state._db,
-                    ctx: &ctx,
-                };
-
-                // TODO why we need to call get_user_balance?
-                let user1_bal = wallet_service
-                    .get_user_balance(&user_id)
-                    .await
-                    .expect("got balance");
-
-                println!("Updated user balance {:?}", user1_bal);
-
                 return Ok("Full payment processed".into_response());
             }
         }
         stripe::EventType::PaymentIntentPartiallyFunded => {
             println!("PaymentIntentPartiallyFunded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = &event.data.object {
-                // TODO payment_intent.amount_received is fixed value so need to divide by 100
-                let partial_amount_received = payment_intent.amount_received;
+                let partial_amount_received = payment_intent.amount_received / 100;
                 if partial_amount_received <= 0 {
                     return Ok("No partial amount received".into_response());
                 }
 
-                // TODO why are we setting outside variable?
-                amount_received += partial_amount_received;
+                let external_account = payment_intent.customer.as_ref().map_or(
+                    "unknown_customer".to_string(),
+                    |cust| match cust {
+                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
+                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
+                    },
+                );
 
-                println!("Partial Amount Received: {}", partial_amount_received);
-                println!("Total Amount Received (accumulated): {}", amount_received);
+                let external_tx_id = payment_intent.id.clone();
 
-                // TODO there is no user_endowment_tx call here - what's the purpose of this event type if not to make endowment_tx call for partial amount?
+                let fund_service = FundingTransactionDbService {
+                    db: &ctx_state._db,
+                    ctx: &ctx,
+                };
+
+                let metadata = &payment_intent.metadata;
+
+                let endowment_id: Option<EndowmentIdent> = metadata
+                    .get(PRODUCT_ID_KEY)
+                    .and_then(|pr_id| ProductId::from_str(pr_id).ok())
+                    .and_then(|pr_id| EndowmentIdent::try_from(MyStripeProductId(pr_id)).ok());
+
+                let user_id: Thing = match endowment_id {
+                    Some(end_id) => end_id.user_id,
+                    None => fund_service.unknown_endowment_user_id(),
+                };
+
+                fund_service
+                    .user_endowment_tx(
+                        &user_id,
+                        external_account,
+                        external_tx_id.to_string(),
+                        partial_amount_received,
+                        CurrencySymbol::USD,
+                    )
+                    .await
+                    .expect("Full endowment created");
+
                 return Ok("Partial payment processed".into_response());
             }
         }
