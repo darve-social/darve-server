@@ -36,7 +36,7 @@ impl Debug for CtxState {
         f.write_str("CTX STATE HERE :)")
     }
 }
-π
+
 pub trait StripeConfig {
     fn get_webhook_secret(&self) -> String;
 }

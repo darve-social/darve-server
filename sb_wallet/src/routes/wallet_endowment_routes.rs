@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 use crate::entity::funding_transaction_entity::FundingTransactionDbService;
