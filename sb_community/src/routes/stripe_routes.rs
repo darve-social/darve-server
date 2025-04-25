@@ -28,7 +28,7 @@ use crate::entity::community_entitiy::CommunityDbService;
 use crate::routes::community_routes::community_admin_access;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxError, CtxResult};
-use sb_middleware::mw_ctx::CtxState;
+use sb_middleware::mw_ctx::{CtxState, StripeConfig};
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::access_gain_action_entitiy::{
@@ -504,7 +504,7 @@ struct StripeEvent(Event);
 impl<S> FromRequest<S> for StripeEvent
 where
     String: FromRequest<S>,
-    S: Send + Sync,
+    S: Send + Sync + StripeConfig,
 {
     type Rejection = Response;
 
@@ -519,9 +519,9 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret = "whsec_09294dbed5e920d70bfbceeb507014faabc29f94658e4d643fea98d21978cb38";
+        let wh_secret = state.get_webhook_secret();
         Ok(Self(
-            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), wh_secret)
+            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret)
                 .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,
         ))
     }

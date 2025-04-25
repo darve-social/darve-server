@@ -42,6 +42,22 @@ pub enum CurrencySymbol {
     ETH,
 }
 
+// TODO -fixed_decimals- save as fixed value in db and use display_decimals for UI
+#[allow(dead_code)]
+impl CurrencySymbol {
+    fn fixed_decimals(&self) -> u32 {
+        match self {
+            CurrencySymbol::USD => 2,
+            CurrencySymbol::REEF => 18,
+            CurrencySymbol::ETH => 18
+        }
+    }
+
+    fn display_decimal(&self, _balance_fixed: i64, _display_number_decimals: u8)-> i64 {
+        todo!(); // TODO return display value with specific number of decimals for UI
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct WalletBalanceView {
     pub id: Thing,

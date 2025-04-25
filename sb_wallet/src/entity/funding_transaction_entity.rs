@@ -141,4 +141,8 @@ impl<'a> FundingTransactionDbService<'a> {
             get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
+
+    pub fn unknown_endowment_user_id(&self) -> Thing {
+        Thing::try_from((USER_TABLE, "unrecognised_user_endowment_id")).expect("is valid")
+    }
 }

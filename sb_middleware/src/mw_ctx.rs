@@ -37,6 +37,16 @@ impl Debug for CtxState {
     }
 }
 
+pub trait StripeConfig {
+    fn get_webhook_secret(&self) -> String;
+}
+
+impl StripeConfig for CtxState {
+    fn get_webhook_secret(&self) -> String {
+        self.stripe_wh_secret.clone()
+    }
+}
+
 pub fn create_ctx_state(
     start_password: String,
     is_development: bool,
