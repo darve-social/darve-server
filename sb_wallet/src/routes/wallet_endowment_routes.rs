@@ -256,6 +256,11 @@ async fn handle_webhook(
     ctx: Ctx,
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
+    let fund_service = FundingTransactionDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+
     match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
             println!("PaymentIntentSucceeded event received");
@@ -269,11 +274,6 @@ async fn handle_webhook(
 
                 println!("PaymentIntent ID: {}", payment_intent.id);
                 println!("Amount Received: {}", amount_received);
-
-                let fund_service = FundingTransactionDbService {
-                    db: &ctx_state._db,
-                    ctx: &ctx,
-                };
 
                 let metadata = &payment_intent.metadata;
                 let endowment_id: Option<EndowmentIdent> = metadata
@@ -327,11 +327,6 @@ async fn handle_webhook(
                 );
 
                 let external_tx_id = payment_intent.id.clone();
-
-                let fund_service = FundingTransactionDbService {
-                    db: &ctx_state._db,
-                    ctx: &ctx,
-                };
 
                 let metadata = &payment_intent.metadata;
 
