@@ -263,7 +263,6 @@ async fn handle_webhook(
 
     match event.type_ {
         stripe::EventType::PaymentIntentSucceeded => {
-            println!("PaymentIntentSucceeded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
                 let amount_received = payment_intent.amount_received / 100;
                 if amount_received <= 0 {
@@ -311,7 +310,6 @@ async fn handle_webhook(
             }
         }
         stripe::EventType::PaymentIntentPartiallyFunded => {
-            println!("PaymentIntentPartiallyFunded event received");
             if let stripe::EventObject::PaymentIntent(payment_intent) = &event.data.object {
                 let partial_amount_received = payment_intent.amount_received / 100;
                 if partial_amount_received <= 0 {
