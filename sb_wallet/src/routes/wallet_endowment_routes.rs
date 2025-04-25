@@ -101,9 +101,7 @@ async fn test_endowment_transaction(
         .into());
     }
 
-    let another_user_thing = get_string_thing(endow_user_id).expect("got thing");
-
-    print!("another_user_id");
+    let another_user_thing = get_string_thing(endow_user_id)?;
 
     let fund_service = FundingTransactionDbService {
         db: &ctx_state._db,
@@ -122,13 +120,11 @@ async fn test_endowment_transaction(
             amount,
             CurrencySymbol::USD,
         )
-        .await
-        .expect("created");
+        .await?;
 
     let user1_bal = wallet_service
         .get_user_balance(&another_user_thing)
-        .await
-        .expect("got balance");
+        .await?;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
 }
@@ -307,7 +303,7 @@ async fn handle_webhook(
 
             let external_tx_id = payment_intent.id;
 
-            fund_service
+            let endowment_saved = fund_service
                 .user_endowment_tx(
                     &user_id,
                     external_account,
@@ -315,8 +311,10 @@ async fn handle_webhook(
                     amount_received,
                     CurrencySymbol::USD,
                 )
-                .await
-                .expect("Full endowment created");
+                .await;
+            if endowment_saved.is_err() {
+                println!("ERROR saving endowment user={user_id}, amount={amount_received}, stripe_tx={}", external_tx_id.to_string());
+            }
 
             Ok("Full payment processed".into_response())
         }
