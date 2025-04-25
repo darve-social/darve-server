@@ -164,6 +164,9 @@ async fn request_endowment_intent(
         .into()
     };
 
+    let platform_fee = 0;
+    let platform_acc_id = "acct_1Q29UUEdDBSaSZL3";
+
     let create_pi = CreatePaymentIntent {
         amount: amt,
         currency: Currency::USD,
@@ -171,9 +174,19 @@ async fn request_endowment_intent(
             String::from(PRODUCT_ID_KEY),
             product_id.to_string(),
         )])),
-        on_behalf_of: None,
-        transfer_data: None,
-        application_fee_amount: None,
+        // OLD CODE
+        // on_behalf_of: None, //Some(acc_id.as_str()), - None as by default acc_id is used 
+        // transfer_data: None,
+        // application_fee_amount: None, //Some(platform_fee) - can only use application fee when used on_behalf_of
+
+        //NEW CODE : use some other account for receiving platform_fee
+        on_behalf_of: Some(platform_acc_id),
+        transfer_data: Some(stripe::CreatePaymentIntentTransferData {
+            destination: platform_acc_id.to_string(),
+            amount: Some(amt - platform_fee),
+        }),
+        application_fee_amount: Some(platform_fee),
+        
         automatic_payment_methods: None,
         capture_method: None,
         confirm: Some(false),
@@ -324,6 +337,8 @@ async fn handle_webhook(
                     },
                 );
 
+                println!("external_account {:?}",external_account);
+
                 let external_tx_id = payment_intent.id.clone();
 
                 let metadata = &payment_intent.metadata;
@@ -347,7 +362,7 @@ async fn handle_webhook(
                         CurrencySymbol::USD,
                     )
                     .await
-                    .expect("Full endowment created");
+                    .expect("Partial endowment created");
 
                 return Ok("Partial payment processed".into_response());
             }
