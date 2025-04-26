@@ -252,14 +252,7 @@ async fn handle_webhook(
     };
 
     let payment_intent = match event.type_ {
-        stripe::EventType::PaymentIntentSucceeded => {
-            if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
-                Some(payment_intent)
-            } else {
-                None
-            }
-        }
-        stripe::EventType::PaymentIntentPartiallyFunded => {
+        stripe::EventType::PaymentIntentSucceeded | stripe::EventType::PaymentIntentPartiallyFunded => {
             if let stripe::EventObject::PaymentIntent(payment_intent) = event.data.object {
                 Some(payment_intent)
             } else {
