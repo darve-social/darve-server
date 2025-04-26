@@ -2,7 +2,8 @@ use crate::entity::currency_transaction_entitiy::CurrencyTransactionDbService;
 use crate::entity::wallet_entitiy::{CurrencySymbol, UserView, WalletDbService};
 use askama::Template;
 use axum::extract::State;
-use axum::response::Html;
+use axum::response::{Html, Sse};
+use axum::response::sse::Event;
 use axum::routing::get;
 use axum::Router;
 use sb_middleware::ctx::Ctx;
@@ -13,10 +14,14 @@ use sb_middleware::utils::extractor_utils::DiscussionParams;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationEvent};
+use sb_user_auth::routes::user_notification_routes::create_user_notifications_sse;
+use futures::stream::Stream as FStream;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
+        .route("/api/user/wallet/balance/sse", get(get_balance_update_sse))
         .with_state(state)
 }
 
@@ -79,4 +84,31 @@ pub async fn get_wallet_history(
         wallet: user_wallet_id,
         transactions,
     })
+}
+
+async fn get_balance_update_sse(
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+    create_user_notifications_sse(
+        &_db,
+        ctx,
+        Vec::from([UserNotificationEvent::UserBalanceUpdate.to_string()]),
+        to_sse_event,
+    )
+        .await?
+}
+
+fn to_sse_event(_ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
+    let event_ident = notification.event.to_string();
+    let event = match notification.event {
+        UserNotificationEvent::UserBalanceUpdate { .. } => {
+            Event::default().data("").event(event_ident)
+        }
+        _ => Event::default()
+            .data(format!("Event ident {event_ident} recognised"))
+            .event("Error".to_string()),
+    };
+
+    Ok(event)
 }

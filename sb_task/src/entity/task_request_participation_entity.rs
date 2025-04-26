@@ -82,7 +82,7 @@ impl<'a> TaskParticipationDbService<'a> {
 
     pub async fn get_ids(
         &self,
-        participant_ids: Vec<Thing>,
+        participant_ids: &Vec<Thing>,
     ) -> CtxResult<Vec<TaskRequestParticipantion>> {
         let mut bindings: HashMap<String, String> = HashMap::new();
         let mut ids_str: Vec<String> = vec![];
@@ -108,7 +108,7 @@ impl<'a> TaskParticipationDbService<'a> {
         to_user: &Thing,
         participation_ids: Vec<Thing>,
     ) -> AppResult<()> {
-        let participations = self.get_ids(participation_ids).await?;
+        let participations = self.get_ids(&participation_ids).await?;
 
         /*let tasks: Vec<_> = participations
         .into_iter()

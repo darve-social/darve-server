@@ -25,9 +25,7 @@ use sb_middleware::utils::extractor_utils::JsonOrFormValidated;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
-use sb_user_auth::entity::user_notification_entitiy::{
-    UserNotificationDbService, UserNotificationEvent,
-};
+use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationDbService, UserNotificationEvent};
 use sb_wallet::entity::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use sb_wallet::entity::wallet_entitiy::CurrencySymbol;
 use serde::{Deserialize, Serialize};
@@ -412,6 +410,15 @@ async fn create_entity(
         db: &_db,
         ctx: &ctx,
     };
+    
+    u_notification_db_service.create(UserNotification{
+        id: None,
+        user: from_user.clone(),
+        event: UserNotificationEvent::UserBalanceUpdate,
+        content: "".to_string(),
+        r_created: None,
+    }).await?;
+    
     u_notification_db_service
         .notify_user_followers(
             from_user.clone(),
@@ -595,12 +602,19 @@ async fn deliver_task_request(
             participations_service
                 .process_payments(task.to_user.as_ref().unwrap(), task.participants.clone())
                 .await?;
+            notify_task_participants(&_db, &ctx, &UserNotificationEvent::UserBalanceUpdate, &task.participants).await?;
+            
         } /*RewardType::VoteWinner{..} => {
               // add action for this reward type
           }*/
     }
 
-    notify_task_participants(&_db, &ctx, delivered_by, deliverable_id, task).await?;
+    let notify_delivery_event = UserNotificationEvent::UserTaskRequestDelivered {
+        task_id: task.id.unwrap(),
+        deliverable:deliverable_id,
+        delivered_by,
+    };
+    notify_task_participants(&_db, &ctx, &notify_delivery_event, &task.participants).await?;
     ctx.to_htmx_or_json(CreatedResponse {
         id: task_id.to_raw(),
         uri: None,
@@ -611,15 +625,14 @@ async fn deliver_task_request(
 async fn notify_task_participants(
     _db: &Db,
     ctx: &Ctx,
-    delivered_by: Thing,
-    deliverable: Thing,
-    task: TaskRequest,
+    user_notification_event: &UserNotificationEvent,
+    participantion_ids: &Vec<Thing>
 ) -> Result<(), CtxError> {
     let notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
         db: &_db,
         ctx: &ctx,
     }
-    .get_ids(task.participants)
+    .get_ids(participantion_ids)
     .await?
     .into_iter()
     .map(|t| t.user)
@@ -632,11 +645,7 @@ async fn notify_task_participants(
     u_notification_db_service
         .notify_users(
             notify_task_participant_ids,
-            &UserNotificationEvent::UserTaskRequestDelivered {
-                task_id: task.id.unwrap(),
-                deliverable,
-                delivered_by,
-            },
+            user_notification_event,
             "",
         )
         .await?;
@@ -694,11 +703,23 @@ async fn participate_task_request_offer(
     let task_offer = task_request_offer_db_service
         .add_participation(
             get_string_thing(task_offer_id)?,
-            from_user,
+            from_user.clone(),
             t_request_offer_input.amount,
         )
         .await?;
     // dbg!(&task_offer);
+    
+    let _notif_res = UserNotificationDbService {
+        db: &_db,
+        ctx: &ctx,
+    }.create(UserNotification{
+        id: None,
+        user: from_user,
+        event: UserNotificationEvent::UserBalanceUpdate,
+        content: "".to_string(),
+        r_created: None,
+    }).await;
+    
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,
         id: task_offer.id.unwrap().to_raw(),

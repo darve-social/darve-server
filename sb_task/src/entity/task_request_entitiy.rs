@@ -329,7 +329,7 @@ impl<'a> TaskRequestDbService<'a> {
             ctx: self.ctx,
         };
 
-        let mut participants = partic_service.get_ids(offer.participants).await?;
+        let mut participants = partic_service.get_ids(&offer.participants).await?;
         match participants.iter().position(|op| op.user == user_id) {
             None => {
                 let lock = lock_service
@@ -405,7 +405,7 @@ impl<'a> TaskRequestDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         };
-        let mut participants = partic_service.get_ids(offer.participants).await?;
+        let mut participants = partic_service.get_ids(&offer.participants).await?;
 
         if let Some(i) = participants
             .iter()
@@ -467,7 +467,7 @@ impl<'a> TaskRequestDbService<'a> {
                 description: "Can not delete with other participants".to_string(),
             }));
         }
-        let participants = partic_service.get_ids(offer.participants).await?;
+        let participants = partic_service.get_ids(&offer.participants).await?;
 
         for partic in participants {
             let existing_lock_id = partic.lock.clone();

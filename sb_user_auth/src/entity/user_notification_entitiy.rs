@@ -51,6 +51,7 @@ pub enum UserNotificationEvent {
     },
     UserChatMessage,
     UserCommunityPost,
+    UserBalanceUpdate,
 }
 
 pub struct UserNotificationDbService<'a> {
@@ -185,6 +186,7 @@ impl<'a> UserNotificationDbService<'a> {
      | {{ type: \"UserTaskRequestCreated\", value:{{ task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}} }}
      | {{ type: \"UserTaskRequestReceived\", value:{{ task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}} }}
      | {{ type: \"UserChatMessage\"}}
+     | {{ type: \"UserBalanceUpdate\"}}
      | {{ type: \"UserCommunityPost\"}};
     DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();

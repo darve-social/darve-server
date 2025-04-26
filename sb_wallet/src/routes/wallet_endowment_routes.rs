@@ -17,6 +17,7 @@ use sb_middleware::ctx::Ctx;
 use sb_middleware::error::{AppError, CtxResult};
 use sb_middleware::mw_ctx::{CtxState, StripeConfig};
 use sb_middleware::utils::string_utils::get_string_thing;
+use sb_user_auth::entity::user_notification_entitiy::{UserNotification, UserNotificationDbService, UserNotificationEvent};
 
 const PRODUCT_ID_KEY: &str = "product_id";
 
@@ -125,6 +126,14 @@ async fn test_endowment_transaction(
     let user1_bal = wallet_service
         .get_user_balance(&another_user_thing)
         .await?;
+    
+    let _unhandeled_res = UserNotificationDbService{ db: &ctx_state._db, ctx: &ctx }.create(UserNotification{
+        id: None,
+        user: another_user_thing,
+        event: UserNotificationEvent::UserBalanceUpdate,
+        content: "".to_string(),
+        r_created: None,
+    }).await;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
 }
@@ -309,6 +318,14 @@ async fn handle_webhook(
                 println!("ERROR saving endowment user={user_id}, amount={amount_received}, stripe_tx={}", external_tx_id.to_string());
             }
 
+            let _unhandeled_res = UserNotificationDbService{ db: &ctx_state._db, ctx: &ctx }.create(UserNotification{
+                id: None,
+                user: user_id,
+                event: UserNotificationEvent::UserBalanceUpdate,
+                content: "".to_string(),
+                r_created: None,
+            }).await;
+            
             Ok("Full payment processed".into_response())
         }
         None => Ok("No valid data to process".into_response()),
