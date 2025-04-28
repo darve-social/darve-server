@@ -127,6 +127,7 @@ impl<'a> WalletDbService<'a> {
     }
 
     pub async fn get_user_balances(&self, user_id: &Thing) -> CtxResult<WalletBalancesView> {
+        // TODO merge to single query
         let balance = self.get_user_balance(user_id).await?;
         let balance_locked = self.get_user_balance_locked(user_id).await?;
         Ok(WalletBalancesView { id: user_id.clone(), balance, balance_locked })
