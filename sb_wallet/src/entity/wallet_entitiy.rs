@@ -58,7 +58,15 @@ impl CurrencySymbol {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
+pub struct WalletBalancesView {
+    pub id: Thing,
+    pub balance: WalletBalanceView,
+    pub balance_locked: WalletBalanceView,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WalletBalanceView {
     pub id: Thing,
     pub balance_usd: i64,
@@ -116,6 +124,12 @@ impl<'a> WalletDbService<'a> {
         mutation.check().expect("should mutate wallet");
 
         Ok(())
+    }
+
+    pub async fn get_user_balances(&self, user_id: &Thing) -> CtxResult<WalletBalancesView> {
+        let balance = self.get_user_balance(user_id).await?;
+        let balance_locked = self.get_user_balance_locked(user_id).await?;
+        Ok(WalletBalancesView { id: user_id.clone(), balance, balance_locked })
     }
 
     pub async fn get_user_balance(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {

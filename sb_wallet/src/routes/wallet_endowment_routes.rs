@@ -29,6 +29,7 @@ pub fn routes(state: CtxState) -> Router {
         )
         .route("/api/stripe/endowment/webhook", post(handle_webhook));
 
+    // development only
     let routes = if state.is_development {
         routes.route(
             "/test/api/endow/:endow_user_id/:amount",

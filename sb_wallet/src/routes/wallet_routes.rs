@@ -21,6 +21,7 @@ use futures::stream::Stream as FStream;
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
+        .route("/api/user/wallet/balance", get(get_user_balance))
         .route("/api/user/wallet/balance/sse", get(get_balance_update_sse))
         .with_state(state)
 }
@@ -54,6 +55,23 @@ impl ViewFieldSelector for CurrencyTransactionView {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WalletUserView {
     pub user: Option<UserView>,
+}
+
+pub async fn get_user_balance(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+) -> CtxResult<Html<String>> {
+    let user_service = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    let wallet_service = WalletDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+    let user_id = user_service.get_ctx_user_thing().await?;
+    let balances_view = wallet_service.get_user_balances(&user_id).await?;
+    ctx.to_htmx_or_json(balances_view)   
 }
 
 pub async fn get_wallet_history(
