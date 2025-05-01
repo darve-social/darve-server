@@ -59,6 +59,8 @@ mod mw_response_transformer;
 mod test_utils;
 mod tests;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() -> AppResult<()> {
     dotenv().ok();
@@ -245,5 +247,5 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
 }
 
 async fn get_hc() -> Response {
-    (StatusCode::OK, "v0.0.1-rc1".to_string()).into_response()
+    (StatusCode::OK, format!("v{}",VERSION)).into_response()
 }
