@@ -208,11 +208,7 @@ fn get_entity_query_str(
 
                     let start = if pag.start <= 0 { 0 } else { pag.start };
                     q_bindings.insert("_start_val".to_string(), start.to_string());
-                    pag_q = format!(" {pag_q} START AT type::int($_start_val) ");
-                    // pag_q = format!(" {pag_q} START AT {start} ");
-                    println!("SSSS={pag_q}, v={start}");
-                    
-                    pag_q
+                    format!(" {pag_q} START AT type::int($_start_val) ")
                 }
             };
 
@@ -220,14 +216,10 @@ fn get_entity_query_str(
             q_bindings.extend(ident.get_bindings_map());
             // TODO move table name to IdentIdName::ColumnIdent prop since it's used only here
             q_bindings.insert("_table".to_string(), table_name);
-            let res = format!(
+            format!(
                 "SELECT {fields} FROM type::table($_table) WHERE {} {pagination_q};",
                 ident.to_string()
-            );
-            println!("RES={res}");
-            
-            
-            res
+            )
         }
     };
     Ok(QryBindingsVal(query_string, q_bindings))
@@ -292,7 +284,6 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
         None,
         table_name,
     )?;
-    // println!("QQQ={}", query_string);
     get_query(db, query_string).await
 }
 
@@ -334,7 +325,8 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
         pagination,
         table_name,
     )?;
-    println!("QQQ={:#?}", &query_string);
+    // debug query values
+    // dbg!(&query_string);
     get_list_qry(db, query_string).await
 }
 

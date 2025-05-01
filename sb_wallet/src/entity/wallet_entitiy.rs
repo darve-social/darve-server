@@ -117,6 +117,7 @@ impl<'a> WalletDbService<'a> {
     DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    // DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
     DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
     ");

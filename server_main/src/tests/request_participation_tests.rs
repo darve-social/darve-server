@@ -438,12 +438,12 @@ mod tests {
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
-            .get("/api/user/wallet/history?start=1&count=20")
+            .get("/api/user/wallet/history?start=2&count=20")
             .add_header("Accept", "application/json")
             .await;
         transaction_history_response.assert_status_success();
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 5);
+        assert_eq!(created.transactions.len(), 4);
     }
 }
