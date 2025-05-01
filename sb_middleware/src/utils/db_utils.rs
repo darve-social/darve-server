@@ -203,11 +203,13 @@ fn get_entity_query_str(
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
                     q_bindings.insert("_limit_val".to_string(), count.to_string());
+                    // pag_q = format!(" {pag_q} LIMIT BY {count} ");
                     pag_q = format!(" {pag_q} LIMIT BY type::int($_limit_val) ");
 
                     let start = if pag.start <= 0 { 0 } else { pag.start };
                     q_bindings.insert("_start_val".to_string(), start.to_string());
                     pag_q = format!(" {pag_q} START AT type::int($_start_val) ");
+                    // pag_q = format!(" {pag_q} START AT {start} ");
                     println!("SSSS={pag_q}, v={start}");
                     
                     pag_q

@@ -435,7 +435,7 @@ mod tests {
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
         assert_eq!(created.transactions.len(), 6);
-        
+
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
             .get("/api/user/wallet/history?start=1&count=20")
