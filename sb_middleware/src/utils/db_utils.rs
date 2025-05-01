@@ -120,6 +120,7 @@ impl<T: Serialize + 'static + Clone> QryBindingsVal<T> {
         self.1.clone()
     }
     pub fn into_query(self, db: &Db) -> Query<SurDb> {
+        
         self.1
             .into_iter()
             .fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
@@ -201,12 +202,13 @@ fn get_entity_query_str(
                     };
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
-                    q_bindings.insert("_count_val".to_string(), count.to_string());
-                    pag_q = format!(" {pag_q} LIMIT type::int($_count_val) ");
+                    q_bindings.insert("_limit_val".to_string(), count.to_string());
+                    // pag_q = format!(" {pag_q} LIMIT BY {count} ");
+                    pag_q = format!(" {pag_q} LIMIT BY type::int($_limit_val) ");
 
-                    let start = if pag.start < 0 { 0 } else { pag.start };
+                    let start = if pag.start <= 0 { 0 } else { pag.start };
                     q_bindings.insert("_start_val".to_string(), start.to_string());
-                    format!(" {pag_q} START type::int($_start_val) ")
+                    format!(" {pag_q} START AT type::int($_start_val) ")
                 }
             };
 
@@ -282,7 +284,6 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
         None,
         table_name,
     )?;
-    // println!("QQQ={}", query_string);
     get_query(db, query_string).await
 }
 
@@ -324,7 +325,8 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
         pagination,
         table_name,
     )?;
-    // println!("QQQ={:#?}", &query_string);
+    // debug query values
+    // dbg!(&query_string);
     get_list_qry(db, query_string).await
 }
 

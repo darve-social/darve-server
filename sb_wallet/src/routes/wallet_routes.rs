@@ -85,7 +85,7 @@ pub async fn get_wallet_history(
     };
     let user_id = user_service.get_ctx_user_thing().await?;
     let pagination = Some(Pagination {
-        order_by: None,
+        order_by: Some("id".to_string()),
         order_dir: None,
         count: params.count.unwrap_or(20),
         start: params.start.unwrap_or(0),

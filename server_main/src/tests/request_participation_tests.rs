@@ -19,6 +19,7 @@ mod tests {
     use sb_user_auth::routes::login_routes::LoginInput;
     use sb_user_auth::routes::user_notification_routes::UserNotificationView;
     use sb_wallet::entity::wallet_entitiy::{CurrencySymbol, WalletDbService};
+    use sb_wallet::routes::wallet_routes::CurrencyTransactionHistoryView;
 
     #[tokio::test]
     async fn create_task_request_participation() {
@@ -413,17 +414,36 @@ mod tests {
 
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
-        assert_eq!(received_notifications.len(), 1);
-        let notif = received_notifications.get(0).unwrap();
+        assert_eq!(received_notifications.len(), 5);
 
-        assert_eq!(
-            notif.event.to_string(),
-            UserNotificationEvent::UserTaskRequestDelivered {
+        let balance_updates: Vec<_> = received_notifications.iter().filter(|v| v.event.to_string() == UserNotificationEvent::UserBalanceUpdate.to_string()).collect();
+        assert_eq!(balance_updates.len(), 4);
+        let balance_updates:Vec<_> = received_notifications.iter().filter(|v| v.event.to_string() == UserNotificationEvent::UserTaskRequestDelivered {
                 task_id: NO_SUCH_THING.clone(),
                 deliverable: NO_SUCH_THING.clone(),
                 delivered_by: NO_SUCH_THING.clone(),
             }
-            .to_string()
-        );
+            .to_string()).collect();
+        assert_eq!(balance_updates.len(), 1);
+
+        // check transaction history /api/user/wallet/history
+        let transaction_history_response = server
+            .get("/api/user/wallet/history?start=0&count=20")
+            .add_header("Accept", "application/json")
+            .await;
+        transaction_history_response.assert_status_success();
+
+        let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
+        assert_eq!(created.transactions.len(), 6);
+
+        // check transaction history /api/user/wallet/history
+        let transaction_history_response = server
+            .get("/api/user/wallet/history?start=2&count=20")
+            .add_header("Accept", "application/json")
+            .await;
+        transaction_history_response.assert_status_success();
+
+        let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
+        assert_eq!(created.transactions.len(), 4);
     }
 }
