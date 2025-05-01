@@ -188,7 +188,8 @@ fn get_entity_query_str(
             let pagination_q = match pagination {
                 None => "".to_string(),
                 Some(pag) => {
-                    let mut pag_q = match pag.order_by {
+                    let order_by = pag.order_by;
+                    let mut pag_q = match order_by.clone() {
                         None => "".to_string(),
                         Some(order_by_f) => {
                             let order_by = format!(" ORDER BY {order_by_f} ");
@@ -203,10 +204,12 @@ fn get_entity_query_str(
 
                     let count = if pag.count <= 0 { 20 } else { pag.count };
                     q_bindings.insert("_limit_val".to_string(), count.to_string());
-                    // pag_q = format!(" {pag_q} LIMIT BY {count} ");
                     pag_q = format!(" {pag_q} LIMIT BY type::int($_limit_val) ");
 
                     let start = if pag.start <= 0 { 0 } else { pag.start };
+                    if start>0 && order_by.is_none() {
+                        println!("WARNING - query for table {table_name} has START AT but no ORDER BY");
+                    }
                     q_bindings.insert("_start_val".to_string(), start.to_string());
                     format!(" {pag_q} START AT type::int($_start_val) ")
                 }
