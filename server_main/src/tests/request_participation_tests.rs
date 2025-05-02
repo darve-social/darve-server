@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use axum_test::multipart::MultipartForm;
+    use chrono::{DateTime, ParseResult, Utc};
     use surrealdb::sql::Thing;
     use uuid::Uuid;
 
@@ -435,6 +436,14 @@ mod tests {
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
         assert_eq!(created.transactions.len(), 6);
+        
+        created.transactions.iter().fold(0i64, |prev_val, tx_v| {
+            let date_time= DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let ts = date_time.unwrap().timestamp();
+            println!("for {} with {} in {:?} out {:?} after tx balance={}",tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance);
+            assert_eq!(ts>= prev_val, true);
+            ts
+        });
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
@@ -445,5 +454,13 @@ mod tests {
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
         assert_eq!(created.transactions.len(), 4);
+        
+        created.transactions.iter().fold(0i64, |prev_val, tx_v| {
+            let date_time= DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let ts = date_time.unwrap().timestamp();
+            println!("for {} with {} in {:?} out {:?} after tx balance={}",tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance);
+            assert_eq!(ts>= prev_val, true);
+            ts
+        });
     }
 }

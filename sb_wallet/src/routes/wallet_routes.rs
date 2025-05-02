@@ -48,12 +48,13 @@ pub struct CurrencyTransactionView {
 
 impl ViewFieldSelector for CurrencyTransactionView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, wallet.{user.{id, username, full_name} }, with_wallet.{user.{id, username, full_name} }, balance, amount_in, amount_out, currency, r_created, r_updated".to_string()
+        "id, wallet.{user.{id, username, full_name}, id }, with_wallet.{user.{id, username, full_name}, id }, balance, amount_in, amount_out, currency, r_created, r_updated".to_string()
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WalletUserView {
+    pub id: Thing,
     pub user: Option<UserView>,
 }
 
