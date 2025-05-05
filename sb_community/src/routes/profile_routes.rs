@@ -57,7 +57,7 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
         )
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 5))
+        .layer(DefaultBodyLimit::max((1024 * 1024 * state.upload_max_size_mb) as usize))
         .with_state(state)
 }
 

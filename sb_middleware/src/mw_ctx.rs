@@ -27,6 +27,7 @@ pub struct CtxState {
     pub stripe_platform_account: String,
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
+    pub upload_max_size_mb: u64,
     pub uploads_dir: String,
     pub uploads_serve_dir: ServeDir,
 }
@@ -56,6 +57,7 @@ pub fn create_ctx_state(
     stripe_wh_secret: String,
     stripe_platform_account: String,
     uploads_dir: String,
+    upload_max_size_mb: String,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -75,6 +77,7 @@ pub fn create_ctx_state(
         uploads_serve_dir: ServeDir::new(uploads_dir.clone())
             .append_index_html_on_directories(false),
         uploads_dir,
+        upload_max_size_mb: upload_max_size_mb.trim().parse().expect("upload_max_size env value should be number"),
     };
     ctx_state
 }

@@ -54,7 +54,7 @@ pub fn routes(state: CtxState) -> Router {
         )
         .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
         // .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 15))
+        .layer(DefaultBodyLimit::max((1024 * 1024 * state.upload_max_size_mb) as usize))
         .with_state(state)
 }
 
