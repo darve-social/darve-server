@@ -25,7 +25,7 @@ use crate::routes::discussion_routes::{
 use crate::routes::discussion_topic_routes::DiscussionTopicView;
 use crate::routes::reply_routes::PostReplyView;
 use sb_middleware::ctx::Ctx;
-use sb_middleware::error::{AppError, CtxResult};
+use sb_middleware::error::{AppError, CtxError, CtxResult};
 use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use sb_middleware::utils::request_utils::CreatedResponse;
@@ -46,6 +46,7 @@ pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
     // .route("/discussion/:discussion_id/post/:title_uri", get(get_post));
 
+    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
     Router::new()
         .merge(view_routes)
         .route(
@@ -54,7 +55,7 @@ pub fn routes(state: CtxState) -> Router {
         )
         .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
         // .nest_service(UPLOADS_URL_BASE, tower_http::services::ServeDir::new(state.uploads_dir.clone()))
-        .layer(DefaultBodyLimit::max((1024 * 1024 * state.upload_max_size_mb) as usize))
+        .layer(DefaultBodyLimit::max(max_bytes_val))
         .with_state(state)
 }
 
@@ -313,6 +314,8 @@ pub async fn create_post_entity_route(
                     format!("{UPLOADS_URL_BASE}/{file_name}").as_str(),
                 )
                 .await?;
+        }else{
+            return Err(ctx.to_ctx_error(AppError::Generic {description: saved.err().expect("is error").to_string()}));
         }
     }
 

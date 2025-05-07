@@ -74,7 +74,7 @@ async fn main() -> AppResult<()> {
     let stripe_platform_account =
         std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").expect("Missing UPLOADS_DIRECTORY in env");
-    let upload_file_size_max_mb = std::env::var("UPLOAD_MAX_SIZE_MB").expect("Missing UPLOAD_MAX_SIZE in env");
+    let upload_file_size_max_mb = std::env::var("UPLOAD_MAX_SIZE_MB").unwrap_or("15".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
     let jwt_duration = Duration::days(7);
 
