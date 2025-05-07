@@ -11,6 +11,7 @@ COPY ./sb_user_auth ./sb_user_auth
 COPY ./sb_wallet ./sb_wallet
 COPY ./server_main ./server_main
 COPY ./templates ./templates
+#COPY ./static ./static
 COPY ./Cargo.lock .
 COPY ./Cargo.toml .
 
@@ -24,6 +25,7 @@ COPY --from=builder /usr/src/app/target/debug/server-main /usr/local/bin/server-
 #COPY --from=builder /usr/src/app/target/release/server-main /usr/local/bin/server-main
 RUN mkdir -p "/usr/local/bin/server_main/src/assets/wasm"
 COPY --from=builder /usr/src/app/server_main/src/assets /usr/local/bin/server_main/src/assets
+#COPY --from=builder /usr/src/app/static /usr/local/bin/static
 
 # Service must listen to $PORT environment variable.
 # This default value facilitates local development.
@@ -39,4 +41,5 @@ EXPOSE 8080
 # Run the web service on container startup.
 #ENTRYPOINT ["bash"]
 RUN cd /usr/local/bin
+WORKDIR /usr/local/bin
 ENTRYPOINT ["server-main"]
