@@ -43,7 +43,7 @@ use sb_user_auth::utils::askama_filter_util::filters;
 use sb_user_auth::utils::template_utils::ProfileFormPage;
 
 pub fn routes(state: CtxState) -> Router {
-    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
+    // let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
     Router::new()
         .route("/u/:username_or_id", get(display_profile))
         .route("/u/following/posts", get(get_following_posts))
@@ -58,7 +58,8 @@ pub fn routes(state: CtxState) -> Router {
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
         )
-        .layer(DefaultBodyLimit::max(max_bytes_val))
+        // the file max limit is set on PostInput property
+        // .layer(DefaultBodyLimit::max(max_bytes_val))
         .with_state(state)
 }
 

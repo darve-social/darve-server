@@ -73,7 +73,8 @@ pub fn routes(state: CtxState) -> Router {
             post(participate_task_request_offer),
         )
         .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
+        // the file max limit is set on PostInput property
+        // .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
         .with_state(state)
 }
 
@@ -101,8 +102,9 @@ pub struct AcceptTaskRequestInput {
 
 #[derive(Validate, TryFromMultipart)]
 pub struct DeliverTaskRequestInput {
-    #[form_data(limit = "30MiB")]
-    pub file_1: Option<FieldData<NamedTempFile>>,
+    // currently only use post_id
+    // #[form_data(limit = "30MiB")]
+    // pub file_1: Option<FieldData<NamedTempFile>>,
     pub post_id: Option<String>,
 }
 

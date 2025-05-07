@@ -34,7 +34,7 @@ pub async fn routes(state: CtxState, uploads_dir: &str) -> Router {
 
     Router::new()
         .route("/api/upload", post(upload))
-        .layer(DefaultBodyLimit::max(4000000))
+        // .layer(DefaultBodyLimit::max(4000000))
         .with_state(state)
 }
 
