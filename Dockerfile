@@ -22,12 +22,9 @@ RUN cargo build
 FROM debian:latest
 RUN apt-get update && apt-get install -y openssl && apt-get install -y curl #&& rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/app/target/debug/server-main /usr/local/bin/server-main
-#COPY --from=builder /usr/src/app/target/release/server-main /usr/local/bin/server-main
 RUN mkdir -p "/usr/local/bin/server_main/src/assets/wasm"
-RUN mkdir -p "/usr/local/bin/upload"
-COPY --from=builder /usr/src/app/server_main/src/assets /usr/local/bin/upload
+RUN mkdir -p "/usr/local/bin/uploads"
 COPY --from=builder /usr/src/app/server_main/src/assets /usr/local/bin/server_main/src/assets
-#COPY --from=builder /usr/src/app/static /usr/local/bin/static
 
 # Service must listen to $PORT environment variable.
 # This default value facilitates local development.
