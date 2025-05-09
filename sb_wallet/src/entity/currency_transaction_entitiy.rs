@@ -57,16 +57,16 @@ impl<'a> CurrencyTransactionDbService<'a> {
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
-    DEFINE INDEX wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
-    DEFINE INDEX wallet_idx ON {TABLE_NAME} FIELDS wallet;
-    DEFINE FIELD with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
-    DEFINE FIELD transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD tx_ident ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
-    DEFINE FIELD funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
+    DEFINE INDEX IF NOT EXISTS wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
+    DEFINE INDEX IF NOT EXISTS wallet_idx ON {TABLE_NAME} FIELDS wallet;
+    DEFINE FIELD IF NOT EXISTS with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
+    DEFINE FIELD IF NOT EXISTS transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS tx_ident ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
+    DEFINE FIELD IF NOT EXISTS funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
 //     IF $this.balance<0 && $this.wallet!={gateway_wallet} {{
 //         THROW \"Final balance must exceed 0\"
 //     }} ELSE IF $this.balance<0 && !record_exists($value)  {{
@@ -75,12 +75,12 @@ impl<'a> CurrencyTransactionDbService<'a> {
 //         RETURN true
 //     }}
 // }};
-    DEFINE FIELD prev_transaction ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
-    DEFINE FIELD amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD balance ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS prev_transaction ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
+    DEFINE FIELD IF NOT EXISTS amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS balance ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
 DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 	IF !$value {{
@@ -94,13 +94,17 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
         mutation.check().expect("should mutate currencyTransaction");
 
-        WalletDbService {
+        let g_wallet = WalletDbService {
             db: self.db,
             ctx: self.ctx,
         }
         .init_app_gateway_wallet()
-        .await
-        .expect("inited");
+        .await;
+        if let Err(err) =g_wallet {
+           if !err.error.to_string().contains("Wallet already exists"){
+               return Err(err.error);
+           } 
+        }
         Ok(())
     }
 

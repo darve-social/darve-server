@@ -53,18 +53,18 @@ impl<'a> AccessGainActionDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD {TABLE_COL_ACCESS_RIGHT}s ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_ACCESS_RIGHT}>>>;
-    DEFINE FIELD {TABLE_COL_LOCAL_USER} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_LOCAL_USER}>>;
-    DEFINE INDEX {TABLE_COL_LOCAL_USER}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_LOCAL_USER};
-    DEFINE FIELD {TABLE_COL_ACCESS_RULE}_pending ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_ACCESS_RULE}>>;
-    DEFINE INDEX {TABLE_COL_ACCESS_RULE}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_ACCESS_RULE}_pending;
-    DEFINE FIELD external_ident ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD action_type ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE {:?};
-    DEFINE FIELD action_status ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE {:?};
-    DEFINE INDEX action_status_idx ON TABLE {TABLE_NAME} COLUMNS action_status;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_ACCESS_RIGHT}s ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_ACCESS_RIGHT}>>>;
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_LOCAL_USER} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_LOCAL_USER}>>;
+    DEFINE INDEX IF NOT EXISTS {TABLE_COL_LOCAL_USER}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_LOCAL_USER};
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_ACCESS_RULE}_pending ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_ACCESS_RULE}>>;
+    DEFINE INDEX IF NOT EXISTS {TABLE_COL_ACCESS_RULE}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_ACCESS_RULE}_pending;
+    DEFINE FIELD IF NOT EXISTS external_ident ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS action_type ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE {:?};
+    DEFINE FIELD IF NOT EXISTS action_status ON TABLE {TABLE_NAME} TYPE string ASSERT $value INSIDE {:?};
+    DEFINE INDEX IF NOT EXISTS action_status_idx ON TABLE {TABLE_NAME} COLUMNS action_status;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ", AccessGainActionType::VARIANTS, AccessGainActionStatus::VARIANTS);
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate PaymentAction");

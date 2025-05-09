@@ -62,22 +62,22 @@ impl<'a> PostDbService<'a> {
 
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
-    DEFINE FIELD created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD r_title_uri ON TABLE {TABLE_NAME} VALUE string::slug($this.title);
-    DEFINE INDEX {INDEX_BELONGS_TO_URI} ON TABLE {TABLE_NAME} COLUMNS belongs_to, r_title_uri UNIQUE;
-    DEFINE FIELD {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS r_title_uri ON TABLE {TABLE_NAME} VALUE string::slug($this.title);
+    DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO_URI} ON TABLE {TABLE_NAME} COLUMNS belongs_to, r_title_uri UNIQUE;
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
         ASSERT $value INSIDE (SELECT topics FROM ONLY $this.belongs_to).topics;
-    DEFINE INDEX {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
-    DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
-    DEFINE FIELD metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
-    DEFINE FIELD replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
-    DEFINE FIELD likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
+    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
+    DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
 ");
         let mutation = self.db.query(sql).await?;

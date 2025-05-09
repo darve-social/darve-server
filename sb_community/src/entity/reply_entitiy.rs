@@ -39,15 +39,15 @@ const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME
 impl<'a> ReplyDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD {TABLE_COL_DISCUSSION} ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
-    DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_POST}>;
-    DEFINE INDEX belongs_to_idx ON TABLE {TABLE_NAME} COLUMNS belongs_to;
-    DEFINE FIELD created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_DISCUSSION} ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
+    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_POST}>;
+    DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE {TABLE_NAME} COLUMNS belongs_to;
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
 

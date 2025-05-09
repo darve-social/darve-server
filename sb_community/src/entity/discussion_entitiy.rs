@@ -54,17 +54,17 @@ impl<'a> DiscussionDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
-    DEFINE FIELD chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
+    DEFINE FIELD IF NOT EXISTS chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
-    DEFINE FIELD created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
-    DEFINE FIELD latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");

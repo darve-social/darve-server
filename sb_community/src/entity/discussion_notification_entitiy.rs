@@ -38,14 +38,14 @@ const TOPIC_TABLE: &str = crate::entity::discussion_topic_entitiy::TABLE_NAME;
 impl<'a> DiscussionNotificationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE {{DiscussionPostAdded: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}}
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS event ON TABLE {TABLE_NAME} TYPE {{DiscussionPostAdded: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}}
         | {{DiscussionPostReplyNrIncreased: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}}
         | {{DiscussionPostReplyAdded: {{ discussion_id: record<{DISCUSSION_TABLE}>, topic_id: option<record<{TOPIC_TABLE}>>, post_id: record<{POST_TABLE}> }}}};
 
-    DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD event_ident ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS event_ident ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
 
 ");
 

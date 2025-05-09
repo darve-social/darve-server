@@ -37,12 +37,12 @@ impl<'a> DiscussionTopicDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE string VALUE string::trim($value)
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string VALUE string::trim($value)
          ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD access_rule ON TABLE {TABLE_NAME} TYPE option<record<access_rule>>;
-    DEFINE FIELD hidden ON TABLE {TABLE_NAME} TYPE bool;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS access_rule ON TABLE {TABLE_NAME} TYPE option<record<access_rule>>;
+    DEFINE FIELD IF NOT EXISTS hidden ON TABLE {TABLE_NAME} TYPE bool;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");

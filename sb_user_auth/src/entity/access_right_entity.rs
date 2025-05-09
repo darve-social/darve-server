@@ -65,15 +65,15 @@ impl<'a> AccessRightDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD {TABLE_NAME_LOCAL_USER} ON TABLE {TABLE_NAME} type record<{TABLE_NAME_LOCAL_USER}>;
-    DEFINE INDEX {TABLE_NAME_LOCAL_USER}_idx on TABLE {TABLE_NAME} columns {TABLE_NAME_LOCAL_USER};
-    DEFINE FIELD {TABLE_NAME_ACCESS_RULE} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME_ACCESS_RULE}>>;
-    DEFINE FIELD authorization ON TABLE {TABLE_NAME} FLEXIBLE TYPE {{ authorize_record_id: record, authorize_activity: string, authorize_height: int}};
-    DEFINE FIELD {TABLE_NAME_PAYMENT_ACTION}s ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_NAME_PAYMENT_ACTION}>>>;
-    DEFINE FIELD expires_at ON TABLE {TABLE_NAME} TYPE option<datetime>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS {TABLE_NAME_LOCAL_USER} ON TABLE {TABLE_NAME} type record<{TABLE_NAME_LOCAL_USER}>;
+    DEFINE INDEX IF NOT EXISTS {TABLE_NAME_LOCAL_USER}_idx on TABLE {TABLE_NAME} columns {TABLE_NAME_LOCAL_USER};
+    DEFINE FIELD IF NOT EXISTS {TABLE_NAME_ACCESS_RULE} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME_ACCESS_RULE}>>;
+    DEFINE FIELD IF NOT EXISTS authorization ON TABLE {TABLE_NAME} FLEXIBLE TYPE {{ authorize_record_id: record, authorize_activity: string, authorize_height: int}};
+    DEFINE FIELD IF NOT EXISTS {TABLE_NAME_PAYMENT_ACTION}s ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_NAME_PAYMENT_ACTION}>>>;
+    DEFINE FIELD IF NOT EXISTS expires_at ON TABLE {TABLE_NAME} TYPE option<datetime>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");

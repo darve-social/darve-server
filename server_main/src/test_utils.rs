@@ -10,6 +10,8 @@ use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use sb_middleware::utils::db_utils::record_exists;
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
 #[allow(dead_code)]
@@ -104,12 +106,20 @@ pub async fn create_dev_env(
     full_name: Option<String>,
 ) -> CtxResult<Vec<String>> {
     let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
+    let user_ser = LocalUserDbService{ db: &ctx_state._db, ctx };
+    let len = user_ser.users_len().await?;
+    
+    if len >0{
+        return Ok(vec![]);
+    }
     let hardcoded_bio =
         Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
     let hardcoded_full_name = Some("Katsuki Bakugo".to_string());
     let hardcoded_image_uri = Some(
         "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string(),
     );
+    
+    
     let id0 = register_user(
         &ctx_state._db,
         &ctx,

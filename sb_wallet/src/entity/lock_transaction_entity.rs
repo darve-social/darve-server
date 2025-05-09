@@ -44,13 +44,13 @@ const TRANSACTION_TABLE: &str = crate::entity::currency_transaction_entitiy::TAB
 impl<'a> LockTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD lock_tx_out ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD unlock_tx_in ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE FIELD unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"UserRequest\":{{ \"user_id\":record}} }}|{{\"Delivery\":{{ \"post_id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS lock_tx_out ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS unlock_tx_in ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
+    DEFINE FIELD IF NOT EXISTS unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"UserRequest\":{{ \"user_id\":record}} }}|{{\"Delivery\":{{ \"post_id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
     ");
         let mutation = self.db.query(sql).await?;

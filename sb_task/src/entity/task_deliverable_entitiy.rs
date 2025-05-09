@@ -37,14 +37,14 @@ const TABLE_COL_TASK_REQ: &str = crate::entity::task_request_entitiy::TABLE_NAME
 impl<'a> TaskDeliverableDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE FIELD task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQ}>;
-    DEFINE FIELD urls ON TABLE {TABLE_NAME} TYPE option<set<string>>;
-    DEFINE FIELD post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    //DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE FIELD IF NOT EXISTS task_request ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_TASK_REQ}>;
+    DEFINE FIELD IF NOT EXISTS urls ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    //DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate TaskDeliverable");

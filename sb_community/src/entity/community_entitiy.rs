@@ -51,20 +51,20 @@ impl<'a> CommunityDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD name_uri ON TABLE {TABLE_NAME} TYPE string VALUE string::slug(string::trim($value)) OR string::slug(string::trim($this.title))
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS name_uri ON TABLE {TABLE_NAME} TYPE string VALUE string::slug(string::trim($value)) OR string::slug(string::trim($this.title))
          ASSERT string::len(string::slug(string::trim($value)))>4 OR string::len(string::slug(string::trim($this.title)))>4;
-    DEFINE INDEX community_name_uri_idx ON TABLE {TABLE_NAME} COLUMNS name_uri UNIQUE;
-    DEFINE FIELD profile_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
-    // DEFINE FIELD following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
-    DEFINE FIELD courses ON TABLE {TABLE_NAME} TYPE option<array<record<course>>>;
-    DEFINE FIELD created_by ON TABLE {TABLE_NAME} TYPE record<local_user>;
-    DEFINE FIELD profile_chats ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TABLE_NAME}>>>;
-    DEFINE FIELD stripe_connect_account_id ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD stripe_connect_complete ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS community_name_uri_idx ON TABLE {TABLE_NAME} COLUMNS name_uri UNIQUE;
+    DEFINE FIELD IF NOT EXISTS profile_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
+    // DEFINE FIELD IF NOT EXISTS following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
+    DEFINE FIELD IF NOT EXISTS courses ON TABLE {TABLE_NAME} TYPE option<array<record<course>>>;
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<local_user>;
+    DEFINE FIELD IF NOT EXISTS profile_chats ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TABLE_NAME}>>>;
+    DEFINE FIELD IF NOT EXISTS stripe_connect_account_id ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS stripe_connect_complete ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");

@@ -29,7 +29,7 @@ pub struct UserNotification {
 #[derive(Serialize, Deserialize, Debug, Clone, Display)]
 #[serde(tag = "type", content = "value")]
 pub enum UserNotificationEvent {
-    // !!! NOTE when changing enum also change db DEFINE FIELD event type
+    // !!! NOTE when changing enum also change db DEFINE FIELD IF NOT EXISTS event type
     UserFollowAdded {
         username: String,
         follows_username: String,
@@ -177,10 +177,10 @@ const USER_FIELD_NAME: &str = "user";
 impl<'a> UserNotificationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD {USER_FIELD_NAME} ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE INDEX {USER_FIELD_NAME}_idx ON TABLE {TABLE_NAME} COLUMNS {USER_FIELD_NAME};
-    DEFINE FIELD event ON TABLE {TABLE_NAME} TYPE 
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS {USER_FIELD_NAME} ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
+    DEFINE INDEX IF NOT EXISTS {USER_FIELD_NAME}_idx ON TABLE {TABLE_NAME} COLUMNS {USER_FIELD_NAME};
+    DEFINE FIELD IF NOT EXISTS event ON TABLE {TABLE_NAME} TYPE
      {{ type: \"UserFollowAdded\", value: {{username: string, follows_username: string}} }}
      | {{ type: \"UserTaskRequestDelivered\", value:{{ task_id: record, delivered_by: record<{USER_TABLE}>, deliverable: record}} }}
      | {{ type: \"UserTaskRequestCreated\", value:{{ task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}} }}
@@ -188,10 +188,10 @@ impl<'a> UserNotificationDbService<'a> {
      | {{ type: \"UserChatMessage\"}}
      | {{ type: \"UserBalanceUpdate\"}}
      | {{ type: \"UserCommunityPost\"}};
-    DEFINE FIELD content ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    // will use ulid to sort by time DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    // DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
+    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    // will use ulid to sort by time DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    // DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
 
 ");
 

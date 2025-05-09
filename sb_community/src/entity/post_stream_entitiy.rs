@@ -23,9 +23,9 @@ const TABLE_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
 impl<'a> PostStreamDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} TYPE RELATION IN {TABLE_USER} OUT {TABLE_POST} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-    DEFINE INDEX in_out_unique_idx ON {TABLE_NAME} FIELDS in, out UNIQUE;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} TYPE RELATION IN {TABLE_USER} OUT {TABLE_POST} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+    DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_NAME} FIELDS in, out UNIQUE;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     ");
         let mutation = self.db.query(sql).await?;
 

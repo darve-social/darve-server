@@ -64,21 +64,21 @@ impl<'a> LocalUserDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD email ON TABLE {TABLE_NAME} TYPE option<string>;// VALUE string::lowercase($value) ASSERT string::is::email($value);
-    DEFINE FIELD username ON TABLE {TABLE_NAME} TYPE string VALUE string::lowercase($value);
-    DEFINE FIELD full_name ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD birth_date ON TABLE {TABLE_NAME} TYPE option<datetime>;
-    DEFINE FIELD phone ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD bio ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
-    DEFINE FIELD image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE INDEX local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
-    DEFINE INDEX local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS email ON TABLE {TABLE_NAME} TYPE option<string>;// VALUE string::lowercase($value) ASSERT string::is::email($value);
+    DEFINE FIELD IF NOT EXISTS username ON TABLE {TABLE_NAME} TYPE string VALUE string::lowercase($value);
+    DEFINE FIELD IF NOT EXISTS full_name ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<datetime>;
+    DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
+    DEFINE INDEX IF NOT EXISTS local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
 
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
-    DEFINE INDEX username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
-    DEFINE INDEX full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -197,7 +197,7 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn users_len(&self) -> CtxResult<i32> {
-        let q = format!("SELECT count() FROM {TABLE_NAME}");
+        let q = format!("SELECT count() FROM {TABLE_NAME} limit 1");
         let res: Option<i32> = self.db.query(q).await?.take("count")?;
         Ok(res.unwrap_or(0))
     }

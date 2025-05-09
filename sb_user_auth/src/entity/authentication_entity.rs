@@ -172,13 +172,13 @@ impl<'a> AuthenticationDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
             "
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD local_user ON TABLE {TABLE_NAME} TYPE record<local_user>;
-    DEFINE INDEX local_user_idx ON TABLE {TABLE_NAME} COLUMNS local_user;
-    DEFINE FIELD auth_type ON TABLE {TABLE_NAME} TYPE string VALUE string::uppercase($value)
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS local_user ON TABLE {TABLE_NAME} TYPE record<local_user>;
+    DEFINE INDEX IF NOT EXISTS local_user_idx ON TABLE {TABLE_NAME} COLUMNS local_user;
+    DEFINE FIELD IF NOT EXISTS auth_type ON TABLE {TABLE_NAME} TYPE string VALUE string::uppercase($value)
         ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY'];
-    DEFINE FIELD passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD updated ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS updated ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
     "
         );
         let mutation = self.db.query(sql).await?;

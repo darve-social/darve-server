@@ -109,16 +109,16 @@ impl<'a> WalletDbService<'a> {
         let curr_reef = CurrencySymbol::REEF;
         let curr_eth = CurrencySymbol::ETH;
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE option<record<{USER_TABLE}>> VALUE $before OR $value; //TODO type::record({USER_TABLE}:record::id($this.id));
-    DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
-    DEFINE FIELD {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE object;
-    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_usd} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
-    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
-    DEFINE FIELD {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    // DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE option<record<{USER_TABLE}>> VALUE $before OR $value; //TODO type::record({USER_TABLE}:record::id($this.id));
+    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
+    DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE object;
+    DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_usd} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
+    DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
+    DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    // DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
     ");
         let mutation = self.db.query(sql).await?;
@@ -742,8 +742,8 @@ mod tests {
     #[tokio::test]
     async fn test_enum_field_literal() {
         let (db, ctx) = init_db_test().await;
-        let qry = r#"DEFINE TABLE test_enum SCHEMAFULL;
-    DEFINE FIELD value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record, opt: option<string>}} | {UserTaskRequestComplete:{task_id: string, deliverables:array<string>}};"#;
+        let qry = r#"DEFINE TABLE IF NOT EXISTS test_enum SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS value ON TABLE test_enum TYPE {UserFollowAdded:{username:string, rec: record, opt: option<string>}} | {UserTaskRequestComplete:{task_id: string, deliverables:array<string>}};"#;
 
         &db.query(qry).await.expect("table defined");
 

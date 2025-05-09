@@ -41,17 +41,17 @@ impl<'a> FundingTransactionDbService<'a> {
         let curr_eth = CurrencySymbol::ETH;
 
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
-    DEFINE FIELD external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
-    DEFINE FIELD internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE INDEX user_idx ON TABLE {TABLE_NAME} COLUMNS user;
-    DEFINE FIELD amount ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
+    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
+    DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
         ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
     ");
         let mutation = self.db.query(sql).await?;

@@ -104,26 +104,26 @@ impl<'a> TaskRequestDbService<'a> {
         let curr_eth = CurrencySymbol::ETH.to_string();
 
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD on_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
-    DEFINE INDEX on_post_idx ON TABLE {TABLE_NAME} COLUMNS on_post;
-    DEFINE FIELD from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE INDEX from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
-    DEFINE FIELD to_user ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_USER}>>;
-    DEFINE INDEX to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
-    DEFINE FIELD deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
-    DEFINE FIELD request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS on_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
+    DEFINE INDEX IF NOT EXISTS on_post_idx ON TABLE {TABLE_NAME} COLUMNS on_post;
+    DEFINE FIELD IF NOT EXISTS from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE INDEX IF NOT EXISTS from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
+    DEFINE FIELD IF NOT EXISTS to_user ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_USER}>>;
+    DEFINE INDEX IF NOT EXISTS to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
+    DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
+    DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
         ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej}','{t_stat_del}','{t_stat_com}'];
-    DEFINE INDEX status_idx ON TABLE {TABLE_NAME} COLUMNS status;
-    DEFINE FIELD reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
-    DEFINE FIELD participants ON TABLE {TABLE_NAME} TYPE array<record<{TABLE_PARTICIPANT_REWARD}>>;
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD valid_until ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD deliverables ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_DELIVERABLE}>>>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    //DEFINE INDEX r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS status_idx ON TABLE {TABLE_NAME} COLUMNS status;
+    DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
+    DEFINE FIELD IF NOT EXISTS participants ON TABLE {TABLE_NAME} TYPE array<record<{TABLE_PARTICIPANT_REWARD}>>;
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
+    DEFINE FIELD IF NOT EXISTS valid_until ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS deliverables ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_DELIVERABLE}>>>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    //DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
 

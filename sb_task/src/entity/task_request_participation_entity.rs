@@ -45,14 +45,14 @@ impl<'a> TaskParticipationDbService<'a> {
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE FIELD amount ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD lock ON TABLE {TABLE_NAME} TYPE record<{LOCK_TABLE_NAME}>;
-    DEFINE FIELD votes ON TABLE {TABLE_NAME} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
-    DEFINE FIELD currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS lock ON TABLE {TABLE_NAME} TYPE record<{LOCK_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS votes ON TABLE {TABLE_NAME} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
 

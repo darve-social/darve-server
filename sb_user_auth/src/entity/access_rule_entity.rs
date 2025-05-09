@@ -51,18 +51,18 @@ impl<'a> AccessRuleDbService<'a> {
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    DEFINE TABLE {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD target_entity_id ON TABLE {TABLE_NAME} TYPE record;
-    DEFINE INDEX target_entity_id_idx ON TABLE {TABLE_NAME} COLUMNS target_entity_id;
-    DEFINE FIELD title ON TABLE {TABLE_NAME} TYPE string VALUE string::trim($value)
+    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS target_entity_id ON TABLE {TABLE_NAME} TYPE record;
+    DEFINE INDEX IF NOT EXISTS target_entity_id_idx ON TABLE {TABLE_NAME} COLUMNS target_entity_id;
+    DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string VALUE string::trim($value)
          ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD authorization_required ON TABLE {TABLE_NAME} FLEXIBLE TYPE {{ authorize_record_id: record, authorize_activity: string, authorize_height: int}};
-    DEFINE FIELD price_amount ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD available_period_days ON TABLE {TABLE_NAME} TYPE option<number>;
-    // DEFINE FIELD available_amount ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD access_gain_action_confirmation ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD access_gain_action_redirect_url ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS authorization_required ON TABLE {TABLE_NAME} FLEXIBLE TYPE {{ authorize_record_id: record, authorize_activity: string, authorize_height: int}};
+    DEFINE FIELD IF NOT EXISTS price_amount ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS available_period_days ON TABLE {TABLE_NAME} TYPE option<number>;
+    // DEFINE FIELD IF NOT EXISTS available_amount ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS access_gain_action_confirmation ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS access_gain_action_redirect_url ON TABLE {TABLE_NAME} TYPE option<string>;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
