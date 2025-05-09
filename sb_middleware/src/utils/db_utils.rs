@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use strum::Display;
-use surrealdb::engine::local::Db as SurDb;
+use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
@@ -350,7 +350,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
 fn create_db_qry(
     db: &Db,
     query_string: QryBindingsVal<String>,
-) -> Query<surrealdb::engine::local::Db> {
+) -> Query<surrealdb::engine::any::Any> {
     // let qry = db.query(query_string.0);
     // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
     //     acc.bind(name_value)

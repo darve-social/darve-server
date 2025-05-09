@@ -20,6 +20,7 @@ use sb_user_auth::routes::webauthn::webauthn_routes;
 
 use crate::test_utils::create_dev_env;
 use reqwest::Client;
+use surrealdb::engine::any::Any;
 use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
@@ -80,7 +81,7 @@ async fn main() -> AppResult<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
     let jwt_duration = Duration::days(7);
 
-    let db = db::start(None).await?;
+    let db = db::start(Some("darvedb".to_string())).await?;
     run_migrations(db).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
@@ -153,7 +154,7 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
+async fn run_migrations(db: Surreal<Any>) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
