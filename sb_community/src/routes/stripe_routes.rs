@@ -117,7 +117,7 @@ async fn get_link_start_page(
         comm.stripe_connect_account_id = Some("acct_1Q29UUEdDBSaSZL3".to_string());
     }
 
-    let client = Client::new(ctx_state.stripe_key);
+    let client = Client::new(ctx_state.stripe_secret_key);
 
     let connect_account_id = match comm.stripe_connect_account_id.clone() {
         None => {
@@ -234,7 +234,7 @@ async fn get_link_complete_page(
                 })
             })?;
         let requirements_due =
-            get_account_requirements_due(&Client::new(ctx_state.stripe_key), &ctx, &acc_id).await?;
+            get_account_requirements_due(&Client::new(ctx_state.stripe_secret_key), &ctx, &acc_id).await?;
 
         if requirements_due {
             format!("/community/{}/stripe/link-start", comm_id.clone().to_raw())
@@ -341,7 +341,7 @@ async fn access_rule_payment(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(ctx_state.stripe_secret_key).with_stripe_account(acc_id.clone());
 
     let product = {
         let pr_id: ProductId = MyThing(charge_access_rule.id).into();

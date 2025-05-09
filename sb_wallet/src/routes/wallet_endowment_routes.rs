@@ -154,7 +154,7 @@ async fn request_endowment_intent(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(ctx_state.stripe_secret_key).with_stripe_account(acc_id.clone());
 
     let amt = (amount * 100) as i64;
 

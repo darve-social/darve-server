@@ -68,7 +68,7 @@ async fn main() -> AppResult<()> {
         .expect("set DEVELOPMENT env var")
         .eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
-    let stripe_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
+    let stripe_secret_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
     let stripe_wh_secret =
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =
@@ -88,7 +88,7 @@ async fn main() -> AppResult<()> {
         is_dev,
         jwt_secret,
         jwt_duration,
-        stripe_key,
+        stripe_secret_key,
         stripe_wh_secret,
         stripe_platform_account,
         uploads_dir,
