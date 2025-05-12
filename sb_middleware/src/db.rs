@@ -44,7 +44,7 @@ pub async fn start(config: DBConfig) -> AppResult<Db> {
     let _conn = DB.connect(config.url.clone()).await?;
 
         match (config.password.as_ref(), config.username.as_ref(), config.url.as_str()) {
-            (Some(password), Some(username), url) if url! = MEM_DB_URL => {
+            (Some(password), Some(username), url) if url!= MEM_DB_URL => {
                 DB.signin(Root {
                     username,
                     password,
