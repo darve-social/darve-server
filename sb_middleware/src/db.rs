@@ -13,7 +13,7 @@ pub static DB: Lazy<Db> = Lazy::new(Surreal::init);
 #[derive(Debug)]
 pub struct DBConfig {
     pub namespace: String,
-    pub name: String,
+    pub database: String,
     pub password: Option<String>,
     pub username: Option<String>,
     pub url: String,
@@ -22,14 +22,14 @@ pub struct DBConfig {
 impl DBConfig {
     pub fn from_env() -> Self {
         let namespace = std::env::var("DB_NAMESPACE").unwrap_or("namespace".to_string());
-        let name = std::env::var("DB_NAME").unwrap_or("database".to_string());
+        let database = std::env::var("DB_DATABASE").unwrap_or("database".to_string());
         let password = std::env::var("DB_PASSWORD").ok();
         let username = std::env::var("DB_USERNAME").ok();
         let url = std::env::var("DB_URL").unwrap_or_else(|_| "mem://".to_string());
 
         Self {
             namespace,
-            name,
+            database,
             password,
             username,
             url,
@@ -52,7 +52,7 @@ pub async fn start(config: DBConfig) -> AppResult<Db> {
     }
 
     DB.use_ns(config.namespace)
-        .use_db(config.name)
+        .use_db(config.database)
         .await?;
 
   
