@@ -25,7 +25,7 @@ impl DBConfig {
         let name = std::env::var("DB_NAME").unwrap_or("database".to_string());
         let password = std::env::var("DB_PASSWORD").ok();
         let username = std::env::var("DB_USERNAME").ok();
-        let url = std::env::var("DB_URL").unwrap_or_else(|_| "mem://".to_string());
+        let url = std::env::var("DB_URL").unwrap_or("mem://".to_string());
 
         Self {
             namespace,
