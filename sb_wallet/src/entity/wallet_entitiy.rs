@@ -818,7 +818,7 @@ mod tests {
         }
     }
 
-    async fn run_migrations(db: Surreal<Db>) -> AppResult<()> {
+    async fn run_migrations(db: db::Db) -> AppResult<()> {
         let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
 
         LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
@@ -833,8 +833,9 @@ mod tests {
         Ok(())
     }
 
-    async fn init_db_test() -> (Surreal<Db>, Ctx) {
-        let db = db::start(Some("test".to_string()))
+    async fn init_db_test() -> (db::Db, Ctx) {
+  
+        let db = db::start(db::DBConfig::from_env())
             .await
             .expect("db initialized");
         let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);

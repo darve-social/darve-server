@@ -23,7 +23,8 @@ pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
             .as_nanos()
             .to_string(),
     );
-    let db_start = db::start(db).await;
+    
+    let db_start = db::start(db::DBConfig::from_env()).await;
     if db_start.is_err() {
         panic!("DB ERR={:?}", db_start.err().unwrap());
     }
