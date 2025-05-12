@@ -9,6 +9,7 @@ use crate::error::AppResult;
 pub type Db = Surreal<Any>;
 
 pub static DB: Lazy<Db> = Lazy::new(Surreal::init);
+const MEM_DB_URL: &str = "mem://";
 
 #[derive(Debug)]
 pub struct DBConfig {
@@ -25,7 +26,7 @@ impl DBConfig {
         let database = std::env::var("DB_DATABASE").unwrap_or("database".to_string());
         let password = std::env::var("DB_PASSWORD").ok();
         let username = std::env::var("DB_USERNAME").ok();
-        let url = std::env::var("DB_URL").unwrap_or("mem://".to_string());
+        let url = std::env::var("DB_URL").unwrap_or(MEM_DB_URL.to_string());
 
         Self {
             namespace,
@@ -43,7 +44,7 @@ pub async fn start(config: DBConfig) -> AppResult<Db> {
     let _conn = DB.connect(config.url.clone()).await?;
 
         match (config.password.as_ref(), config.username.as_ref(), config.url.as_str()) {
-            (Some(password), Some(username), url) if url!="mem://" => {
+            (Some(password), Some(username), url) if url! = MEM_DB_URL => {
                 DB.signin(Root {
                     username,
                     password,
