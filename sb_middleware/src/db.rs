@@ -41,15 +41,15 @@ impl DBConfig {
 pub async fn start(config: DBConfig) -> AppResult<Db> {
     let _conn = DB.connect(config.url).await?;
 
-    match (config.password.as_ref(), config.username.as_ref()) {
-        (Some(password), Some(username)) => {
-            DB.signin(Root {
-                username,
-                password,
-            }).await?;
+        match (config.password.as_ref(), config.username.as_ref(), config.url.as_str()) {
+            (Some(password), Some(username), url) if url!="mem://" => {
+                DB.signin(Root {
+                    username,
+                    password,
+                }).await?;
+            }
+            _ => {}
         }
-        _ => {}
-    }
 
     DB.use_ns(config.namespace)
         .use_db(config.database)
