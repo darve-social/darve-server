@@ -2,48 +2,41 @@ use crate::{main_router, run_migrations};
 use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
 use sb_middleware::ctx::Ctx;
-use sb_middleware::db;
-use sb_middleware::error::{AppError, AppResult, CtxResult};
+use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::{create_ctx_state, CtxState};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
-use std::time::{SystemTime, UNIX_EPOCH};
+use surrealdb::engine::any::{connect, Any};
+use surrealdb::Surreal;
 use uuid::Uuid;
-use sb_middleware::utils::db_utils::record_exists;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+
+async fn init_test_db() -> Surreal<Any> {
+    let db = connect("mem://").await.unwrap();
+    db.use_ns("namespace").use_db("database").await.unwrap();
+    run_migrations(db.clone()).await.expect("migrations run");
+    db
+}
 
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
 #[allow(dead_code)]
-pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
-    let db = Some(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-            .to_string(),
-    );
-    
-    let db_start = db::start(db::DBConfig::from_env()).await;
-    if db_start.is_err() {
-        panic!("DB ERR={:?}", db_start.err().unwrap());
-    }
-    let is_dev = true;
-    run_migrations(db_start.unwrap())
-        .await
-        .expect("migrations run");
+pub async fn create_test_server() -> (TestServer, CtxState) {
+    let db = init_test_db().await;
 
     let ctx_state = create_ctx_state(
+        db,
         "123".to_string(),
-        is_dev,
+        true,
         "".to_string(),
-        Duration::days(7),
+        Duration::new(7 * 86400, 0).unwrap(),
         "".to_string(),
         "".to_string(),
         "".to_string(),
         "uploads".to_string(),
-        15
+        15,
     );
+
     let wa_config = create_webauth_config();
     let routes_all = main_router(&ctx_state.clone(), wa_config).await;
 
@@ -58,9 +51,8 @@ pub async fn create_test_server() -> (AppResult<TestServer>, CtxState) {
             default_scheme: None,
         },
     )
-    .map_err(|e| AppError::Generic {
-        description: format!("server did not start err{}", e),
-    });
+    .expect("Failed to create test server");
+
     (server, ctx_state)
 }
 
@@ -106,11 +98,14 @@ pub async fn create_dev_env(
     image_uri: Option<String>,
     full_name: Option<String>,
 ) -> CtxResult<Vec<String>> {
-    let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
-    let user_ser = LocalUserDbService{ db: &ctx_state._db, ctx };
+    let ctx = &Ctx::new(Ok(username.clone()), Uuid::new_v4(), false);
+    let user_ser = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx,
+    };
     let len = user_ser.users_len().await?;
-    
-    if len >0{
+
+    if len > 0 {
         return Ok(vec![]);
     }
     let hardcoded_bio =
@@ -119,8 +114,7 @@ pub async fn create_dev_env(
     let hardcoded_image_uri = Some(
         "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string(),
     );
-    
-    
+
     let id0 = register_user(
         &ctx_state._db,
         &ctx,

@@ -24,7 +24,6 @@ mod tests {
     #[tokio::test]
     async fn get_discussion_view() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
         let disc_name = "discName1".to_lowercase();
 
@@ -147,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn create_discussion() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
+
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
         let disc_name = "discName1".to_lowercase();
         let disc_name2 = "discName2".to_lowercase();

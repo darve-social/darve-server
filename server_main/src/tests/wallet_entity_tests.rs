@@ -11,8 +11,6 @@ mod tests {
         println!("Creating test server");
         let (server, _ctx_state) = create_test_server().await;
 
-        let server = server.unwrap();
-
         // create 2 users with user1 and user2 names
         let username1 = "userrr1".to_string();
         let username2 = "userrr2".to_string();

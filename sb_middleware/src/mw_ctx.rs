@@ -49,6 +49,7 @@ impl StripeConfig for CtxState {
 }
 
 pub fn create_ctx_state(
+    db: db::Db,
     start_password: String,
     is_development: bool,
     jwt_secret: String,
@@ -63,7 +64,7 @@ pub fn create_ctx_state(
     let key_enc = EncodingKey::from_secret(secret);
     let key_dec = DecodingKey::from_secret(secret);
     let ctx_state = CtxState {
-        _db: db::DB.clone(),
+        _db: db,
         key_enc,
         key_dec,
         start_password,

@@ -12,7 +12,6 @@ mod tests {
     #[tokio::test]
     async fn init_server() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         // let (server,user_ident) = create_login_test_user(&server).await;
         let username = "username".to_string();
         let create_response = server

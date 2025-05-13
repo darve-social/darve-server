@@ -16,8 +16,7 @@ mod tests {
     #[tokio::test]
     async fn get_community_view() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
-        let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+        let (server, user_ident) = create_login_test_user(&server, "usnnnns".to_string()).await;
         let disc_name = "discName1".to_lowercase();
 
         let create_response = server
@@ -64,7 +63,6 @@ mod tests {
     #[tokio::test]
     async fn create_community() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
         let comm_name = "discName1".to_lowercase();
         let comm_name2 = "disc_name2".to_lowercase();

@@ -14,7 +14,6 @@ mod tests {
     #[tokio::test]
     async fn create_post() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let comm_name = "comm-naMMe1".to_lowercase();
@@ -99,7 +98,7 @@ mod tests {
             .await;
 
         let comm_view = get_community(
-            State(ctx_state),
+            State(ctx_state.clone()),
             ctx,
             Path(comm_name),
             DiscussionParams {
