@@ -12,7 +12,6 @@ mod tests {
     #[tokio::test]
     async fn user_query() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username = "usn1ame".to_string();
         let (server, uid) = create_login_test_user(&server, username.clone()).await;
 
@@ -41,7 +40,6 @@ mod tests {
     #[tokio::test]
     async fn test_exists() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username = "usn1ame".to_string();
         let (server, uid) = create_login_test_user(&server, username.clone()).await;
 

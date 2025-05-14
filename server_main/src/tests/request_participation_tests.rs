@@ -25,7 +25,6 @@ mod tests {
     #[tokio::test]
     async fn create_task_request_participation() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username0 = "usnnnn0".to_string();
         let username1 = "usnnnn1".to_string();
         let username2 = "usnnnn2".to_string();
@@ -417,14 +416,23 @@ mod tests {
         let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
         assert_eq!(received_notifications.len(), 5);
 
-        let balance_updates: Vec<_> = received_notifications.iter().filter(|v| v.event.to_string() == UserNotificationEvent::UserBalanceUpdate.to_string()).collect();
+        let balance_updates: Vec<_> = received_notifications
+            .iter()
+            .filter(|v| v.event.to_string() == UserNotificationEvent::UserBalanceUpdate.to_string())
+            .collect();
         assert_eq!(balance_updates.len(), 4);
-        let balance_updates:Vec<_> = received_notifications.iter().filter(|v| v.event.to_string() == UserNotificationEvent::UserTaskRequestDelivered {
-                task_id: NO_SUCH_THING.clone(),
-                deliverable: NO_SUCH_THING.clone(),
-                delivered_by: NO_SUCH_THING.clone(),
-            }
-            .to_string()).collect();
+        let balance_updates: Vec<_> = received_notifications
+            .iter()
+            .filter(|v| {
+                v.event.to_string()
+                    == UserNotificationEvent::UserTaskRequestDelivered {
+                        task_id: NO_SUCH_THING.clone(),
+                        deliverable: NO_SUCH_THING.clone(),
+                        delivered_by: NO_SUCH_THING.clone(),
+                    }
+                    .to_string()
+            })
+            .collect();
         assert_eq!(balance_updates.len(), 1);
 
         // check transaction history /api/user/wallet/history
@@ -436,12 +444,15 @@ mod tests {
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
         assert_eq!(created.transactions.len(), 6);
-        
+
         created.transactions.iter().fold(0i64, |prev_val, tx_v| {
-            let date_time= DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
             let ts = date_time.unwrap().timestamp();
-            println!("for {} with {} in {:?} out {:?} after tx balance={}",tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance);
-            assert_eq!(ts>= prev_val, true);
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts >= prev_val, true);
             ts
         });
 
@@ -454,12 +465,15 @@ mod tests {
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
         assert_eq!(created.transactions.len(), 4);
-        
+
         created.transactions.iter().fold(0i64, |prev_val, tx_v| {
-            let date_time= DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
             let ts = date_time.unwrap().timestamp();
-            println!("for {} with {} in {:?} out {:?} after tx balance={}",tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance);
-            assert_eq!(ts>= prev_val, true);
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts >= prev_val, true);
             ts
         });
     }

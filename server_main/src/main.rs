@@ -67,14 +67,18 @@ async fn main() -> AppResult<()> {
         .expect("set DEVELOPMENT env var")
         .eq("true");
     let init_server_password = std::env::var("START_PASSWORD").expect("password to start request");
-    let stripe_secret_key = std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
+    let stripe_secret_key =
+        std::env::var("STRIPE_SECRET_KEY").expect("Missing STRIPE_SECRET_KEY in env");
     let stripe_wh_secret =
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =
         std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
     let uploads_dir = std::env::var("UPLOADS_DIRECTORY").unwrap_or("uploads".to_string());
     println!("uploads dir = {uploads_dir}");
-    let upload_file_size_max_mb: u64 = std::env::var("UPLOAD_MAX_SIZE_MB").unwrap_or("15".to_string()).parse().expect("to be number");
+    let upload_file_size_max_mb: u64 = std::env::var("UPLOAD_MAX_SIZE_MB")
+        .unwrap_or("15".to_string())
+        .parse()
+        .expect("to be number");
     println!("uploads max mb = {upload_file_size_max_mb}");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
     let jwt_duration = Duration::days(7);
@@ -83,6 +87,7 @@ async fn main() -> AppResult<()> {
     run_migrations(db).await?;
 
     let ctx_state = mw_ctx::create_ctx_state(
+        db::DB.clone(),
         init_server_password,
         is_dev,
         jwt_secret,
@@ -91,7 +96,7 @@ async fn main() -> AppResult<()> {
         stripe_wh_secret,
         stripe_platform_account,
         uploads_dir,
-        upload_file_size_max_mb
+        upload_file_size_max_mb,
     );
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = main_router(&ctx_state, wa_config).await;
@@ -250,5 +255,5 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
 }
 
 async fn get_hc() -> Response {
-    (StatusCode::OK, format!("v{}",VERSION)).into_response()
+    (StatusCode::OK, format!("v{}", VERSION)).into_response()
 }

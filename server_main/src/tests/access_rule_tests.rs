@@ -25,7 +25,6 @@ mod tests {
     #[tokio::test]
     async fn display_access_rule_content() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let comm_name = "community_123";

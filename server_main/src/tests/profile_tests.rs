@@ -15,7 +15,6 @@ mod tests {
     #[tokio::test]
     async fn search_users() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username1 = "its_user_one".to_string();
         let username2 = "its_user_two".to_string();
         let username3 = "herodus".to_string();
@@ -94,7 +93,6 @@ mod tests {
     #[tokio::test]
     async fn get_user_chat() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username1 = "usnnnn".to_string();
         let username2 = "usnnnn2".to_string();
         let username3 = "usnnnn3".to_string();

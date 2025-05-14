@@ -18,7 +18,6 @@ mod tests {
     #[tokio::test]
     async fn get_user_followers() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let username1 = "usnnnn".to_string();
         let username2 = "usnnnn2".to_string();
         let username3 = "usnnnn3".to_string();

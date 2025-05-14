@@ -273,14 +273,12 @@ mod tests {
     #[tokio::test]
     async fn get_auth_parent_record_id() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
     }
 
     #[tokio::test]
     async fn authorize_save() {
         let (server, ctx_state) = create_test_server().await;
-        let server = server.unwrap();
         let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
         let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
