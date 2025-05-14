@@ -8,16 +8,14 @@ use dotenv::dotenv;
 use error::AppResult;
 use sb_middleware::db::DBConfig;
 use std::net::{Ipv4Addr, SocketAddr};
-use surrealdb::sql::Thing;
 use tokio;
-use tokio::task::JoinHandle;
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use crate::test_utils::create_dev_env;
 use reqwest::Client;
-use sb_community::entity::community_entitiy::{Community, CommunityDbService};
+use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
@@ -29,7 +27,7 @@ use sb_community::routes::{
     reply_routes, stripe_routes,
 };
 use sb_middleware::ctx::Ctx;
-use sb_middleware::mw_ctx::{ApplicationEvent, CtxState};
+use sb_middleware::mw_ctx::CtxState;
 use sb_middleware::{db, error, mw_ctx, mw_req_logger};
 use sb_task::entity::task_deliverable_entitiy::TaskDeliverableDbService;
 use sb_task::entity::task_request_entitiy::TaskRequestDbService;
@@ -38,9 +36,9 @@ use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
-use sb_user_auth::entity::authentication_entity::{AuthType, AuthenticationDbService};
+use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
