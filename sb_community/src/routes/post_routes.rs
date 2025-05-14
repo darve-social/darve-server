@@ -273,6 +273,31 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
+    
+    let new_post_id = PostDbService::get_new_post_thing();
+    
+    // try saving file first so post is not created in case it fails
+    if let Some(files) = input_value.file_1 {
+        let file_name = files.metadata.file_name.unwrap();
+        let ext = file_name.split(".").last().ok_or(AppError::Generic {
+            description: "File has no extension".to_string(),
+        })?;
+
+        let file_name = format!("pid_{}-file_1.{ext}", new_post_id.to_raw());
+        let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
+        let saved = files.contents.persist(path.clone());
+        if saved.is_ok() {
+            post_db_service
+                .set_media_url(
+                    &new_post_id,
+                    format!("{UPLOADS_URL_BASE}/{file_name}").as_str(),
+                )
+                .await?;
+        }else{
+            return Err(ctx.to_ctx_error(AppError::Generic {description: saved.err().expect("is error").to_string()}));
+        }
+    }
+    
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
         get_string_thing(input_value.topic_id).ok()
     } else {
@@ -280,8 +305,8 @@ pub async fn create_post_entity_route(
     };
 
     let post = post_db_service
-        .create(Post {
-            id: None,
+        .create_update(Post {
+            id: Some(new_post_id),
             belongs_to: disc.id.clone().unwrap(),
             discussion_topic: topic_val.clone(),
             title: input_value.title,
@@ -297,28 +322,7 @@ pub async fn create_post_entity_route(
             replies_nr: 0,
         })
         .await?;
-
-    if let Some(files) = input_value.file_1 {
-        let file_name = files.metadata.file_name.unwrap();
-        let ext = file_name.split(".").last().ok_or(AppError::Generic {
-            description: "File has no extension".to_string(),
-        })?;
-
-        let file_name = format!("pid_{}-file_1.{ext}", post.id.clone().unwrap().id.to_raw());
-        let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
-        let saved = files.contents.persist(path.clone());
-        if saved.is_ok() {
-            post_db_service
-                .set_media_url(
-                    post.id.clone().unwrap(),
-                    format!("{UPLOADS_URL_BASE}/{file_name}").as_str(),
-                )
-                .await?;
-        }else{
-            return Err(ctx.to_ctx_error(AppError::Generic {description: saved.err().expect("is error").to_string()}));
-        }
-    }
-
+    
     // set latest post
     disc_db
         .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())

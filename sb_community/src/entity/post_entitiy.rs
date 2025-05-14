@@ -16,6 +16,7 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
+use crate::entity::discussion_entitiy::Discussion;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
@@ -146,10 +147,14 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
-    pub async fn create(&self, mut record: Post) -> CtxResult<Post> {
-        record.id = Some(Thing::from((TABLE_NAME, Id::ulid())));
+    pub async fn create_update(&self, mut record: Post) -> CtxResult<Post> {
+        let resource = record
+            .id
+            .clone()
+            .unwrap_or(Self::get_new_post_thing());
+        
         self.db
-            .create(TABLE_NAME)
+            .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
             .await
             .map_err(|e| match e {
@@ -166,7 +171,7 @@ impl<'a> PostDbService<'a> {
             .map(|v: Option<Post>| v.unwrap())
     }
 
-    pub async fn set_media_url(&self, post_id: Thing, url: &str) -> CtxResult<Post> {
+    pub async fn set_media_url(&self, post_id: &Thing, url: &str) -> CtxResult<Post> {
         // TODO add index para to change particular url
         let res: Option<Post> = self
             .db
@@ -206,4 +211,7 @@ impl<'a> PostDbService<'a> {
             })
         })
     }
+    
+    pub fn get_new_post_thing() -> Thing {
+        Thing::from((TABLE_NAME.to_string(), Id::ulid()))    }
 }
