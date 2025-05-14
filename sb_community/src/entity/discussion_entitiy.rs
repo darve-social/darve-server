@@ -130,7 +130,7 @@ impl<'a> DiscussionDbService<'a> {
             .join(",");
 
         bindings_map.extend(disc_bindings_map);
-
+        // TODO add qry bindings
         let qry = format!(
             "SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];",
             q_bind_discid_props_str, q_bind_uid_props_str

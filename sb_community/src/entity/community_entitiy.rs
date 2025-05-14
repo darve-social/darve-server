@@ -16,6 +16,11 @@ use sb_middleware::{
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
+/// Community represents structure that holds discussions.
+/// User has one profile community and can also create multiple custom communities.
+/// The main discussion in community is profile_discussion.
+/// Discussions can also be used as chat rooms or specific places to add specific posts.
+
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Community {
     // random id or local_user_id for profile
@@ -35,6 +40,23 @@ pub struct Community {
     pub created_by: Thing,
     pub stripe_connect_account_id: Option<String>,
     pub stripe_connect_complete: bool,
+}
+
+impl Community {
+    pub fn new_user_community(user_id: &Thing) -> Self {
+        Self{
+            id: Some(CommunityDbService::get_profile_community_id(user_id)),
+            title: None,
+            name_uri: user_id.to_raw(),
+            profile_discussion: None,
+            profile_chats: None,
+            r_created: None,
+            courses: None,
+            created_by: user_id.clone(),
+            stripe_connect_account_id: None,
+            stripe_connect_complete: false,
+        }
+    }
 }
 
 pub struct CommunityDbService<'a> {
@@ -178,24 +200,13 @@ impl<'a> CommunityDbService<'a> {
     }
 
     pub async fn get_profile_community(&self, user_id: Thing) -> CtxResult<Community> {
-        let user_comm_id = Self::get_profile_community_id(user_id.clone());
+        let user_comm_id = Self::get_profile_community_id(&user_id);
         let user_comm = self.get(IdentIdName::Id(user_comm_id.clone())).await;
         match user_comm {
             Ok(_) => user_comm,
             Err(err) => {
                 if let AppError::EntityFailIdNotFound { .. } = err.error {
-                    self.create_update(Community {
-                        id: Some(user_comm_id),
-                        title: None,
-                        name_uri: user_id.to_raw(),
-                        profile_discussion: None,
-                        profile_chats: None,
-                        r_created: None,
-                        courses: None,
-                        created_by: user_id.clone(),
-                        stripe_connect_account_id: None,
-                        stripe_connect_complete: false,
-                    })
+                    self.create_update(Community::new_user_community(&user_id))
                     .await
                 } else {
                     Err(self.ctx.to_ctx_error(err.error))
@@ -204,7 +215,7 @@ impl<'a> CommunityDbService<'a> {
         }
     }
 
-    pub fn get_profile_community_id(user_id: Thing) -> Thing {
+    pub fn get_profile_community_id(user_id: &Thing) -> Thing {
         Thing::from((Self::get_table_name().to_string(), user_id.id.to_raw()))
     }
 }

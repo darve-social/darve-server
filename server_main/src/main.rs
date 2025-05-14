@@ -85,7 +85,7 @@ async fn main() -> AppResult<()> {
 
     let db = db::start(DBConfig::from_env()).await?;
     run_migrations(db.clone()).await?;
-    init::create_default_profiles(db.clone()).await;
+    init::create_default_profiles(db.clone(), init_server_password.as_str()).await;
 
     let ctx_state = mw_ctx::create_ctx_state(
         init_server_password,
