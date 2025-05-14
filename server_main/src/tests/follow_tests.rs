@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::application_event_handler;
+    use crate::events_handler::application_event_handler;
     use crate::test_utils::{
         create_fake_community, create_fake_post, create_login_test_user, create_test_server,
     };
