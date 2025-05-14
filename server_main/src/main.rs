@@ -15,11 +15,9 @@ use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
-use sb_user_auth::routes::webauthn::webauthn_routes;
-
 use crate::test_utils::create_dev_env;
 use reqwest::Client;
-use sb_community::entity::community_entitiy::CommunityDbService;
+use sb_community::entity::community_entitiy::{Community, CommunityDbService};
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
@@ -40,10 +38,11 @@ use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
-use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
+use sb_user_auth::entity::authentication_entity::{AuthType, AuthenticationDbService};
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
 use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
+use sb_user_auth::routes::webauthn::webauthn_routes;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
 use sb_user_auth::routes::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
@@ -54,6 +53,7 @@ use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 use sb_wallet::routes::{wallet_endowment_routes, wallet_routes};
 
+mod init;
 mod mw_response_transformer;
 mod test_utils;
 mod tests;
@@ -84,7 +84,8 @@ async fn main() -> AppResult<()> {
     let jwt_duration = Duration::days(7);
 
     let db = db::start(DBConfig::from_env()).await?;
-    run_migrations(db).await?;
+    run_migrations(db.clone()).await?;
+    init::create_default_profiles(db.clone(), init_server_password.as_str()).await;
 
     let ctx_state = mw_ctx::create_ctx_state(
         db::DB.clone(),

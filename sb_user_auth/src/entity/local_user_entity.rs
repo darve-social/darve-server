@@ -38,6 +38,22 @@ pub struct LocalUser {
     pub image_uri: Option<String>,
 }
 
+impl LocalUser {
+    pub fn default(username: String) -> Self {
+        LocalUser {
+            id: None,
+            username,
+            full_name: None,
+            birth_date: None,
+            phone: None,
+            email: None,
+            bio: None,
+            social_links: None,
+            image_uri: None,
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Deserialize)]
 struct UsernameView {
