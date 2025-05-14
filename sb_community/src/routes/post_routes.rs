@@ -275,7 +275,7 @@ pub async fn create_post_entity_route(
     };
     
     let new_post_id = PostDbService::get_new_post_thing();
-    
+    let mut media_links = vec![];
     // try saving file first so post is not created in case it fails
     if let Some(files) = input_value.file_1 {
         let file_name = files.metadata.file_name.unwrap();
@@ -287,16 +287,11 @@ pub async fn create_post_entity_route(
         let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
         let saved = files.contents.persist(path.clone());
         if saved.is_ok() {
-            post_db_service
-                .set_media_url(
-                    &new_post_id,
-                    format!("{UPLOADS_URL_BASE}/{file_name}").as_str(),
-                )
-                .await?;
+            media_links.push( format!("{UPLOADS_URL_BASE}/{file_name}") );
         }else{
-            return Err(ctx.to_ctx_error(AppError::Generic {description: saved.err().expect("is error").to_string()}));
+            return Err(ctx.to_ctx_error(AppError::Generic { description: saved.err().expect("is error").to_string() }));
         }
-    }
+    };
     
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
         get_string_thing(input_value.topic_id).ok()
@@ -312,7 +307,7 @@ pub async fn create_post_entity_route(
             title: input_value.title,
             r_title_uri: None,
             content: input_value.content,
-            media_links: None,
+            media_links: if media_links.is_empty(){None}else{Some(media_links)},
             metadata: None,
             r_created: None,
             created_by: user_id.clone(),

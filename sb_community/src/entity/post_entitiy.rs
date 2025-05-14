@@ -171,20 +171,21 @@ impl<'a> PostDbService<'a> {
             .map(|v: Option<Post>| v.unwrap())
     }
 
-    pub async fn set_media_url(&self, post_id: &Thing, url: &str) -> CtxResult<Post> {
-        // TODO add index para to change particular url
-        let res: Option<Post> = self
-            .db
-            .update((post_id.tb.clone(), post_id.id.clone().to_string()))
-            .patch(PatchOp::add("/media_links", [url]))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| {
-            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                ident: post_id.to_raw(),
-            })
-        })
-    }
+    // not used currently
+    // pub async fn set_media_url(&self, post_id: &Thing, url: &str) -> CtxResult<Post> {
+    //     // TODO add index para to change particular url
+    //     let res: Option<Post> = self
+    //         .db
+    //         .update((post_id.tb.clone(), post_id.id.clone().to_string()))
+    //         .patch(PatchOp::add("/media_links", [url]))
+    //         .await
+    //         .map_err(CtxError::from(self.ctx))?;
+    //     res.ok_or_else(|| {
+    //         self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+    //             ident: post_id.to_raw(),
+    //         })
+    //     })
+    // }
 
     pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
         let curr_nr = self
