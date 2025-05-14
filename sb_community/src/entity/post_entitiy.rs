@@ -5,6 +5,7 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
+use crate::entity::discussion_entitiy::Discussion;
 use crate::entity::reply_entitiy::Reply;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{
@@ -16,7 +17,6 @@ use sb_middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use crate::entity::discussion_entitiy::Discussion;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
@@ -147,12 +147,22 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
+    pub async fn get_latest(&self, user_id: &Thing, limit: u32) -> CtxResult<Vec<Post>> {
+        let query = format!("SELECT * FROM {TABLE_NAME} WHERE created_by = $user_id ORDER BY r_created DESC LIMIT $limit");
+        let mut result = self
+            .db
+            .query(query)
+            .bind(("user_id", user_id.clone()))
+            .bind(("limit", limit))
+            .await?;
+        result
+            .take(0)
+            .map_err(|error| CtxError::from(self.ctx)(error))
+    }
+
     pub async fn create_update(&self, mut record: Post) -> CtxResult<Post> {
-        let resource = record
-            .id
-            .clone()
-            .unwrap_or(Self::get_new_post_thing());
-        
+        let resource = record.id.clone().unwrap_or(Self::get_new_post_thing());
+
         self.db
             .upsert((resource.tb, resource.id.to_raw()))
             .content(record)
@@ -211,7 +221,8 @@ impl<'a> PostDbService<'a> {
             })
         })
     }
-    
+
     pub fn get_new_post_thing() -> Thing {
-        Thing::from((TABLE_NAME.to_string(), Id::ulid()))    }
+        Thing::from((TABLE_NAME.to_string(), Id::ulid()))
+    }
 }

@@ -1,7 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::{create_login_test_user, create_test_server};
+    use crate::application_event_handler;
+    use crate::test_utils::{
+        create_fake_community, create_fake_post, create_login_test_user, create_test_server,
+    };
     use axum_test::multipart::MultipartForm;
+    use fake::{faker, Fake};
+    use sb_community::entity::post_stream_entitiy::PostStreamDbService;
+
     use sb_community::routes::profile_routes::{
         FollowingStreamView, ProfileDiscussionView, ProfilePage,
     };
@@ -97,7 +103,7 @@ mod tests {
         assert_eq!(created.profile_view.unwrap().followers_nr, 1);
 
         //login as username3
-        let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
+        let (server, _) = create_login_test_user(&server, username3.clone()).await;
 
         // follow u1
         let create_response = server
@@ -193,7 +199,7 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
-        &create_post.assert_status_success();
+        create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
 
         let response = server
@@ -201,7 +207,7 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         let parsed_response = response.json::<ProfileDiscussionView>();
-        &create_post.assert_status_success();
+        create_post.assert_status_success();
         assert_eq!(parsed_response.posts.len(), 1);
         assert_eq!(
             parsed_response.posts[0].username.clone().unwrap(),
@@ -258,7 +264,7 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
-        &create_post.assert_status_success();
+        create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
 
         // login user3
@@ -338,7 +344,7 @@ mod tests {
             .add_header("Accept", "application/json")
             .await;
         let created = create_post.json::<CreatedResponse>();
-        &create_post.assert_status_success();
+        create_post.assert_status_success();
         assert_eq!(created.id.len() > 0, true);
 
         // login user3
@@ -368,5 +374,68 @@ mod tests {
             .await;
         dbg!(&notifications);
         assert_eq!(notifications.is_ok(), true);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn add_latest_three_posts_of_follower_to_ctx_user() {
+        let (server, ctx_state) = create_test_server().await;
+        let task = application_event_handler(&ctx_state);
+
+        let (_, user_ident1) =
+            create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+
+        let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
+
+        let result = create_fake_community(&server, &ctx_state, user_ident1.clone()).await;
+        let _ = create_fake_post(&server, &result.profile_discussion).await;
+        let post_2 = create_fake_post(&server, &result.profile_discussion).await;
+        let post_3 = create_fake_post(&server, &result.profile_discussion).await;
+        let post_4 = create_fake_post(&server, &result.profile_discussion).await;
+
+        let (_, user_ident2) =
+            create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+
+        let user2_id = get_string_thing(user_ident2.clone()).expect("user1");
+        let ctx = Ctx::new(Ok(user_ident2.clone()), Uuid::new_v4(), false);
+
+        let follow_db_service = FollowDbService {
+            ctx: &ctx,
+            db: &ctx_state._db,
+        };
+
+        let create_response = server
+            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .add_header("Accept", "application/json")
+            .json("")
+            .add_header("Accept", "application/json")
+            .await;
+
+        create_response.assert_status_success();
+
+        let followers_nr = follow_db_service
+            .user_followers_number(user1_id.clone())
+            .await
+            .expect("user 1 followers nr");
+        assert_eq!(1, followers_nr);
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+        let post_stream_db_service = PostStreamDbService {
+            ctx: &ctx,
+            db: &ctx_state._db,
+        };
+
+        let streams = post_stream_db_service
+            .user_posts_stream(user2_id.clone())
+            .await;
+
+        assert!(streams.is_ok());
+        let post_streams = streams.unwrap();
+        assert_eq!(post_streams.len(), 3);
+        assert!(post_streams.contains(&get_string_thing(post_2).unwrap()));
+        assert!(post_streams.contains(&get_string_thing(post_3).unwrap()));
+        assert!(post_streams.contains(&get_string_thing(post_4).unwrap()));
+
+        task.abort();
     }
 }

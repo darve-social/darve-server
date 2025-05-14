@@ -1,6 +1,8 @@
 use crate::{main_router, run_migrations};
 use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
+#[cfg(test)]
+use fake::{faker, Fake};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::{create_ctx_state, CtxState};
@@ -10,6 +12,7 @@ use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
 use surrealdb::engine::any::{connect, Any};
+use surrealdb::sql::Thing;
 use surrealdb::Surreal;
 use uuid::Uuid;
 
@@ -181,4 +184,86 @@ pub async fn create_dev_env(
     .unwrap()
     .id;
     Ok(vec![id0, id1, id2, id3, id4])
+}
+
+pub struct CreateFakeCommunityResponse {
+    pub id: String,
+    pub name: String,
+    pub profile_discussion: Thing,
+}
+
+#[cfg(test)]
+pub async fn create_fake_community(
+    server: &TestServer,
+    ctx_state: &CtxState,
+    user_ident: String,
+) -> CreateFakeCommunityResponse {
+    use sb_community::{
+        entity::community_entitiy::{Community, CommunityDbService},
+        routes::community_routes::CommunityInput,
+    };
+    use sb_middleware::utils::request_utils::CreatedResponse;
+
+    let comm_name = faker::name::en::Name().fake::<String>().to_lowercase();
+    let title = faker::lorem::en::Sentence(5..10).fake::<String>();
+
+    let create_response = server
+        .post("/api/community")
+        .json(&CommunityInput {
+            id: "".to_string(),
+            name_uri: comm_name.clone(),
+            title,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    let created = &create_response.json::<CreatedResponse>();
+
+    let comm_id = Thing::try_from(created.id.clone()).unwrap();
+    let comm_name = created.uri.clone().unwrap();
+    let _ = create_response.assert_status_success();
+
+    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+
+    let community_db_service = CommunityDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    };
+
+    let community: Community = community_db_service
+        .db
+        .select((&comm_id.tb, comm_id.id.to_raw()))
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(comm_name, community.name_uri.clone());
+
+    CreateFakeCommunityResponse {
+        id: created.id.clone(),
+        name: comm_name,
+        profile_discussion: community.profile_discussion.clone().unwrap(),
+    }
+}
+
+#[cfg(test)]
+pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing) -> String {
+    use axum_test::multipart::MultipartForm;
+    use sb_middleware::utils::request_utils::CreatedResponse;
+
+    let post_name = faker::name::en::Name().fake::<String>();
+    let content = faker::lorem::en::Sentence(7..20).fake::<String>();
+    let create_post = server
+        .post(format!("/api/discussion/{discussion_id}/post").as_str())
+        .multipart(
+            MultipartForm::new()
+                .add_text("title", post_name.clone())
+                .add_text("content", content)
+                .add_text("topic_id", ""),
+        )
+        .add_header("Accept", "application/json")
+        .await;
+    let created = create_post.json::<CreatedResponse>();
+    let _ = create_post.assert_status_success();
+    assert_eq!(created.id.len() > 0, true);
+    created.id
 }
