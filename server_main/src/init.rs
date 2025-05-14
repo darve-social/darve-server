@@ -34,7 +34,8 @@ async fn create_profile<'a>(
         .await
         .expect("User could not be created");
 
-    let community = Community::new_user_community(&get_string_thing(user_id).expect("is user ident"));
+    let community =
+        Community::new_user_community(&get_string_thing(user_id).expect("is user ident"));
 
     let _ = community_service
         .create_update(community)
@@ -52,19 +53,7 @@ pub async fn create_default_profiles(db: db::Db, password: &str) {
     let user_service = LocalUserDbService { db: &db, ctx: &c };
     let community_service = CommunityDbService { db: &db, ctx: &c };
 
-    let _ = create_profile(
-        "darve-starter",
-        password,
-        &user_service,
-        &community_service,
-    )
-    .await;
+    let _ = create_profile("darve-starter", password, &user_service, &community_service).await;
 
-    let _ = create_profile(
-        "darve-super",
-        password,
-        &user_service,
-        &community_service,
-    )
-    .await;
+    let _ = create_profile("darve-super", password, &user_service, &community_service).await;
 }
