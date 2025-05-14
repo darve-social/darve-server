@@ -4,13 +4,15 @@ use chrono::Duration;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::{create_ctx_state, CtxState};
-use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
 use serde::Deserialize;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::Surreal;
 use uuid::Uuid;
+use sb_middleware::utils::db_utils::{IdentIdName};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
+
 
 async fn init_test_db() -> Surreal<Any> {
     let db = connect("mem://").await.unwrap();
@@ -98,44 +100,46 @@ pub async fn create_dev_env(
     image_uri: Option<String>,
     full_name: Option<String>,
 ) -> CtxResult<Vec<String>> {
-    let ctx = &Ctx::new(Ok(username.clone()), Uuid::new_v4(), false);
-    let user_ser = LocalUserDbService {
-        db: &ctx_state._db,
-        ctx,
-    };
-    let len = user_ser.users_len().await?;
+    let ctx = &Ctx::new(Ok(username.clone().to_string()), Uuid::new_v4(), false);
+    let user_ser = LocalUserDbService{ db: &ctx_state._db, ctx };
 
-    if len > 0 {
+    let exists = user_ser.get(IdentIdName::ColumnIdent {
+        column: "username".to_string(),
+        val: "test0".to_string(),
+        rec: false,
+    }).await;
+
+    if exists.is_ok() {
         return Ok(vec![]);
     }
-    let hardcoded_bio =
-        Some("💥 Hero-in-training with explosive ambition to be #1! 💣".to_string());
-    let hardcoded_full_name = Some("Katsuki Bakugo".to_string());
-    let hardcoded_image_uri = Some(
-        "https://qph.cf2.quoracdn.net/main-qimg-64a32df103bc8fb7b2fc495553a5fc0a-lq".to_string(),
-    );
 
-    let id0 = register_user(
-        &ctx_state._db,
-        &ctx,
-        &RegisterInput {
-            username: "test0".to_string(),
+    let hardcoded_bios =
+        [
+            ("💥 Hero-in-training with explosive ambition to be #0! 💣", "https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg"),
+            ("🥇 Champ-in-training with explosive ambition to be #1! 💣", "https://fanboydestroy.com/wp-content/uploads/2019/04/ary-and-the-secret-of-seasons-super-resolution-2019.03.22-11.55.42.73.png"),
+            ("‼️ QA-in-training with explosive ambition to be #2! 💣", "https://static0.gamerantimages.com/wordpress/wp-content/uploads/2022/07/Genshin-Impact-Sumeru-region.jpg"),
+             ("👾 BOT-in-training with explosive ambition to be #3! 💣", "https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/10/cocoon-container-creature.jpg"),
+
+        ];
+
+    let reg_inputs: Vec<RegisterInput> = hardcoded_bios.iter().enumerate().map(|i_bio|{
+        let username = format!("test{}", i_bio.0);
+        RegisterInput{
+            username: username.clone(),
             password: "000000".to_string(),
             password1: "000000".to_string(),
-            email: Some("test0@mail.com".to_string()),
-            bio: hardcoded_bio.clone(),
-            full_name: hardcoded_full_name.clone(),
-            image_uri: hardcoded_image_uri.clone(),
+            email: Some(format!("{}@email.com", username.as_str())),
+            bio: Some(i_bio.1.0.to_string()),
+            full_name: Some(format!("User {username}")),
+            image_uri: Some(i_bio.1.1.to_string()),
             next: None,
-        },
-    )
-    .await
-    .unwrap()
-    .id;
+        }
+    }).collect();
 
-    let id1 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test1".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test1".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
-    let id2 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test2".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test2 User2".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
-    let id3 = register_user(&ctx_state._db, &ctx, &RegisterInput { username: "test3".to_string(), password: "000000".to_string(), password1: "000000".to_string(), email: None,bio:None, full_name:Some("Test3".to_string()),image_uri:Some("https://static0.gamerantimages.com/wordpress/wp-content/uploads/2023/02/shigaraki-face.jpg".to_string()),next: None }).await.unwrap().id;
+    let id0 = register_user(&ctx_state._db, &ctx, &reg_inputs[0]).await.unwrap().id;
+    let id1 = register_user(&ctx_state._db, &ctx, &reg_inputs[1]).await.unwrap().id;
+    let id2 = register_user(&ctx_state._db, &ctx, &reg_inputs[2]).await.unwrap().id;
+    let id3 = register_user(&ctx_state._db, &ctx, &reg_inputs[3] ).await.unwrap().id;
 
     // create one more user with the input data
 
