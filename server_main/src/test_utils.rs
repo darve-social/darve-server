@@ -3,10 +3,15 @@ use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
 #[cfg(test)]
 use fake::{faker, Fake};
+use sb_community::{
+    entity::community_entitiy::{Community, CommunityDbService},
+    routes::community_routes::CommunityInput,
+};
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
 use sb_middleware::mw_ctx::{create_ctx_state, CtxState};
 use sb_middleware::utils::db_utils::IdentIdName;
+use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::routes::register_routes::{register_user, RegisterInput};
 use sb_user_auth::routes::webauthn::webauthn_routes::create_webauth_config;
@@ -198,12 +203,6 @@ pub async fn create_fake_community(
     ctx_state: &CtxState,
     user_ident: String,
 ) -> CreateFakeCommunityResponse {
-    use sb_community::{
-        entity::community_entitiy::{Community, CommunityDbService},
-        routes::community_routes::CommunityInput,
-    };
-    use sb_middleware::utils::request_utils::CreatedResponse;
-
     let comm_name = faker::name::en::Name().fake::<String>().to_lowercase();
     let title = faker::lorem::en::Sentence(5..10).fake::<String>();
 

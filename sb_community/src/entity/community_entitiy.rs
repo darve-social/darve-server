@@ -29,6 +29,8 @@ pub struct Community {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub name_uri: String,
+    // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
+    // then rename this profile_discussion to default_discussion 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_discussion: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]

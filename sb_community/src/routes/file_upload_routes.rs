@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Bytes;
-use axum::extract::{DefaultBodyLimit, Multipart, State};
+use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::post;

@@ -1,15 +1,13 @@
 #[cfg(test)]
 mod tests {
     use crate::events_handler::application_event_handler;
-    use crate::test_utils::{
-        create_fake_community, create_fake_post, create_login_test_user, create_test_server,
-    };
+    use crate::test_utils::{create_fake_post, create_login_test_user, create_test_server};
     use axum_test::multipart::MultipartForm;
     use fake::{faker, Fake};
     use sb_community::entity::post_stream_entitiy::PostStreamDbService;
 
     use sb_community::routes::profile_routes::{
-        FollowingStreamView, ProfileDiscussionView, ProfilePage,
+        get_profile_community, FollowingStreamView, ProfileDiscussionView, ProfilePage,
     };
     use sb_middleware::ctx::Ctx;
     use sb_middleware::utils::request_utils::CreatedResponse;
@@ -385,12 +383,17 @@ mod tests {
             create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
 
         let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
+        let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
 
-        let result = create_fake_community(&server, &ctx_state, user_ident1.clone()).await;
-        let _ = create_fake_post(&server, &result.profile_discussion).await;
-        let post_2 = create_fake_post(&server, &result.profile_discussion).await;
-        let post_3 = create_fake_post(&server, &result.profile_discussion).await;
-        let post_4 = create_fake_post(&server, &result.profile_discussion).await;
+        let profile_discussion = get_profile_community(&ctx_state._db, &ctx, user1_id.clone())
+            .await
+            .unwrap()
+            .profile_discussion
+            .unwrap();
+        let _ = create_fake_post(&server, &profile_discussion).await;
+        let post_2 = create_fake_post(&server, &profile_discussion).await;
+        let post_3 = create_fake_post(&server, &profile_discussion).await;
+        let post_4 = create_fake_post(&server, &profile_discussion).await;
 
         let (_, user_ident2) =
             create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;

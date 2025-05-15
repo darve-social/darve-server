@@ -10,12 +10,13 @@ use chrono::Duration;
 use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
+use strum::Display;
 use tokio::sync::broadcast::{self, Sender};
 use tower_cookies::{Cookie, Cookies};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
 pub enum ApplicationEvent {
     UserFollowAdded { ctx: Ctx, follow_user_id: String },
 }

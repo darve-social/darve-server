@@ -5,7 +5,6 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
-use crate::entity::discussion_entitiy::Discussion;
 use crate::entity::reply_entitiy::Reply;
 use sb_middleware::db;
 use sb_middleware::utils::db_utils::{
@@ -18,8 +17,14 @@ use sb_middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 
+/// Post belongs_to discussion. 
+/// It is created_by user. Since user can create posts in different
+/// discussions we have to filter by discussion and user to get user's posts
+/// in particular discussion. User profile posts are in profile discussion.
+/// 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
+    // id is ULID for sorting by time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub belongs_to: Thing,
@@ -54,7 +59,9 @@ pub const TABLE_NAME: &str = "post";
 const TABLE_COL_DISCUSSION: &str = crate::entity::discussion_entitiy::TABLE_NAME;
 const TABLE_COL_TOPIC: &str = crate::entity::discussion_topic_entitiy::TABLE_NAME;
 const TABLE_COL_USER: &str = sb_user_auth::entity::local_user_entity::TABLE_NAME;
+const TABLE_COL_BELONGS_TO: &str = "belongs_to";
 const INDEX_BELONGS_TO_URI: &str = "belongs_to_x_title_uri_idx";
+const INDEX_BELONGS_TO: &str = "belongs_to_idx";
 
 impl<'a> PostDbService<'a> {
     pub fn get_table_name() -> &'static str {
@@ -64,13 +71,14 @@ impl<'a> PostDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
+    DEFINE FIELD IF NOT EXISTS {TABLE_COL_BELONGS_TO} ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_DISCUSSION}>;
+    DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO} ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_BELONGS_TO};
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD IF NOT EXISTS r_title_uri ON TABLE {TABLE_NAME} VALUE string::slug($this.title);
     DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO_URI} ON TABLE {TABLE_NAME} COLUMNS belongs_to, r_title_uri UNIQUE;
     DEFINE FIELD IF NOT EXISTS {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
-        ASSERT $value INSIDE (SELECT topics FROM ONLY $this.belongs_to).topics;
+        ASSERT $value INSIDE (SELECT topics FROM ONLY $this.{TABLE_COL_BELONGS_TO}).topics;
     DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
     DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
@@ -119,7 +127,8 @@ impl<'a> PostDbService<'a> {
     ) -> CtxResult<Vec<T>> {
         let filter_by = Self::create_filter(discussion_id, params.topic_id);
         let pagination = Some(Pagination {
-            order_by: Option::from("r_created".to_string()),
+            // id is ULID so can be ordered by time
+            order_by: Some("id".to_string()),
             order_dir: Some(QryOrder::DESC),
             count: params.count.unwrap_or(20),
             start: params.start.unwrap_or(0),
@@ -129,7 +138,7 @@ impl<'a> PostDbService<'a> {
 
     fn create_filter(discussion_id: Thing, topic: Option<Thing>) -> IdentIdName {
         let filter_discussion = IdentIdName::ColumnIdent {
-            column: "belongs_to".to_string(),
+            column: TABLE_COL_BELONGS_TO.to_string(),
             val: discussion_id.to_raw(),
             rec: true,
         };
@@ -147,20 +156,7 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
-    pub async fn get_latest(&self, user_id: &Thing, limit: u32) -> CtxResult<Vec<Post>> {
-        let query = format!("SELECT * FROM {TABLE_NAME} WHERE created_by = $user_id ORDER BY r_created DESC LIMIT $limit");
-        let mut result = self
-            .db
-            .query(query)
-            .bind(("user_id", user_id.clone()))
-            .bind(("limit", limit))
-            .await?;
-        result
-            .take(0)
-            .map_err(|error| CtxError::from(self.ctx)(error))
-    }
-
-    pub async fn create_update(&self, mut record: Post) -> CtxResult<Post> {
+    pub async fn create_update(&self, record: Post) -> CtxResult<Post> {
         let resource = record.id.clone().unwrap_or(Self::get_new_post_thing());
 
         self.db
@@ -223,6 +219,7 @@ impl<'a> PostDbService<'a> {
     }
 
     pub fn get_new_post_thing() -> Thing {
+        // id is ULID for sorting by time
         Thing::from((TABLE_NAME.to_string(), Id::ulid()))
     }
 }
