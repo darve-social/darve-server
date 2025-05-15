@@ -47,6 +47,8 @@ async-stripe = { version = "0.41.0", features = [
     "runtime-tokio-hyper",
 ] }
 
+[dev-dependencies]
+fake = "4.3.0"
 
 [profile.release]
 opt-level = 3

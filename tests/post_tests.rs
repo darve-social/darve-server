@@ -8,6 +8,8 @@ use community_routes::{get_community, CommunityInput};
 use darve_server::entities::community::community_entity;
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
+use helpers::community_helpers::create_fake_community;
+use helpers::post_helpers::{create_fake_post_with_file, create_fake_post_with_large_file};
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
@@ -117,4 +119,14 @@ async fn create_post() {
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 2);
+}
+
+#[tokio::test]
+async fn create_post_with_file_test() {
+    let (server, ctx_state) = create_test_server().await;
+    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+
+    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+    let _ = create_fake_post_with_large_file(server, &ctx_state, &result.profile_discussion).await;
+    let _ = create_fake_post_with_file(server, &ctx_state, &result.profile_discussion).await;
 }
