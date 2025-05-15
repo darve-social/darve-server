@@ -344,7 +344,7 @@ async fn get_profile_discussion_view(
     Ok(dis_view)
 }
 
-async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
+pub async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     comm_db_ser.get_profile_community(user_id).await
 }

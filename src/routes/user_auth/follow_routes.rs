@@ -18,6 +18,7 @@ use user_notification_entity::{UserNotificationDbService, UserNotificationEvent}
 
 use crate::entities::user_auth::{self, user_notification_entity};
 use crate::middleware;
+use crate::middleware::mw_ctx::ApplicationEvent;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -102,22 +103,24 @@ async fn follow_user(
     };
     let from_user = local_user_db_service.get_ctx_user().await?;
     let follow = get_string_thing(follow_user_id.clone())?;
-    let success = FollowDbService {
+
+    let follows_username = local_user_db_service
+        .get_username(IdentIdName::Id(follow.clone()))
+        .await?;
+
+    let follow_db_service = FollowDbService {
         db: &ctx_state._db,
         ctx: &ctx,
-    }
-    .create_follow(from_user.id.clone().unwrap(), follow.clone())
-    .await?;
-    if success {
-        let follows_username = local_user_db_service
-            .get_username(IdentIdName::Id(follow.clone()))
-            .await?;
-        let mut follower_ids = FollowDbService {
-            db: &ctx_state._db,
-            ctx: &ctx,
-        }
-        .user_follower_ids(from_user.id.clone().unwrap())
+    };
+
+    let success = follow_db_service
+        .create_follow(from_user.id.clone().unwrap(), follow.clone())
         .await?;
+
+    if success {
+        let mut follower_ids = follow_db_service
+            .user_follower_ids(from_user.id.clone().unwrap())
+            .await?;
         follower_ids.push(follow);
         UserNotificationDbService {
             db: &ctx_state._db,
@@ -132,7 +135,16 @@ async fn follow_user(
             "",
         )
         .await?;
+
+        ctx_state
+            .application_event
+            .send(ApplicationEvent::UserFollowAdded {
+                ctx: ctx.clone(),
+                follow_user_id: follow_user_id.clone(),
+            })
+            .unwrap_or_default();
     }
+
     ctx.to_htmx_or_json(CreatedResponse {
         id: follow_user_id,
         success,
