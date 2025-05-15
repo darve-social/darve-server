@@ -6,7 +6,6 @@ use darve_server::{
         community::post_stream_entity::PostStreamDbService,
         user_auth::{follow_entity, user_notification_entity},
     },
-    events_handler::application_event_handler,
     middleware,
     routes::{
         community::profile_routes::{self, get_profile_community},
@@ -383,7 +382,6 @@ async fn get_user_followers() {
 #[tokio::test(flavor = "multi_thread")]
 async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let (server, ctx_state) = create_test_server().await;
-    let task = application_event_handler(&ctx_state);
 
     let (_, user_ident1) =
         create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
@@ -445,6 +443,4 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
     assert!(post_streams.contains(&get_string_thing(post_2).unwrap()));
     assert!(post_streams.contains(&get_string_thing(post_3).unwrap()));
     assert!(post_streams.contains(&get_string_thing(post_4).unwrap()));
-
-    task.abort();
 }
