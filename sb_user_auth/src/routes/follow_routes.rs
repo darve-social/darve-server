@@ -8,7 +8,7 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use sb_middleware::ctx::Ctx;
 use sb_middleware::error::CtxResult;
-use sb_middleware::mw_ctx::CtxState;
+use sb_middleware::mw_ctx::{ApplicationEvent, CtxState};
 use sb_middleware::utils::db_utils::IdentIdName;
 use sb_middleware::utils::request_utils::CreatedResponse;
 use sb_middleware::utils::string_utils::get_string_thing;
@@ -98,22 +98,24 @@ async fn follow_user(
     };
     let from_user = local_user_db_service.get_ctx_user().await?;
     let follow = get_string_thing(follow_user_id.clone())?;
-    let success = FollowDbService {
+
+    let follows_username = local_user_db_service
+        .get_username(IdentIdName::Id(follow.clone()))
+        .await?;
+
+    let follow_db_service = FollowDbService {
         db: &ctx_state._db,
         ctx: &ctx,
-    }
-    .create_follow(from_user.id.clone().unwrap(), follow.clone())
-    .await?;
-    if success {
-        let follows_username = local_user_db_service
-            .get_username(IdentIdName::Id(follow.clone()))
-            .await?;
-        let mut follower_ids = FollowDbService {
-            db: &ctx_state._db,
-            ctx: &ctx,
-        }
-        .user_follower_ids(from_user.id.clone().unwrap())
+    };
+
+    let success = follow_db_service
+        .create_follow(from_user.id.clone().unwrap(), follow.clone())
         .await?;
+
+    if success {
+        let mut follower_ids = follow_db_service
+            .user_follower_ids(from_user.id.clone().unwrap())
+            .await?;
         follower_ids.push(follow);
         UserNotificationDbService {
             db: &ctx_state._db,
@@ -128,7 +130,16 @@ async fn follow_user(
             "",
         )
         .await?;
+
+        ctx_state
+            .application_event
+            .send(ApplicationEvent::UserFollowAdded {
+                ctx: ctx.clone(),
+                follow_user_id: follow_user_id.clone(),
+            })
+            .unwrap_or_default();
     }
+
     ctx.to_htmx_or_json(CreatedResponse {
         id: follow_user_id,
         success,

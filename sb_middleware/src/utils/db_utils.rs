@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use askama::Template;
 use strum::Display;
 use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
@@ -13,10 +14,17 @@ use crate::error::{AppError, AppResult, CtxError, CtxResult};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
 
-#[derive(Debug, Deserialize)]
+#[derive(Template, Serialize, Deserialize, Debug)]
+#[template(path = "nera2/default-content.html")]
 pub struct RecordWithId {
     #[allow(dead_code)]
     pub id: Thing,
+}
+
+impl ViewFieldSelector for RecordWithId {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id".to_string()
+    }
 }
 
 pub enum IdentIdName {
@@ -207,8 +215,10 @@ fn get_entity_query_str(
                     pag_q = format!(" {pag_q} LIMIT BY type::int($_limit_val) ");
 
                     let start = if pag.start <= 0 { 0 } else { pag.start };
-                    if start>0 && order_by.is_none() {
-                        println!("WARNING - query for table {table_name} has START AT but no ORDER BY");
+                    if start > 0 && order_by.is_none() {
+                        println!(
+                            "WARNING - query for table {table_name} has START AT but no ORDER BY"
+                        );
                     }
                     q_bindings.insert("_start_val".to_string(), start.to_string());
                     format!(" {pag_q} START AT type::int($_start_val) ")

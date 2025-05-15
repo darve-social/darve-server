@@ -1,5 +1,4 @@
 use crate::routes::post_routes::{create_post_entity_route, PostInput, UPLOADS_URL_BASE};
-use askama_axum::axum_core::extract::DefaultBodyLimit;
 use askama_axum::axum_core::response::Response;
 use askama_axum::Template;
 use axum::extract::{Path, State};
@@ -337,7 +336,7 @@ async fn get_profile_discussion_view(
     Ok(dis_view)
 }
 
-async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
+pub async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     comm_db_ser.get_profile_community(user_id).await
 }

@@ -1,5 +1,3 @@
-extern crate dotenv;
-
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -17,7 +15,7 @@ use uuid::Uuid;
 
 use crate::test_utils::create_dev_env;
 use reqwest::Client;
-use sb_community::entity::community_entitiy::{Community, CommunityDbService};
+use sb_community::entity::community_entitiy::CommunityDbService;
 use sb_community::entity::discussion_entitiy::DiscussionDbService;
 use sb_community::entity::discussion_notification_entitiy::DiscussionNotificationDbService;
 use sb_community::entity::discussion_topic_entitiy::DiscussionTopicDbService;
@@ -38,9 +36,9 @@ use sb_task::routes::task_request_routes;
 use sb_user_auth::entity::access_gain_action_entitiy::AccessGainActionDbService;
 use sb_user_auth::entity::access_right_entity::AccessRightDbService;
 use sb_user_auth::entity::access_rule_entity::AccessRuleDbService;
-use sb_user_auth::entity::authentication_entity::{AuthType, AuthenticationDbService};
+use sb_user_auth::entity::authentication_entity::AuthenticationDbService;
 use sb_user_auth::entity::follow_entitiy::FollowDbService;
-use sb_user_auth::entity::local_user_entity::{LocalUser, LocalUserDbService};
+use sb_user_auth::entity::local_user_entity::LocalUserDbService;
 use sb_user_auth::entity::user_notification_entitiy::UserNotificationDbService;
 use sb_user_auth::routes::webauthn::webauthn_routes;
 use sb_user_auth::routes::webauthn::webauthn_routes::WebauthnConfig;
@@ -53,6 +51,7 @@ use sb_wallet::entity::lock_transaction_entity::LockTransactionDbService;
 use sb_wallet::entity::wallet_entitiy::WalletDbService;
 use sb_wallet::routes::{wallet_endowment_routes, wallet_routes};
 
+mod events_handler;
 mod init;
 mod mw_response_transformer;
 mod test_utils;
@@ -99,6 +98,7 @@ async fn main() -> AppResult<()> {
         uploads_dir,
         upload_file_size_max_mb,
     );
+
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = main_router(&ctx_state, wa_config).await;
 
@@ -145,7 +145,7 @@ async fn main() -> AppResult<()> {
             "http://localhost:8080/login?u={username}&p={password}"
         ));
     }
-
+    let _task = events_handler::application_event_handler(&ctx_state);
     axum::serve(listener, routes_all.into_make_service())
         .await
         .unwrap();
