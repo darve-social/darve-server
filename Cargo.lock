@@ -194,8 +194,6 @@ dependencies = [
  "humansize",
  "num-traits",
  "percent-encoding",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1141,6 +1139,48 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.100",
+]
+
+[[package]]
+name = "darve_server"
+version = "0.1.7"
+dependencies = [
+ "anyhow",
+ "askama",
+ "askama_axum",
+ "async-stripe",
+ "axum",
+ "axum-htmx",
+ "axum-test",
+ "axum_typed_multipart",
+ "base64 0.22.1",
+ "blake2",
+ "chrono",
+ "dotenv",
+ "futures",
+ "jsonwebtoken",
+ "log",
+ "once_cell",
+ "open",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "strum",
+ "surrealdb",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower 0.5.2",
+ "tower-cookies",
+ "tower-http",
+ "tower-sessions",
+ "uuid 1.16.0",
+ "validator",
+ "webauthn-rs",
 ]
 
 [[package]]
@@ -3879,151 +3919,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sb_community"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "askama",
- "askama_axum",
- "async-stripe",
- "axum",
- "axum-htmx",
- "axum-test",
- "axum_typed_multipart",
- "base64 0.22.1",
- "blake2",
- "chrono",
- "dotenv",
- "futures",
- "jsonwebtoken",
- "log",
- "once_cell",
- "open",
- "rand 0.8.5",
- "regex",
- "sb_middleware",
- "sb_user_auth",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tower 0.5.2",
- "tower-cookies",
- "tower-http",
- "tower-sessions",
- "uuid 1.16.0",
- "validator",
- "webauthn-rs",
-]
-
-[[package]]
-name = "sb_middleware"
-version = "0.1.0"
-dependencies = [
- "askama",
- "askama_axum",
- "async-stripe",
- "axum",
- "axum-htmx",
- "chrono",
- "jsonwebtoken",
- "once_cell",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "tokio",
- "tower 0.5.2",
- "tower-cookies",
- "tower-http",
- "uuid 1.16.0",
- "validator",
-]
-
-[[package]]
-name = "sb_task"
-version = "0.1.0"
-dependencies = [
- "askama",
- "askama_axum",
- "axum",
- "axum_typed_multipart",
- "chrono",
- "sb_community",
- "sb_middleware",
- "sb_user_auth",
- "sb_wallet",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "tempfile",
- "tokio",
- "tower 0.5.2",
- "tower-http",
- "validator",
-]
-
-[[package]]
-name = "sb_user_auth"
-version = "0.1.0"
-dependencies = [
- "askama",
- "askama_axum",
- "axum",
- "axum-htmx",
- "base64 0.22.1",
- "chrono",
- "futures",
- "log",
- "once_cell",
- "rand 0.8.5",
- "regex",
- "sb_middleware",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "thiserror 2.0.12",
- "tokio",
- "tokio-stream",
- "tower 0.5.2",
- "tower-cookies",
- "tower-http",
- "tower-sessions",
- "uuid 1.16.0",
- "validator",
- "webauthn-rs",
-]
-
-[[package]]
-name = "sb_wallet"
-version = "0.1.0"
-dependencies = [
- "askama",
- "askama_axum",
- "async-stripe",
- "axum",
- "chrono",
- "futures",
- "log",
- "once_cell",
- "sb_middleware",
- "sb_user_auth",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
 name = "schannel"
 version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4218,52 +4113,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
-]
-
-[[package]]
-name = "server-main"
-version = "0.1.7"
-dependencies = [
- "anyhow",
- "askama",
- "askama_axum",
- "axum",
- "axum-htmx",
- "axum-test",
- "axum_typed_multipart",
- "base64 0.22.1",
- "blake2",
- "chrono",
- "dotenv",
- "futures",
- "jsonwebtoken",
- "log",
- "once_cell",
- "open",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "sb_community",
- "sb_middleware",
- "sb_task",
- "sb_user_auth",
- "sb_wallet",
- "serde",
- "serde_json",
- "strum",
- "surrealdb",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tower 0.5.2",
- "tower-cookies",
- "tower-http",
- "tower-sessions",
- "uuid 1.16.0",
- "validator",
- "webauthn-rs",
 ]
 
 [[package]]
