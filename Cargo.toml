@@ -46,3 +46,7 @@ async-stripe = { version = "0.41.0", features = [
     "checkout",
     "runtime-tokio-hyper",
 ] }
+
+
+[profile.release]
+opt-level = 3
