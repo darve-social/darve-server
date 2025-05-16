@@ -16,8 +16,13 @@ use surrealdb::sql::Thing;
 use user_auth::{follow_entity, local_user_entity};
 use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 
+use crate::entities::community::community_entity::CommunityDbService;
+use crate::entities::community::post_entity::PostDbService;
+use crate::entities::community::post_stream_entity::PostStreamDbService;
 use crate::entities::user_auth::{self, user_notification_entity};
 use crate::middleware;
+use crate::middleware::utils::db_utils::RecordWithId;
+use crate::middleware::utils::extractor_utils::DiscussionParams;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -102,23 +107,25 @@ async fn follow_user(
     };
     let from_user = local_user_db_service.get_ctx_user().await?;
     let follow = get_string_thing(follow_user_id.clone())?;
-    let success = FollowDbService {
+
+    let follows_username = local_user_db_service
+        .get_username(IdentIdName::Id(follow.clone()))
+        .await?;
+
+    let follow_db_service = FollowDbService {
         db: &ctx_state._db,
         ctx: &ctx,
-    }
-    .create_follow(from_user.id.clone().unwrap(), follow.clone())
-    .await?;
-    if success {
-        let follows_username = local_user_db_service
-            .get_username(IdentIdName::Id(follow.clone()))
-            .await?;
-        let mut follower_ids = FollowDbService {
-            db: &ctx_state._db,
-            ctx: &ctx,
-        }
-        .user_follower_ids(from_user.id.clone().unwrap())
+    };
+
+    let success = follow_db_service
+        .create_follow(from_user.id.clone().unwrap(), follow.clone())
         .await?;
-        follower_ids.push(follow);
+
+    if success {
+        let mut follower_ids = follow_db_service
+            .user_follower_ids(from_user.id.clone().unwrap())
+            .await?;
+        follower_ids.push(follow.clone());
         UserNotificationDbService {
             db: &ctx_state._db,
             ctx: &ctx,
@@ -132,7 +139,10 @@ async fn follow_user(
             "",
         )
         .await?;
+
+        let _ = add_latest_posts(&from_user.id.unwrap(), &follow, &ctx_state, &ctx).await;
     }
+
     ctx.to_htmx_or_json(CreatedResponse {
         id: follow_user_id,
         success,
@@ -188,4 +198,67 @@ async fn is_following_user(
         success,
         uri: None,
     })
+}
+
+async fn add_latest_posts(
+    ctx_user_id: &Thing,
+    follow_user_id: &Thing,
+    ctx_state: &CtxState,
+    ctx: &Ctx,
+) {
+    // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
+    let follow_profile_comm = match (CommunityDbService {
+        ctx: ctx,
+        db: &ctx_state._db,
+    }
+    .get_profile_community(follow_user_id.to_owned())
+    .await)
+    {
+        Ok(res) => res,
+        Err(err) => {
+            println!("get_profile_community error / err={err:?}");
+            return;
+        }
+    };
+    let Some(follow_profile_discussion_id) = follow_profile_comm.profile_discussion else {
+        println!("No value for follow_profile_comm.profile_discussion");
+        return;
+    };
+
+    let post_db_service = PostDbService {
+        ctx: &ctx,
+        db: &ctx_state._db,
+    };
+
+    let latest_posts = match post_db_service
+        .get_by_discussion_desc_view::<RecordWithId>(
+            follow_profile_discussion_id,
+            DiscussionParams {
+                topic_id: None,
+                start: Some(0),
+                count: Some(3),
+            },
+        )
+        .await
+    {
+        Ok(res) => res,
+        Err(err) => {
+            println!(" err getting latest posts / err={err:?}");
+            return;
+        }
+    };
+
+    let stream_db_service = PostStreamDbService {
+        ctx: &ctx,
+        db: &ctx_state._db,
+    };
+    for post in latest_posts {
+        if let Err(err) = stream_db_service
+            .add_to_users_stream(vec![ctx_user_id.clone()], &post.id)
+            .await
+        {
+            println!(" error adding to stream / err{err:?}");
+            continue;
+        };
+    }
 }

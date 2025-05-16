@@ -7,12 +7,15 @@ use darve_server::{
 use fake::{faker, Fake};
 use surrealdb::sql::Thing;
 use uuid::Uuid;
+
+#[allow(dead_code)]
 pub struct CreateFakeCommunityResponse {
     pub id: String,
     pub name: String,
     pub profile_discussion: Thing,
 }
 
+#[allow(dead_code)]
 pub async fn create_fake_community(
     server: &TestServer,
     ctx_state: &CtxState,

@@ -1,27 +1,21 @@
-use std::fs;
-
 use axum_test::{multipart::Part, TestServer};
 use darve_server::middleware::{self, mw_ctx::CtxState, utils::request_utils::CreatedResponse};
 use fake::{faker, Fake};
+use std::fs;
 use surrealdb::sql::Thing;
 
+#[allow(dead_code)]
 pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing) -> String {
     use axum_test::multipart::MultipartForm;
     use middleware::utils::request_utils::CreatedResponse;
 
     let post_name = faker::name::en::Name().fake::<String>();
     let content = faker::lorem::en::Sentence(7..20).fake::<String>();
-    let file = fs::read("tests/helpers/test_file.csv").unwrap();
-
-    let part = Part::bytes(file)
-        .file_name("test_file.csv")
-        .mime_type("text/csv");
 
     let data = MultipartForm::new()
         .add_text("title", post_name.clone())
         .add_text("content", content)
-        .add_text("topic_id", "")
-        .add_part("img", part);
+        .add_text("topic_id", "");
 
     let create_post = server
         .post(format!("/api/discussion/{discussion_id}/post").as_str())
@@ -36,6 +30,7 @@ pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing) -> Str
     created.id
 }
 
+#[allow(dead_code)]
 pub async fn create_fake_post_with_large_file(
     server: &TestServer,
     ctx_state: &CtxState,
@@ -68,6 +63,7 @@ pub async fn create_fake_post_with_large_file(
     response.assert_status_payload_too_large();
 }
 
+#[allow(dead_code)]
 pub async fn create_fake_post_with_file(
     server: &TestServer,
     ctx_state: &CtxState,

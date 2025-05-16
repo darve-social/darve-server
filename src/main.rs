@@ -1,5 +1,3 @@
-extern crate dotenv;
-
 use std::net::{Ipv4Addr, SocketAddr};
 
 use chrono::Duration;

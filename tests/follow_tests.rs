@@ -2,15 +2,20 @@ mod helpers;
 use crate::helpers::{create_login_test_user, create_test_server};
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::user_auth::{follow_entity, user_notification_entity},
+    entities::{
+        community::post_stream_entity::PostStreamDbService,
+        user_auth::{follow_entity, user_notification_entity},
+    },
     middleware,
     routes::{
-        community::profile_routes,
+        community::profile_routes::{self, get_profile_community},
         user_auth::{follow_routes, login_routes},
     },
 };
+use fake::{faker, Fake};
 use follow_entity::FollowDbService;
 use follow_routes::UserListView;
+use helpers::post_helpers::create_fake_post;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
@@ -372,4 +377,70 @@ async fn get_user_followers() {
         .await;
     dbg!(&notifications);
     assert_eq!(notifications.is_ok(), true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn add_latest_three_posts_of_follower_to_ctx_user() {
+    let (server, ctx_state) = create_test_server().await;
+
+    let (_, user_ident1) =
+        create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+
+    let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
+    let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
+
+    let profile_discussion = get_profile_community(&ctx_state._db, &ctx, user1_id.clone())
+        .await
+        .unwrap()
+        .profile_discussion
+        .unwrap();
+
+    let _ = create_fake_post(&server, &profile_discussion).await;
+    let post_2 = create_fake_post(&server, &profile_discussion).await;
+    let post_3 = create_fake_post(&server, &profile_discussion).await;
+    let post_4 = create_fake_post(&server, &profile_discussion).await;
+
+    let (_, user_ident2) =
+        create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+
+    let user2_id = get_string_thing(user_ident2.clone()).expect("user1");
+    let ctx = Ctx::new(Ok(user_ident2.clone()), Uuid::new_v4(), false);
+
+    let follow_db_service = FollowDbService {
+        ctx: &ctx,
+        db: &ctx_state._db,
+    };
+
+    let create_response = server
+        .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .add_header("Accept", "application/json")
+        .json("")
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_success();
+
+    let followers_nr = follow_db_service
+        .user_followers_number(user1_id.clone())
+        .await
+        .expect("user 1 followers nr");
+    assert_eq!(1, followers_nr);
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let post_stream_db_service = PostStreamDbService {
+        ctx: &ctx,
+        db: &ctx_state._db,
+    };
+
+    let streams = post_stream_db_service
+        .user_posts_stream(user2_id.clone())
+        .await;
+
+    assert!(streams.is_ok());
+    let post_streams = streams.unwrap();
+    assert_eq!(post_streams.len(), 3);
+    assert!(post_streams.contains(&get_string_thing(post_2).unwrap()));
+    assert!(post_streams.contains(&get_string_thing(post_3).unwrap()));
+    assert!(post_streams.contains(&get_string_thing(post_4).unwrap()));
 }
