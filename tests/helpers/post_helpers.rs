@@ -54,11 +54,18 @@ pub async fn get_posts(server: &TestServer, query: Option<GetPostsQuery>) -> Tes
 }
 
 #[allow(dead_code)]
+pub struct CreateFakePostResponse {
+    pub id: String,
+    pub uri: String,
+}
+
+#[allow(dead_code)]
 pub async fn create_fake_post(
     server: &TestServer,
     discussion_id: &Thing,
+    topic_id: Option<Thing>,
     tags: Option<Vec<String>>,
-) -> String {
+) -> CreateFakePostResponse {
     use axum_test::multipart::MultipartForm;
     use middleware::utils::request_utils::CreatedResponse;
 
@@ -68,7 +75,7 @@ pub async fn create_fake_post(
     let mut data = MultipartForm::new();
     data = data.add_text("title", post_name.clone());
     data = data.add_text("content", content);
-    data = data.add_text("topic_id", "");
+    data = data.add_text("topic_id", topic_id.map(|v| v.to_raw()).unwrap_or_default());
     let tags = tags.unwrap_or(vec![]);
     for tag in tags.into_iter() {
         data = data.add_text("tags", tag);
@@ -80,7 +87,10 @@ pub async fn create_fake_post(
     let _ = create_post.assert_status_success();
     assert_eq!(created.id.len() > 0, true);
 
-    created.id
+    CreateFakePostResponse {
+        id: created.id,
+        uri: created.uri.unwrap(),
+    }
 }
 
 #[allow(dead_code)]
@@ -137,9 +147,9 @@ pub async fn create_fake_post_with_file(
         .add_part("file_1", part);
 
     let response = create_post(&server, &discussion_id, data).await;
-
-    let created = response.json::<CreatedResponse>();
     let _ = response.assert_status_success();
+    let created = response.json::<CreatedResponse>();
+
     assert_eq!(created.id.len() > 0, true);
 
     created.id

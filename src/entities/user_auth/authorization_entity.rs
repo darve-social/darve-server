@@ -93,13 +93,16 @@ pub async fn get_parent_ids(
     ctx: &Ctx,
     db: &Db,
 ) -> CtxResult<Vec<Thing>> {
+    // use param for top level or community is top level to compare
     let tb1 = if up_to_parent_level_id.is_some() {
         up_to_parent_level_id.unwrap().tb.clone()
     } else {
         AUTH_REC_NAME_COMMUNITY.to_string()
     };
+    // compare to some lower level from param
     let tb2 = child_rec_id.tb.clone();
 
+    // if they are both community (top level) return no parent ids
     if tb1 == tb2 && tb1 != AUTH_REC_NAME_COMMUNITY {
         return Ok(vec![]);
     }
@@ -110,9 +113,11 @@ pub async fn get_parent_ids(
         description: format!("record tb({}) not found in hierarchy", tb2),
     }))?;
 
+    // if expected child is higher level return no parent ids
     if parent_index < child_index {
         return Ok(vec![]);
     }
+    // recurse with from db
     Ok(get_parent_ids_qry(child_rec_id, ctx, db, parent_index, child_index).await?)
 }
 
@@ -243,18 +248,19 @@ async fn get_higher_parent_record_id(
     higher_index: usize,
     lower_index: usize,
 ) -> Result<Thing, CtxError> {
+    // get levels above this - for reply level would be 'post.discussion'
     let higher = AUTH_RECORD_TABLE_RANK[lower_index + 1..higher_index + 1].to_vec();
-    let q_select_hierarchy = higher.join(".");
+    // convert all levels to 'belongs_to' to get requested top level id - for reply level above we get discussion id
+    let q_select_hierarchy = higher.into_iter().map(|_|"belongs_to").collect::<Vec<_>>().join(".");
     let qry =
         "SELECT type::field($q_select_hierarchy) as id FROM <record>$lower_rec_id;".to_string();
     // println!("qqq={qry}");
-    let res: Option<RecordWithId> = db
+    let mut res= db
         .query(qry)
         .bind(("lower_rec_id", lower_rec_id.to_raw()))
         .bind(("q_select_hierarchy", q_select_hierarchy))
-        .await?
-        .take(0)?;
-
+        .await?;
+    let res: Option<RecordWithId> = res.take(0)?;
     let res = res.ok_or(ctx.to_ctx_error(AppError::Generic {
         description: format!(
             "can not find higher parent record for {}",

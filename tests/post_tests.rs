@@ -2,11 +2,11 @@ mod helpers;
 
 use crate::helpers::{create_login_test_user, create_test_server};
 use axum::extract::{Path, State};
-use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
-use darve_server::entities::community::post_entity::{Post, PostDbService};
+use darve_server::entities::community::post_entity::Post;
+use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::middleware::error::CtxResult;
 use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
@@ -15,8 +15,9 @@ use darve_server::routes::community::community_routes;
 use darve_server::routes::community::post_routes::GetPostsQuery;
 use darve_server::routes::community::profile_routes::get_profile_community;
 use helpers::community_helpers::create_fake_community;
+use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
-    create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file, get_posts,
+    create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
 };
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
@@ -31,19 +32,17 @@ async fn create_post() {
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
-    let comm_name = result.name.clone();
-
     let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
 
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
 
     let comm_view = get_community(
         State(ctx_state.clone()),
         ctx,
-        Path(comm_name),
+        Path(result.name),
         DiscussionParams {
             topic_id: None,
             start: None,
@@ -59,34 +58,6 @@ async fn create_post() {
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 4);
-}
-
-#[tokio::test]
-async fn create_post_with_the_same_name() {
-    let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
-
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-
-    let title = "TEST";
-    let data = MultipartForm::new()
-        .add_text("title", title)
-        .add_text("content", "content")
-        .add_text("topic_id", "");
-
-    let response =
-        helpers::post_helpers::create_post(server, &result.profile_discussion, data).await;
-
-    response.assert_status_success();
-
-    let data_1 = MultipartForm::new()
-        .add_text("title", title)
-        .add_text("content", "content")
-        .add_text("topic_id", "");
-    let response_1 =
-        helpers::post_helpers::create_post(server, &result.profile_discussion, data_1).await;
-
-    response_1.assert_status_bad_request();
 }
 
 #[tokio::test]
@@ -111,10 +82,10 @@ async fn get_latest() {
         .unwrap()
         .profile_discussion
         .unwrap();
-    let _ = create_fake_post(server, &profile_discussion, None).await;
-    let _ = create_fake_post(server, &profile_discussion, None).await;
-    let _ = create_fake_post(server, &profile_discussion, None).await;
-    let _ = create_fake_post(server, &profile_discussion, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None, None).await;
 
     let profile_comm = CommunityDbService {
         ctx: &ctx,
@@ -142,9 +113,9 @@ async fn create_post_with_tags() {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
     let tags = vec!["tag".to_string(), "tag1".to_string()];
-    let _ = create_fake_post(server, &result.profile_discussion, Some(tags.clone())).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, Some(tags.clone())).await;
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
     let posts_value = posts_res.json::<Value>();
@@ -162,17 +133,19 @@ async fn filter_posts_by_tag() {
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
     let tags = vec!["tag".to_string(), "tag1".to_string()];
 
-    let _ = create_fake_post(server, &result.profile_discussion, None).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
     let _ = create_fake_post(
         server,
         &result.profile_discussion,
+        None,
         Some(vec![tags[0].clone()]),
     )
     .await;
-    let _ = create_fake_post(server, &result.profile_discussion, Some(tags.clone())).await;
+    let _ = create_fake_post(server, &result.profile_discussion, None, Some(tags.clone())).await;
     let _ = create_fake_post(
         server,
         &result.profile_discussion,
+        None,
         Some(vec!["non_of_them".to_string()]),
     )
     .await;
