@@ -5,7 +5,13 @@ use std::fs;
 use surrealdb::sql::Thing;
 
 #[allow(dead_code)]
-pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing, topic_id: Option<Thing>) -> String {
+pub struct CreateFakePostResponse {
+    pub id: String,
+    pub uri: String,
+}
+
+#[allow(dead_code)]
+pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing, topic_id: Option<Thing>) -> CreateFakePostResponse {
     use axum_test::multipart::MultipartForm;
     use middleware::utils::request_utils::CreatedResponse;
 
@@ -27,7 +33,7 @@ pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing, topic_
     let _ = create_post.assert_status_success();
     assert_eq!(created.id.len() > 0, true);
 
-    created.id
+    CreateFakePostResponse{id: created.id, uri: created.uri.unwrap()}
 }
 
 #[allow(dead_code)]
