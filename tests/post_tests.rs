@@ -150,11 +150,11 @@ async fn get_latest() {
         .unwrap()
         .profile_discussion
         .unwrap();
-    let _ = create_fake_post(server, &profile_discussion).await;
-    let _ = create_fake_post(server, &profile_discussion).await;
-    let _ = create_fake_post(server, &profile_discussion).await;
-    let _ = create_fake_post(server, &profile_discussion).await;
-
+    let _ = create_fake_post(server, &profile_discussion, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None).await;
+    let _ = create_fake_post(server, &profile_discussion, None).await;
+    
     let profile_comm = CommunityDbService {
         ctx: &ctx,
         db: &ctx_state._db,

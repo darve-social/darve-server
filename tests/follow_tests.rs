@@ -395,10 +395,10 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
         .profile_discussion
         .unwrap();
 
-    let _ = create_fake_post(&server, &profile_discussion).await;
-    let post_2 = create_fake_post(&server, &profile_discussion).await;
-    let post_3 = create_fake_post(&server, &profile_discussion).await;
-    let post_4 = create_fake_post(&server, &profile_discussion).await;
+    let _ = create_fake_post(&server, &profile_discussion, None).await;
+    let post_2 = create_fake_post(&server, &profile_discussion, None).await;
+    let post_3 = create_fake_post(&server, &profile_discussion, None).await;
+    let post_4 = create_fake_post(&server, &profile_discussion, None).await;
 
     let (_, user_ident2) =
         create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
@@ -440,7 +440,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
     assert!(streams.is_ok());
     let post_streams = streams.unwrap();
     assert_eq!(post_streams.len(), 3);
-    assert!(post_streams.contains(&get_string_thing(post_2).unwrap()));
-    assert!(post_streams.contains(&get_string_thing(post_3).unwrap()));
-    assert!(post_streams.contains(&get_string_thing(post_4).unwrap()));
+    assert!(post_streams.contains(&get_string_thing(post_2.id).unwrap()));
+    assert!(post_streams.contains(&get_string_thing(post_3.id).unwrap()));
+    assert!(post_streams.contains(&get_string_thing(post_4.id).unwrap()));
 }
