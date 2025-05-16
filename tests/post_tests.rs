@@ -2,6 +2,7 @@ mod helpers;
 
 use crate::helpers::{create_login_test_user, create_test_server};
 use axum::extract::{Path, State};
+use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
@@ -58,6 +59,34 @@ async fn create_post() {
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 4);
+}
+
+#[tokio::test]
+async fn create_post_with_the_same_name() {
+    let (server, ctx_state) = create_test_server().await;
+    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+
+    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+
+    let title = "TEST";
+    let data = MultipartForm::new()
+        .add_text("title", title)
+        .add_text("content", "content")
+        .add_text("topic_id", "");
+
+    let response =
+        helpers::post_helpers::create_post(server, &result.profile_discussion, data).await;
+
+    response.assert_status_success();
+
+    let data_1 = MultipartForm::new()
+        .add_text("title", title)
+        .add_text("content", "content")
+        .add_text("topic_id", "");
+    let response_1 =
+        helpers::post_helpers::create_post(server, &result.profile_discussion, data_1).await;
+
+    response_1.assert_status_bad_request();
 }
 
 #[tokio::test]
