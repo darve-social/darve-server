@@ -269,8 +269,14 @@ async fn authorize_save() {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
-    
-    let comm_id = Thing::try_from(create_fake_community(server, &ctx_state, user_ident.clone()).await.id.clone()).unwrap();
+
+    let comm_id = Thing::try_from(
+        create_fake_community(server, &ctx_state, user_ident.clone())
+            .await
+            .id
+            .clone(),
+    )
+    .unwrap();
 
     let community_db_service = CommunityDbService {
         db: &ctx_state._db,

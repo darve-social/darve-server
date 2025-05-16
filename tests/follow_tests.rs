@@ -395,10 +395,10 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
         .profile_discussion
         .unwrap();
 
-    let _ = create_fake_post(&server, &profile_discussion, None).await;
-    let post_2 = create_fake_post(&server, &profile_discussion, None).await;
-    let post_3 = create_fake_post(&server, &profile_discussion, None).await;
-    let post_4 = create_fake_post(&server, &profile_discussion, None).await;
+    let _ = create_fake_post(&server, &profile_discussion, None, None).await;
+    let post_2 = create_fake_post(&server, &profile_discussion, None, None).await;
+    let post_3 = create_fake_post(&server, &profile_discussion, None, None).await;
+    let post_4 = create_fake_post(&server, &profile_discussion, None, None).await;
 
     let (_, user_ident2) =
         create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;

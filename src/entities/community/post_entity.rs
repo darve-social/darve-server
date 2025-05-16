@@ -52,6 +52,7 @@ pub struct Post {
     pub r_replies: Option<Vec<Reply>>,
     pub replies_nr: i64,
     pub likes_nr: i64,
+    pub tags: Option<Vec<String>>,
 }
 
 pub struct PostDbService<'a> {
@@ -90,6 +91,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -139,6 +141,31 @@ impl<'a> PostDbService<'a> {
             start: params.start.unwrap_or(0),
         });
         get_entity_list_view::<T>(self.db, TABLE_NAME.to_string(), &filter_by, pagination).await
+    }
+
+    pub async fn get_by_tag(&self, tag: Option<String>, pag: Pagination) -> CtxResult<Vec<Post>> {
+        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+
+        let query_str = format!(
+            "SELECT * FROM {TABLE_NAME} {} ORDER BY id {order_dir} LIMIT $limit START $start;",
+            if tag.is_some() {
+                "WHERE tags CONTAINS $tag"
+            } else {
+                ""
+            }
+        );
+
+        let mut query = self.db.query(&query_str);
+
+        query = query.bind(("limit", pag.count)).bind(("start", pag.start));
+
+        if let Some(tag_value) = tag {
+            query = query.bind(("tag", tag_value));
+        }
+
+        let posts = query.await?.take::<Vec<Post>>(0)?;
+
+        Ok(posts)
     }
 
     fn create_filter(discussion_id: Thing, topic: Option<Thing>) -> IdentIdName {
