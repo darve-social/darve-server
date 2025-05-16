@@ -5,7 +5,7 @@ use std::fs;
 use surrealdb::sql::Thing;
 
 #[allow(dead_code)]
-pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing) -> String {
+pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing, topic_id: Option<Thing>) -> String {
     use axum_test::multipart::MultipartForm;
     use middleware::utils::request_utils::CreatedResponse;
 
@@ -15,7 +15,7 @@ pub async fn create_fake_post(server: &TestServer, discussion_id: &Thing) -> Str
     let data = MultipartForm::new()
         .add_text("title", post_name.clone())
         .add_text("content", content)
-        .add_text("topic_id", "");
+        .add_text("topic_id", topic_id.map(|v|v.to_raw()).unwrap_or_default());
 
     let create_post = server
         .post(format!("/api/discussion/{discussion_id}/post").as_str())
