@@ -39,7 +39,10 @@ async fn main() -> AppResult<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
     let jwt_duration = Duration::days(7);
 
+    let _ = utils::dir_utils::ensure_dir_exists(&uploads_dir);
+
     let db = db::start(DBConfig::from_env()).await?;
+
     init::run_migrations(db.clone()).await?;
     init::create_default_profiles(db.clone(), init_server_password.as_str()).await;
 

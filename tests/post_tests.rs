@@ -14,7 +14,9 @@ use darve_server::middleware::{self, db};
 use darve_server::routes::community::community_routes;
 use darve_server::routes::community::profile_routes::get_profile_community;
 use helpers::community_helpers::create_fake_community;
-use helpers::post_helpers::create_fake_post;
+use helpers::post_helpers::{
+    create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
+};
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
@@ -127,36 +129,13 @@ async fn create_post() {
 }
 
 #[tokio::test]
-async fn create_post_test() {
+async fn create_post_with_file_test() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-    let _ = create_fake_post(server, &result.profile_discussion).await;
-    let _ = create_fake_post(server, &result.profile_discussion).await;
-    let _ = create_fake_post(server, &result.profile_discussion).await;
-    let _ = create_fake_post(server, &result.profile_discussion).await;
-    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
-
-    let comm_view = get_community(
-        State(ctx_state.clone()),
-        ctx,
-        Path(result.name.clone()),
-        DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        },
-    )
-    .await
-    .expect("community page");
-    let posts = comm_view
-        .community_view
-        .unwrap()
-        .profile_discussion_view
-        .unwrap()
-        .posts;
-    assert_eq!(posts.len(), 4);
+    let _ = create_fake_post_with_large_file(server, &ctx_state, &result.profile_discussion).await;
+    let _ = create_fake_post_with_file(server, &ctx_state, &result.profile_discussion).await;
 }
 
 #[tokio::test]

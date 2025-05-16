@@ -1,6 +1,6 @@
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
-use axum::extract::{Path, State};
+use axum::extract::{DefaultBodyLimit, Path, State};
 use axum::http::HeaderValue;
 use axum::response::Response;
 use axum::routing::{get, post};
@@ -50,7 +50,7 @@ pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
     // .route("/discussion/:discussion_id/post/:title_uri", get(get_post));
 
-    // let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
+    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
     Router::new()
         .merge(view_routes)
         .route(
@@ -58,9 +58,8 @@ pub fn routes(state: CtxState) -> Router {
             post(create_post_entity_route),
         )
         .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
-        // the file max limit is set on PostInput property
-        // .layer(DefaultBodyLimit::max(max_bytes_val))
         .with_state(state)
+        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 #[derive(Deserialize)]
@@ -86,16 +85,8 @@ pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub content: String,
     pub topic_id: String,
-    #[form_data(limit = "15MiB")]
+    #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
-    // #[form_data(limit = "3MiB")]
-    pub file_2: Option<FieldData<NamedTempFile>>,
-    // #[form_data(limit = "3MiB")]
-    pub file_3: Option<FieldData<NamedTempFile>>,
-    // #[form_data(limit = "3MiB")]
-    pub file_4: Option<FieldData<NamedTempFile>>,
-    // #[form_data(limit = "3MiB")]
-    pub file_5: Option<FieldData<NamedTempFile>>,
 }
 
 #[derive(Template, Serialize)]
