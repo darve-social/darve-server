@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
+use tracing::info;
 
 pub type Db = Surreal<Any>;
 
@@ -37,7 +38,7 @@ impl DBConfig {
 }
 
 pub async fn start(config: DBConfig) -> AppResult<Db> {
-    println!(
+    info!(
         "->> connecting DB {} ns={} db={}",
         config.url.as_str(),
         config.namespace.as_str(),
@@ -59,6 +60,6 @@ pub async fn start(config: DBConfig) -> AppResult<Db> {
     DB.use_ns(config.namespace).use_db(config.database).await?;
 
     let version = DB.version().await?;
-    println!("->> connected DB version: {version}");
+    info!("->> connected DB version: {version}");
     Ok(DB.clone())
 }

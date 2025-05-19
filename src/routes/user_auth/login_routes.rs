@@ -125,7 +125,6 @@ pub async fn login(
     // HxRequest(is_htmx): HxRequest,
     JsonOrFormValidated(payload): JsonOrFormValidated<LoginInput>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - api_login", "HANDLER");
     let local_user_db_service = LocalUserDbService {
         ctx: &ctx,
         db: &_db,

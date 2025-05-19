@@ -387,7 +387,6 @@ async fn get_chats(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - get_chats", "HANDLER");
     let local_user_db_service = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
@@ -462,7 +461,6 @@ async fn get_create_chat_discussion(
     ctx: Ctx,
     Path(other_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - get get_chat_discussion", "HANDLER");
     let local_user_db_service = LocalUserDbService {
         db: &_db,
         ctx: &ctx,

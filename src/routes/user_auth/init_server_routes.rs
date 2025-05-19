@@ -47,8 +47,6 @@ async fn get_init_form(
     State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - init _server_display - ", "HANDLER");
-
     if !can_init(&_db, &ctx).await {
         Err(ctx.to_ctx_error(AppError::Generic {
             description: "Already initialized".to_string(),
@@ -107,11 +105,6 @@ async fn post_init_form(
     ctx: Ctx,
     payload: JsonOrFormValidated<InitServerData>,
 ) -> CtxResult<Html<String>> {
-    println!(
-        "->> {:<12} - init save user {:#?}- {}",
-        "HANDLER", payload, ctx.is_htmx
-    );
-
     if !can_init(&_db, &ctx).await {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Already initialized".to_string(),
