@@ -41,7 +41,6 @@ async fn create_reply() {
     let comm_discussion_id = comm_disc_thing.to_raw();
     assert_eq!(comm_discussion_id.len() > 0, true);
 
-    let post_name = "post title Name 1".to_string();
     let created_post = create_fake_post(server, &comm_disc_thing, None).await;
 
     let post_uri = &created_post.uri.clone();
