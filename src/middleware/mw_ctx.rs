@@ -1,4 +1,4 @@
-use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult, error::CtxResult};
+use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use axum::body::Body;
 use axum::http::header::ACCEPT;
 use axum::http::{HeaderMap, StatusCode};
