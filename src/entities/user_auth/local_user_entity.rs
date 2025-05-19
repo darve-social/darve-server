@@ -166,7 +166,7 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn search(&self, find: String) -> CtxResult<Vec<LocalUser>> {
-        let qry = format!("SELECT id, username, full_name, image_uri FROM {TABLE_NAME} WHERE username @@ $find OR full_name @@ $find;");
+        let qry = format!("SELECT id, username, full_name, image_uri FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;");
         let res = self.db.query(qry).bind(("find", find));
         let res: Vec<LocalUser> = res.await?.take(0)?;
         Ok(res)
