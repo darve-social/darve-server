@@ -91,7 +91,8 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
-    DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>;
+    DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>
+        ASSERT {{ IF type::is::array($value) AND array::len($value) < 6 {{ RETURN true }}ELSE{{ IF type::is::none($value){{RETURN true}}ELSE{{THROW \"Maxi nr of tags is 5\"}} }} }};
     DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();

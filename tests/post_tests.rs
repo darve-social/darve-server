@@ -143,16 +143,21 @@ async fn create_post_with_tags() {
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
     let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
-    let tags = vec!["tag".to_string(), "tag1".to_string()];
+    let tags = vec!["tag".to_string(), "tag1".to_string(), "tag2".to_string(), "tag3".to_string(), "tag4".to_string()];
     let _ = create_fake_post(server, &result.profile_discussion, None, Some(tags.clone())).await;
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
     let posts_value = posts_res.json::<Value>();
     let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let max_tags = 5;
+    let tags_to_save = tags.len();
+    assert_eq!(max_tags == tags_to_save, true);
     assert_eq!(posts.len(), 2);
+    assert_eq!(posts[0].tags.as_ref().unwrap().len(), max_tags);
     assert_eq!(posts[0].tags.as_ref().unwrap()[0], tags[0]);
     assert_eq!(posts[0].tags.as_ref().unwrap()[1], tags[1]);
     assert_eq!(posts[1].tags, None);
+    // TODO -test gt max fail- test it fails with more than max tags
 }
 
 #[tokio::test]
