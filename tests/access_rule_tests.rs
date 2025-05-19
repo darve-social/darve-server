@@ -77,8 +77,8 @@ async fn display_access_rule_content() {
         .expect("access rule");
     assert_eq!(ar.id.clone().unwrap(), ar_id);
 
-    let _ = create_fake_post(server, &comm_disc_id, None).await;
-    let _ = create_fake_post(server, &comm_disc_id, None).await;
+    let _ = create_fake_post(server, &comm_disc_id, None, None).await;
+    let _ = create_fake_post(server, &comm_disc_id, None, None).await;
 
     let comm_view = get_community(
         State(ctx_state.clone()),
@@ -117,7 +117,7 @@ async fn display_access_rule_content() {
     assert_eq!(&created.topics.get(0).unwrap().title, &topic_title);
     let topic1_id = created.topics.get(0).unwrap().id.clone();
 
-    let _ = create_fake_post(server, &comm_disc_id, topic1_id.clone()).await;
+    let _ = create_fake_post(server, &comm_disc_id, topic1_id.clone(), None).await;
 
     let comm_view = get_community(
         State(ctx_state.clone()),

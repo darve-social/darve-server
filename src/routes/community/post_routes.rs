@@ -1,10 +1,10 @@
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
-use axum::extract::{DefaultBodyLimit, Path, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::HeaderValue;
 use axum::response::Response;
 use axum::routing::{get, post};
-use axum::Router;
+use axum::{Json, Router};
 use axum_htmx::HX_REDIRECT;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use serde::{Deserialize, Serialize};
@@ -41,6 +41,7 @@ use crate::entities::community::{
 use crate::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
 };
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::{middleware, utils};
 
 use super::{community_routes, discussion_routes, discussion_topic_routes, reply_routes};
@@ -53,6 +54,7 @@ pub fn routes(state: CtxState) -> Router {
     let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
     Router::new()
         .merge(view_routes)
+        .route("/api/posts", get(get_posts))
         .route(
             "/api/discussion/:discussion_id/post",
             post(create_post_entity_route),
@@ -85,6 +87,7 @@ pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub content: String,
     pub topic_id: String,
+    pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
 }
@@ -178,6 +181,38 @@ impl From<Post> for PostPageTemplate {
 //     post_page.replies = post_replies;
 //     Ok(post_page)
 // }
+
+#[derive(Debug, Deserialize)]
+pub struct GetPostsQuery {
+    pub tag: Option<String>,
+    pub order_dir: Option<QryOrder>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+}
+
+#[derive(Debug, Serialize)]
+struct GetPostsResponse {
+    posts: Vec<Post>,
+}
+
+async fn get_posts(
+    Query(query): Query<GetPostsQuery>,
+    State(CtxState { _db, .. }): State<CtxState>,
+    ctx: Ctx,
+) -> CtxResult<Json<GetPostsResponse>> {
+    let post_db_service = PostDbService {
+        ctx: &ctx,
+        db: &_db,
+    };
+    let pagination = Pagination {
+        order_by: Some("id".to_string()),
+        order_dir: query.order_dir,
+        count: query.count.unwrap_or(100) as i8,
+        start: query.start.unwrap_or_default() as i32,
+    };
+    let posts = post_db_service.get_by_tag(query.tag, pagination).await?;
+    Ok(Json(GetPostsResponse { posts }))
+}
 
 async fn create_form(
     State(CtxState { _db, .. }): State<CtxState>,
@@ -295,7 +330,6 @@ pub async fn create_post_entity_route(
     } else {
         None
     };
-
     let post = post_db_service
         .create_update(Post {
             id: Some(new_post_id),
@@ -316,6 +350,11 @@ pub async fn create_post_entity_route(
             r_replies: None,
             likes_nr: 0,
             replies_nr: 0,
+            tags: if input_value.tags.is_empty() {
+                None
+            } else {
+                Some(input_value.tags)
+            },
         })
         .await?;
 

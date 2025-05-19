@@ -1,9 +1,9 @@
+use askama::Template;
+use core::fmt;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use askama::Template;
-use strum::Display;
 use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
@@ -148,10 +148,19 @@ pub struct Pagination {
     pub start: i32,
 }
 
-#[derive(Display)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum QryOrder {
     DESC,
     ASC,
+}
+
+impl fmt::Display for QryOrder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            QryOrder::DESC => write!(f, "DESC"),
+            QryOrder::ASC => write!(f, "ASC"),
+        }
+    }
 }
 
 pub trait ViewFieldSelector {
@@ -413,7 +422,7 @@ pub fn with_not_found_err<T>(opt: Option<T>, ctx: &Ctx, ident: &str) -> CtxResul
     }
 }
 
-// TODO: Fix failing test
+// TODO -fix db_utils test-
 // #[cfg(test)]
 // mod tests {
 //     use crate::middleware::utils::db_utils::IdentIdName;
