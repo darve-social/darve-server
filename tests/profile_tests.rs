@@ -101,6 +101,20 @@ async fn search_users() {
     )
     .await;
     assert_eq!(res.items.len(), 0);
+
+    let (server, _) = create_login_test_user(&server, String::from("abcdtest")).await;
+    let (server, _) = create_login_test_user(&server, String::from("abcdtest1")).await;
+    let (server, _) = create_login_test_user(&server, String::from("abcdtest2")).await;
+    let (server, _) = create_login_test_user(&server, String::from("abcdtest3")).await;
+    let (server, _) = create_login_test_user(&server, String::from("abcdtest4")).await;
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "tes".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 5);
 }
 
 #[tokio::test]
