@@ -127,7 +127,6 @@ impl From<ErrorResponseBody> for String {
 // REST error response
 impl IntoResponse for CtxError {
     fn into_response(self) -> axum::response::Response {
-        println!("->> {:<12} - into_response - {self:?}", "ERROR");
         let status_code = match self.error {
             AppError::EntityFailIdNotFound { .. } => StatusCode::NOT_FOUND,
             AppError::Serde { .. }

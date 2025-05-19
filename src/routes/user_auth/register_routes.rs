@@ -144,8 +144,6 @@ async fn api_register(
     // HxRequest(is_hx): HxRequest,
     JsonOrFormValidated(data): JsonOrFormValidated<RegisterInput>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - api_register", "HANDLER");
-
     // let JsonOrFormValidated(data)= payload;
     let _reg = register_user(&ctx_state._db, &ctx, &data).await?; //.map(|r|ctx.to_htmx_or_json(r))?;//.into_response();
                                                                   // let mut next = data.next.unwrap_or("".to_string());

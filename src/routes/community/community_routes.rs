@@ -96,8 +96,6 @@ pub async fn get_community(
     Path(name): Path<String>,
     q_params: DiscussionParams,
 ) -> CtxResult<CommunityPage> {
-    println!("->> {:<12} - get community", "HANDLER");
-
     let ident_id_name = match name.contains(":") {
         true => {
             let comm_thing = get_string_thing(name)?;
@@ -164,7 +162,6 @@ async fn create_update(
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<CommunityInput>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - create_update_comm", "HANDLER");
     let user_id = LocalUserDbService {
         db: &_db,
         ctx: &ctx,

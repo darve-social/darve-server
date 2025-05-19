@@ -78,8 +78,6 @@ async fn get_post_replies(
     ctx: Ctx,
     Path(discussion_id_post_ident): Path<(String, String)>,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - get post", "HANDLER");
-
     let diss_db = DiscussionDbService {
         db: &_db,
         ctx: &ctx,
@@ -115,7 +113,6 @@ async fn create_entity(
     Path(discussion_id_post_uri): Path<(String, String)>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - create_post ", "HANDLER");
     let created_by = LocalUserDbService {
         db: &_db,
         ctx: &ctx,

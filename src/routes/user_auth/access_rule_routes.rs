@@ -66,7 +66,6 @@ async fn get_form_page(
     Path(community_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
-    println!("->> {:<12} - get_form access rule", "HANDLER");
     let form = get_form(State(ctx_state), ctx, Path(community_id), Query(qry)).await?;
     Ok(ProfileFormPage::new(Box::new(form), None, None, None))
 }
@@ -77,8 +76,6 @@ async fn get_form(
     Path(target_record_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<AccessRuleForm> {
-    println!("->> {:<12} - get_form access rule", "HANDLER");
-
     let target_id = AccessRightDbService {
         db: &_db,
         ctx: &ctx,
@@ -136,7 +133,6 @@ async fn create_update(
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<AccessRuleInput>,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - create_update_arule", "HANDLER");
     let user_id = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,

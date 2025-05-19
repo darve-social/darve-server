@@ -75,7 +75,6 @@ async fn get_form(
     Path(discussion_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<DiscussionTopicItemForm> {
-    println!("->> {:<12} - create_update_disc_topic", "HANDLER");
     let user_id = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
@@ -162,7 +161,6 @@ async fn create_update(
     Path(discussion_id): Path<String>,
     JsonOrFormValidated(form_value): JsonOrFormValidated<TopicInput>,
 ) -> CtxResult<Html<String>> {
-    println!("->> {:<12} - create_update_disc_topic", "HANDLER");
     let user_id = LocalUserDbService {
         db: &_db,
         ctx: &ctx,

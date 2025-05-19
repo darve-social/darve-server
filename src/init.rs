@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     entities::{
         self,
@@ -10,9 +12,8 @@ use crate::{
     middleware::{
         ctx::Ctx,
         db,
-        error::{AppResult, CtxResult},
+        error::{AppError, AppResult, CtxResult},
         mw_ctx::{self, CtxState},
-        mw_req_logger::mw_req_logger,
         utils::{
             db_utils::{IdentIdName, UsernameIdent},
             string_utils::get_string_thing,
@@ -25,6 +26,7 @@ use crate::{
     },
 };
 use axum::{
+    body::Body,
     response::{IntoResponse, Response},
     routing::get,
     Router,
@@ -48,7 +50,7 @@ use entities::user_auth::user_notification_entity::UserNotificationDbService;
 use entities::wallet::currency_transaction_entity::CurrencyTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
-use reqwest::{Client, StatusCode};
+use reqwest::{header::USER_AGENT, Client, StatusCode};
 use routes::community::{
     community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes,
     reply_routes, stripe_routes,
@@ -62,6 +64,11 @@ use routes::user_auth::{
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
+
+use axum::http;
+use http::Request;
+use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
+use tracing::{info, Span};
 
 async fn create_profile<'a>(
     username: &str,
@@ -191,7 +198,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
-        .layer(axum::middleware::map_response(mw_req_logger))
+        // .layer(axum::middleware::map_response(mw_req_logger))
         // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))
         /*.layer(middleware::from_fn_with_state(
             ctx_state.clone(),
@@ -202,6 +209,50 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
             ctx_state.clone(),
             mw_ctx::mw_ctx_constructor,
         ))
+        .layer(
+            TraceLayer::new_for_http()
+                .on_request(|request: &Request<Body>, _: &Span| {
+                    let user_agent = request
+                        .headers()
+                        .get(USER_AGENT)
+                        .map(|d| format!("{:?}", d))
+                        .unwrap_or("None".to_string());
+
+                    let ctx = request.extensions().get::<Ctx>().cloned();
+                    let (req_id, user_id) = match ctx {
+                        Some(v) => (v.req_id().to_string(), format!("{:?}", v.user_id())),
+                        None => ("None".into(), "None".into()),
+                    };
+
+                    info!(
+                        request_id = %req_id,
+                        user_id = %user_id,
+                        method = %request.method(),
+                        uri = %request.uri().path(),
+                        user_agent = &user_agent,
+                        "Request"
+                    );
+                })
+                .on_response(|response: &Response<Body>, latency: Duration, _: &Span| {
+                    let status = response.status();
+                    let error = response
+                        .extensions()
+                        .get::<AppError>()
+                        .map(|e| format!("{e:?}"));
+
+                    info!(
+                        status = %status,
+                        latency_ms = %latency.as_millis(),
+                        error = ?error,
+                        "Response"
+                    );
+                })
+                .on_failure(
+                    |error: ServerErrorsFailureClass, _: Duration, _span: &Span| {
+                        tracing::debug!("something went wrong {:?}", error)
+                    },
+                ),
+        )
         // Layers are executed from bottom up, so CookieManager has to be under ctx_constructor
         .layer(CookieManagerLayer::new())
     // .layer(Extension(ctx_state.clone()))

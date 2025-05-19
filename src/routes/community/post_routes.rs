@@ -232,7 +232,6 @@ pub async fn create_post_entity_route(
     State(ctx_state): State<CtxState>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - create_post ", "HANDLER");
     let user = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
