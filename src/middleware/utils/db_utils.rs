@@ -422,52 +422,51 @@ pub fn with_not_found_err<T>(opt: Option<T>, ctx: &Ctx, ident: &str) -> CtxResul
     }
 }
 
-// TODO -fix db_utils test-
-// #[cfg(test)]
-// mod tests {
-//     use crate::middleware::utils::db_utils::IdentIdName;
+#[cfg(test)]
+mod tests {
+    use crate::middleware::utils::db_utils::IdentIdName;
 
-// #[tokio::test]
-// async fn test_ident_qry() {
-//     let ident = IdentIdName::ColumnIdent {
-//         column: "col".to_string(),
-//         val: "vvv".to_string(),
-//         rec: false,
-//     };
-//     assert_eq!(ident.to_string(), "col='vvv'".to_string());
+#[tokio::test]
+async fn test_ident_qry() {
+    let ident = IdentIdName::ColumnIdent {
+        column: "col".to_string(),
+        val: "vvv".to_string(),
+        rec: false,
+    };
+    assert_eq!(ident.to_string(), "col=$col".to_string());
 
-//     let ident = IdentIdName::ColumnIdentAnd(vec![
-//         IdentIdName::ColumnIdent {
-//             column: "col".to_string(),
-//             val: "vvv".to_string(),
-//             rec: false,
-//         },
-//         IdentIdName::ColumnIdent {
-//             column: "column".to_string(),
-//             val: "ooooo".to_string(),
-//             rec: false,
-//         },
-//     ]);
-//     assert_eq!(
-//         ident.to_string(),
-//         "col='vvv' AND column='ooooo'".to_string()
-//     );
+    let ident = IdentIdName::ColumnIdentAnd(vec![
+        IdentIdName::ColumnIdent {
+            column: "col".to_string(),
+            val: "vvv".to_string(),
+            rec: false,
+        },
+        IdentIdName::ColumnIdent {
+            column: "column".to_string(),
+            val: "ooooo".to_string(),
+            rec: false,
+        },
+    ]);
+    assert_eq!(
+        ident.to_string(),
+        "col=$col AND column=$column".to_string()
+    );
 
-//     let ident = IdentIdName::ColumnIdentAnd(vec![
-//         IdentIdName::ColumnIdent {
-//             column: "col".to_string(),
-//             val: "vvv:56".to_string(),
-//             rec: true,
-//         },
-//         IdentIdName::ColumnIdent {
-//             column: "column".to_string(),
-//             val: "ooooo".to_string(),
-//             rec: false,
-//         },
-//     ]);
-//     assert_eq!(
-//         ident.to_string(),
-//         "col=vvv:56 AND column='ooooo'".to_string()
-//     );
-// }
-// }
+    let ident = IdentIdName::ColumnIdentAnd(vec![
+        IdentIdName::ColumnIdent {
+            column: "col".to_string(),
+            val: "vvv:56".to_string(),
+            rec: true,
+        },
+        IdentIdName::ColumnIdent {
+            column: "column".to_string(),
+            val: "ooooo".to_string(),
+            rec: false,
+        },
+    ]);
+    assert_eq!(
+        ident.to_string(),
+        "col=<record>$col AND column=$column".to_string()
+    );
+}
+}
