@@ -18,6 +18,8 @@ pub mod utils;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
+    tracing_subscriber::fmt::init();
+
     dotenv().ok();
     let is_dev = std::env::var("DEVELOPMENT")
         .expect("set DEVELOPMENT env var")
@@ -71,11 +73,6 @@ async fn main() -> AppResult<()> {
     axum::serve(listener, routes_all.into_make_service())
         .await
         .unwrap();
-
-    // fallback fs
-    // fn routes_static() -> Router {
-    //     Router::new().nest_service("/", get_service(ServeDir::new("./")))
-    // }
 
     Ok(())
 }

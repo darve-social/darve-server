@@ -118,8 +118,6 @@ async fn get_link_start_page(
     Path(community_id): Path<String>,
     ctx: Ctx,
 ) -> CtxResult<StripeLinkStartPage> {
-    println!("->> {:<12} - get_link_start_page", "HANDLER");
-
     let (comm_id, mut comm) = community_admin_access(&ctx_state._db, &ctx, community_id).await?;
 
     if ctx_state.is_development {
@@ -224,8 +222,6 @@ async fn get_link_complete_page(
     ctx: Ctx,
     Path(community_id): Path<String>,
 ) -> CtxResult<StripeLinkCompletePage> {
-    println!("->> {:<12} - get_link_complete_page ", "HANDLER");
-
     let (comm_id, mut comm) = community_admin_access(&ctx_state._db, &ctx, community_id).await?;
 
     if ctx_state.is_development {
@@ -298,8 +294,6 @@ async fn access_rule_payment(
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - access_rule_payment ", "HANDLER");
-
     if ctx.user_id().is_err() {
         let mut qry: HashMap<String, String> = HashMap::new();
         qry.insert(

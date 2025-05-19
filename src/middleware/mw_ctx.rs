@@ -92,12 +92,6 @@ pub struct Claims {
     pub auth: String,
 }
 
-pub async fn mw_require_auth(ctx: Ctx, req: Request<Body>, next: Next) -> CtxResult<Response> {
-    println!("->> {:<12} - mw_require_auth - {ctx:?}", "MIDDLEWARE");
-    ctx.user_id()?;
-    Ok(next.run(req).await)
-}
-
 pub async fn mw_ctx_constructor(
     State(CtxState { _db, key_dec, .. }): State<CtxState>,
     cookies: Cookies,
@@ -118,7 +112,6 @@ pub async fn mw_ctx_constructor(
     } else {
         true
     };
-    // println!("->> {:<12} - mw_ctx_constructor", "MIDDLEWARE");
 
     let uuid = Uuid::new_v4();
     let jwt_user_id: AppResult<String> = get_jwt_user_id(key_dec, &cookies);

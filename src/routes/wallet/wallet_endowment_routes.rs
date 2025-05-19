@@ -100,8 +100,6 @@ async fn test_endowment_transaction(
     ctx: Ctx,
     Path((endow_user_id, amount)): Path<(String, i64)>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - request endowment_transaction ", "HANDLER");
-
     if !ctx_state.is_development {
         return Err(AppError::AuthorizationFail {
             required: "Endpoint only available in development mode".to_string(),
@@ -153,8 +151,6 @@ async fn request_endowment_intent(
     ctx: Ctx,
     Path(amount): Path<u32>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - request endowment payment ", "HANDLER");
-
     let user_id = ctx.user_id()?;
     println!("User ID retrieved: {:?}", user_id);
 

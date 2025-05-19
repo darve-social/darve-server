@@ -218,8 +218,6 @@ async fn display_discussion(
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
 ) -> CtxResult<axum::Json<DiscussionView>> {
-    println!("->> {:<12} - get discussion", "HANDLER");
-
     let dis_view =
         get_discussion_view(&_db, &ctx, get_string_thing(discussion_id)?, q_params).await?;
     Ok(axum::Json(dis_view))
@@ -576,7 +574,6 @@ async fn create_update(
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<DiscussionInput>,
 ) -> CtxResult<Response> {
-    println!("->> {:<12} - create_update_disc", "HANDLER");
     let local_user_db_service = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
