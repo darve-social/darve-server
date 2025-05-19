@@ -21,7 +21,12 @@ async fn create_reply() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
-    let comm_id = get_string_thing(create_fake_community(server, &ctx_state, user_ident.clone()).await.id).unwrap();
+    let comm_id = get_string_thing(
+        create_fake_community(server, &ctx_state, user_ident.clone())
+            .await
+            .id,
+    )
+    .unwrap();
     let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
     let community_db_service = CommunityDbService {
         db: &ctx_state._db,
@@ -41,8 +46,7 @@ async fn create_reply() {
     let comm_discussion_id = comm_disc_thing.to_raw();
     assert_eq!(comm_discussion_id.len() > 0, true);
 
-    let post_name = "post title Name 1".to_string();
-    let created_post = create_fake_post(server, &comm_disc_thing, None).await;
+    let created_post = create_fake_post(server, &comm_disc_thing, None, None).await;
 
     let post_uri = &created_post.uri.clone();
 
