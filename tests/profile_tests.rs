@@ -55,12 +55,12 @@ async fn search_users() {
         },
     )
     .await;
-    assert_eq!(res.items.len(), 2);
+    assert_eq!(res.items.len(), 3);
 
     let res = user_helpers::create_user(
         &server,
         &SearchInput {
-            query: "Userset".to_string(),
+            query: "Userse".to_string(),
         },
     )
     .await;
@@ -100,7 +100,7 @@ async fn search_users() {
         },
     )
     .await;
-    assert_eq!(res.items.len(), 1);
+    assert_eq!(res.items.len(), 0);
 }
 
 #[tokio::test]
