@@ -4,12 +4,11 @@ use darve_server::{
     middleware,
     routes::{
         community::{discussion_routes, profile_routes},
-        user_auth::{follow_routes, login_routes},
+        user_auth::login_routes,
     },
 };
 use discussion_routes::get_discussion_view;
-use follow_routes::UserListView;
-use helpers::{create_login_test_user, create_test_server};
+use helpers::{create_login_test_user, create_test_server, user_helpers};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::error::AppError;
@@ -40,60 +39,68 @@ async fn search_users() {
         .await;
     request.assert_status_success();
 
-    let request = server
-        .post("/api/user/search")
-        .json(&SearchInput {
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
             query: "rset".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    request.assert_status_success();
-    let res = &request.json::<UserListView>();
-    assert_eq!(res.items.len(), 0);
-    let request = server
-        .post("/api/user/search")
-        .json(&SearchInput {
-            query: "Userset".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    request.assert_status_success();
-    let res = &request.json::<UserListView>();
+        },
+    )
+    .await;
     assert_eq!(res.items.len(), 1);
 
-    let request = server
-        .post("/api/user/search")
-        .json(&SearchInput {
-            query: "one".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    request.assert_status_success();
-    let res = &request.json::<UserListView>();
-    assert_eq!(res.items.len(), 1);
-
-    let request = server
-        .post("/api/user/search")
-        .json(&SearchInput {
-            query: "unknown".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    request.assert_status_success();
-    let res = &request.json::<UserListView>();
-    assert_eq!(res.items.len(), 0);
-
-    let request = server
-        .post("/api/user/search")
-        .json(&SearchInput {
-            query: "its".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-
-    request.assert_status_success();
-    let res = &request.json::<UserListView>();
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "user".to_string(),
+        },
+    )
+    .await;
     assert_eq!(res.items.len(), 2);
+
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "Userset".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 1);
+
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "one".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 1);
+
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "unknown".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 0);
+
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "its".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 2);
+
+    let res = user_helpers::create_user(
+        &server,
+        &SearchInput {
+            query: "hero".to_string(),
+        },
+    )
+    .await;
+    assert_eq!(res.items.len(), 1);
 }
 
 #[tokio::test]

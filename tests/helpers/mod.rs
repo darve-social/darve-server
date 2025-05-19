@@ -1,5 +1,6 @@
 pub mod community_helpers;
 pub mod post_helpers;
+pub mod user_helpers;
 use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
 use darve_server::middleware;
