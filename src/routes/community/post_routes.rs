@@ -3,7 +3,7 @@ use askama_axum::Template;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::HeaderValue;
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use axum_htmx::HX_REDIRECT;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -42,6 +42,7 @@ use crate::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
 };
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::services::post_service::PostService;
 use crate::{middleware, utils};
 
 use super::{community_routes, discussion_routes, discussion_topic_routes, reply_routes};
@@ -55,6 +56,8 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .merge(view_routes)
         .route("/api/posts", get(get_posts))
+        .route("/api/posts/:post_id/like", post(like))
+        .route("/api/posts/:post_id/unlike", delete(unlike))
         .route(
             "/api/discussion/:discussion_id/post",
             post(create_post_entity_route),
@@ -191,9 +194,9 @@ pub struct GetPostsQuery {
     pub count: Option<u16>,
 }
 
-#[derive(Debug, Serialize)]
-struct GetPostsResponse {
-    posts: Vec<Post>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetPostsResponse {
+    pub posts: Vec<Post>,
 }
 
 async fn get_posts(
@@ -454,4 +457,44 @@ async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> C
     } else {
         Ok(format!("/community/{}", owner_view.community_uri))
     }
+}
+
+async fn like(
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<CtxState>,
+) -> CtxResult<()> {
+    let user = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_ctx_user()
+    .await?;
+
+    PostService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .like(post_id, &user)
+    .await
+}
+
+async fn unlike(
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<CtxState>,
+) -> CtxResult<()> {
+    let user = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_ctx_user()
+    .await?;
+
+    PostService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .unlike(post_id, &user)
+    .await
 }

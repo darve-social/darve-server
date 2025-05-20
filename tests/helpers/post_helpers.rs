@@ -135,3 +135,19 @@ pub async fn create_fake_post_with_file(
 
     created.id
 }
+
+#[allow(dead_code)]
+pub async fn create_post_like(server: &TestServer, post_id: &str) -> TestResponse {
+    server
+        .post(format!("/api/posts/{post_id}/like").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestResponse {
+    server
+        .delete(format!("/api/posts/{post_id}/unlike").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}

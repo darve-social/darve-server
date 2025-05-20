@@ -56,6 +56,14 @@ pub enum UserNotificationEvent {
     UserChatMessage,
     UserCommunityPost,
     UserBalanceUpdate,
+    UserLikePost {
+        user_id: Thing,
+        post_id: Thing,
+    },
+    UserUnLikePost {
+        user_id: Thing,
+        post_id: Thing,
+    },
 }
 
 pub struct UserNotificationDbService<'a> {

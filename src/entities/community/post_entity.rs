@@ -61,6 +61,8 @@ pub struct PostDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "post";
+pub const TABLE_LIKE: &str = "like";
+
 // origin
 const TABLE_COL_DISCUSSION: &str = discussion_entity::TABLE_NAME;
 const TABLE_COL_TOPIC: &str = discussion_topic_entity::TABLE_NAME;
@@ -96,6 +98,11 @@ impl<'a> PostDbService<'a> {
     DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+
+
+    DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+    DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_LIKE} TYPE datetime DEFAULT time::now();
 
 ");
         let mutation = self.db.query(sql).await?;
@@ -226,6 +233,45 @@ impl<'a> PostDbService<'a> {
     //         })
     //     })
     // }
+
+    pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<()> {
+        let query = format!(
+            "BEGIN TRANSACTION;
+                RELATE $in->{TABLE_LIKE}->$out;
+                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
+                UPDATE $out SET likes_nr = $count;
+            COMMIT TRANSACTION;"
+        );
+        let res = self
+            .db
+            .query(query)
+            .bind(("in", user))
+            .bind(("out", post))
+            .await?;
+
+        res.check()?;
+
+        Ok(())
+    }
+
+    pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<()> {
+        let query = format!(
+            "BEGIN TRANSACTION;
+                DELETE $in->{TABLE_LIKE} WHERE out=$out;
+                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
+                UPDATE $out SET likes_nr = $count;
+            COMMIT TRANSACTION;"
+        );
+        let res = self
+            .db
+            .query(query)
+            .bind(("in", user))
+            .bind(("out", post))
+            .await?;
+
+        res.check()?;
+        Ok(())
+    }
 
     pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
         let curr_nr = self
