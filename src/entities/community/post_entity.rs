@@ -154,7 +154,7 @@ impl<'a> PostDbService<'a> {
                 // TODO -profile-discussion- when we have profile discussion id_id same as user id_id we can filter
                 // posts that are from user profile discussions
                 // something like this (check if possible)
-                // AND $this.created_by.id.id == $this.belongs_to.id.id
+                // AND record::id($this.belongs_to)=record::id($this.created_by)
                 "WHERE tags CONTAINS $tag"
             } else {
                 ""
