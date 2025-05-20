@@ -17,9 +17,7 @@ use authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OW
 use community_routes::DiscussionNotificationEvent;
 use discussion_entity::DiscussionDbService;
 use discussion_notification_entity::{DiscussionNotification, DiscussionNotificationDbService};
-use discussion_routes::{
-    is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView,
-};
+use discussion_routes::{is_user_chat_discussion, DiscussionPostView, DiscussionView};
 use discussion_topic_routes::DiscussionTopicView;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
@@ -366,9 +364,16 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let mut notif_content = DiscussionLatestPostView::from(&post);
-    notif_content.created_by.username = user.username;
-    let notif_str = serde_json::to_string(&notif_content).unwrap();
+    let content = serde_json::json!({
+        "id": post.belongs_to,
+        "content": post.content,
+        "title": post.title,
+        "media_links": post.media_links,
+        "created_by": post.created_by
+    });
+    // let mut notif_content = DiscussionLatestPostView::from(&post);
+    // notif_content.created_by.username = user.username;
+    let notif_str = serde_json::to_string(&content).unwrap();
     if is_user_chat {
         user_notification_db_service
             .notify_users(

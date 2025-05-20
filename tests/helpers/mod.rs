@@ -3,12 +3,15 @@ pub mod post_helpers;
 pub mod user_helpers;
 use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
+use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::middleware;
 use darve_server::routes::user_auth::{register_routes, webauthn};
+use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
 use register_routes::RegisterInput;
 use serde::Deserialize;
 use surrealdb::engine::any::{connect, Any};
+use surrealdb::sql::Thing;
 use surrealdb::Surreal;
 use webauthn::webauthn_routes::create_webauth_config;
 
@@ -89,4 +92,37 @@ pub async fn create_login_test_user(
     // login_user.assert_status_success();
 
     (server, registered.id.clone())
+}
+
+#[allow(dead_code)]
+pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser) {
+    let pwd = faker::internet::en::Password(6..8).fake::<String>();
+
+    let input = RegisterInput {
+        username: faker::internet::en::Username().fake::<String>(),
+        password: pwd.clone(),
+        email: Some(faker::internet::en::FreeEmail().fake::<String>()),
+        next: None,
+        password1: pwd.clone(),
+        bio: None,
+        full_name: Some(faker::name::en::Name().fake::<String>()),
+        image_uri: None,
+    };
+
+    let create_user = &server.post("/api/register").json(&input).await;
+    create_user.assert_status_success();
+    let registered = &create_user.json::<RegisterResponse>();
+    let user = LocalUser {
+        id: Some(Thing::try_from(registered.id.clone()).unwrap()),
+        username: input.username,
+        full_name: input.full_name,
+        birth_date: None,
+        phone: None,
+        email: input.email,
+        bio: input.bio,
+        social_links: None,
+        image_uri: input.image_uri,
+    };
+
+    (server, user)
 }

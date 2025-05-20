@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::entities::community::post_entity::PostDbService;
 use crate::entities::community::{
-    community_entity, discussion_entity, discussion_notification_entity, post_entity,
+    community_entity, discussion_entity, discussion_notification_entity,
 };
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
@@ -36,7 +37,6 @@ use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING}
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::{get_string_thing, LEN_OR_NONE};
-use post_entity::{Post, PostDbService};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use surrealdb::Notification as SdbNotification;
@@ -161,22 +161,8 @@ pub struct DiscussionLatestPostView {
 pub struct DiscussionLatestPostCreatedBy {
     pub id: Thing,
     pub username: String,
-}
-
-// !! username is not set/valid
-impl From<&Post> for DiscussionLatestPostView {
-    fn from(value: &Post) -> Self {
-        DiscussionLatestPostView {
-            id: value.belongs_to.clone(),
-            created_by: DiscussionLatestPostCreatedBy {
-                id: value.created_by.clone(),
-                username: value.created_by.clone().to_raw(),
-            },
-            title: value.title.clone(),
-            content: value.content.clone(),
-            media_links: value.media_links.clone(),
-        }
-    }
+    pub full_name: Option<String>,
+    pub image_uri: Option<String>,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
