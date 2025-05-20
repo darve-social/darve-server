@@ -56,7 +56,7 @@ impl<'a> PostService<'a> {
             }
             .notify_users(
                 user_ids,
-                &&&UserNotificationEvent::UserLikePost {
+                &UserNotificationEvent::UserLikePost {
                     user_id: user_thing,
                     post_id: post_thing,
                 },
@@ -109,7 +109,7 @@ impl<'a> PostService<'a> {
             }
             .notify_users(
                 user_ids,
-                &&&UserNotificationEvent::UserUnLikePost {
+                &UserNotificationEvent::UserUnLikePost {
                     user_id: user_thing,
                     post_id: post_thing,
                 },
