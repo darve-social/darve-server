@@ -84,13 +84,6 @@ impl<'a> PostService<'a> {
             .unlike(user_thing.clone(), post_thing.clone())
             .await?;
 
-        PostDbService {
-            db: &self.db,
-            ctx: &self.ctx,
-        }
-        .unlike(user_thing.clone(), post_thing.clone())
-        .await?;
-
         let user_ids = FollowDbService {
             db: &self.db,
             ctx: &self.ctx,
