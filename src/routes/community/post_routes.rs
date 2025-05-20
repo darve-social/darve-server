@@ -87,6 +87,7 @@ pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub content: String,
     pub topic_id: String,
+    #[validate(length(max = 5, message = "Max 5 tags"))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
@@ -267,6 +268,8 @@ pub async fn create_post_entity_route(
     State(ctx_state): State<CtxState>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
+    input_value.validate()?;
+
     let user = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
