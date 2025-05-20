@@ -26,7 +26,8 @@ use super::{discussion_entity, discussion_topic_entity};
 /// It is created_by user. Since user can create posts in different
 /// discussions we have to filter by discussion and user to get user's posts
 /// in particular discussion. User profile posts are in profile discussion.
-///
+/// Post access rules can be defined in hierarchy - on post, discussion or community.
+///  Access rules for post can also be on post.discussion_topic.
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
     // id is ULID for sorting by time
@@ -153,8 +154,20 @@ impl<'a> PostDbService<'a> {
             if tag.is_some() {
                 // TODO -profile-discussion- when we have profile discussion id_id same as user id_id we can filter
                 // posts that are from user profile discussions
-                // something like this (check if possible)
+                // like this:
+                // 
                 // AND record::id($this.belongs_to)=record::id($this.created_by)
+                // 
+                // The post access rules can also be defined in hierarchy - on post, discussion, community
+                // besides this can also be on post.discussion_topic
+                // Example to check all this:
+                //
+                // SELECT * FROM post WHERE record::exists(type::record(string::concat("access_rule:",record::id($this.id))) )=false
+                // AND record::exists(type::record(string::concat("access_rule:",record::id($this.belongs_to))) )=false
+                // AND record::exists(type::record(string::concat("access_rule:",record::id($this.belongs_to.belongs_to))) )=false
+                // AND not($this.discussion_topic.*.access_rule)=true;
+                //
+                // If adding all this clauses to query slows it down a lot we can have all profile posts public
                 "WHERE tags CONTAINS $tag"
             } else {
                 ""
