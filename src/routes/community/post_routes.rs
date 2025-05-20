@@ -42,6 +42,7 @@ use crate::entities::user_auth::{
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::{middleware, utils};
 
+use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
 use super::{community_routes, discussion_routes, discussion_topic_routes, reply_routes};
 
 pub const UPLOADS_URL_BASE: &str = "/media";
@@ -364,16 +365,21 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let content = serde_json::json!({
-        "id": post.belongs_to,
-        "content": post.content,
-        "title": post.title,
-        "media_links": post.media_links,
-        "created_by": post.created_by
-    });
-    // let mut notif_content = DiscussionLatestPostView::from(&post);
-    // notif_content.created_by.username = user.username;
-    let notif_str = serde_json::to_string(&content).unwrap();
+
+    let latest_post = DiscussionLatestPostView {
+        id: post.belongs_to,
+        created_by: DiscussionLatestPostCreatedBy {
+            id: user_id.clone(),
+            username: user.username,
+            full_name: user.full_name,
+            image_uri: user.image_uri,
+        },
+        title: post.title,
+        content: post.content,
+        media_links: post.media_links,
+    };
+
+    let notif_str = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
         user_notification_db_service
             .notify_users(
