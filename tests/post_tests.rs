@@ -16,6 +16,7 @@ use darve_server::routes::community::community_routes;
 use darve_server::routes::community::post_routes::GetPostsQuery;
 use darve_server::routes::community::profile_routes::get_profile_community;
 use helpers::community_helpers::create_fake_community;
+use helpers::post_helpers;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
     create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
@@ -68,7 +69,7 @@ async fn create_post_with_the_same_name() {
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
-    let title = "TEST";
+    let title = "TEST_TEST";
     let data = MultipartForm::new()
         .add_text("title", title)
         .add_text("content", "content")
@@ -143,21 +144,32 @@ async fn create_post_with_tags() {
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
     let _ = create_fake_post(server, &result.profile_discussion, None, None).await;
-    let tags = vec!["tag".to_string(), "tag1".to_string(), "tag2".to_string(), "tag3".to_string(), "tag4".to_string()];
-    let _ = create_fake_post(server, &result.profile_discussion, None, Some(tags.clone())).await;
+    let tags = vec![
+        "tag".to_string(),
+        "tag1".to_string(),
+        "tag2".to_string(),
+        "tag3".to_string(),
+        "tag4".to_string(),
+        "tag5".to_string(),
+    ];
+    let _ = create_fake_post(
+        server,
+        &result.profile_discussion,
+        None,
+        Some(Vec::from(&tags[0..5])),
+    )
+    .await;
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
     let posts_value = posts_res.json::<Value>();
     let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
-    let max_tags = 5;
-    let tags_to_save = tags.len();
-    assert_eq!(max_tags == tags_to_save, true);
     assert_eq!(posts.len(), 2);
-    assert_eq!(posts[0].tags.as_ref().unwrap().len(), max_tags);
     assert_eq!(posts[0].tags.as_ref().unwrap()[0], tags[0]);
     assert_eq!(posts[0].tags.as_ref().unwrap()[1], tags[1]);
     assert_eq!(posts[1].tags, None);
-    // TODO -test gt max fail- test it fails with more than max tags
+    let data = post_helpers::build_fake_post(None, Some(tags.clone()));
+    let response = post_helpers::create_post(server, &result.profile_discussion, data).await;
+    response.assert_status_unprocessable_entity();
 }
 
 #[tokio::test]

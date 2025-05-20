@@ -585,6 +585,8 @@ async fn create_user_post(
     State(ctx_state): State<CtxState>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
+    input_value.validate()?;
+
     let user_id = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,

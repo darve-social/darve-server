@@ -3,7 +3,9 @@ use std::fmt;
 use super::ctx::Ctx;
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use uuid::Uuid;
+use validator::ValidationErrors;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CtxError {
@@ -27,6 +29,7 @@ pub enum AppError {
     SurrealDb { source: String },
     SurrealDbNoResult { source: String, id: String },
     SurrealDbParse { source: String, id: String },
+    ValidationErrors { value: Value },
 }
 
 /// ApiError has to have the req_id to report to the client and implements IntoResponse.
@@ -75,6 +78,29 @@ impl From<AppError> for CtxError {
     }
 }
 
+impl From<ValidationErrors> for CtxError {
+    fn from(value: ValidationErrors) -> Self {
+        let simplified = value
+            .field_errors()
+            .iter()
+            .filter_map(|(field, errors)| {
+                errors
+                    .first()
+                    .and_then(|err| err.message.clone())
+                    .map(|msg| (field.to_string(), json!(msg)))
+            })
+            .collect::<serde_json::Map<_, _>>();
+
+        CtxError {
+            req_id: Uuid::new_v4(),
+            error: AppError::ValidationErrors {
+                value: json!(simplified),
+            },
+            is_htmx: false,
+        }
+    }
+}
+
 const INTERNAL: &str = "Internal error";
 
 impl fmt::Display for AppError {
@@ -95,6 +121,7 @@ impl fmt::Display for AppError {
             Self::SurrealDbParse { id, .. } => write!(f, "Couldn't parse id {id}"),
             AppError::AuthorizationFail { .. } => write!(f, "not authorized"),
             AppError::Stripe { .. } => write!(f, "Stripe error"),
+            AppError::ValidationErrors { value } => write!(f, "{value}"),
         }
     }
 }
@@ -141,6 +168,7 @@ impl IntoResponse for CtxError {
             | AppError::AuthFailJwtInvalid { .. }
             | AppError::AuthorizationFail { .. }
             | AppError::AuthFailCtxNotInRequestExt => StatusCode::FORBIDDEN,
+            AppError::ValidationErrors { .. } => StatusCode::UNPROCESSABLE_ENTITY,
         };
         let err = self.error.clone();
         let body_str = get_error_body(&self, self.is_htmx);
