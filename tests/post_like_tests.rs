@@ -1,8 +1,7 @@
 mod helpers;
 
 use crate::helpers::{create_login_test_user, create_test_server};
-use darve_server::middleware::utils::string_utils::get_string_thing;
-use darve_server::routes::community::post_routes::GetPostsResponse;
+use darve_server::routes::community::post_routes::PostLikeResponse;
 use helpers::community_helpers::create_fake_community;
 use helpers::post_helpers::{self, create_fake_post};
 
@@ -16,17 +15,8 @@ async fn create_post_like() {
 
     let response = post_helpers::create_post_like(&server, &result.id).await;
     response.assert_status_ok();
-
-    let post_id = get_string_thing(result.id.clone()).unwrap();
-    let post = post_helpers::get_posts(&server, None)
-        .await
-        .json::<GetPostsResponse>()
-        .posts
-        .into_iter()
-        .find(|p| p.id.clone().unwrap() == post_id)
-        .unwrap();
-
-    assert_eq!(post.likes_nr, 1);
+    let likes_nr = response.json::<PostLikeResponse>().likes_count;
+    assert_eq!(likes_nr, 1);
 
     let response = post_helpers::create_post_like(&server, &result.id).await;
     response.assert_status_failure();
@@ -34,13 +24,7 @@ async fn create_post_like() {
     let response = post_helpers::delete_post_like(&server, &result.id).await;
     response.assert_status_ok();
 
-    let post = post_helpers::get_posts(&server, None)
-        .await
-        .json::<GetPostsResponse>()
-        .posts
-        .into_iter()
-        .find(|p| p.id.clone().unwrap() == post_id)
-        .unwrap();
+    let likes_nr = response.json::<PostLikeResponse>().likes_count;
 
-    assert_eq!(post.likes_nr, 0);
+    assert_eq!(likes_nr, 0);
 }

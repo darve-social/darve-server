@@ -15,6 +15,7 @@ use middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 
+use crate::entities::community::post_entity;
 use crate::middleware;
 
 use super::{follow_entity, local_user_entity};
@@ -57,10 +58,6 @@ pub enum UserNotificationEvent {
     UserCommunityPost,
     UserBalanceUpdate,
     UserLikePost {
-        user_id: Thing,
-        post_id: Thing,
-    },
-    UserUnLikePost {
         user_id: Thing,
         post_id: Thing,
     },
@@ -133,6 +130,7 @@ impl<'a> UserNotificationDbService<'a> {
             .1
             .into_iter()
             .fold(qry, |qry, n_val| qry.bind(n_val));
+
         let res = qry.await?;
         res.check()?;
         Ok(())
@@ -184,6 +182,7 @@ impl<'a> UserNotificationDbService<'a> {
 
 pub const TABLE_NAME: &str = "user_notification";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
+const POST_TABLE: &str = post_entity::TABLE_NAME;
 const USER_FIELD_NAME: &str = "user";
 
 impl<'a> UserNotificationDbService<'a> {
@@ -199,7 +198,8 @@ impl<'a> UserNotificationDbService<'a> {
      | {{ type: \"UserTaskRequestReceived\", value:{{ task_id: record, from_user: record<{USER_TABLE}>, to_user: record<{USER_TABLE}>}} }}
      | {{ type: \"UserChatMessage\"}}
      | {{ type: \"UserBalanceUpdate\"}}
-     | {{ type: \"UserCommunityPost\"}};
+     | {{ type: \"UserCommunityPost\"}}
+     | {{ type: \"UserLikePost\", value:{{ post_id: record<{POST_TABLE}>, user_id: record<{USER_TABLE}>}} }};
     DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     // will use ulid to sort by time DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();

@@ -459,11 +459,16 @@ async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> C
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostLikeResponse {
+    pub likes_count: u32,
+}
+
 async fn like(
     ctx: Ctx,
     Path(post_id): Path<String>,
     State(ctx_state): State<CtxState>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<PostLikeResponse>> {
     let user = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
@@ -471,19 +476,21 @@ async fn like(
     .get_ctx_user()
     .await?;
 
-    PostService {
+    let count = PostService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
     .like(post_id, &user)
-    .await
+    .await?;
+
+    Ok(Json(PostLikeResponse { likes_count: count }))
 }
 
 async fn unlike(
     ctx: Ctx,
     Path(post_id): Path<String>,
     State(ctx_state): State<CtxState>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<PostLikeResponse>> {
     let user = LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
@@ -491,10 +498,12 @@ async fn unlike(
     .get_ctx_user()
     .await?;
 
-    PostService {
+    let count = PostService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
     .unlike(post_id, &user)
-    .await
+    .await?;
+
+    Ok(Json(PostLikeResponse { likes_count: count }))
 }

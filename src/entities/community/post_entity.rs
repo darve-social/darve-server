@@ -234,43 +234,43 @@ impl<'a> PostDbService<'a> {
     //     })
     // }
 
-    pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<()> {
+    pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
                 RELATE $in->{TABLE_LIKE}->$out;
                 LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
                 UPDATE $out SET likes_nr = $count;
+                RETURN $count;
             COMMIT TRANSACTION;"
         );
-        let res = self
+        let mut res = self
             .db
             .query(query)
             .bind(("in", user))
             .bind(("out", post))
             .await?;
-
-        res.check()?;
-
-        Ok(())
+        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
+        Ok(count)
     }
 
-    pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<()> {
+    pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
                 DELETE $in->{TABLE_LIKE} WHERE out=$out;
                 LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
                 UPDATE $out SET likes_nr = $count;
+                RETURN $count;
             COMMIT TRANSACTION;"
         );
-        let res = self
+        let mut res = self
             .db
             .query(query)
             .bind(("in", user))
             .bind(("out", post))
             .await?;
 
-        res.check()?;
-        Ok(())
+        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
+        Ok(count)
     }
 
     pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
