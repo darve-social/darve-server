@@ -8,7 +8,10 @@ use darve_server::{
     },
 };
 use discussion_routes::get_discussion_view;
-use helpers::{create_login_test_user, create_test_server, user_helpers};
+use helpers::{
+    create_fake_login_test_user, create_login_test_user, create_test_server, post_helpers,
+    user_helpers,
+};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::error::AppError;
@@ -194,6 +197,7 @@ async fn get_user_chat() {
     create_response.assert_status_success();
     let created = &create_response.json::<ProfileChatList>();
     assert_eq!(created.discussions.len(), 1);
+
     assert_eq!(created.user_id.to_raw(), user_ident1);
     let list_disc_id = created.discussions.get(0).unwrap().id.clone().unwrap();
     assert_eq!(list_disc_id, chat_disc_id);
@@ -228,7 +232,7 @@ async fn get_user_chat() {
     );
 
     // create new user
-    let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
+    let (_, user_ident3) = create_login_test_user(&server, username3.clone()).await;
     let ctx = Ctx::new(Ok(user_ident3), Uuid::new_v4(), false);
     let d_view = get_discussion_view(
         &ctx_state._db,
@@ -248,18 +252,49 @@ async fn get_user_chat() {
             required: "Is chat participant".to_string()
         }
     );
+}
 
-    let post_name = "post title Name 2".to_string();
-    let create_post = server
-        .post(format!("/api/discussion/{chat_disc_id}/post").as_str())
-        .multipart(
-            MultipartForm::new()
-                .add_text("title", post_name.clone())
-                .add_text("content", "contentttt2")
-                .add_text("topic_id", ""),
-        )
+#[tokio::test]
+async fn get_user_chat_1() {
+    let (server, _) = create_test_server().await;
+    let (_, local_user_1) = create_fake_login_test_user(&server).await;
+    let (_, local_user_2) = create_fake_login_test_user(&server).await;
+
+    let create_response = server
+        .get("/api/user_chat/list")
         .add_header("Accept", "application/json")
         .await;
-    dbg!(&create_post);
-    create_post.assert_status_failure();
+    let created = &create_response.json::<ProfileChatList>();
+    assert_eq!(created.discussions.len(), 0);
+    assert_eq!(created.user_id, local_user_2.id.clone().unwrap());
+
+    let create_response = server
+        .get(format!("/api/user_chat/with/{}", local_user_1.id.unwrap().to_raw()).as_str())
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_success();
+    let created = &create_response.json::<ProfileChat>();
+    let chat_disc_id = created.discussion.id.clone().unwrap();
+
+    let _ = post_helpers::create_fake_post(&server, &chat_disc_id, None, None).await;
+    // check chat exists in list
+    let create_response = server
+        .get("/api/user_chat/list")
+        .add_header("Accept", "application/json")
+        .await;
+
+    let created = &create_response.json::<ProfileChatList>();
+    assert_eq!(created.discussions.len(), 1);
+    let user_2_id = local_user_2.id.clone();
+    assert_eq!(created.user_id, user_2_id.unwrap());
+    let list_disc_id = created.discussions.get(0).unwrap().id.clone().unwrap();
+    assert_eq!(list_disc_id, chat_disc_id);
+
+    let disc_view = created.discussions.get(0).unwrap();
+    assert!(disc_view.latest_post.is_some());
+    let create_by = &disc_view.latest_post.as_ref().unwrap().created_by;
+
+    assert_eq!(create_by.username, local_user_2.username);
+    assert_eq!(create_by.full_name, local_user_2.full_name);
+    assert_eq!(create_by.image_uri, local_user_2.image_uri)
 }
