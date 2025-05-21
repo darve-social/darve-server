@@ -28,10 +28,6 @@ impl<'a> PostService<'a> {
             ctx: &self.ctx,
         };
 
-        let _ = post_service
-            .get(IdentIdName::Id(post_thing.clone()))
-            .await?;
-
         let likes_count = post_service
             .like(user_thing.clone(), post_thing.clone())
             .await?;
@@ -61,10 +57,6 @@ impl<'a> PostService<'a> {
             db: &self.db,
             ctx: &self.ctx,
         };
-
-        let _ = post_service
-            .get(IdentIdName::Id(post_thing.clone()))
-            .await?;
 
         let likes_count = post_service
             .unlike(user_thing.clone(), post_thing.clone())

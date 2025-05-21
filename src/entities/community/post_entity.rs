@@ -237,6 +237,7 @@ impl<'a> PostDbService<'a> {
     pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
+                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
                 RELATE $in->{TABLE_LIKE}->$out;
                 LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
                 UPDATE $out SET likes_nr = $count;
@@ -256,6 +257,7 @@ impl<'a> PostDbService<'a> {
     pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
+                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
                 DELETE $in->{TABLE_LIKE} WHERE out=$out;
                 LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
                 UPDATE $out SET likes_nr = $count;
