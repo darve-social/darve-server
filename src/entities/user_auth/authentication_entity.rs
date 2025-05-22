@@ -7,19 +7,12 @@ use webauthn_rs::prelude::{CredentialID, Passkey};
 use middleware::db;
 use middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 
 use crate::middleware;
 use crate::middleware::error::AppResult;
 use crate::middleware::utils::string_utils::get_string_thing;
-/*pub struct PasskeyCredId(String);
-
-impl From<Passkey> for PasskeyCredId {
-    fn from(value: Passkey) -> Self {
-        PasskeyCredId(value.cred_id())
-    }
-}*/
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
@@ -31,13 +24,6 @@ pub enum AuthType {
 }
 
 impl AuthType {
-    /*pub fn from_str(s: &str) -> Option<MediaType> {
-        match s {
-            "text/plain" => Some(MediaType::PlainText),
-            "application/json" => Some(MediaType::ApplicationJson),
-            _ => None,
-        }
-    }*/
 
     pub fn as_str(&self) -> &'static str {
         match self.clone() {
@@ -53,8 +39,7 @@ impl AuthType {
             AuthType::PASSWORD(pass, user_id) => match (pass, user_id) {
                 // TODO hash password - https://docs.rs/argon2/0.5.3/argon2/
                 // when creating hash - combine pass+user_id in hash
-                ( Some(pass), Some(user_id)) => Some(pass.clone()),
-                // ( Some(pass), Some(user_id)) => Some(format!("{}{}",pass.clone(), user_id.clone())),
+                ( Some(pass), Some(user_id)) => Some(format!("{}{}",pass.clone(), user_id.clone())),
                 _ => None,
             },
             AuthType::EMAIL(email) => email,
@@ -107,7 +92,6 @@ impl Authentication {
         };
 
         let id = Self::get_string_id(TABLE_NAME.to_string(), user_id.clone(), auth.clone())?;
-        // println!("IDDDD={}", id);
         Ok(Authentication {
             id: id.parse().unwrap(),
             local_user: user_id.parse().unwrap(),
@@ -115,19 +99,7 @@ impl Authentication {
             passkey_json,
             updated: None,
         })
-        // Authentication{id: Self::createId(userId, auth) , timestamp: "ttt".to_string(), confirmed: None }
     }
-
-    /* pub fn createId( local_user_id: String, authType: AuthType)-> Option<Thing> {
-        let mut ident = BTreeMap::new();
-        ident.insert("local_user_id".to_string(),  StrandVal(Strand(local_user_id.clone())));
-        ident.insert("type".to_string(), StrandVal(Strand(authType.clone().as_str().to_string())));
-        ident.insert("value".to_string(), StrandVal(Strand(authType.clone().as_val().to_string())));
-        //todo timestamp
-        let id = Id::from(Object(ident));
-       //println!("JSONNNN = {}", serde_json::to_string(&AuthenticationId { local_user_id, auth: authType }).unwrap());
-        Some(Thing{tb: TABLE_NAME.to_string(), id: id })
-    }*/
 
     pub fn get_string_id(
         table: String,
@@ -138,7 +110,6 @@ impl Authentication {
        if let AuthType::PASSWORD(Some(pass),None) = auth_type {
            a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
        }
-println!("AAAAAAAA={a_type:?}");
         let type_str = a_type.as_str();
         let value = a_type.as_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
         println!("AAAAAAAA VVVV={value:?}");
@@ -167,34 +138,13 @@ impl<'a> AuthenticationDbService<'a> {
     "
         );
         let mutation = self.db.query(sql).await?;
-
         mutation.check().expect("should mutate local user");
-
-        /*let sql1 = "CREATE local_user:usn1 SET username = 'username1';";
-        let mut result1 = self.db.query(sql1).await.unwrap();
-        let rrrrrrr1: Option<LocalUser> = result1.take(0)?;
-        dbg!(rrrrrrr1);
-        println!("EEEE {}", self.exists("username1".to_string()).await?.to_string());
-
-        let sql2 = "CREATE local_user:usn2 SET username = 'username1';";
-        let mut result2 = self.db.query(sql2).await?;
-        // let mut result2 = self.db.query(sql2).await.unwrap().check().is_err();
-        let rrrrrrr2: Option<LocalUser> = result2.take(0)?;
-        dbg!(rrrrrrr2);*/
 
         Ok(())
     }
     pub async fn create(&self, auth_input: Authentication) -> CtxResult<bool> {
-        // ApiResult<Authentication> {
-        // let uid = auth_input.clone().id;
-        // println!("CREATE AUTH id= {:?}", uid);
-        // let query = format!("CREATE {uid} SET timestamp={auth_input.};");
-        // let createAuth = self.db.query(query).await?;
         let create_auth: Option<Authentication> =
             self.db.create(TABLE_NAME).content(auth_input).await?;
-        // let createAuth: Result<Vec<Authentication>, surrealdb::Error > = self.db.create(TABLE_NAME).content(auth_input).await;
-        // dbg!(&createAuth);
-        // Ok(!createAuth.is_err())
         Ok(create_auth.is_some())
     }
 
@@ -223,15 +173,7 @@ impl<'a> AuthenticationDbService<'a> {
         local_user_id: String,
         auth_type: AuthType,
     ) -> CtxResult<Vec<Authentication>> {
-        // let id = Authentication::to_string_id(TABLE_NAME.parse().unwrap(), local_user_id, auth_type, false)?;
-
-        /*let auth = Authentication{id: id.parse().unwrap(), passkey:None, timestamp:"somett".parse().unwrap() };
-                println!("get_by_auth_type id={:?}", auth.id);
-                // println!("get_by_auth_type={:?}", auth);
-        // let idStr=auth.id;
-                let res:Option<Vec<Authentication>> = self.db.select(auth.id).await?;
-                dbg!(res);*/
-
+       
         let a_type = auth_type.as_str();
         let q = "SELECT * FROM type::table($table) WHERE local_user=<record>$local_user_id AND auth_type=$a_type;".to_string();
         let res = self
