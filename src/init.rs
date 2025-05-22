@@ -89,7 +89,7 @@ async fn create_profile<'a>(
     let user_id = user_service
         .create(
             LocalUser::default(username.to_string()),
-            AuthType::PASSWORD(Some(password.to_string())),
+            AuthType::PASSWORD(Some(password.to_string()), None),
         )
         .await
         .expect("User could not be created");

@@ -11,7 +11,8 @@ use middleware::{
 };
 
 use crate::middleware;
-
+use crate::middleware::error::AppResult;
+use crate::middleware::utils::string_utils::get_string_thing;
 /*pub struct PasskeyCredId(String);
 
 impl From<Passkey> for PasskeyCredId {
@@ -22,7 +23,8 @@ impl From<Passkey> for PasskeyCredId {
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
-    PASSWORD(Option<String>), //  password hash
+    // 0= password, 1= user id
+    PASSWORD(Option<String>, Option<Thing>), //  password hash, user_id
     EMAIL(Option<String>),    //  password hash
     PASSKEY(Option<CredentialID>, Option<Passkey>),
     PUBLICKEY(Option<String>), // eth account cryptography
@@ -39,7 +41,7 @@ impl AuthType {
 
     pub fn as_str(&self) -> &'static str {
         match self.clone() {
-            AuthType::PASSWORD(_) => "PASSWORD",
+            AuthType::PASSWORD(_, _) => "PASSWORD",
             AuthType::EMAIL(_) => "EMAIL",
             AuthType::PASSKEY(_, _) => "PASSKEY",
             AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
@@ -48,10 +50,12 @@ impl AuthType {
 
     pub fn as_val(&self) -> Option<String> {
         match self.clone() {
-            AuthType::PASSWORD(pass) => match pass {
-                None => None,
+            AuthType::PASSWORD(pass, user_id) => match (pass, user_id) {
                 // TODO hash password - https://docs.rs/argon2/0.5.3/argon2/
-                Some(pass) => Some(pass.clone()),
+                // when creating hash - combine pass+user_id in hash
+                ( Some(pass), Some(user_id)) => Some(pass.clone()),
+                // ( Some(pass), Some(user_id)) => Some(format!("{}{}",pass.clone(), user_id.clone())),
+                _ => None,
             },
             AuthType::EMAIL(email) => email,
             AuthType::PASSKEY(passkey_cred_id, paksskey) => {
@@ -102,7 +106,7 @@ impl Authentication {
             _ => None,
         };
 
-        let id = Self::get_string_id(TABLE_NAME.to_string(), user_id.clone(), auth.clone(), true)?;
+        let id = Self::get_string_id(TABLE_NAME.to_string(), user_id.clone(), auth.clone())?;
         // println!("IDDDD={}", id);
         Ok(Authentication {
             id: id.parse().unwrap(),
@@ -129,37 +133,16 @@ impl Authentication {
         table: String,
         local_user_id: String,
         auth_type: AuthType,
-        id_val_required: bool,
-    ) -> CtxResult<String> {
-        let has_required_params = match auth_type.clone() {
-            AuthType::PASSWORD(v) | AuthType::EMAIL(v) | AuthType::PUBLICKEY(v) => {
-                v.is_some() && id_val_required || v.is_none()
-            }
-
-            AuthType::PASSKEY(pk_cid, pk) => {
-                ((pk_cid.is_some() && id_val_required) || (pk.is_some() && id_val_required))
-                    || !id_val_required
-            }
-        };
-        if has_required_params == false {
-            return Err(CtxError {
-                error: AppError::Generic {
-                    description: "Authentication id has no required value".parse().unwrap(),
-                },
-                req_id: Default::default(),
-                is_htmx: false,
-            });
-        }
-
-        let type_str = auth_type.as_str();
-        let value = auth_type.as_val();
-        match value {
-            None => Ok(format!("{table}:[{local_user_id},'{type_str}']")),
-            Some(val) => Ok(format!("{table}:[{local_user_id},'{type_str}','{val}']")),
-        } /*match value {
-              None => Ok(format!("{table}:{{local_user_id:{local_user_id}, type:'{typeStr}', value: None}}")),
-              Some(val) =>Ok(format!("{table}:{{local_user_id:{local_user_id}, type:'{typeStr}', value:'{val}'}}"))
-          }*/
+    ) -> AppResult<String> {
+        let mut a_type = auth_type.clone();
+       if let AuthType::PASSWORD(Some(pass),None) = auth_type {
+           a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
+       }
+println!("AAAAAAAA={a_type:?}");
+        let type_str = a_type.as_str();
+        let value = a_type.as_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
+        println!("AAAAAAAA VVVV={value:?}");
+        Ok(format!("{table}:[{local_user_id},'{type_str}','{value}']"))
     }
 }
 
@@ -225,7 +208,6 @@ impl<'a> AuthenticationDbService<'a> {
             TABLE_NAME.to_string(),
             local_user_id.clone(),
             auth.clone(),
-            true,
         )?;
         let q = "SELECT id FROM <record>$id;".to_string();
         let mut select_authentication = self.db.query(q).bind(("id", id)).await?;
