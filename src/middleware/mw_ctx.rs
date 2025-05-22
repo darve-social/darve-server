@@ -34,6 +34,7 @@ pub struct CtxState {
     pub uploads_dir: String,
     pub uploads_serve_dir: ServeDir,
     pub mobile_client_id: String,
+    pub google_client_id: String,
     pub jwt: Arc<JWT>,
 }
 
@@ -65,6 +66,7 @@ pub fn create_ctx_state(
     uploads_dir: String,
     upload_max_size_mb: u64,
     mobile_client_id: String,
+    google_client_id: String,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -87,6 +89,7 @@ pub fn create_ctx_state(
         upload_max_size_mb,
         jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
         mobile_client_id,
+        google_client_id,
     };
     ctx_state
 }

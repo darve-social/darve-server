@@ -19,14 +19,18 @@ use crate::{
             string_utils::get_string_thing,
         },
     },
-    utils::{apple, facebook, jwt::JWT, validate_utils::validate_username},
+    utils::{
+        jwt::JWT,
+        validate_utils::validate_username,
+        verification::{apple, facebook, google},
+    },
 };
 
 pub struct AuthService<'a> {
-    db: &'a db::Db,
     ctx: &'a Ctx,
     jwt: Arc<JWT>,
     user_repository: LocalUserDbService<'a>,
+    auth_repository: AuthenticationDbService<'a>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -56,10 +60,10 @@ pub struct AuthSignInInput {
 impl<'a> AuthService<'a> {
     pub fn new(db: &'a db::Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
         AuthService {
-            db: db,
             ctx: ctx,
             jwt,
             user_repository: LocalUserDbService { db: &db, ctx: &ctx },
+            auth_repository: AuthenticationDbService { db: &db, ctx: &ctx },
         }
     }
 
@@ -71,16 +75,13 @@ impl<'a> AuthService<'a> {
             .get(UsernameIdent(input.username.to_string()).into())
             .await?;
 
-        let _ = AuthenticationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .authenticate(
-            &self.ctx,
-            user.id.clone().unwrap().to_raw(),
-            AuthType::PASSWORD(Some(input.password.to_string())),
-        )
-        .await?;
+        self.auth_repository
+            .authenticate(
+                &self.ctx,
+                user.id.clone().unwrap().to_raw(),
+                AuthType::PASSWORD(Some(input.password.to_string())),
+            )
+            .await?;
 
         let token = self.jwt.encode(&user).map_err(|e| {
             self.ctx
@@ -93,11 +94,15 @@ impl<'a> AuthService<'a> {
     pub async fn signup(&self, input: AuthSignUpInput) -> CtxResult<String> {
         input.validate()?;
 
-        let result = self.is_exists(input.username.clone()).await;
-
-        if result {
+        if self.is_exists_by_username(input.username.clone()).await {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "The username is already used".to_string(),
+            }));
+        };
+
+        if self.is_exists_by_email(&input.email).await {
+            return Err(self.ctx.to_ctx_error(AppError::Generic {
+                description: "The email is already used".to_string(),
             }));
         };
 
@@ -130,23 +135,21 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth_db_service = AuthenticationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
+        let auth = AuthType::APPLE(apple_user.id);
 
-        let res_user_id = auth_db_service
-            .authenticate_by_type(&self.ctx, AuthType::APPLE(apple_user.id.clone()))
+        let res_user_id = self
+            .get_user_id_by_social_auth(auth.clone(), Some(apple_user.email.clone()))
             .await;
 
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
+                let username = self
+                    .build_username(Some(apple_user.email.clone()), apple_user.name.clone())
+                    .await;
                 let new_user = LocalUser {
                     id: None,
-                    username: self
-                        .build_username(Some(apple_user.email.clone()), apple_user.name.clone())
-                        .await,
+                    username,
                     full_name: apple_user.name,
                     birth_date: None,
                     phone: None,
@@ -155,9 +158,7 @@ impl<'a> AuthService<'a> {
                     social_links: None,
                     image_uri: None,
                 };
-                self.user_repository
-                    .create(new_user, AuthType::APPLE(apple_user.id))
-                    .await?
+                self.user_repository.create(new_user, auth).await?
             }
         };
 
@@ -180,23 +181,20 @@ impl<'a> AuthService<'a> {
             None => return Err(self.ctx.to_ctx_error(AppError::AuthenticationFail)),
         };
 
-        let auth_db_service = AuthenticationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-
-        let res_user_id = auth_db_service
-            .authenticate_by_type(&self.ctx, AuthType::FACEBOOK(fb_user.id.clone()))
+        let auth: AuthType = AuthType::FACEBOOK(fb_user.id.clone());
+        let res_user_id = self
+            .get_user_id_by_social_auth(auth.clone(), fb_user.email.clone())
             .await;
 
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
+                let username = self
+                    .build_username(fb_user.email, Some(fb_user.name.clone()))
+                    .await;
                 let new_user = LocalUser {
                     id: None,
-                    username: self
-                        .build_username(fb_user.email, Some(fb_user.name.clone()))
-                        .await,
+                    username,
                     full_name: Some(fb_user.name.clone()),
                     birth_date: None,
                     phone: None,
@@ -205,9 +203,7 @@ impl<'a> AuthService<'a> {
                     social_links: None,
                     image_uri: None,
                 };
-                self.user_repository
-                    .create(new_user, AuthType::FACEBOOK(fb_user.id))
-                    .await?
+                self.user_repository.create(new_user, auth).await?
             }
         };
 
@@ -224,12 +220,103 @@ impl<'a> AuthService<'a> {
         Ok((token, user))
     }
 
-    async fn is_exists(&self, username: String) -> bool {
+    pub async fn sign_by_google(
+        &self,
+        token: &str,
+        google_client_id: &str,
+    ) -> CtxResult<(String, LocalUser)> {
+        let google_user = google::verify_token(token, google_client_id)
+            .await
+            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
+
+        let auth: AuthType = AuthType::GOOGLE(google_user.sub.clone());
+        let res_user_id = self
+            .get_user_id_by_social_auth(auth.clone(), Some(google_user.email.clone()))
+            .await;
+
+        let user_id = match res_user_id {
+            Ok(user_id) => user_id,
+            Err(_) => {
+                let username = self
+                    .build_username(Some(google_user.email.clone()), google_user.name.clone())
+                    .await;
+                let new_user = LocalUser {
+                    id: None,
+                    username,
+                    full_name: google_user.name,
+                    birth_date: None,
+                    phone: None,
+                    email: Some(google_user.email),
+                    bio: None,
+                    social_links: None,
+                    image_uri: google_user.picture,
+                };
+                self.user_repository.create(new_user, auth).await?
+            }
+        };
+
+        let user = self
+            .user_repository
+            .get(IdentIdName::Id(get_string_thing(user_id)?))
+            .await?;
+
+        let token = self.jwt.encode(&user).map_err(|e| {
+            self.ctx
+                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
+        })?;
+
+        Ok((token, user))
+    }
+
+    async fn get_user_id_by_social_auth(
+        &self,
+        auth: AuthType,
+        email: Option<String>,
+    ) -> CtxResult<String> {
+        let res_user_id = self
+            .auth_repository
+            .authenticate_by_type(&self.ctx, auth.clone())
+            .await;
+
+        if res_user_id.is_ok() {
+            return res_user_id;
+        }
+        match email {
+            Some(val) => {
+                let user = self
+                    .user_repository
+                    .get(IdentIdName::ColumnIdent {
+                        column: "email".to_string(),
+                        val,
+                        rec: false,
+                    })
+                    .await?;
+                Ok(user.id.unwrap().to_raw())
+            }
+            None => Err(self.ctx.to_ctx_error(AppError::AuthenticationFail {})),
+        }
+    }
+
+    async fn is_exists_by_username(&self, username: String) -> bool {
         self.user_repository
             .exists(UsernameIdent(username.clone()).into())
             .await
             .unwrap()
             .is_some()
+    }
+
+    async fn is_exists_by_email(&self, email: &Option<String>) -> bool {
+        if email.is_none() {
+            return false;
+        }
+
+        let ident = IdentIdName::ColumnIdent {
+            column: "email".to_string(),
+            val: email.clone().unwrap(),
+            rec: false,
+        };
+
+        self.user_repository.exists(ident).await.unwrap().is_some()
     }
 
     async fn build_username(&self, email: Option<String>, name: Option<String>) -> String {
@@ -241,7 +328,7 @@ impl<'a> AuthService<'a> {
                 .unwrap_or_default();
 
             if validate_username(&first_part).is_ok() {
-                if !self.is_exists(first_part.clone()).await {
+                if !self.is_exists_by_username(first_part.clone()).await {
                     return first_part;
                 }
             }
@@ -250,7 +337,7 @@ impl<'a> AuthService<'a> {
         if let Some(name) = name {
             let name = name.trim().replace(' ', "_").to_lowercase();
             if validate_username(&name).is_ok() {
-                if !self.is_exists(name.clone()).await {
+                if !self.is_exists_by_username(name.clone()).await {
                     return name;
                 }
             }

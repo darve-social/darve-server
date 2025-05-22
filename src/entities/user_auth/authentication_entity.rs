@@ -28,6 +28,7 @@ pub enum AuthType {
     PUBLICKEY(Option<String>), // eth account cryptography
     APPLE(String),             //  apple user id
     FACEBOOK(String),          //  facebook user id
+    GOOGLE(String),            //  google user id
 }
 
 impl AuthType {
@@ -47,6 +48,7 @@ impl AuthType {
             AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
             AuthType::APPLE(_) => "APPLE",
             AuthType::FACEBOOK(_) => "FACEBOOK",
+            AuthType::GOOGLE(_) => "GOOGLE",
         }
     }
 
@@ -77,6 +79,7 @@ impl AuthType {
             AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
             AuthType::APPLE(user_id) => Some(user_id),
             AuthType::FACEBOOK(user_id) => Some(user_id),
+            AuthType::GOOGLE(user_id) => Some(user_id),
         }
     }
 }
@@ -150,6 +153,7 @@ impl Authentication {
             }
             AuthType::APPLE(_id) => true,
             AuthType::FACEBOOK(_id) => true,
+            AuthType::GOOGLE(_id) => true,
         };
         if has_required_params == false {
             return Err(CtxError {

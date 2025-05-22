@@ -41,6 +41,9 @@ async fn main() -> AppResult<()> {
     let mobile_client_id =
         std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
 
+    let google_client_id =
+        std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
+
     println!("uploads max mb = {upload_file_size_max_mb}");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
 
@@ -65,6 +68,7 @@ async fn main() -> AppResult<()> {
         uploads_dir,
         upload_file_size_max_mb,
         mobile_client_id,
+        google_client_id,
     );
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;
