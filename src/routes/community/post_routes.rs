@@ -3,7 +3,7 @@ use askama_axum::Template;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::HeaderValue;
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use axum_htmx::HX_REDIRECT;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -17,9 +17,7 @@ use authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OW
 use community_routes::DiscussionNotificationEvent;
 use discussion_entity::DiscussionDbService;
 use discussion_notification_entity::{DiscussionNotification, DiscussionNotificationDbService};
-use discussion_routes::{
-    is_user_chat_discussion, DiscussionLatestPostView, DiscussionPostView, DiscussionView,
-};
+use discussion_routes::{is_user_chat_discussion, DiscussionPostView, DiscussionView};
 use discussion_topic_routes::DiscussionTopicView;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
@@ -42,8 +40,10 @@ use crate::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
 };
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::services::post_service::PostService;
 use crate::{middleware, utils};
 
+use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
 use super::{community_routes, discussion_routes, discussion_topic_routes, reply_routes};
 
 pub const UPLOADS_URL_BASE: &str = "/media";
@@ -55,6 +55,8 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .merge(view_routes)
         .route("/api/posts", get(get_posts))
+        .route("/api/posts/:post_id/like", post(like))
+        .route("/api/posts/:post_id/unlike", delete(unlike))
         .route(
             "/api/discussion/:discussion_id/post",
             post(create_post_entity_route),
@@ -191,9 +193,9 @@ pub struct GetPostsQuery {
     pub count: Option<u16>,
 }
 
-#[derive(Debug, Serialize)]
-struct GetPostsResponse {
-    posts: Vec<Post>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetPostsResponse {
+    pub posts: Vec<Post>,
 }
 
 async fn get_posts(
@@ -369,9 +371,21 @@ pub async fn create_post_entity_route(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let mut notif_content = DiscussionLatestPostView::from(&post);
-    notif_content.created_by.username = user.username;
-    let notif_str = serde_json::to_string(&notif_content).unwrap();
+
+    let latest_post = DiscussionLatestPostView {
+        id: post.belongs_to,
+        created_by: DiscussionLatestPostCreatedBy {
+            id: user_id.clone(),
+            username: user.username,
+            full_name: user.full_name,
+            image_uri: user.image_uri,
+        },
+        title: post.title,
+        content: post.content,
+        media_links: post.media_links,
+    };
+
+    let notif_str = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
         user_notification_db_service
             .notify_users(
@@ -454,4 +468,53 @@ async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> C
     } else {
         Ok(format!("/community/{}", owner_view.community_uri))
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostLikeResponse {
+    pub likes_count: u32,
+}
+
+async fn like(
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<CtxState>,
+) -> CtxResult<Json<PostLikeResponse>> {
+    let user = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_ctx_user()
+    .await?;
+
+    let count = PostService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .like(post_id, &user)
+    .await?;
+
+    Ok(Json(PostLikeResponse { likes_count: count }))
+}
+
+async fn unlike(
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<CtxState>,
+) -> CtxResult<Json<PostLikeResponse>> {
+    let user = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .get_ctx_user()
+    .await?;
+
+    let count = PostService {
+        db: &ctx_state._db,
+        ctx: &ctx,
+    }
+    .unlike(post_id, &user)
+    .await?;
+
+    Ok(Json(PostLikeResponse { likes_count: count }))
 }
