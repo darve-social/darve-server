@@ -20,7 +20,7 @@ use crate::{
         },
     },
     routes::{
-        self,
+        self, auth,
         user_auth::register_routes::{register_user, RegisterInput},
         wallet::{wallet_endowment_routes, wallet_routes},
     },
@@ -175,6 +175,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         // No requirements
         // Also behind /api, but no auth requirement on this route
         .merge(init_server_routes::routes(ctx_state.clone()))
+        .merge(auth::routes(ctx_state.clone()))
         .merge(login_routes::routes(ctx_state.clone()))
         .merge(register_routes::routes(ctx_state.clone()))
         .merge(discussion_routes::routes(ctx_state.clone()))

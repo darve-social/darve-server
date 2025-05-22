@@ -26,6 +26,8 @@ pub enum AuthType {
     EMAIL(Option<String>),    //  password hash
     PASSKEY(Option<CredentialID>, Option<Passkey>),
     PUBLICKEY(Option<String>), // eth account cryptography
+    APPLE(String),             //  apple user id
+    FACEBOOK(String),          //  facebook user id
 }
 
 impl AuthType {
@@ -43,6 +45,8 @@ impl AuthType {
             AuthType::EMAIL(_) => "EMAIL",
             AuthType::PASSKEY(_, _) => "PASSKEY",
             AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
+            AuthType::APPLE(_) => "APPLE",
+            AuthType::FACEBOOK(_) => "FACEBOOK",
         }
     }
 
@@ -71,6 +75,8 @@ impl AuthType {
                 }
             }
             AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
+            AuthType::APPLE(user_id) => Some(user_id),
+            AuthType::FACEBOOK(user_id) => Some(user_id),
         }
     }
 }
@@ -83,6 +89,7 @@ pub struct Authentication {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passkey_json: Option<String>,
     pub updated: Option<String>,
+    pub token: Option<String>,
 }
 
 impl Authentication {
@@ -110,6 +117,7 @@ impl Authentication {
             auth_type: auth.as_str().to_string(),
             passkey_json,
             updated: None,
+            token: auth.as_val(),
         })
         // Authentication{id: Self::createId(userId, auth) , timestamp: "ttt".to_string(), confirmed: None }
     }
@@ -140,6 +148,8 @@ impl Authentication {
                 ((pk_cid.is_some() && id_val_required) || (pk.is_some() && id_val_required))
                     || !id_val_required
             }
+            AuthType::APPLE(_id) => true,
+            AuthType::FACEBOOK(_id) => true,
         };
         if has_required_params == false {
             return Err(CtxError {
@@ -178,9 +188,10 @@ impl<'a> AuthenticationDbService<'a> {
     DEFINE FIELD IF NOT EXISTS local_user ON TABLE {TABLE_NAME} TYPE record<local_user>;
     DEFINE INDEX IF NOT EXISTS local_user_idx ON TABLE {TABLE_NAME} COLUMNS local_user;
     DEFINE FIELD IF NOT EXISTS auth_type ON TABLE {TABLE_NAME} TYPE string VALUE string::uppercase($value)
-        ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY'];
+        ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY', 'APPLE', 'FACEBOOK'];
     DEFINE FIELD IF NOT EXISTS passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS updated ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS token ON TABLE {TABLE_NAME} TYPE option<string>;
     "
         );
         let mutation = self.db.query(sql).await?;
@@ -233,6 +244,25 @@ impl<'a> AuthenticationDbService<'a> {
         match rec_found {
             None => Err(ctx.to_ctx_error(AppError::AuthenticationFail {})),
             Some(_) => Ok(local_user_id),
+        }
+    }
+
+    pub async fn authenticate_by_type(&self, ctx: &Ctx, auth: AuthType) -> CtxResult<String> {
+        let q = format!(
+            "SELECT * FROM {TABLE_NAME} WHERE auth_type = $auth_type AND token = $value LIMIT 1;"
+        );
+        let mut select_authentication = self
+            .db
+            .query(q)
+            .bind(("auth_type", auth.as_str()))
+            .bind(("value", auth.as_val()))
+            .await?;
+
+        let rec_found: Option<Thing> = select_authentication.take((0, "local_user"))?;
+
+        match rec_found {
+            None => Err(ctx.to_ctx_error(AppError::AuthenticationFail {})),
+            Some(id) => Ok(id.to_raw()),
         }
     }
 

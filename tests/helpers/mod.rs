@@ -37,6 +37,7 @@ pub async fn create_test_server() -> (TestServer, CtxState) {
         "".to_string(),
         "uploads".to_string(),
         15,
+        "".to_string(),
     );
 
     let wa_config = create_webauth_config();
