@@ -106,14 +106,13 @@ impl Authentication {
         local_user_id: String,
         auth_type: AuthType,
     ) -> AppResult<String> {
-        let mut a_type = auth_type.clone();
-       if let AuthType::PASSWORD(Some(pass),None) = auth_type {
+        let mut a_type = auth_type.clone(); 
+       if let AuthType::PASSWORD(Some(pass), None) = auth_type {
            a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
        }
         let type_str = a_type.as_str();
         let value = a_type.as_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
-        println!("AAAAAAAA VVVV={value:?}");
-        Ok(format!("{table}:[{local_user_id},'{type_str}','{value}']"))
+        Ok(format!("{table}:['{value}','{type_str}','{local_user_id}']"))
     }
 }
 
