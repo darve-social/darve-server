@@ -143,7 +143,7 @@ pub struct DiscussionView {
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids,  latest_post_id.{id, title, content, media_links, created_by.*} as latest_post".to_string()
+        "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids,  latest_post_id.{id, title, content, media_links, r_created, created_by.*} as latest_post".to_string()
     }
 }
 
@@ -155,6 +155,7 @@ pub struct DiscussionLatestPostView {
     pub title: String,
     pub content: String,
     pub media_links: Option<Vec<String>>,
+    pub r_created: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

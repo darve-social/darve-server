@@ -170,11 +170,14 @@ async fn get_user_chat() {
         .add_header("Accept", "application/json")
         .await;
     let created = &create_response.json::<ProfileChatList>();
+
     assert_eq!(created.discussions.len(), 1);
     assert_eq!(created.user_id.to_raw(), user_ident2);
     let list_disc_id = created.discussions.get(0).unwrap().id.clone().unwrap();
     assert_eq!(list_disc_id, chat_disc_id);
-
+    let disc = created.discussions.first();
+    let latest_post = &disc.as_ref().unwrap().latest_post.as_ref().unwrap();
+    assert!(latest_post.r_created.is_some());
     // login username1
     server.get("/logout").await;
     let login_response = server
