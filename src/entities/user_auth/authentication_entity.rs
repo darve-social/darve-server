@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use strum::EnumString;
@@ -11,16 +12,16 @@ use middleware::{
 };
 
 use crate::middleware;
-use crate::middleware::error::AppResult;
+use crate::middleware::error::{AppResult, CtxError};
+use crate::middleware::utils::db_utils::QryBindingsVal;
 use crate::middleware::utils::string_utils::get_string_thing;
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
-    // 0= password, 1= user id
-    PASSWORD(Option<String>, Option<Thing>), //  password hash, user_id
-    EMAIL(Option<String>),    //  password hash
+    PASSWORD(Option<String>, Option<Thing>), //  password, user_id
+    //EMAIL(Option<String>),    //  password hash
     PASSKEY(Option<CredentialID>, Option<Passkey>),
-    PUBLICKEY(Option<String>), // eth account cryptography
+    //PUBLICKEY(Option<String>), // eth account cryptography
 }
 
 impl AuthType {
@@ -28,21 +29,21 @@ impl AuthType {
     pub fn as_str(&self) -> &'static str {
         match self.clone() {
             AuthType::PASSWORD(_, _) => "PASSWORD",
-            AuthType::EMAIL(_) => "EMAIL",
+            // AuthType::EMAIL(_) => "EMAIL",
             AuthType::PASSKEY(_, _) => "PASSKEY",
-            AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
+            // AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
         }
     }
 
     pub fn as_val(&self) -> Option<String> {
         match self.clone() {
             AuthType::PASSWORD(pass, user_id) => match (pass, user_id) {
-                // TODO hash password - https://docs.rs/argon2/0.5.3/argon2/
-                // when creating hash - combine pass+user_id in hash
+                // TODO -hash password- https://docs.rs/argon2/0.5.3/argon2/
+                // when creating hash use both pass+user_id concatenated 
                 ( Some(pass), Some(user_id)) => Some(format!("{}{}",pass.clone(), user_id.clone())),
                 _ => None,
             },
-            AuthType::EMAIL(email) => email,
+            // AuthType::EMAIL(email) => email,
             AuthType::PASSKEY(passkey_cred_id, paksskey) => {
                 let mut cid = match passkey_cred_id {
                     None => None,
@@ -59,7 +60,7 @@ impl AuthType {
                     Some(cid) => Some(STANDARD.encode(cid.to_vec())),
                 }
             }
-            AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
+            // AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
         }
     }
 }
@@ -150,20 +151,27 @@ impl<'a> AuthenticationDbService<'a> {
     pub async fn authenticate(
         &self,
         ctx: &Ctx,
-        local_user_id: String,
         auth: AuthType,
     ) -> CtxResult<String> {
-        let id = Authentication::get_string_id(
-            TABLE_NAME.to_string(),
-            local_user_id.clone(),
-            auth.clone(),
-        )?;
-        let q = "SELECT id FROM <record>$id;".to_string();
-        let mut select_authentication = self.db.query(q).bind(("id", id)).await?;
-        let rec_found: Option<Thing> = select_authentication.take("id")?;
+        
+        let q = match auth.clone() {
+            AuthType::PASSWORD(pass, user_id) => {
+                let id = Authentication::get_string_id(
+                    TABLE_NAME.to_string(),
+                    user_id.ok_or(AppError::Generic {description:"Missing user id in AuthType::PASSWORD".to_string()})?.to_raw(),
+                    auth.clone(),
+                )?;
+                QryBindingsVal::new("SELECT id, local_user FROM <record>$id;".to_string(), HashMap::from([("id".to_string(), id)]))
+            }
+            _=>{
+                return Err(ctx.to_ctx_error(AppError::Generic {description:format!("Authentication not implemented yet for {}", auth.as_str())}));
+            }
+        };
+        let mut select_authentication = q.into_query(self.db).await?;
+        let rec_found: Option<Thing> = select_authentication.take("local_user")?;
         match rec_found {
             None => Err(ctx.to_ctx_error(AppError::AuthenticationFail {})),
-            Some(_) => Ok(local_user_id),
+            Some(user_id) => Ok(user_id.to_raw()),
         }
     }
 

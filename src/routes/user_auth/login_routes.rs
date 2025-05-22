@@ -142,7 +142,6 @@ pub async fn login(
         }
         .authenticate(
             &ctx,
-            user.id.clone().unwrap().to_raw(),
             AuthType::PASSWORD(Some(pass), user.id.clone()),
         )
         .await?

@@ -486,7 +486,6 @@ pub async fn finish_authentication(
             let user_id = auth_db_service
                 .authenticate(
                     &ctx,
-                    user_unique_id,
                     AuthType::PASSKEY(Some(auth_result.cred_id().clone()), None),
                 )
                 .await;
