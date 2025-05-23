@@ -42,7 +42,7 @@ impl<'a> PostService<'a> {
                 user_id: user_thing,
                 post_id: post_thing,
             },
-            "asdasdas",
+            "",
         )
         .await?;
 

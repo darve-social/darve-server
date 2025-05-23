@@ -227,7 +227,7 @@ async fn display_access_rule_content() {
                 social_links: None,
                 image_uri: None,
             },
-            AuthType::PASSWORD(Some("visitor".to_string())),
+            AuthType::PASSWORD(Some("visitor".to_string()), None),
         )
         .await
         .expect("local user");

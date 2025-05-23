@@ -383,6 +383,7 @@ pub async fn create_post_entity_route(
         title: post.title,
         content: post.content,
         media_links: post.media_links,
+        r_created: post.r_created,
     };
 
     let notif_str = serde_json::to_string(&latest_post).unwrap();
