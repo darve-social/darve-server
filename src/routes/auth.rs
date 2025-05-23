@@ -123,11 +123,20 @@ async fn signin(
 async fn signup(
     State(state): State<CtxState>,
     ctx: Ctx,
+    cookies: Cookies,
     Json(body): Json<AuthSignUpInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
-    let user_id = auth_service.signup(body).await?;
+    let (token, user) = auth_service.signup(body).await?;
 
-    Ok((StatusCode::OK, Json(json!({ "user_id": user_id} ))).into_response())
+    cookies.add(
+        Cookie::build((JWT_KEY, token))
+            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
+            .path("/")
+            .http_only(true)
+            .into(), //.finish(),
+    );
+
+    Ok((StatusCode::OK, Json(json!(user))).into_response())
 }

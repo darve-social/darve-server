@@ -82,15 +82,14 @@ impl<'a> AuthService<'a> {
             )
             .await?;
 
-        let token = self.jwt.encode(&user).map_err(|e| {
-            self.ctx
-                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-        })?;
-
-        Ok((token, user))
+        Ok((
+            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                .await?,
+            user,
+        ))
     }
 
-    pub async fn signup(&self, input: AuthSignUpInput) -> CtxResult<String> {
+    pub async fn signup(&self, input: AuthSignUpInput) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
 
         if self.is_exists_by_username(input.username.clone()).await {
@@ -105,7 +104,7 @@ impl<'a> AuthService<'a> {
             }));
         };
 
-        let user = LocalUser {
+        let mut user = LocalUser {
             id: None,
             username: input.username,
             full_name: input.full_name,
@@ -119,10 +118,16 @@ impl<'a> AuthService<'a> {
 
         let user_id = self
             .user_repository
-            .create(user, AuthType::PASSWORD(Some(input.password), None))
+            .create(user.clone(), AuthType::PASSWORD(Some(input.password), None))
             .await?;
 
-        Ok(user_id)
+        user.id = Some(get_string_thing(user_id.clone())?);
+
+        Ok((
+            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                .await?,
+            user,
+        ))
     }
 
     pub async fn sign_by_apple(
@@ -167,10 +172,13 @@ impl<'a> AuthService<'a> {
             .get(IdentIdName::Id(get_string_thing(user_id)?))
             .await?;
 
-        let token = self.jwt.encode(&user).map_err(|e| {
-            self.ctx
-                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-        })?;
+        let token = self
+            .jwt
+            .encode(&user.id.clone().unwrap().to_raw())
+            .map_err(|e| {
+                self.ctx
+                    .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
+            })?;
 
         Ok((token, user))
     }
@@ -213,10 +221,13 @@ impl<'a> AuthService<'a> {
             .get(IdentIdName::Id(get_string_thing(user_id)?))
             .await?;
 
-        let token = self.jwt.encode(&user).map_err(|e| {
-            self.ctx
-                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-        })?;
+        let token = self
+            .jwt
+            .encode(&user.id.clone().unwrap().to_raw())
+            .map_err(|e| {
+                self.ctx
+                    .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
+            })?;
 
         Ok((token, user))
     }
@@ -262,12 +273,11 @@ impl<'a> AuthService<'a> {
             .get(IdentIdName::Id(get_string_thing(user_id)?))
             .await?;
 
-        let token = self.jwt.encode(&user).map_err(|e| {
-            self.ctx
-                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-        })?;
-
-        Ok((token, user))
+        Ok((
+            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                .await?,
+            user,
+        ))
     }
 
     async fn get_user_id_by_social_auth(
@@ -347,5 +357,12 @@ impl<'a> AuthService<'a> {
         };
 
         Uuid::new_v4().to_string().replace("-", "_")
+    }
+
+    async fn build_jwt_token(&self, user_id: &String) -> CtxResult<String> {
+        Ok(self.jwt.encode(user_id).map_err(|e| {
+            self.ctx
+                .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
+        })?)
     }
 }

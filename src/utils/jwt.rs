@@ -2,8 +2,6 @@ use chrono::{TimeDelta, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
-use crate::entities::user_auth::local_user_entity::LocalUser;
-
 pub struct JWTConfig {
     pub secret: String,
     pub duration: TimeDelta,
@@ -32,8 +30,7 @@ impl JWT {
         }
     }
 
-    pub fn encode(&self, user: &LocalUser) -> Result<String, String> {
-        let user_id = user.id.clone().unwrap().to_string();
+    pub fn encode(&self, user_id: &String) -> Result<String, String> {
         let claims = Claims {
             sub: user_id.clone(),
             auth: user_id.clone(),

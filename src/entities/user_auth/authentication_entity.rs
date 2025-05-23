@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use futures::future::err;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use strum::EnumString;
 use surrealdb::sql::Thing;
 use webauthn_rs::prelude::{CredentialID, Passkey};
@@ -13,7 +12,7 @@ use middleware::{
 };
 
 use crate::middleware;
-use crate::middleware::error::{AppResult, CtxError};
+use crate::middleware::error::AppResult;
 use crate::middleware::utils::db_utils::QryBindingsVal;
 use crate::middleware::utils::string_utils::get_string_thing;
 
@@ -21,13 +20,12 @@ use crate::middleware::utils::string_utils::get_string_thing;
 pub enum AuthType {
     PASSWORD(Option<String>, Option<Thing>), //  password, user_id
     PASSKEY(Option<CredentialID>, Option<Passkey>),
-    APPLE(String),             //  external apple user id
-    FACEBOOK(String),          //  external facebook user id
-    GOOGLE(String),            //  external google user id
+    APPLE(String),    //  external apple user id
+    FACEBOOK(String), //  external facebook user id
+    GOOGLE(String),   //  external google user id
 }
 
 impl AuthType {
-
     pub fn type_str(&self) -> &'static str {
         match self.clone() {
             AuthType::PASSWORD(_, _) => "PASSWORD",
@@ -43,7 +41,7 @@ impl AuthType {
             AuthType::PASSWORD(pass, user_id) => match (pass, user_id) {
                 // TODO -hash password- https://docs.rs/argon2/0.5.3/argon2/
                 // when creating hash use both pass+user_id concatenated
-                ( Some(pass), Some(user_id)) => Some(format!("{}{}",pass.clone(), user_id.clone())),
+                (Some(pass), Some(user_id)) => Some(format!("{}{}", pass.clone(), user_id.clone())),
                 _ => None,
             },
             // AuthType::EMAIL(email) => email,
@@ -114,12 +112,16 @@ impl Authentication {
         auth_type: AuthType,
     ) -> AppResult<String> {
         let mut a_type = auth_type.clone();
-       if let AuthType::PASSWORD(Some(pass), None) = auth_type {
-           a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
-       }
+        if let AuthType::PASSWORD(Some(pass), None) = auth_type {
+            a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
+        }
         let type_str = a_type.type_str();
-        let value = a_type.identifier_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
-        Ok(format!("{table}:['{value}','{type_str}','{local_user_id}']"))
+        let value = a_type.identifier_val().ok_or(AppError::Generic {
+            description: "Authentication value error".to_string(),
+        })?;
+        Ok(format!(
+            "{table}:['{value}','{type_str}','{local_user_id}']"
+        ))
     }
 }
 
@@ -148,21 +150,16 @@ impl<'a> AuthenticationDbService<'a> {
 
         Ok(())
     }
-    
+
     pub async fn create(&self, auth_input: Authentication) -> CtxResult<bool> {
         let create_auth: Option<Authentication> =
             self.db.create(TABLE_NAME).content(auth_input).await?;
         Ok(create_auth.is_some())
     }
 
-    pub async fn authenticate(
-        &self,
-        ctx: &Ctx,
-        auth: AuthType,
-    ) -> CtxResult<String> {
-
+    pub async fn authenticate(&self, ctx: &Ctx, auth: AuthType) -> CtxResult<String> {
         let q = match auth.clone() {
-            AuthType::PASSWORD(pass, user_id) => {
+            AuthType::PASSWORD(_pass, _user_id) => {
              QryBindingsVal::new("SELECT id, local_user FROM <record>authentication:[$external_ident, $auth_type, NONE]..=[$external_ident,$auth_type,..];".to_string(), HashMap::from([
                     ("external_ident".to_string(), auth
                         .identifier_val()
@@ -189,7 +186,6 @@ impl<'a> AuthenticationDbService<'a> {
         local_user_id: String,
         auth_type: AuthType,
     ) -> CtxResult<Vec<Authentication>> {
-
         let a_type = auth_type.type_str();
         let q = "SELECT * FROM type::table($table) WHERE local_user=<record>$local_user_id AND auth_type=$a_type;".to_string();
         let res = self
