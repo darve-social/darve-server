@@ -75,7 +75,7 @@ async fn create_task_request_participation() {
         .unwrap()
         .unwrap();
     assert_eq!(comm_name, community.name_uri.clone());
-    let community_discussion_id = community.profile_discussion.clone().unwrap();
+    let community_discussion_id = community.default_discussion.clone().unwrap();
 
     let post_name = "post title Name 1".to_string();
     let create_post = server

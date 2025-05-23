@@ -80,13 +80,13 @@ pub struct CommunityView {
     id: Thing,
     title: Option<String>,
     name_uri: String,
-    profile_discussion: Thing,
+    default_discussion: Thing,
     pub profile_discussion_view: Option<DiscussionView>,
 }
 
 impl ViewFieldSelector for CommunityView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, profile_discussion, name_uri".to_string()
+        "id, title, default_discussion, name_uri".to_string()
     }
 }
 
@@ -117,7 +117,7 @@ pub async fn get_community(
         get_discussion_view(
             &ctx_state._db,
             &ctx,
-            comm_view.profile_discussion.clone(),
+            comm_view.default_discussion.clone(),
             q_params,
         )
         .await?,
@@ -206,7 +206,7 @@ pub async fn create_update_community(
             id: None,
             title: None,
             name_uri: "".to_string(),
-            profile_discussion: None,
+            default_discussion: None,
             profile_chats: None,
             r_created: None,
             courses: None,

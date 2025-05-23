@@ -49,7 +49,7 @@ async fn create_discussion() {
         .await
         .expect("community struct");
     let comm_name = comm.name_uri.clone();
-    let comm_disc_id = comm.profile_discussion.unwrap();
+    let comm_disc_id = comm.default_discussion.unwrap();
 
     let disc_db = DiscussionDbService {
         db: &ctx_state._db,

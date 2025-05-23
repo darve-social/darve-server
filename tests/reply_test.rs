@@ -42,7 +42,7 @@ async fn create_reply() {
     // let create_response = server.post("/api/discussion").json(&DiscussionInput { id: None, community_id:comm_id.clone().to_raw(), discussion_uri: commName.clone(), title: "The Discussion".to_string(), topics: None }).await;
     // let created = &create_response.json::<CreatedResponse>();
 
-    let comm_disc_thing = community.unwrap().profile_discussion.unwrap();
+    let comm_disc_thing = community.unwrap().default_discussion.unwrap();
     let comm_discussion_id = comm_disc_thing.to_raw();
     assert_eq!(comm_discussion_id.len() > 0, true);
 

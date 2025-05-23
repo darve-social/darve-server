@@ -10,7 +10,7 @@ use crate::{
         ctx::Ctx,
         db,
         error::CtxResult,
-        utils::{db_utils::IdentIdName, string_utils::get_string_thing},
+        utils::{string_utils::get_string_thing},
     },
 };
 

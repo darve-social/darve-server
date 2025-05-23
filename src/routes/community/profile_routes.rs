@@ -111,7 +111,7 @@ pub struct ProfileView {
     pub image_uri: Option<String>,
     pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
-    pub profile_discussion: Option<Thing>,
+    pub default_discussion: Option<Thing>,
     pub followers_nr: i64,
     pub following_nr: i64,
     pub profile_discussion_view: Option<ProfileDiscussionView>,
@@ -296,9 +296,9 @@ async fn display_profile(
     let profile_comm =
         get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
     profile_view.community = profile_comm.id;
-    profile_view.profile_discussion = profile_comm.profile_discussion;
+    profile_view.default_discussion = profile_comm.default_discussion;
 
-    let disc_id = profile_view.profile_discussion.clone().unwrap();
+    let disc_id = profile_view.default_discussion.clone().unwrap();
 
     let dis_view = get_profile_discussion_view(&ctx_state._db, &ctx, q_params, disc_id).await?;
 
@@ -597,7 +597,7 @@ async fn create_user_post(
 
     create_post_entity_route(
         ctx,
-        Path(profile_comm.profile_discussion.unwrap().to_raw()),
+        Path(profile_comm.default_discussion.unwrap().to_raw()),
         State(ctx_state),
         TypedMultipart(input_value),
     )
@@ -623,7 +623,7 @@ async fn get_user_posts(
         &ctx_state._db,
         &ctx,
         q_params,
-        profile_comm.profile_discussion.expect("profile discussion"),
+        profile_comm.default_discussion.expect("profile discussion"),
     )
     .await?;
     ctx.to_htmx_or_json(profile_disc_view)

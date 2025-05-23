@@ -16,7 +16,7 @@ use middleware::{
 use user_auth::access_right_entity::AccessRightDbService;
 use user_auth::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
-use super::discussion_entity::{self, Discussion};
+use super::discussion_entity::{self, Discussion, DiscussionDbService};
 
 /// Community represents structure that holds discussions.
 /// User has one profile community and can also create multiple custom communities.
@@ -32,9 +32,9 @@ pub struct Community {
     pub title: Option<String>,
     pub name_uri: String,
     // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
-    // then rename this profile_discussion to default_discussion 
+    // then rename this profile_discussion to default_discussion
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_discussion: Option<Thing>,
+    pub default_discussion: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_chats: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,7 +52,7 @@ impl Community {
             id: Some(CommunityDbService::get_profile_community_id(user_id)),
             title: None,
             name_uri: user_id.to_raw(),
-            profile_discussion: None,
+            default_discussion: None,
             profile_chats: None,
             r_created: None,
             courses: None,
@@ -82,7 +82,7 @@ impl<'a> CommunityDbService<'a> {
     DEFINE FIELD IF NOT EXISTS name_uri ON TABLE {TABLE_NAME} TYPE string VALUE string::slug(string::trim($value)) OR string::slug(string::trim($this.title))
          ASSERT string::len(string::slug(string::trim($value)))>4 OR string::len(string::slug(string::trim($this.title)))>4;
     DEFINE INDEX IF NOT EXISTS community_name_uri_idx ON TABLE {TABLE_NAME} COLUMNS name_uri UNIQUE;
-    DEFINE FIELD IF NOT EXISTS profile_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
+    DEFINE FIELD IF NOT EXISTS default_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
     // DEFINE FIELD IF NOT EXISTS following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS courses ON TABLE {TABLE_NAME} TYPE option<array<record<course>>>;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<local_user>;
@@ -116,6 +116,37 @@ impl<'a> CommunityDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
+    pub async fn create_profile(&self, user_id: Thing) -> CtxResult<Community> {
+        let community_id = CommunityDbService::get_profile_community_id(&user_id);
+        let disc_id = DiscussionDbService::get_profile_discussion_id(&user_id);
+
+        let query = format!(
+            "BEGIN TRANSACTION;
+                CREATE {disc_id} SET belongs_to = {community_id}, created_by = {user_id};
+                RETURN CREATE {community_id} SET name_uri = \"{user_id}\", created_by = {user_id}, default_discussion = {disc_id};
+            COMMIT TRANSACTION;"
+        );
+        let mut result = self.db.query(query).await?;
+        let comm = result.take::<Option<Community>>(0)?;
+        let comm = comm.unwrap();
+        let auth1 = Authorization {
+            authorize_record_id: community_id,
+            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+            authorize_height: 99,
+        };
+
+        let aright_db = AccessRightDbService {
+            db: &self.db,
+            ctx: &self.ctx,
+        };
+
+        aright_db
+            .authorize(comm.created_by.clone(), auth1, None)
+            .await?;
+
+        Ok(comm)
+    }
+
     pub async fn create_update(&self, mut record: Community) -> CtxResult<Community> {
         let resource = record
             .id
@@ -133,7 +164,7 @@ impl<'a> CommunityDbService<'a> {
         let mut comm = comm.unwrap();
 
         let comm_id = comm.id.clone().unwrap();
-        if comm.profile_discussion.is_none() {
+        if comm.default_discussion.is_none() {
             let disc = self
                 .db
                 .create(DISCUSSION_TABLE_NAME)
@@ -155,7 +186,7 @@ impl<'a> CommunityDbService<'a> {
             let comm_upd: CtxResult<Option<Community>> = self
                 .db
                 .update((&comm_id.tb, comm_id.id.clone().to_raw()))
-                .patch(PatchOp::replace("/profile_discussion", disc.id.clone()))
+                .patch(PatchOp::replace("/default_discussion", disc.id.clone()))
                 .await
                 .map_err(CtxError::from(self.ctx));
             comm = comm_upd?.ok_or(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
@@ -210,8 +241,7 @@ impl<'a> CommunityDbService<'a> {
             Ok(_) => user_comm,
             Err(err) => {
                 if let AppError::EntityFailIdNotFound { .. } = err.error {
-                    self.create_update(Community::new_user_community(&user_id))
-                        .await
+                    self.create_profile(user_id).await
                 } else {
                     Err(self.ctx.to_ctx_error(err.error))
                 }

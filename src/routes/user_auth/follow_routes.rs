@@ -208,7 +208,7 @@ async fn add_latest_posts(
 ) {
     // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
     let follow_profile_comm = match (CommunityDbService {
-        ctx: ctx,
+        ctx: &ctx,
         db: &ctx_state._db,
     }
     .get_profile_community(follow_user_id.to_owned())
@@ -220,7 +220,7 @@ async fn add_latest_posts(
             return;
         }
     };
-    let Some(follow_profile_discussion_id) = follow_profile_comm.profile_discussion else {
+    let Some(follow_profile_discussion_id) = follow_profile_comm.default_discussion else {
         println!("No value for follow_profile_comm.profile_discussion");
         return;
     };

@@ -215,6 +215,10 @@ impl<'a> DiscussionDbService<'a> {
         }))
     }
 
+    pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
+        Thing::from((TABLE_NAME.to_string(), user_id.id.to_raw()))
+    }
+
     pub async fn get_topics(&self, discussion_id: Thing) -> CtxResult<Vec<DiscussionTopic>> {
         let q = "SELECT topics.*.* FROM $discussion_id;";
 
