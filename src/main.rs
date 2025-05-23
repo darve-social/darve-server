@@ -37,8 +37,16 @@ async fn main() -> AppResult<()> {
         .unwrap_or("15".to_string())
         .parse()
         .expect("to be number");
+
+    let mobile_client_id =
+        std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
+
+    let google_client_id =
+        std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
+
     println!("uploads max mb = {upload_file_size_max_mb}");
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
+
     let jwt_duration = Duration::days(7);
 
     let _ = utils::dir_utils::ensure_dir_exists(&uploads_dir);
@@ -59,6 +67,8 @@ async fn main() -> AppResult<()> {
         stripe_platform_account,
         uploads_dir,
         upload_file_size_max_mb,
+        mobile_client_id,
+        google_client_id,
     );
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;

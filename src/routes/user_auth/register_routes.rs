@@ -85,7 +85,7 @@ impl RegisterInput {
             }));
         }
 
-        Ok(AuthType::PASSWORD(Some(self.password.clone())))
+        Ok(AuthType::PASSWORD(Some(self.password.clone()), None))
     }
 }
 
@@ -203,7 +203,7 @@ pub async fn register_user(
             id: created_id,
             uri: None,
         });
-    } else if let AuthType::PASSWORD(_pass) = &auth_type {
+    } else if let AuthType::PASSWORD(_pass, _u_id) = &auth_type {
         // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
     }
     Err(CtxError {
