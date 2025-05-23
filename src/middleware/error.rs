@@ -164,11 +164,11 @@ impl IntoResponse for CtxError {
             | AppError::SurrealDb { .. } => StatusCode::BAD_REQUEST,
             AppError::AuthenticationFail
             | AppError::RegisterFail
-            | AppError::AuthFailNoJwtCookie
             | AppError::AuthFailJwtInvalid { .. }
             | AppError::AuthorizationFail { .. }
             | AppError::AuthFailCtxNotInRequestExt => StatusCode::FORBIDDEN,
             AppError::ValidationErrors { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::AuthFailNoJwtCookie => StatusCode::UNAUTHORIZED,
         };
         let err = self.error.clone();
         let body_str = get_error_body(&self, self.is_htmx);
