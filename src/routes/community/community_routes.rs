@@ -80,13 +80,14 @@ pub struct CommunityView {
     id: Thing,
     title: Option<String>,
     name_uri: String,
-    default_discussion: Thing,
+    // TODO -rename to default_discussion-
+    profile_discussion: Thing,
     pub profile_discussion_view: Option<DiscussionView>,
 }
 
 impl ViewFieldSelector for CommunityView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, default_discussion, name_uri".to_string()
+        "id, title, default_discussion as profile_discussion, name_uri".to_string()
     }
 }
 
@@ -113,11 +114,12 @@ pub async fn get_community(
     }
     .get_view::<CommunityView>(ident_id_name)
     .await?;
+    // TODO -rename to profile_discussion_view- change in FE
     comm_view.profile_discussion_view = Some(
         get_discussion_view(
             &ctx_state._db,
             &ctx,
-            comm_view.default_discussion.clone(),
+            comm_view.profile_discussion.clone(),
             q_params,
         )
         .await?,

@@ -1,10 +1,10 @@
 <h1>community= {{title|display_some}} topics: {% if profile_discussion_view.as_ref().unwrap().topics.is_some() %} {% for
     topic in profile_discussion_view.as_ref().unwrap().topics.as_ref().unwrap() %} <a
         href="?topic_id={{topic.id}}">{{topic.title}}</a>, {% endfor %} {% endif %} </h1>
-discussion=<a href="/community/{{id.to_raw()}}/discussion?id={{ default_discussion.to_raw() }}">edit
-    {{default_discussion.to_raw()}}</a>
-<a href="/discussion/{{default_discussion.to_raw()}}/topic">add topic</a>
-<a href="/discussion/{{default_discussion.to_raw()}}/post">add post</a>
+discussion=<a href="/community/{{id.to_raw()}}/discussion?id={{ profile_discussion.to_raw() }}">edit
+    {{profile_discussion.to_raw()}}</a>
+<a href="/discussion/{{profile_discussion.to_raw()}}/topic">add topic</a>
+<a href="/discussion/{{profile_discussion.to_raw()}}/post">add post</a>
 
 
 {{profile_discussion_view.as_ref().unwrap()|safe}}

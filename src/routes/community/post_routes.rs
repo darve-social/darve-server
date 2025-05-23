@@ -78,7 +78,7 @@ impl ViewFieldSelector for PostDiscussionCommunityOwnerView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         // belongs_to == discussion
         // belongs_to.belongs_to == community
-        "belongs_to, belongs_to.belongs_to.created_by.community.profile_discussion as created_by_profile_profile_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
+        "belongs_to, belongs_to.belongs_to.created_by.community.default_discussion as created_by_profile_profile_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
     }
 }
 

@@ -17,6 +17,7 @@ use user_auth::{follow_entity, local_user_entity};
 use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 
 use crate::entities::community::community_entity::CommunityDbService;
+use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::community::post_stream_entity::PostStreamDbService;
 use crate::entities::user_auth::{self, user_notification_entity};
@@ -206,24 +207,20 @@ async fn add_latest_posts(
     ctx_state: &CtxState,
     ctx: &Ctx,
 ) {
-    // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
-    let follow_profile_comm = match (CommunityDbService {
-        ctx: &ctx,
-        db: &ctx_state._db,
-    }
-    .get_profile_community(follow_user_id.to_owned())
-    .await)
-    {
-        Ok(res) => res,
-        Err(err) => {
-            println!("get_profile_community error / err={err:?}");
-            return;
-        }
-    };
-    let Some(follow_profile_discussion_id) = follow_profile_comm.default_discussion else {
-        println!("No value for follow_profile_comm.profile_discussion");
-        return;
-    };
+    // let follow_profile_comm = match (CommunityDbService {
+    //     ctx: &ctx,
+    //     db: &ctx_state._db,
+    // }
+    // .get_profile_community(follow_user_id.to_owned())
+    // .await)
+    // {
+    //     Ok(res) => res,
+    //     Err(err) => {
+    //         println!("get_profile_community error / err={err:?}");
+    //         return;
+    //     }
+    // };
+    let follow_profile_discussion_id = DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
 
     let post_db_service = PostDbService {
         ctx: &ctx,

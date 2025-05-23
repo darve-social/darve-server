@@ -20,8 +20,9 @@ use super::discussion_entity::{self, Discussion, DiscussionDbService};
 
 /// Community represents structure that holds discussions.
 /// User has one profile community and can also create multiple custom communities.
-/// The main discussion in community is profile_discussion.
-/// Discussions can also be used as chat rooms or specific places to add specific posts.
+/// User's profile discussion is generated from user id.
+/// The main discussion in community is default_discussion.
+/// Discussions can also be used as chat rooms or channels to add posts.
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
 pub struct Community {
@@ -31,8 +32,6 @@ pub struct Community {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub name_uri: String,
-    // TODO -profile-discussion- get profile discussion from user id like [discussion_table]:[user_id_id] so no query is required
-    // then rename this profile_discussion to default_discussion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_discussion: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
