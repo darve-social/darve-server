@@ -34,7 +34,7 @@ pub struct AuthService<'a> {
 }
 
 #[derive(Debug, Deserialize, Validate)]
-pub struct AuthSignUpInput {
+pub struct AuthRegisterInput {
     #[validate(custom(function = validate_username))]
     pub username: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
@@ -50,7 +50,7 @@ pub struct AuthSignUpInput {
 }
 
 #[derive(Debug, Deserialize, Validate)]
-pub struct AuthSignInInput {
+pub struct AuthLoginInput {
     #[validate(custom(function = validate_username))]
     pub username: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
@@ -60,14 +60,14 @@ pub struct AuthSignInInput {
 impl<'a> AuthService<'a> {
     pub fn new(db: &'a db::Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
         AuthService {
-            ctx: ctx,
+            ctx,
             jwt,
             user_repository: LocalUserDbService { db: &db, ctx: &ctx },
             auth_repository: AuthenticationDbService { db: &db, ctx: &ctx },
         }
     }
 
-    pub async fn signin(&self, input: AuthSignInInput) -> CtxResult<(String, LocalUser)> {
+    pub async fn login_password(&self, input: AuthLoginInput) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
 
         let user = self
@@ -89,7 +89,7 @@ impl<'a> AuthService<'a> {
         ))
     }
 
-    pub async fn signup(&self, input: AuthSignUpInput) -> CtxResult<(String, LocalUser)> {
+    pub async fn register_password(&self, input: AuthRegisterInput) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
 
         if self.is_exists_by_username(input.username.clone()).await {
@@ -130,7 +130,7 @@ impl<'a> AuthService<'a> {
         ))
     }
 
-    pub async fn sign_by_apple(
+    pub async fn register_login_by_apple(
         &self,
         token: &str,
         client_id: &str,
@@ -145,7 +145,7 @@ impl<'a> AuthService<'a> {
             .get_user_id_by_social_auth(auth.clone(), Some(apple_user.email.clone()))
             .await;
 
-        // TODO this should call same method from all palces - register_user() that creates and returns jwt
+        // TODO -create reuse same method- register_user(...) that creates and returns jwt, replace replecated code in other functions
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
@@ -197,7 +197,6 @@ impl<'a> AuthService<'a> {
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
-                // TODO this should call same method from all palces - register_user() that creates and returns jwt, user
                 let username = self
                     .build_username(fb_user.email, Some(fb_user.name.clone()))
                     .await;
@@ -249,7 +248,6 @@ impl<'a> AuthService<'a> {
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
-                // TODO this should call same method from all palces - register_user() that creates and returns jwt
                 let username = self
                     .build_username(Some(google_user.email.clone()), google_user.name.clone())
                     .await;

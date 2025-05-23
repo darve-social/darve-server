@@ -15,7 +15,7 @@ use crate::{
         error::CtxResult,
         mw_ctx::{CtxState, JWT_KEY},
     },
-    services::auth_service::{AuthService, AuthSignInInput, AuthSignUpInput},
+    services::auth_service::{AuthService, AuthLoginInput, AuthRegisterInput},
 };
 
 pub fn routes(state: CtxState) -> Router {
@@ -29,7 +29,7 @@ pub fn routes(state: CtxState) -> Router {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SocialSingInput {
+struct SocialSignInput {
     token: String,
 }
 
@@ -37,7 +37,7 @@ async fn sign_by_fb(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    body: Json<SocialSingInput>,
+    body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
@@ -58,12 +58,12 @@ async fn sign_by_apple(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    body: Json<SocialSingInput>,
+    body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
     let (token, user) = auth_service
-        .sign_by_apple(&body.token, &state.mobile_client_id)
+        .register_login_by_apple(&body.token, &state.mobile_client_id)
         .await?;
 
     cookies.add(
@@ -81,7 +81,7 @@ async fn sign_by_google(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    body: Json<SocialSingInput>,
+    body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
@@ -99,15 +99,16 @@ async fn sign_by_google(
 
     Ok((StatusCode::OK, Json(json!(user))).into_response())
 }
+
 async fn signin(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    Json(body): Json<AuthSignInInput>,
+    Json(body): Json<AuthLoginInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
-    let (token, user) = auth_service.signin(body).await?;
+    let (token, user) = auth_service.login_password(body).await?;
 
     cookies.add(
         Cookie::build((JWT_KEY, token))
@@ -124,11 +125,11 @@ async fn signup(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    Json(body): Json<AuthSignUpInput>,
+    Json(body): Json<AuthRegisterInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
-    let (token, user) = auth_service.signup(body).await?;
+    let (token, user) = auth_service.register_password(body).await?;
 
     cookies.add(
         Cookie::build((JWT_KEY, token))

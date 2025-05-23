@@ -44,7 +44,6 @@ impl AuthType {
                 (Some(pass), Some(user_id)) => Some(format!("{}{}", pass.clone(), user_id.clone())),
                 _ => None,
             },
-            // AuthType::EMAIL(email) => email,
             AuthType::PASSKEY(passkey_cred_id, paksskey) => {
                 let mut cid = match passkey_cred_id {
                     None => None,
@@ -61,7 +60,6 @@ impl AuthType {
                     Some(cid) => Some(STANDARD.encode(cid.to_vec())),
                 }
             }
-            // AuthType::PUBLICKEY(pub_key) => pub_key.clone(),
             AuthType::APPLE(user_id) => Some(user_id),
             AuthType::FACEBOOK(user_id) => Some(user_id),
             AuthType::GOOGLE(user_id) => Some(user_id),
