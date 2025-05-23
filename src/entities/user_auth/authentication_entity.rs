@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use futures::future::err;
 use serde::{Deserialize, Serialize};
 use strum::EnumString;
 use surrealdb::sql::Thing;
@@ -19,29 +20,25 @@ use crate::middleware::utils::string_utils::get_string_thing;
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
     PASSWORD(Option<String>, Option<Thing>), //  password, user_id
-    //EMAIL(Option<String>),    //  password hash
     PASSKEY(Option<CredentialID>, Option<Passkey>),
-    //PUBLICKEY(Option<String>), // eth account cryptography
-    APPLE(String),             //  apple user id
-    FACEBOOK(String),          //  facebook user id
-    GOOGLE(String),            //  google user id
+    APPLE(String),             //  external apple user id
+    FACEBOOK(String),          //  external facebook user id
+    GOOGLE(String),            //  external google user id
 }
 
 impl AuthType {
 
-    pub fn as_str(&self) -> &'static str {
+    pub fn type_str(&self) -> &'static str {
         match self.clone() {
             AuthType::PASSWORD(_, _) => "PASSWORD",
-            // AuthType::EMAIL(_) => "EMAIL",
             AuthType::PASSKEY(_, _) => "PASSKEY",
-            // AuthType::PUBLICKEY(_) => "PUBLIC_KEY",
             AuthType::APPLE(_) => "APPLE",
             AuthType::FACEBOOK(_) => "FACEBOOK",
             AuthType::GOOGLE(_) => "GOOGLE",
         }
     }
 
-    pub fn as_val(&self) -> Option<String> {
+    pub fn identifier_val(&self) -> Option<String> {
         match self.clone() {
             AuthType::PASSWORD(pass, user_id) => match (pass, user_id) {
                 // TODO -hash password- https://docs.rs/argon2/0.5.3/argon2/
@@ -82,7 +79,6 @@ pub struct Authentication {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passkey_json: Option<String>,
     pub updated: Option<String>,
-    pub token: Option<String>,
 }
 
 impl Authentication {
@@ -106,10 +102,9 @@ impl Authentication {
         Ok(Authentication {
             id: id.parse().unwrap(),
             local_user: user_id.parse().unwrap(),
-            auth_type: auth.as_str().to_string(),
+            auth_type: auth.type_str().to_string(),
             passkey_json,
             updated: None,
-            token: auth.as_val(),
         })
     }
 
@@ -122,8 +117,8 @@ impl Authentication {
        if let AuthType::PASSWORD(Some(pass), None) = auth_type {
            a_type = AuthType::PASSWORD(Some(pass), Some(get_string_thing(local_user_id.clone())?))
        }
-        let type_str = a_type.as_str();
-        let value = a_type.as_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
+        let type_str = a_type.type_str();
+        let value = a_type.identifier_val().ok_or(AppError::Generic {description: "Authentication value error".to_string()})?;
         Ok(format!("{table}:['{value}','{type_str}','{local_user_id}']"))
     }
 }
@@ -146,7 +141,6 @@ impl<'a> AuthenticationDbService<'a> {
         ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY', 'APPLE', 'FACEBOOK'];
     DEFINE FIELD IF NOT EXISTS passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS updated ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
-    DEFINE FIELD IF NOT EXISTS token ON TABLE {TABLE_NAME} TYPE option<string>;
     "
         );
         let mutation = self.db.query(sql).await?;
@@ -154,6 +148,7 @@ impl<'a> AuthenticationDbService<'a> {
 
         Ok(())
     }
+    
     pub async fn create(&self, auth_input: Authentication) -> CtxResult<bool> {
         let create_auth: Option<Authentication> =
             self.db.create(TABLE_NAME).content(auth_input).await?;
@@ -168,15 +163,17 @@ impl<'a> AuthenticationDbService<'a> {
 
         let q = match auth.clone() {
             AuthType::PASSWORD(pass, user_id) => {
-                let id = Authentication::get_string_id(
-                    TABLE_NAME.to_string(),
-                    user_id.ok_or(AppError::Generic {description:"Missing user id in AuthType::PASSWORD".to_string()})?.to_raw(),
-                    auth.clone(),
-                )?;
-                QryBindingsVal::new("SELECT id, local_user FROM <record>$id;".to_string(), HashMap::from([("id".to_string(), id)]))
+             QryBindingsVal::new("SELECT id, local_user FROM <record>authentication:[$external_ident, $auth_type, NONE]..=[$external_ident,$auth_type,..];".to_string(), HashMap::from([
+                    ("external_ident".to_string(), auth
+                        .identifier_val()
+                        .ok_or(
+                            ctx.to_ctx_error(AppError::Generic {description:"Auth type value missing".to_string()})
+                        )?),
+                    ("auth_type".to_string(), auth.type_str().to_string())
+                ]))
             }
             _=>{
-                return Err(ctx.to_ctx_error(AppError::Generic {description:format!("Authentication not implemented yet for {}", auth.as_str())}));
+                return Err(ctx.to_ctx_error(AppError::Generic {description:format!("Authentication not implemented yet for {}", auth.type_str())}));
             }
         };
         let mut select_authentication = q.into_query(self.db).await?;
@@ -187,32 +184,13 @@ impl<'a> AuthenticationDbService<'a> {
         }
     }
 
-    pub async fn authenticate_by_type(&self, ctx: &Ctx, auth: AuthType) -> CtxResult<String> {
-        let q = format!(
-            "SELECT * FROM {TABLE_NAME} WHERE auth_type = $auth_type AND token = $value LIMIT 1;"
-        );
-        let mut select_authentication = self
-            .db
-            .query(q)
-            .bind(("auth_type", auth.as_str()))
-            .bind(("value", auth.as_val()))
-            .await?;
-
-        let rec_found: Option<Thing> = select_authentication.take((0, "local_user"))?;
-
-        match rec_found {
-            None => Err(ctx.to_ctx_error(AppError::AuthenticationFail {})),
-            Some(id) => Ok(id.to_raw()),
-        }
-    }
-
     pub async fn get_by_auth_type(
         &self,
         local_user_id: String,
         auth_type: AuthType,
     ) -> CtxResult<Vec<Authentication>> {
 
-        let a_type = auth_type.as_str();
+        let a_type = auth_type.type_str();
         let q = "SELECT * FROM type::table($table) WHERE local_user=<record>$local_user_id AND auth_type=$a_type;".to_string();
         let res = self
             .db

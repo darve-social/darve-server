@@ -78,8 +78,7 @@ impl<'a> AuthService<'a> {
         self.auth_repository
             .authenticate(
                 &self.ctx,
-                user.id.clone().unwrap().to_raw(),
-                AuthType::PASSWORD(Some(input.password.to_string())),
+                AuthType::PASSWORD(Some(input.password.to_string()), user.id.clone()),
             )
             .await?;
 
@@ -120,7 +119,7 @@ impl<'a> AuthService<'a> {
 
         let user_id = self
             .user_repository
-            .create(user, AuthType::PASSWORD(Some(input.password)))
+            .create(user, AuthType::PASSWORD(Some(input.password), None))
             .await?;
 
         Ok(user_id)
@@ -141,6 +140,7 @@ impl<'a> AuthService<'a> {
             .get_user_id_by_social_auth(auth.clone(), Some(apple_user.email.clone()))
             .await;
 
+        // TODO this should call same method from all palces - register_user() that creates and returns jwt
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
@@ -189,6 +189,7 @@ impl<'a> AuthService<'a> {
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
+                // TODO this should call same method from all palces - register_user() that creates and returns jwt, user
                 let username = self
                     .build_username(fb_user.email, Some(fb_user.name.clone()))
                     .await;
@@ -237,6 +238,7 @@ impl<'a> AuthService<'a> {
         let user_id = match res_user_id {
             Ok(user_id) => user_id,
             Err(_) => {
+                // TODO this should call same method from all palces - register_user() that creates and returns jwt
                 let username = self
                     .build_username(Some(google_user.email.clone()), google_user.name.clone())
                     .await;
@@ -275,7 +277,7 @@ impl<'a> AuthService<'a> {
     ) -> CtxResult<String> {
         let res_user_id = self
             .auth_repository
-            .authenticate_by_type(&self.ctx, auth.clone())
+            .authenticate(&self.ctx, auth.clone())
             .await;
 
         if res_user_id.is_ok() {
@@ -291,6 +293,7 @@ impl<'a> AuthService<'a> {
                         rec: false,
                     })
                     .await?;
+                // TODO -after verification- check if user.email_verified
                 Ok(user.id.unwrap().to_raw())
             }
             None => Err(self.ctx.to_ctx_error(AppError::AuthenticationFail {})),
