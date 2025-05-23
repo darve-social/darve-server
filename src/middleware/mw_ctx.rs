@@ -1,4 +1,5 @@
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
+use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
 use axum::http::{HeaderMap, StatusCode};
@@ -9,6 +10,7 @@ use chrono::Duration;
 use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 use tower_cookies::{Cookie, Cookies};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
@@ -31,6 +33,9 @@ pub struct CtxState {
     pub upload_max_size_mb: u64,
     pub uploads_dir: String,
     pub uploads_serve_dir: ServeDir,
+    pub mobile_client_id: String,
+    pub google_client_id: String,
+    pub jwt: Arc<JWT>,
 }
 
 impl Debug for CtxState {
@@ -60,6 +65,8 @@ pub fn create_ctx_state(
     stripe_platform_account: String,
     uploads_dir: String,
     upload_max_size_mb: u64,
+    mobile_client_id: String,
+    google_client_id: String,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -80,6 +87,9 @@ pub fn create_ctx_state(
             .append_index_html_on_directories(false),
         uploads_dir,
         upload_max_size_mb,
+        jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
+        mobile_client_id,
+        google_client_id,
     };
     ctx_state
 }
