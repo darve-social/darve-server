@@ -156,9 +156,16 @@ impl<'a> PostDbService<'a> {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
 
         let query_str = format!(
-            "SELECT * FROM {TABLE_NAME} {} ORDER BY id {order_dir} LIMIT $limit START $start;",
+            "SELECT * FROM {TABLE_NAME}
+                WHERE record::id($this.belongs_to)=record::id($this.created_by)
+                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.id))) )=false
+                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to))) )=false
+                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to.belongs_to))) )=false
+                    AND not($this.discussion_topic.*.access_rule)=true
+                    {}
+                ORDER BY id {order_dir} LIMIT $limit START $start;",
             if tag.is_some() {
-                "WHERE tags CONTAINS $tag"
+                "AND tags CONTAINS $tag"
             } else {
                 ""
             }

@@ -296,7 +296,7 @@ async fn display_profile(
     let profile_comm =
         get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
     profile_view.community = profile_comm.id;
-    profile_view.profile_discussion = profile_comm.profile_discussion;
+    profile_view.profile_discussion = profile_comm.default_discussion;
 
     let disc_id = profile_view.profile_discussion.clone().unwrap();
 
@@ -597,7 +597,7 @@ async fn create_user_post(
 
     create_post_entity_route(
         ctx,
-        Path(profile_comm.profile_discussion.unwrap().to_raw()),
+        Path(profile_comm.default_discussion.unwrap().to_raw()),
         State(ctx_state),
         TypedMultipart(input_value),
     )
@@ -623,7 +623,7 @@ async fn get_user_posts(
         &ctx_state._db,
         &ctx,
         q_params,
-        profile_comm.profile_discussion.expect("profile discussion"),
+        profile_comm.default_discussion.expect("profile discussion"),
     )
     .await?;
     ctx.to_htmx_or_json(profile_disc_view)

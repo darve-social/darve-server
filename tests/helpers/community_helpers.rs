@@ -1,7 +1,7 @@
 use axum_test::TestServer;
 use darve_server::{
-    entities::community::community_entity,
-    middleware::{self, ctx::Ctx, mw_ctx::CtxState},
+    entities::community::{community_entity, discussion_entity::DiscussionDbService},
+    middleware::{self, ctx::Ctx, mw_ctx::CtxState, utils::string_utils::get_string_thing},
     routes::community::community_routes,
 };
 use fake::{faker, Fake};
@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub struct CreateFakeCommunityResponse {
     pub id: String,
     pub name: String,
-    pub profile_discussion: Thing,
+    pub default_discussion: Thing,
 }
 
 #[allow(dead_code)]
@@ -62,6 +62,17 @@ pub async fn create_fake_community(
     CreateFakeCommunityResponse {
         id: created.id.clone(),
         name: comm_name,
-        profile_discussion: community.profile_discussion.clone().unwrap(),
+        default_discussion: community.default_discussion.clone().unwrap(),
     }
+}
+
+#[allow(dead_code)]
+pub async fn get_profile_discussion_id(server: &TestServer, user_ident: String) -> Thing {
+    let create_response = server
+        .get(&format!("/u/{}", user_ident))
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_success();
+    return DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
 }

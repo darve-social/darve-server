@@ -45,7 +45,7 @@ async fn get_community_view() {
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     };
     let comm_rec = comm_db.get(IdentIdName::Id(comm_id)).await;
-    assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
+    assert_eq!(comm_rec.clone().unwrap().default_discussion.is_some(), true);
 
     let comm_rec = comm_db
         .get(IdentIdName::ColumnIdent {
@@ -54,7 +54,7 @@ async fn get_community_view() {
             rec: false,
         })
         .await;
-    assert_eq!(comm_rec.clone().unwrap().profile_discussion.is_some(), true);
+    assert_eq!(comm_rec.clone().unwrap().default_discussion.is_some(), true);
 
     let get_response = server
         .get(format!("/community/{comm_uri}").as_str())
@@ -80,6 +80,7 @@ async fn create_community() {
         })
         .add_header("Accept", "application/json")
         .await;
+
     let created = &create_response.json::<CreatedResponse>();
     // dbg!(&created);
     let comm_name_created = created.uri.clone().unwrap();
@@ -110,6 +111,7 @@ async fn create_community() {
         })
         .add_header("Accept", "application/json")
         .await;
+
     create_response2.assert_status_success();
     let created_comm2 = create_response2.json::<CreatedResponse>();
     let comm2_id = Thing::try_from(created_comm2.id).unwrap();
@@ -135,7 +137,7 @@ async fn create_community() {
         community1_by_uri.clone().name_uri,
         comm_name_created.clone()
     );
-    let _ = community1.profile_discussion.clone().unwrap();
+    let _ = community1.default_discussion.clone().unwrap();
 
     let comm2 = comm_db.get(IdentIdName::Id(comm2_id.clone()).into()).await;
     let comm_by_uri2 = comm_db
@@ -149,7 +151,7 @@ async fn create_community() {
     let community2_by_uri = comm_by_uri2.unwrap();
     assert_eq!(community2.clone().name_uri, comm_name2.clone());
     assert_eq!(community2_by_uri.clone().name_uri, comm_name2.clone());
-    let _ = community2.profile_discussion.clone().unwrap();
+    let _ = community2.default_discussion.clone().unwrap();
 
     let db_service = AccessRightDbService {
         db: &ctx_state._db,

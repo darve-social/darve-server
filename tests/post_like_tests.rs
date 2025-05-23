@@ -11,7 +11,7 @@ async fn create_post_like() {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
-    let result = create_fake_post(server, &result.profile_discussion, None, None).await;
+    let result = create_fake_post(server, &result.default_discussion, None, None).await;
 
     // check like and number
     let response = post_helpers::create_post_like(&server, &result.id).await;

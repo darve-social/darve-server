@@ -209,7 +209,7 @@ async fn create_discussion() {
         ctx: &ctx,
     };
     let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
-    let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
+    let comm_disc_id = comm.unwrap().default_discussion.unwrap();
 
     let disc_db = DiscussionDbService {
         db: &ctx_state._db,

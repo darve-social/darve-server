@@ -6,7 +6,12 @@ use crate::{
             user_notification_entity::{UserNotificationDbService, UserNotificationEvent},
         },
     },
-    middleware::{ctx::Ctx, db, error::CtxResult, utils::string_utils::get_string_thing},
+    middleware::{
+        ctx::Ctx,
+        db,
+        error::CtxResult,
+        utils::{string_utils::get_string_thing},
+    },
 };
 
 pub struct PostService<'a> {

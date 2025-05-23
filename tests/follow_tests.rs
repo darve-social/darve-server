@@ -392,7 +392,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let profile_discussion = get_profile_community(&ctx_state._db, &ctx, user1_id.clone())
         .await
         .unwrap()
-        .profile_discussion
+        .default_discussion
         .unwrap();
 
     let _ = create_fake_post(&server, &profile_discussion, None, None).await;

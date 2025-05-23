@@ -288,7 +288,7 @@ async fn authorize_save() {
         .await
         .unwrap();
 
-    let comm_discussion_id = community.unwrap().profile_discussion.unwrap();
+    let comm_discussion_id = community.unwrap().default_discussion.unwrap();
 
     let acc_right_service = AccessRightDbService {
         db: &ctx_state._db,

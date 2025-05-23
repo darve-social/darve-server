@@ -44,7 +44,7 @@ async fn display_access_rule_content() {
         ctx: &ctx,
     };
     let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
-    let comm_disc_id = comm.unwrap().profile_discussion.unwrap();
+    let comm_disc_id = comm.unwrap().default_discussion.unwrap();
 
     let create_response = server
         .post("/api/access-rule")
