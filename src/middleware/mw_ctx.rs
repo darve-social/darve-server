@@ -1,3 +1,4 @@
+use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::utils::jwt::JWT;
 use axum::body::Body;
@@ -11,11 +12,20 @@ use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_cookies::{Cookie, Cookies};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use super::db;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AppEvent {
+    pub user_id: String,
+    pub content: Option<String>,
+    pub event: UserNotificationEvent,
+    pub receivers: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct CtxState {
@@ -35,6 +45,7 @@ pub struct CtxState {
     pub uploads_serve_dir: ServeDir,
     pub mobile_client_id: String,
     pub google_client_id: String,
+    pub event_sender: broadcast::Sender<AppEvent>,
     pub jwt: Arc<JWT>,
 }
 
@@ -71,6 +82,7 @@ pub fn create_ctx_state(
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
     let key_dec = DecodingKey::from_secret(secret);
+    let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
         _db: db,
         key_enc,
@@ -90,6 +102,7 @@ pub fn create_ctx_state(
         jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
         mobile_client_id,
         google_client_id,
+        event_sender,
     };
     ctx_state
 }

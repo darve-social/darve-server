@@ -30,16 +30,14 @@ use post_entity::{Post, PostDbService};
 use post_stream_entity::PostStreamDbService;
 use reply_routes::PostReplyView;
 use tempfile::NamedTempFile;
-use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 use utils::template_utils::ProfileFormPage;
 
 use crate::entities::community::{
     discussion_entity, discussion_notification_entity, post_entity, post_stream_entity,
 };
-use crate::entities::user_auth::{
-    access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
-};
+use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostService;
 use crate::{middleware, utils};
 
@@ -367,11 +365,6 @@ pub async fn create_post_entity_route(
         .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
         .await?;
 
-    let user_notification_db_service = UserNotificationDbService {
-        db: &ctx_state._db,
-        ctx: &ctx,
-    };
-
     let latest_post = DiscussionLatestPostView {
         id: post.belongs_to,
         created_by: DiscussionLatestPostCreatedBy {
@@ -386,23 +379,18 @@ pub async fn create_post_entity_route(
         r_created: post.r_created,
     };
 
-    let notif_str = serde_json::to_string(&latest_post).unwrap();
+    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    let content = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
-        user_notification_db_service
-            .notify_users(
-                disc.chat_room_user_ids.clone().unwrap(),
-                &UserNotificationEvent::UserChatMessage,
-                notif_str.as_str(),
+        n_service
+            .on_chat_message(
+                &user_id,
+                &disc.chat_room_user_ids.clone().unwrap(),
+                &content,
             )
             .await?;
     } else {
-        user_notification_db_service
-            .notify_user_followers(
-                user_id.clone(),
-                &UserNotificationEvent::UserCommunityPost,
-                notif_str.as_str(),
-            )
-            .await?;
+        n_service.on_community_post(&user_id, &content).await?;
 
         PostStreamDbService {
             db: &ctx_state._db,
@@ -488,12 +476,21 @@ async fn like(
     .get_ctx_user()
     .await?;
 
+    let post_thing = get_string_thing(post_id)?;
+
     let count = PostService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .like(post_id, &user)
+    .like(&post_thing, &user)
     .await?;
+
+    let user_id = user.id.unwrap();
+
+    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    n_service
+        .on_like(&user_id, vec![user_id.clone()], post_thing)
+        .await?;
 
     Ok(Json(PostLikeResponse { likes_count: count }))
 }

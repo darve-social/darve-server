@@ -1,11 +1,9 @@
 use askama::Template;
 use axum::extract::State;
-use axum::response::sse::Event;
-use axum::response::{Html, Sse};
+use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use currency_transaction_entity::CurrencyTransactionDbService;
-use futures::stream::Stream as FStream;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
@@ -14,20 +12,16 @@ use middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use user_auth::user_notification_routes::create_user_notifications_sse;
-use user_notification_entity::{UserNotification, UserNotificationEvent};
 use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 
-use crate::entities::user_auth::{local_user_entity, user_notification_entity};
+use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{currency_transaction_entity, wallet_entity};
 use crate::middleware;
-use crate::routes::user_auth;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
         .route("/api/user/wallet/balance", get(get_user_balance))
-        .route("/api/user/wallet/balance/sse", get(get_balance_update_sse))
         .with_state(state)
 }
 
@@ -108,31 +102,4 @@ pub async fn get_wallet_history(
         wallet: user_wallet_id,
         transactions,
     })
-}
-
-async fn get_balance_update_sse(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    create_user_notifications_sse(
-        &_db,
-        ctx,
-        Vec::from([UserNotificationEvent::UserBalanceUpdate.to_string()]),
-        to_sse_event,
-    )
-    .await?
-}
-
-fn to_sse_event(_ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
-    let event_ident = notification.event.to_string();
-    let event = match notification.event {
-        UserNotificationEvent::UserBalanceUpdate { .. } => {
-            Event::default().data("").event(event_ident)
-        }
-        _ => Event::default()
-            .data(format!("Event ident {event_ident} recognised"))
-            .event("Error".to_string()),
-    };
-
-    Ok(event)
 }

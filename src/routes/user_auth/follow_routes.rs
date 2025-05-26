@@ -14,16 +14,15 @@ use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use user_auth::{follow_entity, local_user_entity};
-use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 
-use crate::entities::community::community_entity::CommunityDbService;
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::community::post_stream_entity::PostStreamDbService;
-use crate::entities::user_auth::{self, user_notification_entity};
+use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::utils::db_utils::RecordWithId;
 use crate::middleware::utils::extractor_utils::DiscussionParams;
+use crate::services::notification_service::NotificationService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -127,19 +126,11 @@ async fn follow_user(
             .user_follower_ids(from_user.id.clone().unwrap())
             .await?;
         follower_ids.push(follow.clone());
-        UserNotificationDbService {
-            db: &ctx_state._db,
-            ctx: &ctx,
-        }
-        .notify_users(
-            follower_ids,
-            &UserNotificationEvent::UserFollowAdded {
-                username: from_user.username,
-                follows_username,
-            },
-            "",
-        )
-        .await?;
+
+        let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+        n_service
+            .on_follow(&from_user, follows_username, follower_ids)
+            .await?;
 
         let _ = add_latest_posts(&from_user.id.unwrap(), &follow, &ctx_state, &ctx).await;
     }
@@ -220,7 +211,8 @@ async fn add_latest_posts(
     //         return;
     //     }
     // };
-    let follow_profile_discussion_id = DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
+    let follow_profile_discussion_id =
+        DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
 
     let post_db_service = PostDbService {
         ctx: &ctx,

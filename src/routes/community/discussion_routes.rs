@@ -59,10 +59,10 @@ pub fn routes(state: CtxState) -> Router {
         .merge(view_routes)
         .route("/api/discussion", post(create_update))
         .route("/api/discussion/:discussion_id/sse", get(discussion_sse))
-        .route(
-            "/api/discussion/:discussion_id/sse/htmx",
-            get(discussion_sse_htmx),
-        )
+        // .route(
+        //     "/api/discussion/:discussion_id/sse/htmx",
+        //     get(discussion_sse_htmx),
+        // )
         .with_state(state)
 }
 
@@ -457,16 +457,16 @@ async fn create_update_form(
     ))
 }
 
-async fn discussion_sse_htmx(
-    State(ctx_state): State<CtxState>,
-    ctx: Ctx,
-    Path(discussion_id): Path<String>,
-    q_params: DiscussionParams,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    let mut ctx = ctx.clone();
-    ctx.is_htmx = true;
-    discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
-}
+// async fn discussion_sse_htmx(
+//     State(ctx_state): State<CtxState>,
+//     ctx: Ctx,
+//     Path(discussion_id): Path<String>,
+//     q_params: DiscussionParams,
+// ) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+//     let mut ctx = ctx.clone();
+//     ctx.is_htmx = true;
+//     discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
+// }
 
 async fn discussion_sse(
     State(CtxState { _db, .. }): State<CtxState>,

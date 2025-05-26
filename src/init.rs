@@ -20,7 +20,7 @@ use crate::{
         },
     },
     routes::{
-        self, auth,
+        self, auth, events,
         user_auth::register_routes::{register_user, RegisterInput},
         wallet::{wallet_endowment_routes, wallet_routes},
     },
@@ -197,6 +197,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(user_notification_routes::routes(ctx_state.clone()))
         .merge(wallet_routes::routes(ctx_state.clone()))
         .merge(wallet_endowment_routes::routes(ctx_state.clone()))
+        .merge(events::routes(ctx_state.clone()))
         // .merge(file_upload_routes::routes(ctx_state.clone(), ctx_state.uploads_dir.as_str()).await)
         .layer(AutoVaryLayer)
         // .layer(axum::middleware::map_response(mw_req_logger))
