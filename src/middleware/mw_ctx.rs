@@ -1,5 +1,6 @@
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
+use crate::routes::community::community_routes::DiscussionNotificationEvent;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
@@ -20,10 +21,15 @@ use uuid::Uuid;
 use super::db;
 
 #[derive(Debug, Clone, Serialize)]
+pub enum AppEventType {
+    UserNotificationEvent(UserNotificationEvent),
+    DiscussionNotificationEvent(DiscussionNotificationEvent),
+}
+#[derive(Debug, Clone, Serialize)]
 pub struct AppEvent {
     pub user_id: String,
     pub content: Option<String>,
-    pub event: UserNotificationEvent,
+    pub event: AppEventType,
     pub receivers: Vec<String>,
 }
 

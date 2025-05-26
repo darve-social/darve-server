@@ -2,7 +2,11 @@ use std::convert::Infallible;
 
 use crate::{
     entities::user_auth::local_user_entity::LocalUserDbService,
-    middleware::{ctx::Ctx, error::CtxResult, mw_ctx::CtxState},
+    middleware::{
+        ctx::Ctx,
+        error::CtxResult,
+        mw_ctx::{AppEventType, CtxState},
+    },
 };
 use axum::{
     extract::State,
@@ -39,13 +43,12 @@ async fn get_events(
     let rx = state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx).filter_map(move |msg| match msg {
         Err(_) => None,
-        Ok(msg) => {
-            if msg.receivers.contains(&user_id) {
+        Ok(msg) => match msg.event {
+            AppEventType::UserNotificationEvent(..) if msg.receivers.contains(&user_id) => {
                 Some(Ok(Event::default().data(json!(msg).to_string())))
-            } else {
-                None
             }
-        }
+            _ => None,
+        },
     });
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
