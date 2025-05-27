@@ -23,11 +23,11 @@ use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
-        .route("/api/events", get(get_events))
+        .route("/api/events/sse", get(get_events_sse))
         .with_state(state)
 }
 
-async fn get_events(
+async fn get_events_sse(
     State(state): State<CtxState>,
     ctx: Ctx,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
