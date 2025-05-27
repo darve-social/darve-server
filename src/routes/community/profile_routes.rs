@@ -1,8 +1,7 @@
 use askama_axum::axum_core::response::Response;
 use askama_axum::Template;
 use axum::extract::{Path, State};
-use axum::response::sse::Event;
-use axum::response::{Html, Sse};
+use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -17,12 +16,9 @@ use validator::Validate;
 use community::post_entity;
 use community_entity::{Community, CommunityDbService};
 use discussion_entity::{Discussion, DiscussionDbService};
-use discussion_routes::{
-    get_discussion_view, DiscussionLatestPostView, DiscussionPostView, DiscussionView, SseEventName,
-};
+use discussion_routes::{get_discussion_view, DiscussionPostView, DiscussionView, SseEventName};
 use follow_entity::FollowDbService;
 use follow_routes::{UserItemView, UserListView};
-use futures::stream::Stream as FStream;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::db::Db;
@@ -34,17 +30,14 @@ use middleware::utils::db_utils::{
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use once_cell::sync::Lazy;
 use post_entity::PostDbService;
 use post_stream_entity::PostStreamDbService;
-use user_notification_entity::{UserNotification, UserNotificationEvent};
-use user_notification_routes::create_user_notifications_sse;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
-use crate::entities::user_auth::{follow_entity, local_user_entity, user_notification_entity};
-use crate::routes::user_auth::{follow_routes, user_notification_routes};
+use crate::entities::user_auth::{follow_entity, local_user_entity};
+use crate::routes::user_auth::follow_routes;
 use crate::{middleware, utils};
 
 use super::{discussion_routes, post_routes};
@@ -59,7 +52,6 @@ pub fn routes(state: CtxState) -> Router {
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
-        .route("/api/user_chat/list/sse", get(get_chats_sse))
         .route("/api/user/search", post(search_users))
         .route(
             "/api/user_chat/with/:other_user_id",
@@ -410,50 +402,6 @@ async fn get_chats(
         user_id,
         discussions,
     })
-}
-
-static ACCEPT_EVENT_NAMES: Lazy<[String; 1]> =
-    Lazy::new(|| [UserNotificationEvent::UserChatMessage.to_string()]);
-
-async fn get_chats_sse(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
-    create_user_notifications_sse(
-        &_db,
-        ctx,
-        Vec::from(ACCEPT_EVENT_NAMES.clone()),
-        to_sse_event,
-    )
-    .await?
-}
-
-fn to_sse_event(ctx: Ctx, notification: UserNotification) -> CtxResult<Event> {
-    let event_ident = notification.event.to_string();
-    let event = match notification.event {
-        UserNotificationEvent::UserChatMessage { .. } => {
-            let post_view = serde_json::from_str::<DiscussionLatestPostView>(&notification.content)
-                .map_err(|_| {
-                    ctx.to_ctx_error(AppError::Serde {
-                        source: notification.content,
-                    })
-                })?;
-
-            match ctx.to_htmx_or_json(post_view) {
-                Ok(response_string) => Event::default().data(response_string.0).event(event_ident),
-                Err(err) => {
-                    let msg = "ERROR rendering UserNotificationFollowView";
-                    println!("{} ERR={}", &msg, err.error);
-                    Event::default().data(msg).event("Error".to_string())
-                }
-            }
-        }
-        _ => Event::default()
-            .data(format!("Event ident {event_ident} recognised"))
-            .event("Error".to_string()),
-    };
-
-    Ok(event)
 }
 
 async fn get_create_chat_discussion(
