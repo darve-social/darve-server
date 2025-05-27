@@ -424,10 +424,6 @@ async fn create_entity(
         .await?;
 
     let _ = n_service
-        .on_created_task(&from_user, &t_req_id, &to_user)
-        .await?;
-
-    let _ = n_service
         .on_received_task(&from_user, &t_req_id, &to_user)
         .await?;
 
