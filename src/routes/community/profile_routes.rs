@@ -6,10 +6,8 @@ use axum::response::{Html, Sse};
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
-use post_routes::{create_post_entity_route, PostInput, UPLOADS_URL_BASE};
+use post_routes::{create_post_entity_route, PostInput};
 use serde::{Deserialize, Serialize};
-use std::path::Path as FPath;
-use std::string::ToString;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -45,6 +43,7 @@ use utils::template_utils::ProfileFormPage;
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity, user_notification_entity};
 use crate::routes::user_auth::{follow_routes, user_notification_routes};
+use crate::utils::file::convert::convert_field_file_data;
 use crate::{middleware, utils};
 
 use super::{discussion_routes, post_routes};
@@ -245,19 +244,20 @@ async fn profile_save(
     };
 
     if let Some(image_file) = body_value.image_url {
-        let file_name = image_file.metadata.file_name.unwrap();
-        let ext = file_name.split(".").last().ok_or(AppError::Generic {
-            description: "File has no extension".to_string(),
-        })?;
+        let file = convert_field_file_data(image_file)?;
 
-        let file_name = format!(
-            "uid_{}-profile_image.{ext}",
-            user.id.clone().unwrap().id.to_raw()
-        );
-        let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
-        let saved = image_file.contents.persist(path.clone());
-        if saved.is_ok() {
-            user.image_uri = Some(format!("{UPLOADS_URL_BASE}/{file_name}"));
+        let result = ctx_state
+            .file_storage
+            .upload(
+                file.data,
+                Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                &format!("profile_image.{}", file.extension),
+                file.content_type.as_deref(),
+            )
+            .await;
+
+        if result.is_ok() {
+            user.image_uri = Some(result.unwrap());
         }
     }
 

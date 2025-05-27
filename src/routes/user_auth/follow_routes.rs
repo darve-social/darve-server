@@ -1,3 +1,10 @@
+use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::community::post_entity::PostDbService;
+use crate::entities::community::post_stream_entity::PostStreamDbService;
+use crate::entities::user_auth::{self, user_notification_entity};
+use crate::middleware;
+use crate::middleware::utils::db_utils::RecordWithId;
+use crate::middleware::utils::extractor_utils::DiscussionParams;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -15,15 +22,6 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use user_auth::{follow_entity, local_user_entity};
 use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
-
-use crate::entities::community::community_entity::CommunityDbService;
-use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::post_entity::PostDbService;
-use crate::entities::community::post_stream_entity::PostStreamDbService;
-use crate::entities::user_auth::{self, user_notification_entity};
-use crate::middleware;
-use crate::middleware::utils::db_utils::RecordWithId;
-use crate::middleware::utils::extractor_utils::DiscussionParams;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -220,7 +218,8 @@ async fn add_latest_posts(
     //         return;
     //     }
     // };
-    let follow_profile_discussion_id = DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
+    let follow_profile_discussion_id =
+        DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
 
     let post_db_service = PostDbService {
         ctx: &ctx,

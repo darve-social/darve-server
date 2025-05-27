@@ -1,4 +1,6 @@
+use crate::interfaces::file_storage::FileStorageInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
+use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
@@ -12,7 +14,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tower_cookies::{Cookie, Cookies};
-use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use super::db;
@@ -31,11 +32,10 @@ pub struct CtxState {
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
     pub upload_max_size_mb: u64,
-    pub uploads_dir: String,
-    pub uploads_serve_dir: ServeDir,
     pub mobile_client_id: String,
     pub google_client_id: String,
     pub jwt: Arc<JWT>,
+    pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
 }
 
 impl Debug for CtxState {
@@ -63,7 +63,6 @@ pub fn create_ctx_state(
     stripe_secret_key: String,
     stripe_wh_secret: String,
     stripe_platform_account: String,
-    uploads_dir: String,
     upload_max_size_mb: u64,
     mobile_client_id: String,
     google_client_id: String,
@@ -71,6 +70,7 @@ pub fn create_ctx_state(
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
     let key_dec = DecodingKey::from_secret(secret);
+
     let ctx_state = CtxState {
         _db: db,
         key_enc,
@@ -83,13 +83,11 @@ pub fn create_ctx_state(
         jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
-        uploads_serve_dir: ServeDir::new(uploads_dir.clone())
-            .append_index_html_on_directories(false),
-        uploads_dir,
         upload_max_size_mb,
         jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
         mobile_client_id,
         google_client_id,
+        file_storage: Arc::new(GoogleCloudFileStorage::from_env()),
     };
     ctx_state
 }

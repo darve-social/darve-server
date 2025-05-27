@@ -36,7 +36,6 @@ futures = "0.3.30"
 tokio-stream = "0.1.16"
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8.5"
-#async-stripe = { version = "0.40.1", features = ["checkout", "runtime-tokio-hyper"] }
 reqwest = { version = "0.12.15", features = ["json"] }
 surrealdb = { version = "2.2.1", features = ["kv-mem"] }
 tokio-util = { version = "0.7.12", features = ["io", "futures-io"] }
@@ -48,6 +47,8 @@ async-stripe = { version = "0.41.0", features = [
 ] }
 tracing-subscriber = { version = "0.3.19", features = ["json"] }
 tracing = "0.1.41"
+google-cloud-storage = "0.24.0"
+async-trait = "0.1.88"
 
 [dev-dependencies]
 fake = "4.3.0"

@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  fake-gcs:
+    image: fsouza/fake-gcs-server
+    container_name: fake-gcs
+    ports:
+      - "4443:4443"
+    command:
+      - -scheme
+      - http
+      - -external-url
+      - "${GOOGLE_CLOUD_STORAGE_ENDPOINT}"
+      - -data
+      - /data
+    volumes:
+      - ./fake-gcs-data:/data
+
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: surrealdb
+    ports:
+      - "8000:8000"
+    command: start --user ${DB_USERNAME} --pass ${DB_PASSWORD} --bind 0.0.0.0:8000 rocksdb:///data/database
+    environment:
+      - SURREAL_USER=${DB_USERNAME}
+      - SURREAL_PASS=${DB_PASSWORD}
+    volumes:
+      - ./surrealdb_data:/data
