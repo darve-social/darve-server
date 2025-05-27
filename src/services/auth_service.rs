@@ -89,7 +89,10 @@ impl<'a> AuthService<'a> {
         ))
     }
 
-    pub async fn register_password(&self, input: AuthRegisterInput) -> CtxResult<(String, LocalUser)> {
+    pub async fn register_password(
+        &self,
+        input: AuthRegisterInput,
+    ) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
 
         if self.is_exists_by_username(input.username.clone()).await {
@@ -104,7 +107,7 @@ impl<'a> AuthService<'a> {
             }));
         };
 
-        let mut user = LocalUser {
+        let user = LocalUser {
             id: None,
             username: input.username,
             full_name: input.full_name,
@@ -116,18 +119,8 @@ impl<'a> AuthService<'a> {
             birth_date: input.birth_day,
         };
 
-        let user_id = self
-            .user_repository
-            .create(user.clone(), AuthType::PASSWORD(Some(input.password), None))
-            .await?;
-
-        user.id = Some(get_string_thing(user_id.clone())?);
-
-        Ok((
-            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                .await?,
-            user,
-        ))
+        self.register(user, AuthType::PASSWORD(Some(input.password), None))
+            .await
     }
 
     pub async fn register_login_by_apple(
@@ -145,42 +138,38 @@ impl<'a> AuthService<'a> {
             .get_user_id_by_social_auth(auth.clone(), Some(apple_user.email.clone()))
             .await;
 
-        // TODO -create reuse same method- register_user(...) that creates and returns jwt, replace replecated code in other functions
-        let user_id = match res_user_id {
-            Ok(user_id) => user_id,
-            Err(_) => {
-                let username = self
-                    .build_username(Some(apple_user.email.clone()), apple_user.name.clone())
-                    .await;
-                let new_user = LocalUser {
-                    id: None,
-                    username,
-                    full_name: apple_user.name,
-                    birth_date: None,
-                    phone: None,
-                    email: Some(apple_user.email),
-                    bio: None,
-                    social_links: None,
-                    image_uri: None,
-                };
-                self.user_repository.create(new_user, auth).await?
+        match res_user_id {
+            Ok(user_id) => {
+                let user = self
+                    .user_repository
+                    .get(IdentIdName::Id(get_string_thing(user_id)?))
+                    .await?;
+
+                let token = self
+                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                    .await?;
+                Ok((token, user))
             }
-        };
-
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(get_string_thing(user_id)?))
-            .await?;
-
-        let token = self
-            .jwt
-            .encode(&user.id.clone().unwrap().to_raw())
-            .map_err(|e| {
-                self.ctx
-                    .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-            })?;
-
-        Ok((token, user))
+            Err(err) => match err.error {
+                AppError::EntityFailIdNotFound { .. } => {
+                    let new_user = LocalUser {
+                        id: None,
+                        username: self
+                            .build_username(Some(apple_user.email.clone()), apple_user.name.clone())
+                            .await,
+                        full_name: apple_user.name,
+                        birth_date: None,
+                        phone: None,
+                        email: Some(apple_user.email),
+                        bio: None,
+                        social_links: None,
+                        image_uri: None,
+                    };
+                    return self.register(new_user, auth).await;
+                }
+                _ => Err(err),
+            },
+        }
     }
 
     pub async fn sign_by_facebook(&self, token: &str) -> CtxResult<(String, LocalUser)> {
@@ -194,41 +183,38 @@ impl<'a> AuthService<'a> {
             .get_user_id_by_social_auth(auth.clone(), fb_user.email.clone())
             .await;
 
-        let user_id = match res_user_id {
-            Ok(user_id) => user_id,
-            Err(_) => {
-                let username = self
-                    .build_username(fb_user.email, Some(fb_user.name.clone()))
-                    .await;
-                let new_user = LocalUser {
-                    id: None,
-                    username,
-                    full_name: Some(fb_user.name.clone()),
-                    birth_date: None,
-                    phone: None,
-                    email: None,
-                    bio: None,
-                    social_links: None,
-                    image_uri: None,
-                };
-                self.user_repository.create(new_user, auth).await?
+        match res_user_id {
+            Ok(user_id) => {
+                let user = self
+                    .user_repository
+                    .get(IdentIdName::Id(get_string_thing(user_id)?))
+                    .await?;
+
+                let token = self
+                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                    .await?;
+                Ok((token, user))
             }
-        };
-
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(get_string_thing(user_id)?))
-            .await?;
-
-        let token = self
-            .jwt
-            .encode(&user.id.clone().unwrap().to_raw())
-            .map_err(|e| {
-                self.ctx
-                    .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
-            })?;
-
-        Ok((token, user))
+            Err(err) => match err.error {
+                AppError::EntityFailIdNotFound { .. } => {
+                    let new_user = LocalUser {
+                        id: None,
+                        username: self
+                            .build_username(fb_user.email, Some(fb_user.name.clone()))
+                            .await,
+                        full_name: Some(fb_user.name.clone()),
+                        birth_date: None,
+                        phone: None,
+                        email: None,
+                        bio: None,
+                        social_links: None,
+                        image_uri: None,
+                    };
+                    return self.register(new_user, auth).await;
+                }
+                _ => Err(err),
+            },
+        }
     }
 
     pub async fn sign_by_google(
@@ -245,37 +231,42 @@ impl<'a> AuthService<'a> {
             .get_user_id_by_social_auth(auth.clone(), Some(google_user.email.clone()))
             .await;
 
-        let user_id = match res_user_id {
-            Ok(user_id) => user_id,
-            Err(_) => {
-                let username = self
-                    .build_username(Some(google_user.email.clone()), google_user.name.clone())
-                    .await;
-                let new_user = LocalUser {
-                    id: None,
-                    username,
-                    full_name: google_user.name,
-                    birth_date: None,
-                    phone: None,
-                    email: Some(google_user.email),
-                    bio: None,
-                    social_links: None,
-                    image_uri: google_user.picture,
-                };
-                self.user_repository.create(new_user, auth).await?
+        match res_user_id {
+            Ok(user_id) => {
+                let user = self
+                    .user_repository
+                    .get(IdentIdName::Id(get_string_thing(user_id)?))
+                    .await?;
+
+                let token = self
+                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
+                    .await?;
+                Ok((token, user))
             }
-        };
+            Err(err) => match err.error {
+                AppError::EntityFailIdNotFound { .. } => {
+                    let new_user = LocalUser {
+                        id: None,
+                        username: self
+                            .build_username(
+                                Some(google_user.email.clone()),
+                                google_user.name.clone(),
+                            )
+                            .await,
 
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(get_string_thing(user_id)?))
-            .await?;
-
-        Ok((
-            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                .await?,
-            user,
-        ))
+                        full_name: google_user.name,
+                        birth_date: None,
+                        phone: None,
+                        email: Some(google_user.email),
+                        bio: None,
+                        social_links: None,
+                        image_uri: google_user.picture,
+                    };
+                    return self.register(new_user, auth).await;
+                }
+                _ => Err(err),
+            },
+        }
     }
 
     async fn get_user_id_by_social_auth(
@@ -362,5 +353,16 @@ impl<'a> AuthService<'a> {
             self.ctx
                 .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
         })?)
+    }
+
+    async fn register(
+        &self,
+        mut data: LocalUser,
+        auth: AuthType,
+    ) -> CtxResult<(String, LocalUser)> {
+        let user_id = self.user_repository.create(data.clone(), auth).await?;
+        let token = self.build_jwt_token(&user_id).await?;
+        data.id = Some(get_string_thing(user_id)?);
+        Ok((token, data))
     }
 }
