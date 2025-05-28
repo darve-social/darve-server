@@ -1,6 +1,5 @@
 use crate::interfaces::file_storage::FileStorageInterface;
 use async_trait::async_trait;
-use dotenv::dotenv;
 use google_cloud_storage::{
     client::{Client, ClientConfig},
     http::objects::{
@@ -17,7 +16,6 @@ pub struct GoogleCloudFileStorage {
 
 impl GoogleCloudFileStorage {
     pub fn from_env() -> Self {
-        dotenv().ok();
         let mut config = ClientConfig::default().anonymous();
 
         let bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")

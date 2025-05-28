@@ -34,11 +34,9 @@ use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
-use crate::entities::user_auth::{follow_entity, local_user_entity, user_notification_entity};
-use crate::routes::user_auth::{follow_routes, user_notification_routes};
-use crate::utils::file::convert::convert_field_file_data;
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::user_auth::follow_routes;
+use crate::utils::file::convert::convert_field_file_data;
 use crate::{middleware, utils};
 
 use super::{discussion_routes, post_routes};

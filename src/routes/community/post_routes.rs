@@ -27,19 +27,11 @@ use post_entity::{Post, PostDbService};
 use post_stream_entity::PostStreamDbService;
 use reply_routes::PostReplyView;
 use tempfile::NamedTempFile;
-use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
-
-use crate::entities::community::{
-    discussion_entity, discussion_notification_entity, post_entity, post_stream_entity,
-};
-use crate::entities::user_auth::{
-    access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
-};
-use crate::middleware;
-use utils::template_utils::ProfileFormPage;
 
 use crate::entities::community::{discussion_entity, post_entity, post_stream_entity};
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
+use crate::middleware;
+
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostService;
