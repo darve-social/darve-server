@@ -71,7 +71,7 @@ impl StripeConfig for CtxState {
     }
 }
 
-pub fn create_ctx_state(
+pub async fn create_ctx_state(
     db: db::Db,
     start_password: String,
     is_development: bool,
@@ -104,7 +104,7 @@ pub fn create_ctx_state(
         jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
         mobile_client_id,
         google_client_id,
-        file_storage: Arc::new(GoogleCloudFileStorage::from_env()),
+        file_storage: Arc::new(GoogleCloudFileStorage::from_env().await),
         event_sender,
     };
     ctx_state

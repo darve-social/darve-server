@@ -4,3 +4,4 @@
 /uploads
 /fake-gcs-data
 /surrealdb_data
+gcs-service-account.json

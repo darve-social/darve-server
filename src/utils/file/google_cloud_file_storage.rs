@@ -15,18 +15,21 @@ pub struct GoogleCloudFileStorage {
 }
 
 impl GoogleCloudFileStorage {
-    pub fn from_env() -> Self {
-        let mut config = ClientConfig::default().anonymous();
+    pub async fn from_env() -> Self {
+        let mut config = if cfg!(debug_assertions) {
+            ClientConfig::default().anonymous()
+        } else {
+            ClientConfig::default()
+                .with_auth()
+                .await
+                .expect("Failed to load Google Cloud Storage credentials")
+        };
 
         let bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")
             .expect("GOOGLE_CLOUD_STORAGE_BUCKET must be set");
 
         if let Ok(storage_endpoint) = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT") {
             config.storage_endpoint = storage_endpoint
-        }
-
-        if let Ok(project_id) = std::env::var("GOOGLE_CLOUD_STORAGE_PROJECT_ID") {
-            config.project_id = Some(project_id);
         }
 
         GoogleCloudFileStorage {

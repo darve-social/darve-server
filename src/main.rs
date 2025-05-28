@@ -65,7 +65,8 @@ async fn main() -> AppResult<()> {
         upload_file_size_max_mb,
         mobile_client_id,
         google_client_id,
-    );
+    )
+    .await;
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;
 
