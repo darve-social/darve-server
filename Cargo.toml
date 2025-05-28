@@ -48,6 +48,7 @@ async-stripe = { version = "0.41.0", features = [
 ] }
 tracing-subscriber = { version = "0.3.19", features = ["json"] }
 tracing = "0.1.41"
+async-trait = "0.1.88"
 
 [dev-dependencies]
 fake = "4.3.0"

@@ -268,17 +268,7 @@ pub async fn finish_register(
         }
         user_db_service
             .create(
-                LocalUser {
-                    id: None,
-                    username: register_user_ident,
-                    full_name: None,
-                    birth_date: None,
-                    phone: None,
-                    email: None,
-                    bio: None,
-                    social_links: None,
-                    image_uri: None,
-                },
+                LocalUser::default(register_user_ident),
                 AuthType::PASSKEY(
                     Some(valid_passkey.as_ref().unwrap().cred_id().clone()),
                     valid_passkey,

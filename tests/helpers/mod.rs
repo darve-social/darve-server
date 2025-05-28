@@ -101,7 +101,7 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
 
     let input = RegisterInput {
-        username: faker::internet::en::Username().fake::<String>(),
+        username: fake_username_min_len(7),
         password: pwd.clone(),
         email: Some(faker::internet::en::FreeEmail().fake::<String>()),
         next: None,
@@ -124,7 +124,17 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
         bio: input.bio,
         social_links: None,
         image_uri: input.image_uri,
+        email_verified: None,
     };
 
     (server, user)
+}
+
+#[allow(dead_code)]
+pub fn fake_username_min_len(min_len: usize) -> String {
+    use fake::{faker::internet::en::Username, Fake};
+    (0..)
+        .map(|_| Username().fake::<String>())
+        .find(|u| u.len() >= min_len)
+        .unwrap()
 }

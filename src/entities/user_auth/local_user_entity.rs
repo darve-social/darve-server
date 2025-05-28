@@ -20,11 +20,18 @@ use middleware::{
 
 use super::{access_right_entity, authentication_entity, authorization_entity};
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EmailVerification {
+    pub code: String,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub username: String,
+    pub email_verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -53,6 +60,7 @@ impl LocalUser {
             bio: None,
             social_links: None,
             image_uri: None,
+            email_verified: None,
         }
     }
 }
@@ -89,15 +97,22 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS full_name ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<datetime>;
     DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS email_verified ON TABLE {TABLE_NAME} TYPE option<bool>;
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
 
+    
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
     DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
     DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+
+    DEFINE TABLE IF NOT EXISTS email_verification TYPE RELATION IN local_user OUT local_user ENFORCED SCHEMAFULL PERMISSIONS NONE;
+    DEFINE FIELD code ON TABLE email_verification TYPE string;
+    DEFINE FIELD created_at ON TABLE email_verification TYPE datetime DEFAULT time::now();
+
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -219,5 +234,43 @@ impl<'a> LocalUserDbService<'a> {
         let q = format!("SELECT count() FROM {TABLE_NAME} limit 1");
         let res: Option<i32> = self.db.query(q).await?.take("count")?;
         Ok(res.unwrap_or(0))
+    }
+
+    pub async fn get_email_verification(
+        &self,
+        user_id: Thing,
+    ) -> CtxResult<Option<EmailVerification>> {
+        let qry = "SELECT * FROM email_verification WHERE in = $user_id AND out = $user_id";
+        let mut res = self.db.query(qry).bind(("user_id", user_id)).await?;
+
+        let data: Option<EmailVerification> = res.take(0)?;
+
+        Ok(data)
+    }
+
+    pub async fn create_email_verification(&self, user_id: Thing, code: String) -> CtxResult<()> {
+        let res = self
+            .db
+            .query("RELATE $user_id->email_verification->$user_id SET code = $code")
+            .bind(("user_id", user_id))
+            .bind(("code", code))
+            .await?;
+        res.check()?;
+
+        Ok(())
+    }
+
+    pub async fn verify_email(&self, user_id: Thing) -> CtxResult<()> {
+        let qry = "
+            BEGIN TRANSACTION;
+                UPDATE $user_id SET email_verified = true;
+                DELETE FROM email_verification WHERE in_ = $user_id AND out = $user_id;
+            COMMIT TRANSACTION;
+        ";
+        let res = self.db.query(qry).bind(("user_id", user_id)).await?;
+
+        res.check()?;
+
+        Ok(())
     }
 }

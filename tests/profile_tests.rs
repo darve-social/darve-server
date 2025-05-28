@@ -1,9 +1,13 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    middleware,
+    entities::user_auth::local_user_entity::LocalUserDbService,
+    middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
-        community::{discussion_routes, profile_routes},
+        community::{
+            discussion_routes,
+            profile_routes::{self, EmailConfirmationInput},
+        },
         user_auth::login_routes,
     },
 };
@@ -300,4 +304,52 @@ async fn get_user_chat_1() {
     assert_eq!(create_by.username, local_user_2.username);
     assert_eq!(create_by.full_name, local_user_2.full_name);
     assert_eq!(create_by.image_uri, local_user_2.image_uri)
+}
+
+#[tokio::test]
+async fn email_verification_and_confirmation() {
+    let (server, ctx_state) = create_test_server().await;
+
+    // Register/login user
+    let (server, user) = create_fake_login_test_user(&server).await;
+    println!("{:?} ", user.clone());
+    let username = user.username;
+    let user_id = user.id.clone().unwrap();
+
+    let response = server
+        .post("/api/users/current/email/verification")
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let response1 = server
+        .post("/api/users/current/email/verification")
+        .add_header("Accept", "application/json")
+        .await;
+
+    response1.assert_status_failure();
+
+    // Get verification code from DB (simulate email)
+    let db = &ctx_state._db;
+    let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+    let user_db = LocalUserDbService { db, ctx: &ctx };
+    let code = user_db
+        .get_email_verification(user_id)
+        .await
+        .unwrap()
+        .expect("verification should exist")
+        .code;
+
+    // Confirm email with code
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&EmailConfirmationInput { code: code.clone() })
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    // Check user is now verified
+    let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
+    assert_eq!(user.email_verified, Some(true));
 }

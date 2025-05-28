@@ -1,6 +1,8 @@
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
+use crate::interfaces::send_email::SendEmailInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::routes::community::community_routes::DiscussionNotificationEvent;
+use crate::utils::email_sender::EmailSender;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
@@ -53,6 +55,7 @@ pub struct CtxState {
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
     pub jwt: Arc<JWT>,
+    pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
 }
 
 impl Debug for CtxState {
@@ -109,6 +112,7 @@ pub fn create_ctx_state(
         mobile_client_id,
         google_client_id,
         event_sender,
+        email_sender: Arc::new(EmailSender::from_env()),
     };
     ctx_state
 }

@@ -38,6 +38,7 @@ use utils::template_utils::ProfileFormPage;
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::user_auth::follow_routes;
+use crate::services::user_service::UserService;
 use crate::{middleware, utils};
 
 use super::{discussion_routes, post_routes};
@@ -53,6 +54,14 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
+        .route(
+            "/api/users/current/email/verification",
+            post(email_verification),
+        )
+        .route(
+            "/api/users/current/email/verification/confirm",
+            post(email_confirmation),
+        )
         .route(
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
@@ -595,4 +604,52 @@ async fn search_users(
         .map(|u| u.into())
         .collect();
     ctx.to_htmx_or_json(UserListView { items })
+}
+async fn email_verification(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<()> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+        ctx_state.email_sender.clone(),
+    );
+
+    let current_user_id = ctx.user_id()?;
+
+    user_service
+        .email_verification(&current_user_id)
+        .await
+        .map_err(|e| ctx.to_ctx_error(e))?;
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Validate, Serialize)]
+
+pub struct EmailConfirmationInput {
+    #[validate(length(equal = 6, message = "Code must be 6 characters long"))]
+    pub code: String,
+}
+
+async fn email_confirmation(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<EmailConfirmationInput>,
+) -> CtxResult<()> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+        ctx_state.email_sender.clone(),
+    );
+
+    let current_user_id = ctx.user_id()?;
+
+    user_service
+        .email_confirmation(&current_user_id, &data.code)
+        .await
+        .map_err(|e| ctx.to_ctx_error(e))?;
+
+    Ok(())
 }
