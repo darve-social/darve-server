@@ -305,69 +305,6 @@ pub enum DiscussionNotificationEvent {
 }
 
 impl DiscussionNotificationEvent {
-    pub fn try_from_post(
-        event_type: &str,
-        post: &DiscussionPostView,
-    ) -> AppResult<DiscussionNotificationEvent> {
-        match event_type {
-            "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
-                discussion_id: post.belongs_to_id.clone(),
-                topic_id: post.topic.clone().map(|t| t.id),
-                post_id: post.id.clone(),
-            }),
-            "DiscussionPostReplyAdded" => {
-                Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
-                    discussion_id: post.belongs_to_id.clone(),
-                    topic_id: post.topic.clone().map(|t| t.id),
-                    post_id: post.id.clone(),
-                })
-            }
-            "DiscussionPostReplyNrIncreased" => Ok(
-                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-                    discussion_id: post.belongs_to_id.clone(),
-                    topic_id: post.topic.clone().map(|t| t.id),
-                    post_id: post.id.clone(),
-                },
-            ),
-            _ => Err(AppError::Generic {
-                description: format!(
-                    "Can not match post DiscussionNotificationEvent::{}",
-                    event_type
-                ),
-            }),
-        }
-    }
-
-    pub fn try_from_reply_post(
-        event_type: &str,
-        data: (&Reply, &Post),
-    ) -> AppResult<DiscussionNotificationEvent> {
-        match event_type {
-            "DiscussionPostAdded" => Ok(DiscussionNotificationEvent::DiscussionPostAdded {
-                discussion_id: data.0.discussion.clone(),
-                topic_id: data.1.discussion_topic.clone(),
-                post_id: data.1.id.clone().unwrap(),
-            }),
-            "DiscussionPostReplyAdded" => {
-                Ok(DiscussionNotificationEvent::DiscussionPostReplyAdded {
-                    discussion_id: data.0.discussion.clone(),
-                    topic_id: data.1.discussion_topic.clone(),
-                    post_id: data.1.id.clone().unwrap(),
-                })
-            }
-            "DiscussionPostReplyNrIncreased" => Ok(
-                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-                    discussion_id: data.0.discussion.clone(),
-                    topic_id: data.1.discussion_topic.clone(),
-                    post_id: data.1.id.clone().unwrap(),
-                },
-            ),
-            _ => Err(AppError::Generic {
-                description: format!("Can not match DiscussionNotificationEvent::{}", event_type),
-            }),
-        }
-    }
-
     pub fn get_sse_event_ident(&self) -> String {
         match self {
             DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),

@@ -1,18 +1,9 @@
 use crate::{
-    entities::{
-        community::post_entity::PostDbService,
-        user_auth::{
-            local_user_entity::LocalUser,
-            user_notification_entity::{UserNotificationDbService, UserNotificationEvent},
-        },
-    },
-    middleware::{
-        ctx::Ctx,
-        db,
-        error::CtxResult,
-        utils::{string_utils::get_string_thing},
-    },
+    entities::{community::post_entity::PostDbService, user_auth::local_user_entity::LocalUser},
+    middleware::{ctx::Ctx, db, error::CtxResult, utils::string_utils::get_string_thing},
 };
+
+use surrealdb::sql::Thing;
 
 pub struct PostService<'a> {
     pub db: &'a db::Db,
@@ -20,31 +11,16 @@ pub struct PostService<'a> {
 }
 
 impl<'a> PostService<'a> {
-    pub async fn like(&self, post_id: String, user: &LocalUser) -> CtxResult<u32> {
+    pub async fn like(&self, post_id: &Thing, user: &LocalUser) -> CtxResult<u32> {
         let user_thing = user.id.clone().expect("User id invalid");
-        let post_thing = get_string_thing(post_id)?;
         let post_service = PostDbService {
             db: &self.db,
             ctx: &self.ctx,
         };
 
         let likes_count = post_service
-            .like(user_thing.clone(), post_thing.clone())
+            .like(user_thing.clone(), post_id.clone())
             .await?;
-
-        UserNotificationDbService {
-            db: &self.db,
-            ctx: &self.ctx,
-        }
-        .notify_users(
-            vec![user_thing.clone()],
-            &UserNotificationEvent::UserLikePost {
-                user_id: user_thing,
-                post_id: post_thing,
-            },
-            "",
-        )
-        .await?;
 
         Ok(likes_count)
     }

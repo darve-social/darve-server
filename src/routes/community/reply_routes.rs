@@ -3,14 +3,12 @@ use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use community_routes::DiscussionNotificationEvent;
 use discussion_entity::DiscussionDbService;
-use discussion_notification_entity::{DiscussionNotification, DiscussionNotificationDbService};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
+use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
@@ -20,13 +18,10 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
 
-use crate::entities::community::{
-    discussion_entity, discussion_notification_entity, post_entity, reply_entity,
-};
+use crate::entities::community::{discussion_entity, post_entity, reply_entity};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
-
-use super::community_routes;
+use crate::services::notification_service::NotificationService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -108,7 +103,9 @@ async fn get_post_replies(
 }
 
 async fn create_entity(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(CtxState {
+        _db, event_sender, ..
+    }): State<CtxState>,
     ctx: Ctx,
     Path(discussion_id_post_uri): Path<(String, String)>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
@@ -150,7 +147,7 @@ async fn create_entity(
             id: None,
             discussion,
             belongs_to: post_id.clone(),
-            created_by,
+            created_by: created_by.clone(),
             title: reply_input.title,
             content: reply_input.content,
             r_created: None,
@@ -164,44 +161,25 @@ async fn create_entity(
 
     let post = post_db_service.increase_replies_nr(post_id.clone()).await?;
 
-    let notif_db_ser = DiscussionNotificationDbService {
-        db: &_db,
-        ctx: &ctx,
-    };
-
-    let event_type = DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-        discussion_id: NO_SUCH_THING.clone(),
-        topic_id: None,
-        post_id: NO_SUCH_THING.clone(),
-    }
-    .to_string();
-    let event =
-        DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
-    // let event_ident = String::try_from( &DiscussionNotificationEventData::from((&reply, &post)) ).ok();
-    notif_db_ser
-        .create(DiscussionNotification {
-            id: None,
-            event,
-            content: post.replies_nr.to_string(),
-            r_created: None,
-        })
+    let n_service = NotificationService::new(&_db, &ctx, &event_sender);
+    n_service
+        .on_discussion_post_reply(
+            &created_by,
+            &post_id,
+            &reply.discussion.clone(),
+            &reply_comm_view.render().unwrap(),
+            &post.discussion_topic.clone(),
+        )
         .await?;
 
-    let event_type = DiscussionNotificationEvent::DiscussionPostReplyAdded {
-        discussion_id: NO_SUCH_THING.clone(),
-        topic_id: None,
-        post_id: NO_SUCH_THING.clone(),
-    }
-    .to_string();
-    let event =
-        DiscussionNotificationEvent::try_from_reply_post(event_type.as_str(), (&reply, &post))?;
-    notif_db_ser
-        .create(DiscussionNotification {
-            id: None,
-            event,
-            content: reply_comm_view.render().unwrap(),
-            r_created: None,
-        })
+    n_service
+        .on_discussion_post_reply_nr_increased(
+            &created_by,
+            &post_id,
+            &reply.discussion.clone(),
+            &post.replies_nr.to_string(),
+            &post.discussion_topic.clone(),
+        )
         .await?;
 
     let res = CreatedResponse {

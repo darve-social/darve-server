@@ -1,13 +1,12 @@
 use std::collections::HashMap;
-use std::time::Duration;
+use std::convert::Infallible;
 
 use crate::entities::community::post_entity::PostDbService;
-use crate::entities::community::{
-    community_entity, discussion_entity, discussion_notification_entity,
-};
+use crate::entities::community::{community_entity, discussion_entity};
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
+use crate::middleware::mw_ctx::AppEventType;
 use crate::{middleware, utils};
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::{AccessRule, AccessRuleDbService};
@@ -15,7 +14,7 @@ use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{Path, Query, State};
-use axum::response::sse::Event;
+use axum::response::sse::{Event, KeepAlive};
 use axum::response::{Response, Sse};
 use axum::routing::{get, post};
 use axum::Router;
@@ -23,11 +22,10 @@ use axum_htmx::HX_REDIRECT;
 use community_entity::CommunityDbService;
 use community_routes::DiscussionNotificationEvent;
 use discussion_entity::{Discussion, DiscussionDbService};
-use discussion_notification_entity::DiscussionNotification;
 use discussion_topic_routes::{
     DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView,
 };
-use futures::stream::Stream as FStream;
+use futures::Stream;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::db::Db;
@@ -39,8 +37,7 @@ use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::{get_string_thing, LEN_OR_NONE};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use surrealdb::Notification as SdbNotification;
-use tokio_stream::StreamExt as _;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 use validator::Validate;
@@ -462,18 +459,20 @@ async fn discussion_sse_htmx(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let mut ctx = ctx.clone();
     ctx.is_htmx = true;
     discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
 }
 
 async fn discussion_sse(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(CtxState {
+        _db, event_sender, ..
+    }): State<CtxState>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     q_params: DiscussionParams,
-) -> CtxResult<Sse<impl FStream<Item = Result<Event, surrealdb::Error>>>> {
+) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let discussion_id = get_string_thing(discussion_id)?;
     let discussion = DiscussionDbService {
         db: &_db,
@@ -491,15 +490,36 @@ async fn discussion_sse(
     )
     .await?;
 
-    let stream = _db.select(discussion_notification_entity::TABLE_NAME).live().await?
-        .filter(move |r: &Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
-            // TODO check if user still logged in
-            // filter out events from other discussion - TODO make last events sub table for each discussion, delete all events older than ~5days
-            let (event_discussion_id, event_topic_id) = match r.as_ref().unwrap().data.clone().event {
-                DiscussionNotificationEvent::DiscussionPostAdded { discussion_id, topic_id, .. } => (discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyAdded { discussion_id, topic_id, .. } => (discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { discussion_id, topic_id, .. } => (discussion_id, topic_id)
+    let rx = event_sender.subscribe();
+    let stream = BroadcastStream::new(rx)
+        .filter(move|msg| {
+            if msg.is_err() {
+                return false;
+            }
+
+            let event = match msg.as_ref().unwrap().clone().event {
+                AppEventType::DiscussionNotificationEvent(e) => e,
+                _ => return false,
             };
+
+            let (event_discussion_id, event_topic_id) = match event {
+                DiscussionNotificationEvent::DiscussionPostAdded {
+                    discussion_id,
+                    topic_id,
+                    ..
+                } => (discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyAdded {
+                    discussion_id,
+                    topic_id,
+                    ..
+                } => (discussion_id, topic_id),
+                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
+                    discussion_id,
+                    topic_id,
+                    ..
+                } => (discussion_id, topic_id),
+            };
+
             if event_discussion_id.ne(&discussion_id) {
                 return false;
             }
@@ -509,51 +529,72 @@ async fn discussion_sse(
             }
             event_discussion_id.eq(&discussion_id)
         })
-        .map(move |n: Result<SdbNotification<DiscussionNotification>, surrealdb::Error>| {
-            n.map(|n: surrealdb::Notification<DiscussionNotification>| {
-                let n_event = n.data.event;
-                match n_event {
-                    DiscussionNotificationEvent::DiscussionPostAdded { .. } => {
-                        match serde_json::from_str::<DiscussionPostView>(&n.data.content) {
-                            Ok(mut dpv) => {
-                                dpv.viewer_access_rights = user_auth.clone();
-                                dpv.has_view_access = match &dpv.access_rule {
-                                    None => true,
-                                    Some(ar) => is_user_chat_discussion || is_any_ge_in_list(&ar.authorization_required, &dpv.viewer_access_rights).unwrap_or(false)
-                                };
+        .map(move |msg| {
+            let event_opt = match msg {
+                Err(_) => None,
+                Ok(msg) => match msg.event {
+                    AppEventType::DiscussionNotificationEvent(n) => match n {
+                        DiscussionNotificationEvent::DiscussionPostAdded { .. } => {
+                            match serde_json::from_str::<DiscussionPostView>(&msg.content.unwrap()) {
+                                Ok(mut dpv) => {
+                                    dpv.viewer_access_rights = user_auth.clone();
+                                    dpv.has_view_access = match &dpv.access_rule {
+                                        None => true,
+                                        Some(ar) => {
+                                            is_user_chat_discussion
+                                                || is_any_ge_in_list(
+                                                    &ar.authorization_required,
+                                                    &dpv.viewer_access_rights,
+                                                )
+                                                .unwrap_or(false)
+                                        }
+                                    };
 
-                                match ctx.to_htmx_or_json(dpv) {
-                                    Ok(post_html) => Event::default().data(post_html.0).event(n_event.to_string()),
-                                    Err(err) => {
-                                        let msg = "ERROR rendering DiscussionPostView";
-                                        println!("{} ERR={}", &msg, err.error);
-                                        Event::default().data(msg).event(SseEventName::get_error())
+                                    match ctx.to_htmx_or_json(dpv) {
+                                        Ok(post_html) => Some(
+                                            Event::default().data(post_html.0).event(n.to_string()),
+                                        ),
+                                        Err(err) => {
+                                            let msg = "ERROR rendering DiscussionPostView";
+                                            println!("{} ERR={}", &msg, err.error);
+                                            Some(
+                                                Event::default()
+                                                    .data(msg)
+                                                    .event(SseEventName::get_error()),
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            Err(err) => {
-                                let msg = "ERROR converting NotificationEvent content to DiscussionPostView";
-                                println!("{} ERR={err}", &msg);
-                                Event::default().data(msg).event(SseEventName::get_error())
+                                Err(err) => {
+                                    let msg =
+                                    "ERROR converting NotificationEvent content to DiscussionPostView";
+                                    println!("{} ERR={err}", &msg);
+                                    Some(Event::default().data(msg).event(SseEventName::get_error()))
+                                }
                             }
                         }
-                    }
-                    DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { .. } => {
-                        Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
-                    }
-                    DiscussionNotificationEvent::DiscussionPostReplyAdded { .. } => {
-                        Event::default().data(n.data.content).event(n_event.get_sse_event_ident())
-                    }
-                }
-            })
-        }
-        );
-    // println!("GOT LIVE QRY STREAM");
-    Ok(Sse::new(stream).keep_alive(
-        axum::response::sse::KeepAlive::new()
-            .interval(Duration::from_secs(10))
-            .text("keep-alive-text"),
-    ))
+                        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { .. } => Some(
+                            Event::default()
+                                .data(msg.content.unwrap())
+                                .event(n.get_sse_event_ident()),
+                        ),
+                        DiscussionNotificationEvent::DiscussionPostReplyAdded { .. } => Some(
+                            Event::default()
+                                .data(msg.content.unwrap())
+                                .event(n.get_sse_event_ident()),
+                        ),
+                    },
+                    _ => None,
+                },
+            };
+            Ok(event_opt.unwrap_or_else(|| {
+                Event::default()
+                    .data("No event".to_string())
+                    .event(SseEventName::get_error())
+            }))
+        });
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 async fn create_update(

@@ -33,7 +33,7 @@ validator = { version = "0.18.1", features = ["derive"] }
 regex = "1.10.6"
 open = "5.3.0"
 futures = "0.3.30"
-tokio-stream = "0.1.16"
+tokio-stream = { version = "0.1.16", features = ["sync"] }
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8.5"
 reqwest = { version = "0.12.15", features = ["json"] }

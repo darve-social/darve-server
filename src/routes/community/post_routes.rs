@@ -13,16 +13,14 @@ use validator::Validate;
 
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
-use community_routes::DiscussionNotificationEvent;
 use discussion_entity::DiscussionDbService;
-use discussion_notification_entity::{DiscussionNotification, DiscussionNotificationDbService};
 use discussion_routes::{is_user_chat_discussion, DiscussionPostView, DiscussionView};
 use discussion_topic_routes::DiscussionTopicView;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
+use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::{Post, PostDbService};
@@ -38,13 +36,18 @@ use crate::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity, user_notification_entity,
 };
 use crate::middleware;
+use utils::template_utils::ProfileFormPage;
+
+use crate::entities::community::{discussion_entity, post_entity, post_stream_entity};
+use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostService;
 use crate::utils::file::convert::convert_field_file_data;
 use crate::utils::template_utils::ProfileFormPage;
 
 use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
-use super::{community_routes, discussion_routes, discussion_topic_routes, reply_routes};
+use super::{discussion_routes, discussion_topic_routes, reply_routes};
 
 pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
@@ -364,11 +367,6 @@ pub async fn create_post_entity_route(
         .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
         .await?;
 
-    let user_notification_db_service = UserNotificationDbService {
-        db: &ctx_state._db,
-        ctx: &ctx,
-    };
-
     let latest_post = DiscussionLatestPostView {
         id: post.belongs_to,
         created_by: DiscussionLatestPostCreatedBy {
@@ -383,23 +381,18 @@ pub async fn create_post_entity_route(
         r_created: post.r_created,
     };
 
-    let notif_str = serde_json::to_string(&latest_post).unwrap();
+    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    let content = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
-        user_notification_db_service
-            .notify_users(
-                disc.chat_room_user_ids.clone().unwrap(),
-                &UserNotificationEvent::UserChatMessage,
-                notif_str.as_str(),
+        n_service
+            .on_chat_message(
+                &user_id,
+                &disc.chat_room_user_ids.clone().unwrap(),
+                &content,
             )
             .await?;
     } else {
-        user_notification_db_service
-            .notify_user_followers(
-                user_id.clone(),
-                &UserNotificationEvent::UserCommunityPost,
-                notif_str.as_str(),
-            )
-            .await?;
+        n_service.on_community_post(&user_id, &content).await?;
 
         PostStreamDbService {
             db: &ctx_state._db,
@@ -409,33 +402,12 @@ pub async fn create_post_entity_route(
         .await?;
     }
 
-    let post_comm_view = post_db_service
+    let post_comm_view: DiscussionPostView = post_db_service
         .get_view::<DiscussionPostView>(IdentIdName::Id(post.id.clone().unwrap()))
         .await?;
-    let notif_db_ser = DiscussionNotificationDbService {
-        db: &ctx_state._db,
-        ctx: &ctx,
-    };
-    let post_json = serde_json::to_string(&post_comm_view).map_err(|_| {
-        ctx.to_ctx_error(AppError::Generic {
-            description: "Post to json error for notification event".to_string(),
-        })
-    })?;
 
-    let event_type: String = DiscussionNotificationEvent::DiscussionPostAdded {
-        discussion_id: NO_SUCH_THING.clone(),
-        topic_id: None,
-        post_id: NO_SUCH_THING.clone(),
-    }
-    .to_string();
-    let event = DiscussionNotificationEvent::try_from_post(event_type.as_str(), &post_comm_view)?;
-    notif_db_ser
-        .create(DiscussionNotification {
-            id: None,
-            event,
-            content: post_json,
-            r_created: None,
-        })
+    let _ = n_service
+        .on_discussion_post(&user_id, &post_comm_view)
         .await?;
 
     let res = CreatedResponse {
@@ -485,12 +457,21 @@ async fn like(
     .get_ctx_user()
     .await?;
 
+    let post_thing = get_string_thing(post_id)?;
+
     let count = PostService {
         db: &ctx_state._db,
         ctx: &ctx,
     }
-    .like(post_id, &user)
+    .like(&post_thing, &user)
     .await?;
+
+    let user_id = user.id.unwrap();
+
+    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    n_service
+        .on_like(&user_id, vec![user_id.clone()], post_thing)
+        .await?;
 
     Ok(Json(PostLikeResponse { likes_count: count }))
 }

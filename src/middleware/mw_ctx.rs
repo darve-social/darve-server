@@ -1,6 +1,10 @@
+
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
+use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
+use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
+use crate::routes::community::community_routes::DiscussionNotificationEvent;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
@@ -13,10 +17,24 @@ use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 use super::db;
+
+#[derive(Debug, Clone, Serialize)]
+pub enum AppEventType {
+    UserNotificationEvent(UserNotificationEvent),
+    DiscussionNotificationEvent(DiscussionNotificationEvent),
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct AppEvent {
+    pub user_id: String,
+    pub content: Option<String>,
+    pub event: AppEventType,
+    pub receivers: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct CtxState {
@@ -34,6 +52,7 @@ pub struct CtxState {
     pub upload_max_size_mb: u64,
     pub mobile_client_id: String,
     pub google_client_id: String,
+    pub event_sender: broadcast::Sender<AppEvent>,
     pub jwt: Arc<JWT>,
     pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
 }
@@ -70,7 +89,7 @@ pub fn create_ctx_state(
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
     let key_dec = DecodingKey::from_secret(secret);
-
+    let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
         _db: db,
         key_enc,
@@ -88,6 +107,7 @@ pub fn create_ctx_state(
         mobile_client_id,
         google_client_id,
         file_storage: Arc::new(GoogleCloudFileStorage::from_env()),
+        event_sender,
     };
     ctx_state
 }

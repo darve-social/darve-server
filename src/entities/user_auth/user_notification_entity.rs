@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use strum::Display;
 use surrealdb::sql::{to_value, Id, Thing, Value};
 
-use follow_entity::FollowDbService;
 use middleware::db;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
@@ -18,7 +17,7 @@ use middleware::{
 use crate::entities::community::post_entity;
 use crate::middleware;
 
-use super::{follow_entity, local_user_entity};
+use super::local_user_entity;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserNotification {
@@ -134,22 +133,6 @@ impl<'a> UserNotificationDbService<'a> {
         let res = qry.await?;
         res.check()?;
         Ok(())
-    }
-
-    pub async fn notify_user_followers(
-        &self,
-        user_id: Thing,
-        event: &UserNotificationEvent,
-        content: &str,
-    ) -> AppResult<()> {
-        let notify_followers_task_given_qry: Vec<Thing> = FollowDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .user_follower_ids(user_id.clone())
-        .await?;
-        self.notify_users(notify_followers_task_given_qry, event, content)
-            .await
     }
 
     pub fn create_qry(
