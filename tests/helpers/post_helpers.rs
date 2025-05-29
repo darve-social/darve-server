@@ -96,10 +96,9 @@ pub async fn create_fake_post(
 #[allow(dead_code)]
 pub async fn create_fake_post_with_large_file(
     server: &TestServer,
-    ctx_state: &CtxState,
+    _: &CtxState,
     discussion_id: &Thing,
 ) {
-    let _ = darve_server::utils::dir_utils::ensure_dir_exists(&ctx_state.uploads_dir);
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/test_image_20mb.jpg").unwrap();
     let part = Part::bytes(file)
@@ -114,11 +113,9 @@ pub async fn create_fake_post_with_large_file(
 #[allow(dead_code)]
 pub async fn create_fake_post_with_file(
     server: &TestServer,
-    ctx_state: &CtxState,
+    _: &CtxState,
     discussion_id: &Thing,
 ) -> String {
-    let _ = darve_server::utils::dir_utils::ensure_dir_exists(&ctx_state.uploads_dir);
-
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/test_image_2mb.jpg").unwrap();
 

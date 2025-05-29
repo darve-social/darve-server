@@ -15,7 +15,7 @@ use darve_server::{
 use fake::{faker, Fake};
 use follow_entity::FollowDbService;
 use follow_routes::UserListView;
-use helpers::post_helpers::create_fake_post;
+use helpers::{fake_username_min_len, post_helpers::create_fake_post};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
@@ -383,8 +383,7 @@ async fn get_user_followers() {
 async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let (server, ctx_state) = create_test_server().await;
 
-    let (_, user_ident1) =
-        create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+    let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
     let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
     let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);

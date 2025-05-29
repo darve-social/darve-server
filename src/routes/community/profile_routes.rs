@@ -1,14 +1,12 @@
 use askama_axum::axum_core::response::Response;
 use askama_axum::Template;
-use axum::extract::{Path, State};
+use axum::extract::{DefaultBodyLimit, Path, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
-use post_routes::{create_post_entity_route, PostInput, UPLOADS_URL_BASE};
+use post_routes::{create_post_entity_route, PostInput};
 use serde::{Deserialize, Serialize};
-use std::path::Path as FPath;
-use std::string::ToString;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use validator::Validate;
@@ -35,15 +33,18 @@ use post_stream_entity::PostStreamDbService;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
+use super::{discussion_routes, post_routes};
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::user_auth::follow_routes;
+use crate::utils::file::convert::convert_field_file_data;
 use crate::{middleware, utils};
 
-use super::{discussion_routes, post_routes};
+use utils::validate_utils::empty_string_as_none;
+use utils::validate_utils::validate_username;
 
 pub fn routes(state: CtxState) -> Router {
-    // let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
+    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
     Router::new()
         .route("/u/:username_or_id", get(display_profile))
         .route("/u/following/posts", get(get_following_posts))
@@ -58,8 +59,8 @@ pub fn routes(state: CtxState) -> Router {
             get(get_create_chat_discussion),
         )
         // the file max limit is set on PostInput property
-        // .layer(DefaultBodyLimit::max(max_bytes_val))
         .with_state(state)
+        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 #[derive(Template, TryFromMultipart)]
@@ -71,17 +72,24 @@ pub struct ProfileSettingsForm {
     pub image_url: String,
 }
 
-#[derive(Validate, TryFromMultipart)]
+#[derive(Validate, TryFromMultipart, Deserialize, Debug)]
 pub struct ProfileSettingsFormInput {
-    // #[validate(length(min = 5, message = "Min 5 characters"))]
-    pub username: String,
-    // #[validate(email(message = "Email expected"))]
-    pub email: String,
-    pub full_name: String,
-    #[form_data(limit = "5MiB")]
+    #[validate(custom(function = "validate_username"))]
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub username: Option<String>,
+
+    #[validate(email(message = "Email expected"))]
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub email: Option<String>,
+
+    #[validate(length(min = 6, message = "Min 6 character"))]
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub full_name: Option<String>,
+
+    #[serde(skip_deserializing)]
+    #[form_data(limit = "unlimited")]
     pub image_url: Option<FieldData<NamedTempFile>>,
 }
-
 #[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_page.html")]
 pub struct ProfilePage {
@@ -203,54 +211,48 @@ async fn profile_save(
     ctx: Ctx,
     TypedMultipart(body_value): TypedMultipart<ProfileSettingsFormInput>,
 ) -> CtxResult<Html<String>> {
-    let mut user = LocalUserDbService {
-        db: &ctx_state._db,
-        ctx: &ctx,
-    }
-    .get_ctx_user()
-    .await?;
-
-    let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
-        ctx: &ctx,
-    };
     body_value.validate().map_err(|e1| {
         ctx.to_ctx_error(AppError::Generic {
             description: e1.to_string(),
         })
     })?;
-    user.email = if body_value.email.trim().len() > 0 {
-        Some(body_value.email.trim().to_string())
-    } else {
-        user.email
-    };
-    user.full_name = if body_value.full_name.trim().len() > 0 {
-        Some(body_value.full_name.trim().to_string())
-    } else {
-        user.full_name
-    };
 
-    user.username = if body_value.username.trim().len() > 0 {
-        body_value.username.trim().to_string()
-    } else {
-        user.username
+    let local_user_db_service = LocalUserDbService {
+        db: &ctx_state._db,
+        ctx: &ctx,
     };
+    let mut user = local_user_db_service.get_ctx_user().await?;
+
+    if let Some(username) = body_value.username {
+        user.username = username.trim().to_string();
+    }
+    if let Some(email) = body_value.email {
+        user.email = Some(email.to_string());
+    }
+
+    if let Some(full_name) = body_value.full_name {
+        user.full_name = Some(full_name.trim().to_string());
+    }
 
     if let Some(image_file) = body_value.image_url {
-        let file_name = image_file.metadata.file_name.unwrap();
-        let ext = file_name.split(".").last().ok_or(AppError::Generic {
-            description: "File has no extension".to_string(),
-        })?;
+        let file = convert_field_file_data(image_file)?;
 
-        let file_name = format!(
-            "uid_{}-profile_image.{ext}",
-            user.id.clone().unwrap().id.to_raw()
-        );
-        let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
-        let saved = image_file.contents.persist(path.clone());
-        if saved.is_ok() {
-            user.image_uri = Some(format!("{UPLOADS_URL_BASE}/{file_name}"));
-        }
+        let result = ctx_state
+            .file_storage
+            .upload(
+                file.data,
+                Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                &format!("profile_image.{}", file.extension),
+                file.content_type.as_deref(),
+            )
+            .await
+            .map_err(|e| {
+                ctx.to_ctx_error(AppError::Generic {
+                    description: e.to_string(),
+                })
+            })?;
+
+        user.image_uri = Some(result);
     }
 
     let user = local_user_db_service.update(user).await?;
