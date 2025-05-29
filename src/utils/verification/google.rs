@@ -27,7 +27,7 @@ pub async fn verify_token(token: &str, client_id: &str) -> Result<GoogleUser, St
         return Err("Invalid token for this client ID".to_string());
     }
 
-    if user.email_verified != Some("true".to_string()) {
+    if user.email_verified.as_deref() != Some("true") {
         user.email = None
     }
 
