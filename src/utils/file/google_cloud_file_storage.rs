@@ -8,6 +8,7 @@ use google_cloud_storage::{
         upload::{Media, UploadObjectRequest, UploadType},
     },
 };
+use google_cloud_storage::client::google_cloud_auth::credentials::CredentialsFile;
 
 pub struct GoogleCloudFileStorage {
     client: Client,
@@ -16,11 +17,16 @@ pub struct GoogleCloudFileStorage {
 
 impl GoogleCloudFileStorage {
     pub async fn from_env() -> Self {
-        let mut config = if cfg!(debug_assertions) {
+        let cred_filepath = std::env::var("GOOGLE_CLOUD_STORAGE_CREDENTIALS").ok();
+        let mut config = if cred_filepath.is_none() {
+            println!("GOOGLE_CLOUD_STORAGE_CREDENTIALS filepath not set - going anonymous");
             ClientConfig::default().anonymous()
         } else {
+            
             ClientConfig::default()
-                .with_auth()
+                .with_credentials(
+                    CredentialsFile::new_from_file(cred_filepath.expect("none check exists above")).await.expect("Credentials file not found")
+                )
                 .await
                 .expect("Failed to load Google Cloud Storage credentials")
         };
