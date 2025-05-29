@@ -117,7 +117,6 @@ impl<'a> AuthService<'a> {
             social_links: None,
             image_uri: input.image_uri,
             birth_date: input.birth_day,
-            email_verified: None,
         };
 
         self.register(user, AuthType::PASSWORD(Some(input.password), None))
@@ -165,7 +164,6 @@ impl<'a> AuthService<'a> {
                         bio: None,
                         social_links: None,
                         image_uri: None,
-                        email_verified: None,
                     };
                     return self.register(new_user, auth).await;
                 }
@@ -211,7 +209,6 @@ impl<'a> AuthService<'a> {
                         bio: None,
                         social_links: None,
                         image_uri: None,
-                        email_verified: None,
                     };
                     return self.register(new_user, auth).await;
                 }
@@ -264,7 +261,6 @@ impl<'a> AuthService<'a> {
                         bio: None,
                         social_links: None,
                         image_uri: google_user.picture,
-                        email_verified: None,
                     };
                     return self.register(new_user, auth).await;
                 }

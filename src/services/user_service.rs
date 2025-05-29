@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    entities::user_auth::local_user_entity::{LocalUser, LocalUserDbService},
+    entities::user_auth::local_user_entity::LocalUserDbService,
     interfaces::send_email::SendEmailInterface,
     middleware::{
         error::AppError,
@@ -34,30 +34,35 @@ impl<'a> UserService<'a> {
 }
 
 impl<'a> UserService<'a> {
-    pub async fn email_verification(&self, user_id: &str) -> Result<(), AppError> {
-        let user = self.get_user(&user_id).await?;
+    pub async fn set_email(&self, user_id: &str, email: &str) -> Result<(), AppError> {
+        let user_id_thing = get_string_thing(user_id.to_string())?;
 
-        let verification_data = self
+        let user = self
             .user_repository
-            .get_email_verification(user.id.clone().unwrap())
+            .get(IdentIdName::Id(user_id_thing.clone()))
             .await?;
 
-        if let Some(verification) = verification_data {
-            let now = Utc::now();
+        let is_exists = self
+            .user_repository
+            .exists(IdentIdName::ColumnIdent {
+                column: "email".to_string(),
+                val: email.to_string(),
+                rec: false,
+            })
+            .await
+            .unwrap_or_default()
+            .is_some();
 
-            if now.signed_duration_since(verification.created_at) < self.email_code_ttl {
-                return Err(AppError::Generic {
-                    description:
-                        "Verification code already sent, please wait before requesting a new one"
-                            .to_string(),
-                });
-            }
-        }
+        if is_exists {
+            return Err(AppError::Generic {
+                description: "The email is already used".to_string(),
+            });
+        };
 
         let code = self.generate_verification_code();
 
         self.user_repository
-            .create_email_verification(user.id.clone().unwrap(), code.clone())
+            .create_email_verification(user.id.unwrap(), code.clone(), email.to_string())
             .await?;
 
         let html = EmailVerificationCode {
@@ -77,20 +82,31 @@ impl<'a> UserService<'a> {
         Ok(())
     }
 
-    pub async fn email_confirmation(&self, user_id: &str, code: &str) -> Result<(), AppError> {
-        let user = self.get_user(&user_id).await?;
+    pub async fn email_confirmation(
+        &self,
+        user_id: &str,
+        code: &str,
+        email: &str,
+    ) -> Result<(), AppError> {
+        let user_id_thing = get_string_thing(user_id.to_string())?;
+
+        let user = self
+            .user_repository
+            .get(IdentIdName::Id(user_id_thing.clone()))
+            .await?;
 
         let verification_data = self
             .user_repository
             .get_email_verification(user.id.clone().unwrap())
             .await?;
 
-        if let Some(verification) = verification_data {
+        if let Some(data) = verification_data {
             let is_expired =
-                Utc::now().signed_duration_since(verification.created_at) > self.email_code_ttl;
-            if verification.code == code && !is_expired {
+                Utc::now().signed_duration_since(data.created_at) > self.email_code_ttl;
+
+            if data.code == code && data.email == email && !is_expired {
                 self.user_repository
-                    .verify_email(user.id.clone().unwrap())
+                    .update_email(user.id.unwrap(), email.to_string())
                     .await?;
                 return Ok(());
             }
@@ -99,27 +115,6 @@ impl<'a> UserService<'a> {
         Err(AppError::Generic {
             description: "Invalid verification code".to_string(),
         })
-    }
-
-    async fn get_user(&self, user_id: &str) -> Result<LocalUser, AppError> {
-        let user_id_thing = get_string_thing(user_id.to_string())?;
-
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(user_id_thing.clone()))
-            .await?;
-
-        if user.email_verified.unwrap_or(false) {
-            return Err(AppError::Generic {
-                description: "Email already verified".to_string(),
-            });
-        }
-        if user.email.is_none() {
-            return Err(AppError::Generic {
-                description: "User email not found".to_string(),
-            });
-        }
-        Ok(user)
     }
 
     fn generate_verification_code(&self) -> String {

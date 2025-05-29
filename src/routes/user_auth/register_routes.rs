@@ -194,7 +194,6 @@ pub async fn register_user(
                     bio: payload.bio.clone(),
                     social_links: None,
                     image_uri: payload.image_uri.clone(),
-                    email_verified: None,
                 },
                 auth_type,
             )

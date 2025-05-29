@@ -23,6 +23,7 @@ use super::{access_right_entity, authentication_entity, authorization_entity};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmailVerification {
     pub code: String,
+    pub email: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -31,7 +32,6 @@ pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub username: String,
-    pub email_verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -60,7 +60,6 @@ impl LocalUser {
             bio: None,
             social_links: None,
             image_uri: None,
-            email_verified: None,
         }
     }
 }
@@ -92,12 +91,12 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+        // EMAIL is already verified  
     DEFINE FIELD IF NOT EXISTS email ON TABLE {TABLE_NAME} TYPE option<string>;// VALUE string::lowercase($value) ASSERT string::is::email($value);
     DEFINE FIELD IF NOT EXISTS username ON TABLE {TABLE_NAME} TYPE string VALUE string::lowercase($value);
     DEFINE FIELD IF NOT EXISTS full_name ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<datetime>;
     DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS email_verified ON TABLE {TABLE_NAME} TYPE option<bool>;
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
@@ -110,10 +109,10 @@ impl<'a> LocalUserDbService<'a> {
 
     DEFINE TABLE IF NOT EXISTS email_verification SCHEMAFULL;
     DEFINE FIELD IF NOT EXISTS user ON TABLE email_verification TYPE record<{TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS email ON TABLE email_verification TYPE string;
     DEFINE FIELD IF NOT EXISTS code ON TABLE email_verification TYPE string;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE email_verification TYPE datetime DEFAULT time::now();
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE email_verification COLUMNS user UNIQUE;
-
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -247,11 +246,16 @@ impl<'a> LocalUserDbService<'a> {
         Ok(data)
     }
 
-    pub async fn create_email_verification(&self, user_id: Thing, code: String) -> CtxResult<()> {
+    pub async fn create_email_verification(
+        &self,
+        user_id: Thing,
+        code: String,
+        email: String,
+    ) -> CtxResult<()> {
         let qry = "
             BEGIN TRANSACTION;
                 DELETE FROM email_verification WHERE user = $user_id;
-                CREATE email_verification SET user = $user_id, code = $code;
+                CREATE email_verification SET user = $user_id, code = $code, email = $email;
             COMMIT TRANSACTION;
         ";
         let res = self
@@ -259,19 +263,25 @@ impl<'a> LocalUserDbService<'a> {
             .query(qry)
             .bind(("user_id", user_id))
             .bind(("code", code))
+            .bind(("email", email))
             .await?;
         res.check()?;
         Ok(())
     }
 
-    pub async fn verify_email(&self, user_id: Thing) -> CtxResult<()> {
+    pub async fn update_email(&self, user_id: Thing, email: String) -> CtxResult<()> {
         let qry = "
             BEGIN TRANSACTION;
-                UPDATE $user_id SET email_verified = true;
                 DELETE FROM email_verification WHERE user = $user_id;
+                UPDATE $user_id SET email = $email;
             COMMIT TRANSACTION;
         ";
-        let res = self.db.query(qry).bind(("user_id", user_id)).await?;
+        let res = self
+            .db
+            .query(qry)
+            .bind(("user_id", user_id))
+            .bind(("email", email))
+            .await?;
 
         res.check()?;
 

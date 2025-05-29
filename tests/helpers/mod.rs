@@ -125,7 +125,6 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
         bio: input.bio,
         social_links: None,
         image_uri: input.image_uri,
-        email_verified: None,
     };
 
     (server, user)

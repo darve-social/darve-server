@@ -54,10 +54,7 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
-        .route(
-            "/api/users/current/email/verification",
-            post(email_verification),
-        )
+        .route("/api/users/current/set_email", post(set_email))
         .route(
             "/api/users/current/email/verification/confirm",
             post(email_confirmation),
@@ -605,7 +602,17 @@ async fn search_users(
         .collect();
     ctx.to_htmx_or_json(UserListView { items })
 }
-async fn email_verification(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<()> {
+
+#[derive(Debug, Deserialize, Validate, Serialize)]
+pub struct SetEmailInput {
+    #[validate(email)]
+    pub email: String,
+}
+async fn set_email(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<SetEmailInput>,
+) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
             db: &ctx_state._db,
@@ -618,7 +625,7 @@ async fn email_verification(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxR
     let current_user_id = ctx.user_id()?;
 
     user_service
-        .email_verification(&current_user_id)
+        .set_email(&current_user_id, &data.email)
         .await
         .map_err(|e| ctx.to_ctx_error(e))?;
 
@@ -628,6 +635,8 @@ async fn email_verification(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxR
 #[derive(Debug, Deserialize, Validate, Serialize)]
 
 pub struct EmailConfirmationInput {
+    #[validate(email)]
+    pub email: String,
     #[validate(length(equal = 6, message = "Code must be 6 characters long"))]
     pub code: String,
 }
@@ -649,7 +658,7 @@ async fn email_confirmation(
     let current_user_id = ctx.user_id()?;
 
     user_service
-        .email_confirmation(&current_user_id, &data.code)
+        .email_confirmation(&current_user_id, &data.code, &data.email)
         .await
         .map_err(|e| ctx.to_ctx_error(e))?;
 
