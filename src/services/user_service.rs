@@ -10,6 +10,7 @@ use crate::{
     models::EmailVerificationCode,
 };
 
+use askama::Template;
 use chrono::{Duration, Utc};
 
 pub struct UserService<'a> {
@@ -67,7 +68,7 @@ impl<'a> UserService<'a> {
         self.email_sender
             .send(
                 vec![user.email.unwrap()],
-                &html.to_string(),
+                &html.render().unwrap(),
                 "Verification Email",
             )
             .await
