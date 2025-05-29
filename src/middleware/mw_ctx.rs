@@ -54,6 +54,7 @@ pub struct CtxState {
     pub mobile_client_id: String,
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
+    pub email_code_ttl: Duration,
     pub jwt: Arc<JWT>,
     pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
 }
@@ -87,6 +88,7 @@ pub fn create_ctx_state(
     upload_max_size_mb: u64,
     mobile_client_id: String,
     google_client_id: String,
+    email_code_ttl: u8,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -113,6 +115,7 @@ pub fn create_ctx_state(
         google_client_id,
         event_sender,
         email_sender: Arc::new(EmailSender::from_env()),
+        email_code_ttl: Duration::minutes(email_code_ttl as i64),
     };
     ctx_state
 }

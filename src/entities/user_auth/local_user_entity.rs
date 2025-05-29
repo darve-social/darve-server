@@ -103,15 +103,16 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_idx ON TABLE {TABLE_NAME} COLUMNS email UNIQUE;
-
     
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
     DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
     DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
 
-    DEFINE TABLE IF NOT EXISTS email_verification TYPE RELATION IN local_user OUT local_user ENFORCED SCHEMAFULL PERMISSIONS NONE;
-    DEFINE FIELD code ON TABLE email_verification TYPE string;
-    DEFINE FIELD created_at ON TABLE email_verification TYPE datetime DEFAULT time::now();
+    DEFINE TABLE IF NOT EXISTS email_verification SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE email_verification TYPE record<{TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS code ON TABLE email_verification TYPE string;
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE email_verification TYPE datetime DEFAULT time::now();
+    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE email_verification COLUMNS user UNIQUE;
 
 ");
         let local_user_mutation = self.db.query(sql).await?;
@@ -240,23 +241,26 @@ impl<'a> LocalUserDbService<'a> {
         &self,
         user_id: Thing,
     ) -> CtxResult<Option<EmailVerification>> {
-        let qry = "SELECT * FROM email_verification WHERE in = $user_id AND out = $user_id";
+        let qry = "SELECT * FROM email_verification WHERE user = $user_id";
         let mut res = self.db.query(qry).bind(("user_id", user_id)).await?;
-
         let data: Option<EmailVerification> = res.take(0)?;
-
         Ok(data)
     }
 
     pub async fn create_email_verification(&self, user_id: Thing, code: String) -> CtxResult<()> {
+        let qry = "
+            BEGIN TRANSACTION;
+                DELETE FROM email_verification WHERE user = $user_id;
+                CREATE email_verification SET user = $user_id, code = $code;
+            COMMIT TRANSACTION;
+        ";
         let res = self
             .db
-            .query("RELATE $user_id->email_verification->$user_id SET code = $code")
+            .query(qry)
             .bind(("user_id", user_id))
             .bind(("code", code))
             .await?;
         res.check()?;
-
         Ok(())
     }
 
@@ -264,7 +268,7 @@ impl<'a> LocalUserDbService<'a> {
         let qry = "
             BEGIN TRANSACTION;
                 UPDATE $user_id SET email_verified = true;
-                DELETE FROM email_verification WHERE in_ = $user_id AND out = $user_id;
+                DELETE FROM email_verification WHERE user = $user_id;
             COMMIT TRANSACTION;
         ";
         let res = self.db.query(qry).bind(("user_id", user_id)).await?;

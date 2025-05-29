@@ -612,6 +612,7 @@ async fn email_verification(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxR
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
+        ctx_state.email_code_ttl,
     );
 
     let current_user_id = ctx.user_id()?;
@@ -642,6 +643,7 @@ async fn email_confirmation(
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
+        ctx_state.email_code_ttl,
     );
 
     let current_user_id = ctx.user_id()?;

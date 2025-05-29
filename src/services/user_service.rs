@@ -14,16 +14,19 @@ use chrono::{Duration, Utc};
 pub struct UserService<'a> {
     user_repository: LocalUserDbService<'a>,
     email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+    email_code_ttl: Duration,
 }
 
 impl<'a> UserService<'a> {
     pub fn new(
         user_repository: LocalUserDbService<'a>,
         email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+        email_code_ttl: Duration,
     ) -> Self {
         Self {
             user_repository,
             email_sender,
+            email_code_ttl,
         }
     }
 }
@@ -40,8 +43,7 @@ impl<'a> UserService<'a> {
         if let Some(verification) = verification_data {
             let now = Utc::now();
 
-            if now.signed_duration_since(verification.created_at) < Duration::minutes(10) {
-                //TODO!  Less than 10 minutes since last code, do not send a new one
+            if now.signed_duration_since(verification.created_at) < self.email_code_ttl {
                 return Err(AppError::Generic {
                     description:
                         "Verification code already sent, please wait before requesting a new one"
@@ -73,7 +75,9 @@ impl<'a> UserService<'a> {
             .await?;
 
         if let Some(verification) = verification_data {
-            if verification.code == code {
+            let is_expired =
+                Utc::now().signed_duration_since(verification.created_at) > self.email_code_ttl;
+            if verification.code == code && !is_expired {
                 self.user_repository
                     .verify_email(user.id.clone().unwrap())
                     .await?;
