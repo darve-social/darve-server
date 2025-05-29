@@ -13,6 +13,7 @@ pub mod entities;
 pub mod init;
 pub mod interfaces;
 pub mod middleware;
+pub mod models;
 pub mod routes;
 pub mod services;
 pub mod utils;

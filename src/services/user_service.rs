@@ -7,6 +7,7 @@ use crate::{
         error::AppError,
         utils::{db_utils::IdentIdName, string_utils::get_string_thing},
     },
+    models::EmailVerificationCode,
 };
 
 use chrono::{Duration, Utc};
@@ -58,8 +59,17 @@ impl<'a> UserService<'a> {
             .create_email_verification(user.id.clone().unwrap(), code.clone())
             .await?;
 
+        let html = EmailVerificationCode {
+            code: &code,
+            ttl: &self.email_code_ttl.num_minutes().to_string(),
+        };
+
         self.email_sender
-            .send(vec![user.email.unwrap()], &code, "Verification Email")
+            .send(
+                vec![user.email.unwrap()],
+                &html.to_string(),
+                "Verification Email",
+            )
             .await
             .map_err(|e| AppError::Generic { description: e })?;
 
