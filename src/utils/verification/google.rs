@@ -4,16 +4,17 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct GoogleUser {
     pub sub: String,
-    pub email: String,
-    pub aud: String,
+    pub email: Option<String>,
+    aud: String,
     pub name: Option<String>,
     pub picture: Option<String>,
+    email_verified: Option<String>,
 }
 
 pub async fn verify_token(token: &str, client_id: &str) -> Result<GoogleUser, String> {
     let url = format!("https://oauth2.googleapis.com/tokeninfo?id_token={}", token);
     let client = Client::new();
-    let response = client
+    let mut user = client
         .get(&url)
         .send()
         .await
@@ -22,9 +23,13 @@ pub async fn verify_token(token: &str, client_id: &str) -> Result<GoogleUser, St
         .await
         .map_err(|err| err.to_string())?;
 
-    if response.aud != client_id {
+    if user.aud != client_id {
         return Err("Invalid token for this client ID".to_string());
     }
 
-    Ok(response)
+    if user.email_verified != Some("true".to_string()) {
+        user.email = None
+    }
+
+    Ok(user)
 }

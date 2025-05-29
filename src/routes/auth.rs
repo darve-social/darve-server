@@ -15,7 +15,7 @@ use crate::{
         error::CtxResult,
         mw_ctx::{CtxState, JWT_KEY},
     },
-    services::auth_service::{AuthService, AuthLoginInput, AuthRegisterInput},
+    services::auth_service::{AuthLoginInput, AuthRegisterInput, AuthService},
 };
 
 pub fn routes(state: CtxState) -> Router {

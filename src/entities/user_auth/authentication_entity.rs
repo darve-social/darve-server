@@ -138,7 +138,7 @@ impl<'a> AuthenticationDbService<'a> {
     DEFINE FIELD IF NOT EXISTS local_user ON TABLE {TABLE_NAME} TYPE record<local_user>;
     DEFINE INDEX IF NOT EXISTS local_user_idx ON TABLE {TABLE_NAME} COLUMNS local_user;
     DEFINE FIELD IF NOT EXISTS auth_type ON TABLE {TABLE_NAME} TYPE string VALUE string::uppercase($value)
-        ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY', 'APPLE', 'FACEBOOK'];
+        ASSERT $value INSIDE ['PASSWORD','EMAIL','PUBLIC_KEY','PASSKEY', 'APPLE', 'FACEBOOK', 'GOOGLE'];
     DEFINE FIELD IF NOT EXISTS passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS updated ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
     "
