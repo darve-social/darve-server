@@ -14,7 +14,7 @@ use darve_server::{
 use discussion_routes::get_discussion_view;
 use helpers::{
     create_fake_login_test_user, create_login_test_user, create_test_server, post_helpers,
-    user_helpers,
+    user_helpers::{self, get_user, update_current_user},
 };
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
@@ -365,4 +365,25 @@ async fn email_verification_and_confirmation() {
 
     let res = user_db.get_email_verification(user_id).await;
     assert!(res.unwrap().is_none())
+}
+
+#[tokio::test]
+async fn update_user_avatar() {
+    let (server, _) = create_test_server().await;
+    let (_, local_user) = create_fake_login_test_user(&server).await;
+
+    let create_response = update_current_user(&server).await;
+    create_response.assert_status_success();
+
+    let get_response = get_user(&server, local_user.id.unwrap().to_raw().as_str()).await;
+    get_response.assert_status_success();
+
+    let user = get_response.json::<profile_routes::ProfilePage>();
+    assert!(user
+        .profile_view
+        .unwrap()
+        .image_uri
+        .as_ref()
+        .unwrap()
+        .contains("profile_image.jpg"));
 }

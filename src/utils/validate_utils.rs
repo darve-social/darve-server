@@ -1,4 +1,5 @@
 use regex::Regex;
+use serde::{Deserialize, Deserializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::ValidationError;
@@ -25,4 +26,12 @@ pub fn validate_username(u: &String) -> Result<(), ValidationError> {
             .with_message("Letters, numbers and '_'. Minimum 6 characters".into());
         Err(error)
     }
+}
+
+pub fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.filter(|s| !s.trim().is_empty()))
 }

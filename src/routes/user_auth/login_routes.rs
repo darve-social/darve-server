@@ -140,10 +140,7 @@ pub async fn login(
             ctx: &ctx,
             db: &_db,
         }
-        .authenticate(
-            &ctx,
-            AuthType::PASSWORD(Some(pass), user.id.clone()),
-        )
+        .authenticate(&ctx, AuthType::PASSWORD(Some(pass), user.id.clone()))
         .await?
     } else {
         return Err(CtxError {

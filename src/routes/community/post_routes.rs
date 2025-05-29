@@ -8,7 +8,6 @@ use axum::{Json, Router};
 use axum_htmx::HX_REDIRECT;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use serde::{Deserialize, Serialize};
-use std::path::Path as FPath;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
@@ -28,19 +27,20 @@ use post_entity::{Post, PostDbService};
 use post_stream_entity::PostStreamDbService;
 use reply_routes::PostReplyView;
 use tempfile::NamedTempFile;
-use utils::template_utils::ProfileFormPage;
 
 use crate::entities::community::{discussion_entity, post_entity, post_stream_entity};
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
+use crate::middleware;
+
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostService;
-use crate::{middleware, utils};
+use crate::utils::file::convert::convert_field_file_data;
+use crate::utils::template_utils::ProfileFormPage;
 
 use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
 use super::{discussion_routes, discussion_topic_routes, reply_routes};
 
-pub const UPLOADS_URL_BASE: &str = "/media";
 pub fn routes(state: CtxState) -> Router {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
     // .route("/discussion/:discussion_id/post/:title_uri", get(get_post));
@@ -55,7 +55,6 @@ pub fn routes(state: CtxState) -> Router {
             "/api/discussion/:discussion_id/post",
             post(create_post_entity_route),
         )
-        .nest_service(UPLOADS_URL_BASE, state.uploads_serve_dir.clone())
         .with_state(state)
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
@@ -305,22 +304,21 @@ pub async fn create_post_entity_route(
     let new_post_id = PostDbService::get_new_post_thing();
     let mut media_links = vec![];
     // try saving file first so post is not created in case it fails
-    if let Some(files) = input_value.file_1 {
-        let file_name = files.metadata.file_name.unwrap();
-        let ext = file_name.split(".").last().ok_or(AppError::Generic {
-            description: "File has no extension".to_string(),
-        })?;
+    if let Some(uploaded_file) = input_value.file_1 {
+        let file = convert_field_file_data(uploaded_file)?;
 
-        let file_name = format!("pid_{}-file_1.{ext}", new_post_id.to_raw());
-        let path = FPath::new(&ctx_state.uploads_dir).join(file_name.as_str());
-        let saved = files.contents.persist(path.clone());
-        if saved.is_ok() {
-            media_links.push(format!("{UPLOADS_URL_BASE}/{file_name}"));
-        } else {
-            return Err(ctx.to_ctx_error(AppError::Generic {
-                description: saved.err().expect("is error").to_string(),
-            }));
-        }
+        let result = ctx_state
+            .file_storage
+            .upload(
+                file.data,
+                Some(&new_post_id.clone().to_raw().replace(":", "_")),
+                &file.file_name,
+                file.content_type.as_deref(),
+            )
+            .await
+            .map_err(|e| ctx.to_ctx_error(AppError::Generic { description: e }))?;
+
+        media_links.push(result);
     };
 
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
