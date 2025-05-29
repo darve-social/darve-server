@@ -4,10 +4,7 @@ use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
 use crate::middleware;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
-use axum::body::Body;
-use axum::extract::{Path, Request, State};
-use axum::http::uri::PathAndQuery;
-use axum::http::{Response, Uri};
+use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -16,8 +13,7 @@ use chrono::{DateTime, Duration, Utc};
 use local_user_entity::LocalUserDbService;
 use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::ctx::Ctx;
-use middleware::error::AppError::AuthorizationFail;
-use middleware::error::{AppError, CtxError, CtxResult};
+use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{record_exists, IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::JsonOrFormValidated;
@@ -32,15 +28,11 @@ use task_request_entity::{
     TABLE_NAME,
 };
 use task_request_participation_entity::{TaskParticipationDbService, TaskRequestParticipantion};
-use tower::util::ServiceExt;
-use tower_http::services::fs::ServeFileSystemResponseBody;
 use user_notification_entity::{
     UserNotification, UserNotificationDbService, UserNotificationEvent,
 };
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
-
-pub const DELIVERIES_URL_BASE: &str = "/tasks/*file";
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -75,7 +67,6 @@ pub fn routes(state: CtxState) -> Router {
             "/api/task_offer/:task_offer_id/participate",
             post(participate_task_request_offer),
         )
-        .route(DELIVERIES_URL_BASE, get(serve_task_deliverable_file))
         // the file max limit is set on PostInput property
         // .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
         .with_state(state)
@@ -431,40 +422,6 @@ async fn create_entity(
         id: t_request.id.unwrap().to_raw(),
         uri: None,
         success: true,
-    })
-}
-
-async fn serve_task_deliverable_file(
-    State(CtxState {
-        _db,
-        uploads_serve_dir,
-        ..
-    }): State<CtxState>,
-    ctx: Ctx,
-    Path(path): Path<String>,
-) -> Result<Response<ServeFileSystemResponseBody>, CtxError> {
-    let user = get_string_thing(ctx.user_id()?)?;
-
-    let task_file = TaskDeliverableFileName::try_from(path.clone())?;
-    let task = TaskRequestDbService {
-        db: &_db,
-        ctx: &ctx,
-    }
-    .get(IdentIdName::Id(task_file.task_id))
-    .await?;
-    if task.from_user != user {
-        return Err(ctx.to_ctx_error(AuthorizationFail {
-            required: "Not authorised".to_string(),
-        }));
-    }
-
-    let uri = Uri::from(PathAndQuery::try_from(path).unwrap());
-    let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
-    let res = uploads_serve_dir.oneshot(req).await;
-    res.map_err(|_| {
-        ctx.to_ctx_error(AppError::Generic {
-            description: "Error getting file".to_string(),
-        })
     })
 }
 

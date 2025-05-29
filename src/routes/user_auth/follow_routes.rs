@@ -1,3 +1,11 @@
+use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::community::post_entity::PostDbService;
+use crate::entities::community::post_stream_entity::PostStreamDbService;
+use crate::entities::user_auth::{self};
+use crate::middleware;
+use crate::middleware::utils::db_utils::RecordWithId;
+use crate::middleware::utils::extractor_utils::DiscussionParams;
+use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -14,15 +22,6 @@ use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use user_auth::{follow_entity, local_user_entity};
-
-use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::post_entity::PostDbService;
-use crate::entities::community::post_stream_entity::PostStreamDbService;
-use crate::entities::user_auth::{self};
-use crate::middleware;
-use crate::middleware::utils::db_utils::RecordWithId;
-use crate::middleware::utils::extractor_utils::DiscussionParams;
-use crate::services::notification_service::NotificationService;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
