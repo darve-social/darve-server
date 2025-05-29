@@ -1149,9 +1149,8 @@ dependencies = [
 
 [[package]]
 name = "darve_server"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
- "anyhow",
  "askama",
  "askama_axum",
  "async-stripe",
@@ -1161,14 +1160,12 @@ dependencies = [
  "axum-test",
  "axum_typed_multipart",
  "base64 0.22.1",
- "blake2",
  "chrono",
  "dotenv",
  "fake",
  "futures",
  "google-cloud-storage",
  "jsonwebtoken",
- "log",
  "once_cell",
  "open",
  "rand 0.8.5",
@@ -1179,7 +1176,6 @@ dependencies = [
  "strum",
  "surrealdb",
  "tempfile",
- "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-util",
