@@ -4,10 +4,10 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use log::{error, info};
 use surrealdb::sql::Thing;
 use tower_cookies::Cookies;
 use tower_sessions::Session;
+use tracing::info;
 // 1. Import the prelude - this contains everything needed for the server to function.
 use webauthn_rs::prelude::*;
 
@@ -206,7 +206,7 @@ pub async fn finish_register(
             (register_user_ident, registration_uuid, reg_state)
         }
         None => {
-            error!("Failed to get session");
+            tracing::error!("Failed to get session");
             return Err(WebauthnError::CorruptSession);
         }
     };
