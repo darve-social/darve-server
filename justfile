@@ -37,3 +37,8 @@ infra_start:
 infra_stop:
     @echo '\n\n🔴 Stopping local infrastructure'
     docker compose --env-file .env down
+
+docker_build:
+    docker build -f Dockerfile.staging -t darve-server .
+docker_run:
+    docker run --rm -t --init --name darve-running --env-file .env -v ./secrets:/usr/local/bin/secrets -p 8080:8080 darve-server
