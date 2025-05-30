@@ -78,8 +78,6 @@ async fn main() -> AppResult<()> {
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
-    let _ = init::create_default_data_for_dev(&ctx_state).await;
-
     axum::serve(listener, routes_all.into_make_service())
         .await
         .unwrap();
