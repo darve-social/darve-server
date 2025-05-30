@@ -203,7 +203,7 @@ async fn save_access_gain_action(
         db: &ctx_state._db,
         ctx: &ctx,
     };
-    let mut user = local_user_db_service
+    let user = local_user_db_service
         .get(IdentIdName::Id(user_id.clone()))
         .await?;
     
