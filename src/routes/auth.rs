@@ -14,6 +14,7 @@ use crate::{
         ctx::Ctx,
         error::CtxResult,
         mw_ctx::{CtxState, JWT_KEY},
+        utils::extractor_utils::JsonOrFormValidated,
     },
     services::auth_service::{AuthLoginInput, AuthRegisterInput, AuthService},
 };
@@ -23,8 +24,8 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/auth/sign_with_facebook", post(sign_by_fb))
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
         .route("/api/auth/sign_with_google", post(sign_by_google))
-        .route("/api/auth/signin", post(signin))
-        .route("/api/auth/signup", post(signup))
+        .route("/api/login", post(signin))
+        .route("/api/register", post(signup))
         .with_state(state)
 }
 
@@ -104,7 +105,7 @@ async fn signin(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    Json(body): Json<AuthLoginInput>,
+    JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
@@ -125,7 +126,7 @@ async fn signup(
     State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
-    Json(body): Json<AuthRegisterInput>,
+    JsonOrFormValidated(body): JsonOrFormValidated<AuthRegisterInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
