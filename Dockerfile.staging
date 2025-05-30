@@ -25,6 +25,12 @@ COPY ./assets /usr/local/bin/assets
 #RUN mkdir -p "/usr/local/bin//src/assets/wasm"
 RUN mkdir -p "/usr/local/bin/uploads"
 
+COPY ./scripts/init_test_data.sh /usr/local/bin/init_test_data.sh
+RUN chmod +x /usr/local/bin/init_test_data.sh
+
+COPY ./scripts/staging_entrypoint.sh /usr/local/bin/staging_entrypoint.sh
+RUN chmod +x /usr/local/bin/staging_entrypoint.sh
+
 # Service must listen to $PORT environment variable.
 # This default value facilitates local development.
 ENV PORT=8080
@@ -36,4 +42,4 @@ ENV JWT_SECRET=jwtt
 ENV STRIPE_PLATFORM_ACCOUNT=jwtt
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/app"]
+ENTRYPOINT ["/usr/local/bin/staging_entrypoint.sh"]

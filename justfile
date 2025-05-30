@@ -14,7 +14,7 @@ test: infra_stop infra_start
 # Run Rust app in debug mode with backtrace enabled for better error reporting
 dev: infra_stop infra_start 
     @echo '\n\n🚀 Running backend'
-    just dev_env &
+    SCHEMA="http" HOST="localhost" PORT="8080" API_PATH="/api/register" ./scripts/init_test_data.sh &
     RUST_BACKTRACE=1 cargo run
 
 # Build the project in release mode and execute the binary
@@ -22,16 +22,6 @@ release:
     @echo '\n\n🚀 Building in release mode'
     cargo build --release
     ./target/release/members-registry-server
-
-
-dev_env:
-    @echo "⏳ Waiting for backend on port {{port}}..."
-    until nc -z localhost {{port}}; do \
-        sleep 0.5; \
-    done
-    @echo "✅ Backend is up — starting dev env"
-    ./scripts/dev_env.sh
-
 
 # Start local infrastructure using Docker Compose
 infra_start:
