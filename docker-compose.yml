@@ -14,7 +14,7 @@ services:
       - -data
       - /data
     volumes:
-      - ./fake-gcs-data:/data
+      - ~/darve/fake-gcs-data:/data
 
   surrealdb:
     image: surrealdb/surrealdb:latest
@@ -26,4 +26,12 @@ services:
       - SURREAL_USER=${DB_USERNAME}
       - SURREAL_PASS=${DB_PASSWORD}
     volumes:
-      - ./surrealdb_data:/data
+      - ~/darve/surrealdb_data:/data
+
+  sendgrid:
+    image: ghashange/sendgrid-mock:1.12.0
+    container_name: sendgrid
+    ports:
+      - "3000:3000"
+    environment:
+      - API_KEY=${SENDGRID_API_KEY}

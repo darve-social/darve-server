@@ -218,17 +218,7 @@ async fn display_access_rule_content() {
     };
     let new_user_id = user_service
         .create(
-            LocalUser {
-                id: None,
-                username: "visitor".to_string(),
-                full_name: None,
-                birth_date: None,
-                phone: None,
-                email: None,
-                bio: None,
-                social_links: None,
-                image_uri: None,
-            },
+            LocalUser::default("visitor".to_string()),
             AuthType::PASSWORD(Some("visitor".to_string()), None),
         )
         .await

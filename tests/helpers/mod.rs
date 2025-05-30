@@ -39,6 +39,7 @@ pub async fn create_test_server() -> (TestServer, CtxState) {
         15,
         "".to_string(),
         "".to_string(),
+        10,
     )
     .await;
 
@@ -96,6 +97,7 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
     (server, user)
 }
 
+#[allow(dead_code)]
 pub fn fake_username_min_len(min_len: usize) -> String {
     use fake::{faker::internet::en::Username, Fake};
     (0..)
