@@ -1,23 +1,20 @@
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct AppleIdTokenClaims {
     iss: String, // Issuer - should be "https://appleid.apple.com"
     sub: String, // Subject - user's unique ID from Apple
     aud: String, // Audience - your client_id/app_id
     exp: usize,  // Expiration time
-    iat: usize,  // Issued at time
     #[serde(skip_serializing_if = "Option::is_none")]
     email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     email_verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_private_email: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    real_user_status: Option<i32>,
 }
 
 // Apple's JWKS response structure
@@ -36,7 +33,7 @@ struct JwkKey {
 #[derive(Debug)]
 pub struct AppleUserInfo {
     pub id: String,
-    pub email: String,
+    pub email: Option<String>,
     pub name: Option<String>,
 }
 
@@ -97,13 +94,11 @@ pub async fn verify_token(token: &str, client_id: &str) -> Result<AppleUserInfo,
         return Err("Token has expired".into());
     }
 
-    if claims.email.is_none() || !claims.email_verified.unwrap_or_default() {
-        return Err("Email is not verified".into());
-    }
+    let is_verified = claims.is_private_email != Some(true) && claims.email_verified == Some(true);
 
     Ok(AppleUserInfo {
         id: claims.sub,
-        email: claims.email.unwrap(),
+        email: if is_verified { claims.email } else { None },
         name: None,
     })
 }

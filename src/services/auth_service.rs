@@ -112,7 +112,7 @@ impl<'a> AuthService<'a> {
             username: input.username,
             full_name: input.full_name,
             phone: None,
-            email_verified: input.email,
+            email_verified: None,
             bio: input.bio,
             social_links: None,
             image_uri: input.image_uri,
@@ -135,7 +135,7 @@ impl<'a> AuthService<'a> {
         let auth = AuthType::APPLE(apple_user.id);
 
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), Some(apple_user.email.clone()))
+            .get_user_id_by_social_auth(auth.clone(), apple_user.email.clone())
             .await;
 
         match res_user_id {
@@ -155,12 +155,12 @@ impl<'a> AuthService<'a> {
                     let new_user = LocalUser {
                         id: None,
                         username: self
-                            .build_username(Some(apple_user.email.clone()), apple_user.name.clone())
+                            .build_username(apple_user.email.clone(), apple_user.name.clone())
                             .await,
                         full_name: apple_user.name,
                         birth_date: None,
                         phone: None,
-                        email_verified: Some(apple_user.email),
+                        email_verified: apple_user.email,
                         bio: None,
                         social_links: None,
                         image_uri: None,
@@ -173,10 +173,9 @@ impl<'a> AuthService<'a> {
     }
 
     pub async fn sign_by_facebook(&self, token: &str) -> CtxResult<(String, LocalUser)> {
-        let fb_user = match facebook::verify_token(token).await {
-            Some(v) => v,
-            None => return Err(self.ctx.to_ctx_error(AppError::AuthenticationFail)),
-        };
+        let fb_user = facebook::verify_token(token)
+            .await
+            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
         let auth: AuthType = AuthType::FACEBOOK(fb_user.id.clone());
         let res_user_id = self
@@ -228,7 +227,7 @@ impl<'a> AuthService<'a> {
 
         let auth: AuthType = AuthType::GOOGLE(google_user.sub.clone());
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), Some(google_user.email.clone()))
+            .get_user_id_by_social_auth(auth.clone(), google_user.email.clone())
             .await;
 
         match res_user_id {
@@ -248,16 +247,13 @@ impl<'a> AuthService<'a> {
                     let new_user = LocalUser {
                         id: None,
                         username: self
-                            .build_username(
-                                Some(google_user.email.clone()),
-                                google_user.name.clone(),
-                            )
+                            .build_username(google_user.email.clone(), google_user.name.clone())
                             .await,
 
                         full_name: google_user.name,
                         birth_date: None,
                         phone: None,
-                        email_verified: Some(google_user.email),
+                        email_verified: google_user.email,
                         bio: None,
                         social_links: None,
                         image_uri: google_user.picture,
@@ -292,10 +288,11 @@ impl<'a> AuthService<'a> {
                         rec: false,
                     })
                     .await?;
-                // TODO -after verification- check if user.email_verified
                 Ok(user.id.unwrap().to_raw())
             }
-            None => Err(self.ctx.to_ctx_error(AppError::AuthenticationFail {})),
+            None => Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                ident: "".to_string(),
+            })),
         }
     }
 
