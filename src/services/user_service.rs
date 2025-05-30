@@ -34,7 +34,7 @@ impl<'a> UserService<'a> {
 }
 
 impl<'a> UserService<'a> {
-    pub async fn set_email(&self, user_id: &str, email: &str) -> Result<(), AppError> {
+    pub async fn start_email_verification(&self, user_id: &str, email: &str) -> Result<(), AppError> {
         let user_id_thing = get_string_thing(user_id.to_string())?;
 
         let user = self
@@ -45,7 +45,7 @@ impl<'a> UserService<'a> {
         let is_exists = self
             .user_repository
             .exists(IdentIdName::ColumnIdent {
-                column: "email".to_string(),
+                column: "email_verified".to_string(),
                 val: email.to_string(),
                 rec: false,
             })
@@ -72,7 +72,7 @@ impl<'a> UserService<'a> {
 
         self.email_sender
             .send(
-                vec![user.email.unwrap()],
+                vec![user.email_verified.unwrap()],
                 &html.render().unwrap(),
                 "Verification Email",
             )
@@ -101,19 +101,40 @@ impl<'a> UserService<'a> {
             .await?;
 
         if let Some(data) = verification_data {
+            
+            let is_too_many_attempts = data.failed_code_attempts>=3;
+            if is_too_many_attempts {
+                return Err(AppError::Generic {
+                    description: "Too many attempts. Wait and start new verification.".to_string(),
+                });
+            }
+            
             let is_expired =
-                Utc::now().signed_duration_since(data.created_at) > self.email_code_ttl;
-
-            if data.code == code && data.email == email && !is_expired {
+                Utc::now().signed_duration_since(data.r_created) > self.email_code_ttl;
+            if is_expired {
+                return Err(AppError::Generic {
+                    description: "Start new verification".to_string(),
+                });
+            }
+            
+            if data.code != code {
+               self.user_repository.set_failed_verification_attempt(data.id.expect("from db")).await?;
+                return Err(AppError::Generic {
+                    description: "Wrong code.".to_string(),
+                });
+            }
+            
+            // could remove email check since we have limited tries 
+            if data.email == email {
                 self.user_repository
-                    .update_email(user.id.unwrap(), email.to_string())
+                    .set_user_email(user.id.expect("from db"), email.to_string())
                     .await?;
                 return Ok(());
             }
         }
 
         Err(AppError::Generic {
-            description: "Invalid verification code".to_string(),
+            description: "Invalid verification".to_string(),
         })
     }
 

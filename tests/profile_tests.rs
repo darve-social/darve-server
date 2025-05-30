@@ -313,12 +313,12 @@ async fn email_verification_and_confirmation() {
 
     let (server, user) = create_fake_login_test_user(&server).await;
     let username = user.username;
-    let email = user.email.unwrap();
+    let email = user.email_verified.unwrap();
     let user_id = user.id.clone().unwrap();
     let new_email = "asdasdasd@asdasd.com";
 
     let response = server
-        .post("/api/users/current/set_email")
+        .post("/api/users/current/email/verification/start")
         .json(&json!({"email": email  }))
         .add_header("Accept", "application/json")
         .await;
@@ -326,7 +326,7 @@ async fn email_verification_and_confirmation() {
     response.assert_status_failure();
 
     let response = server
-        .post("/api/users/current/set_email")
+        .post("/api/users/current/email/verification/start")
         .json(&json!({ "email": "asasdasdas@asd.com"}))
         .add_header("Accept", "application/json")
         .await;
@@ -338,7 +338,7 @@ async fn email_verification_and_confirmation() {
     let user_db = LocalUserDbService { db, ctx: &ctx };
 
     let response = server
-        .post("/api/users/current/set_email")
+        .post("/api/users/current/email/verification/start")
         .json(&json!({ "email": new_email}))
         .add_header("Accept", "application/json")
         .await;
@@ -361,7 +361,7 @@ async fn email_verification_and_confirmation() {
     response.assert_status_success();
 
     let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
-    assert_eq!(user.email, Some(new_email.to_string()));
+    assert_eq!(user.email_verified, Some(new_email.to_string()));
 
     let res = user_db.get_email_verification(user_id).await;
     assert!(res.unwrap().is_none())

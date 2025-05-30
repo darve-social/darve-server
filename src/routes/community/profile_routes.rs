@@ -55,10 +55,10 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
-        .route("/api/users/current/set_email", post(set_email))
+        .route("/api/users/current/email/verification/start", post(email_verification_start))
         .route(
             "/api/users/current/email/verification/confirm",
-            post(email_confirmation),
+            post(email_verification_confirm),
         )
         .route(
             "/api/user_chat/with/:other_user_id",
@@ -203,7 +203,7 @@ async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<
         Box::new(ProfileSettingsForm {
             username: user.username,
             full_name: "".to_string(),
-            email: user.email.unwrap_or_default(),
+            email: user.email_verified.unwrap_or_default(),
             image_url: user.image_uri.unwrap_or_default(),
         }),
         None,
@@ -232,9 +232,11 @@ async fn profile_save(
     if let Some(username) = body_value.username {
         user.username = username.trim().to_string();
     }
-    if let Some(email) = body_value.email {
-        user.email = Some(email.to_string());
-    }
+
+    // email needs to be verified first
+    // if let Some(email) = body_value.email {
+    //     user.email_verified = Some(email.to_string());
+    // }
 
     if let Some(full_name) = body_value.full_name {
         user.full_name = Some(full_name.trim().to_string());
@@ -606,14 +608,14 @@ async fn search_users(
 }
 
 #[derive(Debug, Deserialize, Validate, Serialize)]
-pub struct SetEmailInput {
+pub struct EmailVerificationStartInput {
     #[validate(email)]
     pub email: String,
 }
-async fn set_email(
+async fn email_verification_start(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    JsonOrFormValidated(data): JsonOrFormValidated<SetEmailInput>,
+    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
@@ -627,7 +629,7 @@ async fn set_email(
     let current_user_id = ctx.user_id()?;
 
     user_service
-        .set_email(&current_user_id, &data.email)
+        .start_email_verification(&current_user_id, &data.email)
         .await
         .map_err(|e| ctx.to_ctx_error(e))?;
 
@@ -636,17 +638,17 @@ async fn set_email(
 
 #[derive(Debug, Deserialize, Validate, Serialize)]
 
-pub struct EmailConfirmationInput {
+pub struct EmailVerificationConfirmInput {
     #[validate(email)]
     pub email: String,
     #[validate(length(equal = 6, message = "Code must be 6 characters long"))]
     pub code: String,
 }
 
-async fn email_confirmation(
+async fn email_verification_confirm(
     State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    JsonOrFormValidated(data): JsonOrFormValidated<EmailConfirmationInput>,
+    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
