@@ -32,8 +32,8 @@ async fn main() -> AppResult<()> {
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =
         std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
-    let g_bucket =
-        std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET").expect("Missing GOOGLE_CLOUD_STORAGE_BUCKET in env");
+    let g_bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")
+        .expect("Missing GOOGLE_CLOUD_STORAGE_BUCKET in env");
     println!("BBBB={g_bucket}");
     let upload_file_size_max_mb: u64 = std::env::var("UPLOAD_MAX_SIZE_MB")
         .unwrap_or("15".to_string())
@@ -53,12 +53,9 @@ async fn main() -> AppResult<()> {
 
     let db = db::start(DBConfig::from_env()).await?;
 
-    init::run_migrations(db.clone()).await?;
-    init::create_default_profiles(db.clone(), init_server_password.as_str()).await;
-
     let ctx_state = mw_ctx::create_ctx_state(
         db::DB.clone(),
-        init_server_password,
+        init_server_password.clone(),
         is_dev,
         jwt_secret,
         jwt_duration,
@@ -70,6 +67,10 @@ async fn main() -> AppResult<()> {
         google_client_id,
     )
     .await;
+
+    init::run_migrations(db.clone()).await?;
+    init::create_default_profiles(&ctx_state, init_server_password.as_str()).await;
+
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;
 

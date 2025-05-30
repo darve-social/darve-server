@@ -11,7 +11,6 @@ use axum::response::IntoResponse;
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
 use axum_htmx::HxRequest;
 use chrono::Duration;
-use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -37,9 +36,6 @@ pub struct AppEvent {
 #[derive(Clone)]
 pub struct CtxState {
     pub _db: db::Db,
-    pub key_enc: EncodingKey,
-    pub key_dec: DecodingKey,
-    pub jwt_duration: Duration,
     pub start_password: String,
     pub is_development: bool,
     pub stripe_secret_key: String,
@@ -84,20 +80,14 @@ pub async fn create_ctx_state(
     mobile_client_id: String,
     google_client_id: String,
 ) -> CtxState {
-    let secret = jwt_secret.as_bytes();
-    let key_enc = EncodingKey::from_secret(secret);
-    let key_dec = DecodingKey::from_secret(secret);
     let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
         _db: db,
-        key_enc,
-        key_dec,
         start_password,
         is_development,
         stripe_secret_key,
         stripe_wh_secret,
         stripe_platform_account,
-        jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
         upload_max_size_mb,
@@ -119,7 +109,7 @@ pub struct Claims {
 }
 
 pub async fn mw_ctx_constructor(
-    State(CtxState { _db, key_dec, .. }): State<CtxState>,
+    State(state): State<CtxState>,
     cookies: Cookies,
     HxRequest(is_htmx): HxRequest,
     headers: HeaderMap,
@@ -140,7 +130,16 @@ pub async fn mw_ctx_constructor(
     };
 
     let uuid = Uuid::new_v4();
-    let jwt_user_id: AppResult<String> = get_jwt_user_id(key_dec, &cookies);
+    let jwt_user_id: AppResult<String> = match cookies.get(JWT_KEY) {
+        Some(cookie) => match state.jwt.decode(cookie.value()) {
+            Ok(claims) => Ok(claims.auth),
+            Err(_) => {
+                cookies.remove(Cookie::from(JWT_KEY));
+                Err(AppError::AuthFailNoJwtCookie)
+            }
+        },
+        None => Err(AppError::AuthFailNoJwtCookie),
+    };
 
     // Store Ctx in the request extension, for extracting in rest handlers
     let ctx = Ctx::new(jwt_user_id.clone(), uuid, is_htmx);
@@ -171,29 +170,6 @@ pub async fn mw_require_login(
         return (StatusCode::FORBIDDEN, "Login required").into_response();
     };
     next.run(req).await
-}
-
-pub fn get_jwt_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String> {
-    extract_token_user_id(key, cookies).map_err(|err| {
-        // Remove an invalid cookie
-        if let AppError::AuthFailJwtInvalid { .. } = err {
-            cookies.remove(Cookie::from(JWT_KEY))
-        }
-        return err;
-    })
-}
-
-fn verify_token(key: DecodingKey, token: &str) -> AppResult<String> {
-    Ok(decode::<Claims>(token, &key, &Validation::default())?
-        .claims
-        .auth)
-}
-
-fn extract_token_user_id(key: DecodingKey, cookies: &Cookies) -> AppResult<String> {
-    cookies
-        .get(JWT_KEY)
-        .ok_or(AppError::AuthFailNoJwtCookie)
-        .and_then(|cookie| verify_token(key, cookie.value()))
 }
 
 #[cfg(test)]
