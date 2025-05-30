@@ -10,6 +10,8 @@
         <form
           hx-ext="response-targets"
           hx-post="/api/login"
+          hx-target-error="#error"
+          hx-swap="innerHTML"
           hx-on::after-request="if (event.detail.xhr.status === 200) window.location.href = '/community'"
         >
           <input type="hidden" name="next" value="{{next|display_some}}" />
@@ -59,14 +61,7 @@
           </div>
           <div id="error"></div>
           <div class="form-control mt-6">
-            <button
-              type="submit"
-              hx-target="closest div"
-              hx-target-*="#error"
-              class="btn btn-primary"
-            >
-              Login
-            </button>
+            <button type="submit" class="btn btn-primary">Login</button>
           </div>
         </form>
         <div class="divider">OR</div>
