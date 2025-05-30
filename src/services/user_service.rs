@@ -34,7 +34,11 @@ impl<'a> UserService<'a> {
 }
 
 impl<'a> UserService<'a> {
-    pub async fn start_email_verification(&self, user_id: &str, email: &str) -> Result<(), AppError> {
+    pub async fn start_email_verification(
+        &self,
+        user_id: &str,
+        email: &str,
+    ) -> Result<(), AppError> {
         let user_id_thing = get_string_thing(user_id.to_string())?;
 
         let user = self
@@ -101,30 +105,30 @@ impl<'a> UserService<'a> {
             .await?;
 
         if let Some(data) = verification_data {
-            
-            let is_too_many_attempts = data.failed_code_attempts>=3;
+            let is_too_many_attempts = data.failed_code_attempts >= 3;
             if is_too_many_attempts {
                 return Err(AppError::Generic {
                     description: "Too many attempts. Wait and start new verification.".to_string(),
                 });
             }
-            
-            let is_expired =
-                Utc::now().signed_duration_since(data.r_created) > self.email_code_ttl;
+
+            let is_expired = Utc::now().signed_duration_since(data.r_created) > self.email_code_ttl;
             if is_expired {
                 return Err(AppError::Generic {
                     description: "Start new verification".to_string(),
                 });
             }
-            
+
             if data.code != code {
-               self.user_repository.set_failed_verification_attempt(data.id.expect("from db")).await?;
+                self.user_repository
+                    .set_failed_verification_attempt(data.id.expect("from db"))
+                    .await?;
                 return Err(AppError::Generic {
                     description: "Wrong code.".to_string(),
                 });
             }
-            
-            // could remove email check since we have limited tries 
+
+            // could remove email check since we have limited tries
             if data.email == email {
                 self.user_repository
                     .set_user_email(user.id.expect("from db"), email.to_string())
