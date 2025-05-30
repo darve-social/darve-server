@@ -161,19 +161,19 @@ async fn create_community() {
         .get_authorizations(&Thing::try_from(user_ident.clone()).unwrap())
         .await
         .unwrap();
-    let mut user_auth_iter = user_auth.clone().into_iter();
 
-    let user_auth0 = user_auth_iter.next().unwrap();
+    let user_auth1 = user_auth.get(1).unwrap();
+
     assert_eq!(
-        user_auth0.authorize_record_id.eq(&community1.id.unwrap()),
+        user_auth1.authorize_record_id.eq(&community1.id.unwrap()),
         true
     );
-    let user_auth1 = user_auth_iter.next().unwrap();
-    assert_eq!(user_auth1.authorize_record_id.eq(&comm2_id), true);
+    let user_auth2 = user_auth.get(2).unwrap();
+    assert_eq!(user_auth2.authorize_record_id.eq(&comm2_id), true);
 
     println!("uuu0= {:?} ", user_auth.clone());
 
-    assert_eq!(user_auth.clone().len(), 2);
+    assert_eq!(user_auth.clone().len(), 3);
 
     let smaller_auth = Authorization {
         authorize_record_id: community2.clone().id.unwrap(),

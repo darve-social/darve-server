@@ -92,6 +92,7 @@ async fn display_access_rule_content() {
     )
     .await
     .expect("community page");
+
     let posts = comm_view
         .community_view
         .unwrap()
@@ -158,12 +159,13 @@ async fn display_access_rule_content() {
         .profile_discussion_view
         .unwrap()
         .posts;
+
     assert_eq!(posts.len(), 1);
     let post0 = posts.get(0).unwrap();
     let post_access_rule = post0.access_rule.clone().unwrap();
     assert_eq!(post_access_rule.id.clone().unwrap(), ar_id);
-    assert_eq!(post0.viewer_access_rights.len() == 1, true);
-    let post_viewer_access_rights = post0.viewer_access_rights.get(0).unwrap();
+    assert!(post0.viewer_access_rights.len() == 2);
+    let post_viewer_access_rights = post0.viewer_access_rights.get(1).unwrap();
     assert_eq!(
         post_viewer_access_rights.authorize_activity,
         AUTH_ACTIVITY_OWNER.to_string()

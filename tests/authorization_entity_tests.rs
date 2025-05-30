@@ -344,7 +344,7 @@ async fn authorize_save() {
             &authorization2.clone().unwrap(),
         )
         .await;
-    assert_eq!(auth_iter.len(), 1);
+    assert_eq!(auth_iter.len(), 2);
     assert_eq!(is_authorized.is_ok(), true);
 
     /*let auth_1 = auth_iter.next().unwrap();
