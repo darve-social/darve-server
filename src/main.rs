@@ -42,7 +42,7 @@ async fn main() -> AppResult<()> {
         std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
 
     let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
-        .unwrap_or("10".to_string())
+        .unwrap_or("5".to_string())
         .parse::<u8>()
         .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
 
