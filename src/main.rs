@@ -13,6 +13,7 @@ pub mod entities;
 pub mod init;
 pub mod interfaces;
 pub mod middleware;
+pub mod models;
 pub mod routes;
 pub mod services;
 pub mod utils;
@@ -40,6 +41,11 @@ async fn main() -> AppResult<()> {
     let mobile_client_id =
         std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
 
+    let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
+        .unwrap_or("10".to_string())
+        .parse::<u8>()
+        .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
+
     let google_client_id =
         std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
 
@@ -65,6 +71,7 @@ async fn main() -> AppResult<()> {
         upload_file_size_max_mb,
         mobile_client_id,
         google_client_id,
+        email_code_ttl,
     )
     .await;
     let wa_config = webauthn_routes::create_webauth_config();

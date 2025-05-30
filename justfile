@@ -25,7 +25,7 @@ release:
 # Start local infrastructure using Docker Compose
 infra_start:
     @echo '\n\n🚀 Starting local infrastructure using a containerized environment'
-    docker compose --env-file .env up -d fake-gcs surrealdb 
+    docker compose --env-file .env up -d fake-gcs surrealdb sendgrid
     sleep 2
     @echo "🪣 Creating bucket \"${GOOGLE_CLOUD_STORAGE_BUCKET}\" in fake-gcs"
     curl -X POST "${GOOGLE_CLOUD_STORAGE_ENDPOINT}/storage/v1/b" \

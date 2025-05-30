@@ -1,7 +1,9 @@
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
 use crate::interfaces::file_storage::FileStorageInterface;
+use crate::interfaces::send_email::SendEmailInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::routes::community::community_routes::DiscussionNotificationEvent;
+use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
@@ -51,7 +53,9 @@ pub struct CtxState {
     pub mobile_client_id: String,
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
+    pub email_code_ttl: Duration,
     pub jwt: Arc<JWT>,
+    pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
     pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
 }
 
@@ -83,6 +87,7 @@ pub async fn create_ctx_state(
     upload_max_size_mb: u64,
     mobile_client_id: String,
     google_client_id: String,
+    email_code_ttl: u8,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -106,6 +111,8 @@ pub async fn create_ctx_state(
         google_client_id,
         file_storage: Arc::new(GoogleCloudFileStorage::from_env().await),
         event_sender,
+        email_sender: Arc::new(EmailSender::from_env()),
+        email_code_ttl: Duration::minutes(email_code_ttl as i64),
     };
     ctx_state
 }

@@ -125,7 +125,7 @@ async fn access_gain_action_page(
         Box::new(AccessGainActionForm {
             access_rule,
             next: qry.remove("next"),
-            email: user.email,
+            email: user.email_verified,
         }),
         None,
         None,
@@ -176,7 +176,7 @@ async fn access_gain_action_form(
     let response_str = AccessGainActionForm {
         access_rule,
         next: qry.remove("next"),
-        email: user.email,
+        email: user.email_verified,
     }
     .render()
     .map_err(|e| {
@@ -206,13 +206,14 @@ async fn save_access_gain_action(
     let mut user = local_user_db_service
         .get(IdentIdName::Id(user_id.clone()))
         .await?;
-    if user.email.is_none() {
-        user.email = Option::from(form_value.email.to_lowercase());
-        user = local_user_db_service.update(user).await?;
+    
+    if user.email_verified.is_none() {
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "Verify email first".to_string(),
+        })); 
     }
-    if user.email.is_none()
-        || user
-            .email
+    if user
+            .email_verified
             .unwrap()
             .to_lowercase()
             .ne(&form_value.email.to_lowercase())

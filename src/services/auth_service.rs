@@ -112,7 +112,7 @@ impl<'a> AuthService<'a> {
             username: input.username,
             full_name: input.full_name,
             phone: None,
-            email: input.email,
+            email_verified: input.email,
             bio: input.bio,
             social_links: None,
             image_uri: input.image_uri,
@@ -160,7 +160,7 @@ impl<'a> AuthService<'a> {
                         full_name: apple_user.name,
                         birth_date: None,
                         phone: None,
-                        email: Some(apple_user.email),
+                        email_verified: Some(apple_user.email),
                         bio: None,
                         social_links: None,
                         image_uri: None,
@@ -205,7 +205,7 @@ impl<'a> AuthService<'a> {
                         full_name: Some(fb_user.name.clone()),
                         birth_date: None,
                         phone: None,
-                        email: None,
+                        email_verified: None,
                         bio: None,
                         social_links: None,
                         image_uri: None,
@@ -257,7 +257,7 @@ impl<'a> AuthService<'a> {
                         full_name: google_user.name,
                         birth_date: None,
                         phone: None,
-                        email: Some(google_user.email),
+                        email_verified: Some(google_user.email),
                         bio: None,
                         social_links: None,
                         image_uri: google_user.picture,
@@ -287,7 +287,7 @@ impl<'a> AuthService<'a> {
                 let user = self
                     .user_repository
                     .get(IdentIdName::ColumnIdent {
-                        column: "email".to_string(),
+                        column: "email_verified".to_string(),
                         val,
                         rec: false,
                     })
@@ -313,7 +313,7 @@ impl<'a> AuthService<'a> {
         }
 
         let ident = IdentIdName::ColumnIdent {
-            column: "email".to_string(),
+            column: "email_verified".to_string(),
             val: email.clone().unwrap(),
             rec: false,
         };

@@ -190,7 +190,7 @@ pub async fn register_user(
                     full_name: payload.full_name.clone(),
                     birth_date: None,
                     phone: None,
-                    email: payload.email.clone(),
+                    email_verified: None,
                     bio: payload.bio.clone(),
                     social_links: None,
                     image_uri: payload.image_uri.clone(),
@@ -198,6 +198,7 @@ pub async fn register_user(
                 auth_type,
             )
             .await?;
+        
         return Ok(CreatedResponse {
             success: true,
             id: created_id,

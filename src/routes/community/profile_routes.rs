@@ -37,6 +37,7 @@ use super::{discussion_routes, post_routes};
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::user_auth::follow_routes;
+use crate::services::user_service::UserService;
 use crate::utils::file::convert::convert_field_file_data;
 use crate::{middleware, utils};
 
@@ -54,6 +55,11 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
+        .route("/api/users/current/email/verification/start", post(email_verification_start))
+        .route(
+            "/api/users/current/email/verification/confirm",
+            post(email_verification_confirm),
+        )
         .route(
             "/api/user_chat/with/:other_user_id",
             get(get_create_chat_discussion),
@@ -197,7 +203,7 @@ async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<
         Box::new(ProfileSettingsForm {
             username: user.username,
             full_name: "".to_string(),
-            email: user.email.unwrap_or_default(),
+            email: user.email_verified.unwrap_or_default(),
             image_url: user.image_uri.unwrap_or_default(),
         }),
         None,
@@ -226,9 +232,11 @@ async fn profile_save(
     if let Some(username) = body_value.username {
         user.username = username.trim().to_string();
     }
-    if let Some(email) = body_value.email {
-        user.email = Some(email.to_string());
-    }
+
+    // email needs to be verified first
+    // if let Some(email) = body_value.email {
+    //     user.email_verified = Some(email.to_string());
+    // }
 
     if let Some(full_name) = body_value.full_name {
         user.full_name = Some(full_name.trim().to_string());
@@ -597,4 +605,66 @@ async fn search_users(
         .map(|u| u.into())
         .collect();
     ctx.to_htmx_or_json(UserListView { items })
+}
+
+#[derive(Debug, Deserialize, Validate, Serialize)]
+pub struct EmailVerificationStartInput {
+    #[validate(email)]
+    pub email: String,
+}
+async fn email_verification_start(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
+) -> CtxResult<()> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+        ctx_state.email_sender.clone(),
+        ctx_state.email_code_ttl,
+    );
+
+    let current_user_id = ctx.user_id()?;
+
+    user_service
+        .start_email_verification(&current_user_id, &data.email)
+        .await
+        .map_err(|e| ctx.to_ctx_error(e))?;
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Validate, Serialize)]
+
+pub struct EmailVerificationConfirmInput {
+    #[validate(email)]
+    pub email: String,
+    #[validate(length(equal = 6, message = "Code must be 6 characters long"))]
+    pub code: String,
+}
+
+async fn email_verification_confirm(
+    State(ctx_state): State<CtxState>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
+) -> CtxResult<()> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+        ctx_state.email_sender.clone(),
+        ctx_state.email_code_ttl,
+    );
+
+    let current_user_id = ctx.user_id()?;
+
+    user_service
+        .email_confirmation(&current_user_id, &data.code, &data.email)
+        .await
+        .map_err(|e| ctx.to_ctx_error(e))?;
+
+    Ok(())
 }

@@ -41,6 +41,7 @@ pub async fn create_test_server() -> (TestServer, CtxState) {
         15,
         "".to_string(),
         "".to_string(),
+        10,
     )
     .await;
 
@@ -102,7 +103,7 @@ pub async fn create_login_test_user(
 pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
     let input = RegisterInput {
-        username: fake_username_min_len(6),
+        username: fake_username_min_len(7),
         password: pwd.clone(),
         email: Some(faker::internet::en::FreeEmail().fake::<String>()),
         next: None,
@@ -130,6 +131,7 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
     (server, user)
 }
 
+#[allow(dead_code)]
 pub fn fake_username_min_len(min_len: usize) -> String {
     use fake::{faker::internet::en::Username, Fake};
     (0..)

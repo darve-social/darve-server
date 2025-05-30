@@ -5,3 +5,4 @@
 /fake-gcs-data
 /surrealdb_data
 gcs-service-account.json
+/secrets/reef-chain-darve-staging-google-storage-key657920f9211f.json
