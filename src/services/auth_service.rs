@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    entities::user_auth::{
-        authentication_entity::{AuthType, AuthenticationDbService},
-        local_user_entity::{LocalUser, LocalUserDbService},
+    entities::{
+        community::community_entity::CommunityDbService,
+        user_auth::{
+            authentication_entity::{AuthType, AuthenticationDbService},
+            local_user_entity::{LocalUser, LocalUserDbService},
+        },
     },
     middleware::{
         ctx::Ctx,
@@ -31,9 +34,10 @@ pub struct AuthService<'a> {
     jwt: Arc<JWT>,
     user_repository: LocalUserDbService<'a>,
     auth_repository: AuthenticationDbService<'a>,
+    community_repository: CommunityDbService<'a>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {
     #[validate(custom(function = validate_username))]
     pub username: String,
@@ -49,7 +53,7 @@ pub struct AuthRegisterInput {
     pub image_uri: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthLoginInput {
     #[validate(custom(function = validate_username))]
     pub username: String,
@@ -64,6 +68,7 @@ impl<'a> AuthService<'a> {
             jwt,
             user_repository: LocalUserDbService { db: &db, ctx: &ctx },
             auth_repository: AuthenticationDbService { db: &db, ctx: &ctx },
+            community_repository: CommunityDbService { db: &db, ctx: &ctx },
         }
     }
 
@@ -360,6 +365,11 @@ impl<'a> AuthService<'a> {
         let user_id = self.user_repository.create(data.clone(), auth).await?;
         let token = self.build_jwt_token(&user_id).await?;
         data.id = Some(get_string_thing(user_id)?);
+
+        self.community_repository
+            .create_profile(data.id.as_ref().unwrap().clone())
+            .await?;
+
         Ok((token, data))
     }
 }

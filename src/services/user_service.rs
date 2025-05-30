@@ -72,7 +72,7 @@ impl<'a> UserService<'a> {
 
         self.email_sender
             .send(
-                vec![user.email_verified.unwrap()],
+                vec![email.to_string()],
                 &html.render().unwrap(),
                 "Verification Email",
             )

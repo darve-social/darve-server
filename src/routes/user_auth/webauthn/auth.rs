@@ -5,7 +5,7 @@ use axum::{
     response::IntoResponse,
 };
 use surrealdb::sql::Thing;
-use tower_cookies::Cookies;
+use tower_cookies::{Cookie, Cookies};
 use tower_sessions::Session;
 use tracing::info;
 // 1. Import the prelude - this contains everything needed for the server to function.
@@ -13,18 +13,16 @@ use webauthn_rs::prelude::*;
 
 use super::error::WebauthnError;
 use super::startup::AppState;
+use crate::entities::user_auth::{authentication_entity, local_user_entity};
+use crate::middleware;
+use crate::middleware::mw_ctx::JWT_KEY;
+use crate::utils::validate_utils::validate_username;
 use authentication_entity::{AuthType, AuthenticationDbService};
 use local_user_entity::{LocalUser, LocalUserDbService};
 use middleware::ctx::Ctx;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::cookie_utils;
 use middleware::utils::db_utils::{IdentIdName, UsernameIdent};
 use middleware::utils::string_utils::get_string_thing;
-use register_routes::validate_username;
-
-use crate::entities::user_auth::{authentication_entity, local_user_entity};
-use crate::middleware;
-use crate::routes::user_auth::register_routes;
 /*
  * Webauthn RS auth handlers.
  * These files use webauthn to process the data received from each route, and are closely tied to axum
@@ -430,12 +428,7 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(CtxState {
-        _db,
-        key_enc,
-        jwt_duration,
-        ..
-    }): State<CtxState>,
+    State(state): State<CtxState>,
     ctx: Ctx,
     cookies: Cookies,
     Extension(app_state): Extension<AppState>,
@@ -459,11 +452,11 @@ pub async fn finish_authentication(
             // TODO get credential by localUserId:{type:PASSKEY(auth_result.cred_id())}
 
             let user_db_service = &LocalUserDbService {
-                db: &_db,
+                db: &state._db,
                 ctx: &ctx,
             };
             let auth_db_service = &AuthenticationDbService {
-                db: &_db,
+                db: &state._db,
                 ctx: &ctx,
             };
 
@@ -484,7 +477,19 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserHasNoCredentials);
             }
 
-            cookie_utils::issue_login_jwt(&key_enc, cookies, exists_id, jwt_duration);
+            let token = state
+                .jwt
+                .encode(&user_id.unwrap())
+                .expect("JWT encode should work");
+
+            cookies.add(
+                Cookie::build((JWT_KEY, token))
+                    // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
+                    .path("/")
+                    .http_only(true)
+                    .into(), //.finish(),
+            );
+
             // let mut users_guard = app_state.users.lock().await;
             // Update the credential counter, if possible.
             /*users_guard

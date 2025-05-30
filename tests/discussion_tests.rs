@@ -270,7 +270,7 @@ async fn create_discussion() {
             found.push(v);
         }
     }
-    assert_eq!(found.len(), 1);
+    assert_eq!(found.len(), 2);
 
     let mut found: Vec<Authorization> = vec![];
     for v in user_auth.clone() {

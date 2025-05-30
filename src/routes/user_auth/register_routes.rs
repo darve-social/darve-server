@@ -1,92 +1,27 @@
 use std::collections::HashMap;
 
 use askama::Template;
-use axum::extract::{Query, State};
+use axum::extract::Query;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use axum::{routing::post, Router};
-use once_cell::sync::Lazy;
-use regex::Regex;
-use serde::{Deserialize, Serialize};
-use tower_cookies::Cookies;
-use validator::Validate;
+use axum::Router;
+use serde::Serialize;
 
-use authentication_entity::AuthType;
-use local_user_entity::{LocalUser, LocalUserDbService};
-use login_routes::{login, LoginInput};
-use middleware::db::Db;
-use middleware::error::{AppResult, CtxResult};
+use middleware::ctx::Ctx;
+use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::UsernameIdent;
-use middleware::utils::extractor_utils::JsonOrFormValidated;
 use middleware::utils::request_utils::CreatedResponse;
-use middleware::{ctx::Ctx, error::AppError, error::CtxError};
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
+use validator::Validate;
 
-use crate::entities::user_auth::{authentication_entity, local_user_entity};
+use crate::services::auth_service::{AuthRegisterInput, AuthService};
 use crate::{middleware, utils};
-
-use super::login_routes;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
         .route("/register", get(display_register_page))
-        .route("/api/register", post(api_register))
         .with_state(state)
-}
-
-static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap());
-pub fn validate_username(u: &String) -> AppResult<()> {
-    if USERNAME_REGEX.is_match(u) {
-        Ok(())
-    } else {
-        Err(AppError::Generic {
-            description: "Username not valid".to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Validate)]
-pub struct RegisterInput {
-    #[validate(regex(
-        path = * USERNAME_REGEX, message = "Letters, numbers and '_'. Minimum 6 characters."
-    ))]
-    pub username: String,
-    #[validate(length(min = 6, message = "Min 6 characters"))]
-    pub password: String,
-    #[validate(length(min = 6, message = "Min 6 characters"))]
-    pub password1: String,
-    // TODO validate password
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub(crate) auth_type: Option<AuthType>,
-    #[validate(email)]
-    pub email: Option<String>,
-    pub bio: Option<String>,
-    #[validate(length(min = 6, message = "Min 1 character"))]
-    pub full_name: Option<String>,
-    #[validate(length(min = 6, message = "Min 6 characters"))]
-    pub image_uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub next: Option<String>,
-}
-
-impl RegisterInput {
-    pub fn passwords_valid_auth_type(&self, ctx: &Ctx) -> CtxResult<AuthType> {
-        if self.password != self.password1 {
-            return Err(ctx.to_ctx_error(AppError::Generic {
-                description: "Passwords must match".to_string(),
-            }));
-        }
-
-        if self.password1.len() < 6 {
-            return Err(ctx.to_ctx_error(AppError::Generic {
-                description: "Password minimum 6 characters".to_string(),
-            }));
-        }
-
-        Ok(AuthType::PASSWORD(Some(self.password.clone()), None))
-    }
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -137,79 +72,18 @@ pub async fn display_register_form(
     .into_response())
 }
 
-async fn api_register(
-    State(ctx_state): State<CtxState>,
-    cookies: Cookies,
-    ctx: Ctx,
-    // HxRequest(is_hx): HxRequest,
-    JsonOrFormValidated(data): JsonOrFormValidated<RegisterInput>,
-) -> CtxResult<Response> {
-    // let JsonOrFormValidated(data)= payload;
-    let _reg = register_user(&ctx_state._db, &ctx, &data).await?; //.map(|r|ctx.to_htmx_or_json(r))?;//.into_response();
-                                                                  // let mut next = data.next.unwrap_or("".to_string());
-                                                                  /*if next.len()<1{
-                                                                      next = format!("/login?u={}", data.username);
-                                                                  }*/
-    // registered.headers_mut().insert(HX_REDIRECT, next.parse().unwrap());
-    // Ok(registered)
-    login(
-        State(ctx_state),
-        cookies,
-        ctx,
-        JsonOrFormValidated(LoginInput {
-            username: data.username,
-            password: data.password,
-            next: data.next,
-        }),
-    )
-    .await
-}
-
 pub async fn register_user(
-    _db: &Db,
+    state: &CtxState,
     ctx: &Ctx,
-    payload: &RegisterInput,
+    payload: AuthRegisterInput,
 ) -> CtxResult<CreatedResponse> {
-    let user_db_service = &LocalUserDbService {
-        db: &_db,
-        ctx: &ctx,
-    };
+    payload.validate()?;
 
-    let auth_type = payload.passwords_valid_auth_type(ctx)?;
-
-    let exists = user_db_service
-        .exists(UsernameIdent(payload.username.clone()).into())
-        .await?;
-    // dbg!(&exists);
-    if exists.is_none() {
-        let created_id = user_db_service
-            .create(
-                LocalUser {
-                    id: None,
-                    username: payload.username.clone(),
-                    full_name: payload.full_name.clone(),
-                    birth_date: None,
-                    phone: None,
-                    email_verified: None,
-                    bio: payload.bio.clone(),
-                    social_links: None,
-                    image_uri: payload.image_uri.clone(),
-                },
-                auth_type,
-            )
-            .await?;
-        
-        return Ok(CreatedResponse {
-            success: true,
-            id: created_id,
-            uri: None,
-        });
-    } else if let AuthType::PASSWORD(_pass, _u_id) = &auth_type {
-        // TODO get jwt user, check if jwt.username==username and if no password auth add new auth
-    }
-    Err(CtxError {
-        error: AppError::RegisterFail,
-        req_id: ctx.req_id(),
-        is_htmx: ctx.is_htmx,
+    let auth_service = AuthService::new(&state._db, ctx, state.jwt.clone());
+    let (_, user) = auth_service.register_password(payload).await?;
+    Ok(CreatedResponse {
+        success: true,
+        id: user.id.unwrap().to_raw(),
+        uri: None,
     })
 }

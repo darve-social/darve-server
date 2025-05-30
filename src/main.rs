@@ -42,7 +42,7 @@ async fn main() -> AppResult<()> {
         std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
 
     let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
-        .unwrap_or("10".to_string())
+        .unwrap_or("5".to_string())
         .parse::<u8>()
         .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
 
@@ -56,12 +56,9 @@ async fn main() -> AppResult<()> {
 
     let db = db::start(DBConfig::from_env()).await?;
 
-    init::run_migrations(db.clone()).await?;
-    init::create_default_profiles(db.clone(), init_server_password.as_str()).await;
-
     let ctx_state = mw_ctx::create_ctx_state(
         db::DB.clone(),
-        init_server_password,
+        init_server_password.clone(),
         is_dev,
         jwt_secret,
         jwt_duration,
@@ -74,6 +71,10 @@ async fn main() -> AppResult<()> {
         email_code_ttl,
     )
     .await;
+
+    init::run_migrations(db.clone()).await?;
+    init::create_default_profiles(&ctx_state, init_server_password.as_str()).await;
+
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;
 
@@ -81,8 +82,6 @@ async fn main() -> AppResult<()> {
     println!("->> LISTENING on {addr}\n");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-
-    let _ = init::create_default_data_for_dev(&ctx_state).await;
 
     axum::serve(listener, routes_all.into_make_service())
         .await

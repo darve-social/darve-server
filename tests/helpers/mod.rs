@@ -5,13 +5,11 @@ use axum_test::{TestServer, TestServerConfig};
 use chrono::Duration;
 use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::middleware;
-use darve_server::routes::user_auth::{register_routes, webauthn};
+use darve_server::routes::user_auth::webauthn;
 use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
-use register_routes::RegisterInput;
-use serde::Deserialize;
+use serde_json::json;
 use surrealdb::engine::any::{connect, Any};
-use surrealdb::sql::Thing;
 use surrealdb::Surreal;
 use webauthn::webauthn_routes::create_webauth_config;
 
@@ -64,11 +62,6 @@ pub async fn create_test_server() -> (TestServer, CtxState) {
     (server, ctx_state)
 }
 
-#[derive(Deserialize, Debug)]
-struct RegisterResponse {
-    pub id: String,
-}
-
 #[allow(dead_code)]
 pub async fn create_login_test_user(
     server: &TestServer,
@@ -76,57 +69,30 @@ pub async fn create_login_test_user(
 ) -> (&TestServer, String) {
     let create_user = &server
         .post("/api/register")
-        .json(&RegisterInput {
-            username: username.to_string(),
-            password: "some3242paSs#$".to_string(),
-            email: None,
-            next: None,
-            password1: "some3242paSs#$".to_string(),
-            bio: None,
-            full_name: None,
-            image_uri: None,
-        })
+        .json(&json!({ "username": username.to_string(), "password": "some3242paSs#$".to_string()}))
         .await;
 
-    println!("Creating user with username: {username}");
+    println!("Creating user with username: {username} {:?}", create_user);
     create_user.assert_status_success();
-    // dbg!(&create_user);
-    // let userId: String = create_user;
-    let registered = &create_user.json::<RegisterResponse>();
-    // let login_user = &server.post("/api/login").json(&LoginInput { username: username.to_string(), password: "some3242paSs#$".to_string(), next: None }).await;
-    // login_user.assert_status_success();
-
-    (server, registered.id.clone())
+    let registered = create_user.json::<LocalUser>();
+    (server, registered.id.unwrap().to_raw())
 }
 
 #[allow(dead_code)]
 pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
-    let input = RegisterInput {
-        username: fake_username_min_len(7),
-        password: pwd.clone(),
-        email: Some(faker::internet::en::FreeEmail().fake::<String>()),
-        next: None,
-        password1: pwd.clone(),
-        bio: None,
-        full_name: Some(faker::name::en::Name().fake::<String>()),
-        image_uri: None,
-    };
 
-    let create_user = &server.post("/api/register").json(&input).await;
+    let create_user = &server
+        .post("/api/register")
+        .json(&json!({
+            "username": fake_username_min_len(6),
+            "password": pwd.clone(),
+            "email": Some(faker::internet::en::FreeEmail().fake::<String>()),
+            "full_name": Some(faker::name::en::Name().fake::<String>()),
+        }))
+        .await;
     create_user.assert_status_success();
-    let registered = &create_user.json::<RegisterResponse>();
-    let user = LocalUser {
-        id: Some(Thing::try_from(registered.id.clone()).unwrap()),
-        username: input.username,
-        full_name: input.full_name,
-        birth_date: None,
-        phone: None,
-        email: input.email,
-        bio: input.bio,
-        social_links: None,
-        image_uri: input.image_uri,
-    };
+    let user = create_user.json::<LocalUser>();
 
     (server, user)
 }

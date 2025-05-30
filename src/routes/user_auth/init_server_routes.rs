@@ -14,6 +14,7 @@ use validator::Validate;
 
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::middleware;
+use crate::services::auth_service::AuthRegisterInput;
 use crate::utils::template_utils::ProfileFormPage;
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_OWNER};
@@ -24,7 +25,7 @@ use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use middleware::utils::string_utils::get_string_thing;
-use register_routes::{register_user, RegisterInput};
+use register_routes::register_user;
 
 use super::register_routes;
 
@@ -101,33 +102,32 @@ async fn backup(
     (StatusCode::OK, "created backup").into_response()
 }
 async fn post_init_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<CtxState>,
     ctx: Ctx,
     payload: JsonOrFormValidated<InitServerData>,
 ) -> CtxResult<Html<String>> {
-    if !can_init(&_db, &ctx).await {
+    if !can_init(&state._db, &ctx).await {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Already initialized".to_string(),
         }));
     }
 
-    let reg_input = RegisterInput {
+    let reg_input = AuthRegisterInput {
         username: payload.0.username,
         password: payload.0.password.clone(),
-        password1: payload.0.password.clone(),
         email: Some(payload.0.email),
         bio: None,
         full_name: None,
         image_uri: None,
-        next: None,
+        birth_day: None,
     };
 
-    let created_user = register_user(&_db, &ctx, &reg_input).await?;
+    let created_user = register_user(&state, &ctx, reg_input).await?;
     let auth_thing = Thing::from((get_root_auth_rec_name(), "0".to_string()));
     let authorization = Authorization::new(auth_thing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99)?;
 
     let aright_db_service = &AccessRightDbService {
-        db: &_db,
+        db: &state._db,
         ctx: &ctx,
     };
     let user_rec_id = get_string_thing(created_user.clone().id)?;
