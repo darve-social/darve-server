@@ -38,8 +38,8 @@ async fn main() -> AppResult<()> {
         .parse()
         .expect("to be number");
 
-    let mobile_client_id =
-        std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
+    let apple_mobile_client_id =
+        std::env::var("APPLE_MOBILE_CLIENT_ID").expect("Missing APPLE_MOBILE_CLIENT_ID in env");
 
     let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
         .unwrap_or("5".to_string())
@@ -66,7 +66,7 @@ async fn main() -> AppResult<()> {
         stripe_wh_secret,
         stripe_platform_account,
         upload_file_size_max_mb,
-        mobile_client_id,
+        apple_mobile_client_id,
         google_client_id,
         email_code_ttl,
     )

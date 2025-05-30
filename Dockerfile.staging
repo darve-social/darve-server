@@ -29,6 +29,7 @@ COPY ./scripts/init_test_data.sh /usr/local/bin/init_test_data.sh
 RUN chmod +x /usr/local/bin/init_test_data.sh
 
 COPY ./scripts/staging_entrypoint.sh /usr/local/bin/staging_entrypoint.sh
+RUN apt-get install -y netcat-traditional
 RUN chmod +x /usr/local/bin/staging_entrypoint.sh
 
 # Service must listen to $PORT environment variable.

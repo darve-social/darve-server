@@ -64,7 +64,7 @@ async fn sign_by_apple(
     let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
 
     let (token, user) = auth_service
-        .register_login_by_apple(&body.token, &state.mobile_client_id)
+        .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
         .await?;
 
     cookies.add(
