@@ -11,6 +11,8 @@
         <form
           hx-ext="response-targets"
           hx-post="/api/register"
+          hx-target-error="#error"
+          hx-swap="innerHTML"
           hx-on::before-request="return checkPasswords(event)"
           hx-on::after-request="if (event.detail.xhr.status === 200) window.location.href = '/community'"
         >
@@ -86,13 +88,7 @@
           </div>
           <div id="error"></div>
           <div class="form-control mt-6">
-            <button
-              hx-target="closest div"
-              hx-target-*="#error"
-              class="btn btn-primary"
-            >
-              Register
-            </button>
+            <button class="btn btn-primary">Register</button>
           </div>
         </form>
         <div class="divider">OR</div>

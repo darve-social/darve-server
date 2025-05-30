@@ -9,7 +9,7 @@ declare -a USERS=(
 )
 
 echo "⏳ Waiting for backend ..."
-MAX_ATTEMPTS=30
+MAX_ATTEMPTS=100
 ATTEMPT=1
 until nc -z $HOST $PORT; do 
     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
