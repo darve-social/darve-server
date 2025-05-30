@@ -1,6 +1,10 @@
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
+use crate::interfaces::file_storage::FileStorageInterface;
+use crate::interfaces::send_email::SendEmailInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::routes::community::community_routes::DiscussionNotificationEvent;
+use crate::utils::email_sender::EmailSender;
+use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
@@ -15,7 +19,6 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_cookies::{Cookie, Cookies};
-use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use super::db;
@@ -47,12 +50,13 @@ pub struct CtxState {
     pub min_platform_fee_abs_2dec: i64,
     pub platform_fee_rel: f64,
     pub upload_max_size_mb: u64,
-    pub uploads_dir: String,
-    pub uploads_serve_dir: ServeDir,
     pub mobile_client_id: String,
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
+    pub email_code_ttl: Duration,
     pub jwt: Arc<JWT>,
+    pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+    pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
 }
 
 impl Debug for CtxState {
@@ -71,7 +75,7 @@ impl StripeConfig for CtxState {
     }
 }
 
-pub fn create_ctx_state(
+pub async fn create_ctx_state(
     db: db::Db,
     start_password: String,
     is_development: bool,
@@ -80,10 +84,10 @@ pub fn create_ctx_state(
     stripe_secret_key: String,
     stripe_wh_secret: String,
     stripe_platform_account: String,
-    uploads_dir: String,
     upload_max_size_mb: u64,
     mobile_client_id: String,
     google_client_id: String,
+    email_code_ttl: u8,
 ) -> CtxState {
     let secret = jwt_secret.as_bytes();
     let key_enc = EncodingKey::from_secret(secret);
@@ -101,14 +105,14 @@ pub fn create_ctx_state(
         jwt_duration,
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
-        uploads_serve_dir: ServeDir::new(uploads_dir.clone())
-            .append_index_html_on_directories(false),
-        uploads_dir,
         upload_max_size_mb,
         jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
         mobile_client_id,
         google_client_id,
+        file_storage: Arc::new(GoogleCloudFileStorage::from_env().await),
         event_sender,
+        email_sender: Arc::new(EmailSender::from_env()),
+        email_code_ttl: Duration::minutes(email_code_ttl as i64),
     };
     ctx_state
 }

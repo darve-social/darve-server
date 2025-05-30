@@ -1,16 +1,20 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    middleware,
+    entities::user_auth::local_user_entity::LocalUserDbService,
+    middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
-        community::{discussion_routes, profile_routes},
+        community::{
+            discussion_routes,
+            profile_routes::{self},
+        },
         user_auth::login_routes,
     },
 };
 use discussion_routes::get_discussion_view;
 use helpers::{
     create_fake_login_test_user, create_login_test_user, create_test_server, post_helpers,
-    user_helpers,
+    user_helpers::{self, get_user, update_current_user},
 };
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
@@ -18,6 +22,7 @@ use middleware::error::AppError;
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
 use profile_routes::{ProfileChat, ProfileChatList, SearchInput};
+use serde_json::json;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -300,4 +305,85 @@ async fn get_user_chat_1() {
     assert_eq!(create_by.username, local_user_2.username);
     assert_eq!(create_by.full_name, local_user_2.full_name);
     assert_eq!(create_by.image_uri, local_user_2.image_uri)
+}
+
+#[tokio::test]
+async fn email_verification_and_confirmation() {
+    let (server, ctx_state) = create_test_server().await;
+
+    let (server, user) = create_fake_login_test_user(&server).await;
+    let username = user.username;
+    let email = user.email_verified.unwrap();
+    let user_id = user.id.clone().unwrap();
+    let new_email = "asdasdasd@asdasd.com";
+
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({"email": email  }))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_failure();
+
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": "asasdasdas@asd.com"}))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let db = &ctx_state._db;
+    let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+    let user_db = LocalUserDbService { db, ctx: &ctx };
+
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": new_email}))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let code = user_db
+        .get_email_verification(user_id.clone())
+        .await
+        .unwrap()
+        .expect("verification should exist")
+        .code;
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": code.clone(), "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
+    assert_eq!(user.email_verified, Some(new_email.to_string()));
+
+    let res = user_db.get_email_verification(user_id).await;
+    assert!(res.unwrap().is_none())
+}
+
+#[tokio::test]
+async fn update_user_avatar() {
+    let (server, _) = create_test_server().await;
+    let (_, local_user) = create_fake_login_test_user(&server).await;
+
+    let create_response = update_current_user(&server).await;
+    create_response.assert_status_success();
+
+    let get_response = get_user(&server, local_user.id.unwrap().to_raw().as_str()).await;
+    get_response.assert_status_success();
+
+    let user = get_response.json::<profile_routes::ProfilePage>();
+    assert!(user
+        .profile_view
+        .unwrap()
+        .image_uri
+        .as_ref()
+        .unwrap()
+        .contains("profile_image.jpg"));
 }

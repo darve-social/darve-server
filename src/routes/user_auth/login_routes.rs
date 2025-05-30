@@ -140,10 +140,7 @@ pub async fn login(
             ctx: &ctx,
             db: &_db,
         }
-        .authenticate(
-            &ctx,
-            AuthType::PASSWORD(Some(pass), user.id.clone()),
-        )
+        .authenticate(&ctx, AuthType::PASSWORD(Some(pass), user.id.clone()))
         .await?
     } else {
         return Err(CtxError {
@@ -164,7 +161,7 @@ pub async fn login(
         Json(LoginSuccess {
             id: user_id,
             username: payload.username.clone(),
-            email: user.email.clone(),
+            email: user.email_verified.clone(),
             full_name: user.full_name.clone(),
             bio: user.bio.clone(),
             image_uri: user.image_uri.clone(),

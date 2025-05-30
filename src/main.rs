@@ -11,7 +11,9 @@ use tokio;
 pub mod database;
 pub mod entities;
 pub mod init;
+pub mod interfaces;
 pub mod middleware;
+pub mod models;
 pub mod routes;
 pub mod services;
 pub mod utils;
@@ -31,8 +33,6 @@ async fn main() -> AppResult<()> {
         std::env::var("STRIPE_WEBHOOK_SECRET").expect("Missing STRIPE_WEBHOOK_SECRET in env");
     let stripe_platform_account =
         std::env::var("STRIPE_PLATFORM_ACCOUNT").expect("Missing STRIPE_PLATFORM_ACCOUNT in env");
-    let uploads_dir = std::env::var("UPLOADS_DIRECTORY").unwrap_or("uploads".to_string());
-    println!("uploads dir = {uploads_dir}");
     let upload_file_size_max_mb: u64 = std::env::var("UPLOAD_MAX_SIZE_MB")
         .unwrap_or("15".to_string())
         .parse()
@@ -41,6 +41,11 @@ async fn main() -> AppResult<()> {
     let mobile_client_id =
         std::env::var("MOBILE_CLIENT_ID").expect("Missing MOBILE_CLIENT_ID in env");
 
+    let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
+        .unwrap_or("10".to_string())
+        .parse::<u8>()
+        .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
+
     let google_client_id =
         std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
 
@@ -48,8 +53,6 @@ async fn main() -> AppResult<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("Missing JWT_SECRET in env");
 
     let jwt_duration = Duration::days(7);
-
-    let _ = utils::dir_utils::ensure_dir_exists(&uploads_dir);
 
     let db = db::start(DBConfig::from_env()).await?;
 
@@ -65,11 +68,12 @@ async fn main() -> AppResult<()> {
         stripe_secret_key,
         stripe_wh_secret,
         stripe_platform_account,
-        uploads_dir,
         upload_file_size_max_mb,
         mobile_client_id,
         google_client_id,
-    );
+        email_code_ttl,
+    )
+    .await;
     let wa_config = webauthn_routes::create_webauth_config();
     let routes_all = init::main_router(&ctx_state, wa_config).await;
 

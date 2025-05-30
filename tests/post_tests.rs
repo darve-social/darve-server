@@ -17,6 +17,7 @@ use darve_server::routes::community::post_routes::GetPostsQuery;
 use darve_server::routes::community::profile_routes::get_profile_community;
 use helpers::community_helpers;
 use helpers::community_helpers::create_fake_community;
+use helpers::community_helpers::get_profile_discussion_id;
 use helpers::post_helpers;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
@@ -96,9 +97,17 @@ async fn create_post_with_file_test() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-    let _ = create_fake_post_with_large_file(server, &ctx_state, &result.default_discussion).await;
-    let _ = create_fake_post_with_file(server, &ctx_state, &result.default_discussion).await;
+    let result = get_profile_discussion_id(server, user_ident.clone()).await;
+    let _ = create_fake_post_with_large_file(server, &ctx_state, &result).await;
+    let _ = create_fake_post_with_file(server, &ctx_state, &result).await;
+
+    let posts_res = get_posts(&server, None).await;
+    posts_res.assert_status_success();
+    let posts_value = posts_res.json::<Value>();
+    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let post = posts.last().unwrap();
+    assert_eq!(post.media_links.as_ref().unwrap().len(), 1);
+    assert!(post.media_links.as_ref().unwrap()[0].contains("test_image_2mb.jpg"));
 }
 
 #[tokio::test]

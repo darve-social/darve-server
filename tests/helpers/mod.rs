@@ -38,11 +38,12 @@ pub async fn create_test_server() -> (TestServer, CtxState) {
         "".to_string(),
         "".to_string(),
         "".to_string(),
-        "uploads".to_string(),
         15,
         "".to_string(),
         "".to_string(),
-    );
+        10,
+    )
+    .await;
 
     let wa_config = create_webauth_config();
     let routes_all = darve_server::init::main_router(&ctx_state.clone(), wa_config).await;
@@ -86,6 +87,8 @@ pub async fn create_login_test_user(
             image_uri: None,
         })
         .await;
+
+    println!("Creating user with username: {username}");
     create_user.assert_status_success();
     // dbg!(&create_user);
     // let userId: String = create_user;
@@ -99,9 +102,8 @@ pub async fn create_login_test_user(
 #[allow(dead_code)]
 pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
-
     let input = RegisterInput {
-        username: faker::internet::en::Username().fake::<String>(),
+        username: fake_username_min_len(7),
         password: pwd.clone(),
         email: Some(faker::internet::en::FreeEmail().fake::<String>()),
         next: None,
@@ -127,4 +129,13 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
     };
 
     (server, user)
+}
+
+#[allow(dead_code)]
+pub fn fake_username_min_len(min_len: usize) -> String {
+    use fake::{faker::internet::en::Username, Fake};
+    (0..)
+        .map(|_| Username().fake::<String>())
+        .find(|u| u.len() >= min_len)
+        .unwrap()
 }
