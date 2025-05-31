@@ -307,23 +307,14 @@ async fn get_user_chat_1() {
     assert_eq!(create_by.image_uri, local_user_2.image_uri)
 }
 
-// TODO -check test- #[tokio::test]
+#[tokio::test]
 async fn email_verification_and_confirmation() {
     let (server, ctx_state) = create_test_server().await;
 
     let (server, user) = create_fake_login_test_user(&server).await;
     let username = user.username;
-    let email = "test@email.com";
     let user_id = user.id.clone().unwrap();
     let new_email = "asdasdasd@asdasd.com";
-
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({"email": email  }))
-        .add_header("Accept", "application/json")
-        .await;
-
-    response.assert_status_failure();
 
     let response = server
         .post("/api/users/current/email/verification/start")
@@ -364,7 +355,56 @@ async fn email_verification_and_confirmation() {
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
     let res = user_db.get_email_verification(user_id).await;
-    assert!(res.unwrap().is_none())
+    assert!(res.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn email_confirmation_with_invalid_code() {
+    let (server, _) = create_test_server().await;
+
+    let (server, _) = create_fake_login_test_user(&server).await;
+    let new_email = "asdasdasd@asdasd.com";
+
+    server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": "123456", "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    response.text().contains("Start new verification");
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": "123456", "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    response.text().contains("Start new verification");
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": "123456", "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    response.text().contains("Start new verification");
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": "123456", "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    response
+        .text()
+        .contains("Too many attempts. Wait and start new verification");
 }
 
 #[tokio::test]
