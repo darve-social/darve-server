@@ -155,18 +155,4 @@ impl<'a> UserService<'a> {
             .collect::<String>()
     }
 
-    fn start_withdraw(&self,user_id: &str, amount: u64)-> Result<Thing, AppError>{
-        let user_id_thing = get_string_thing(user_id.to_string())?;
-        let user_wallet = WalletDbService::get_user_wallet_id(&user_id_thing);
-
-        let gwy_wallet = APP_GATEWAY_WALLET.clone();
-
-        let lock_db_service = LockTransactionDbService{
-            // TODO change
-            db: self.user_repository.db,
-            ctx: self.user_repository.ctx,
-        };        
-        lock_db_service.lock_user_asset_tx(user_id_thing, amount, CurrencySymbol::USD, vec![UnlockTrigger::Withdraw {id:}])
-        Ok(())
-    }
 }

@@ -7,14 +7,13 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
-use darve_server::entities::wallet::lock_transaction_entity;
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use crate::middleware;
 
-use super::{currency_transaction_entity, wallet_entity};
+use super::{currency_transaction_entity, lock_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FundingTransaction {
@@ -151,22 +150,58 @@ impl<'a> FundingTransactionDbService<'a> {
         &self,
         user: &Thing,
         amount: i64,
-    ) -> CtxResult<()> {
+        external_account_id: String,
+    ) -> CtxResult<Thing> {
 
-        let withdraw_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
-        
-        
+        let withdraw_fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
         
         let lock_db_service = LockTransactionDbService{
             db: self.db,
             ctx: self.ctx,
         };
 
-        let lock_id = lock_db_service.lock_user_asset_tx(user, amount, CurrencySymbol::USD, vec![UnlockTrigger::Withdraw {id:withdraw_tx_id}]).await?;
-        
+        let user_2_lock_qry_bindings = lock_db_service.lock_user_asset_qry(user, amount, CurrencySymbol::USD, vec![UnlockTrigger::Withdraw {id: withdraw_fund_tx_id.clone() }], true)?;
+        let user_2_lock_qry = user_2_lock_qry_bindings.get_query_string();
+        let qry = format!("\
+         BEGIN TRANSACTION;
 
+           {user_2_lock_qry}
 
+            LET $fund_tx = INSERT INTO {TABLE_NAME} {{
+                id: $fund_tx_id,
+                amount: $fund_amt,
+                user: $user,
+                withdraw_status: 'LOCKED',
+                withdraw_lock_tx: $lock_tx_id,
+                external_account_id:$ext_account_id,
+                currency: $currency,
+            }} RETURN id;
+
+            LET $fund_tx_id = $fund_tx[0].id;
+            $fund_tx_id;
+        COMMIT TRANSACTION;");
+
+        let qry = self
+            .db
+            .query(qry)
+            .bind(("fund_tx_id", withdraw_fund_tx_id))
+            .bind(("fund_amt", amount))
+            .bind(("user", user.clone()))
+            .bind(("ext_account_id", external_account_id))
+            .bind(("currency", CurrencySymbol::USD));
         
+        let qry = user_2_lock_qry_bindings
+            .get_bindings()
+            .iter()
+            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
+        
+        let mut fund_res = qry.await?;
+        fund_res = fund_res.check()?;
+        // TODO it's probably take(1) - check
+        let res: Option<Thing> = fund_res.take(0)?;
+        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+            description: "Error in withdraw tx".to_string(),
+        }))
 
     }
 

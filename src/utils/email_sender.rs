@@ -10,8 +10,8 @@ pub struct EmailSender {
 
 impl EmailSender {
     pub fn from_env() -> Self {
-        let api_key = std::env::var("SENDGRID_API_KEY").expect("SENDGRID_API_KEY must be set");
-        let no_replay = std::env::var("NO_REPLY_EMAIL").expect("NO_REPLY_EMAIL must be set");
+        let api_key = std::env::var("SENDGRID_API_KEY").unwrap_or_default();//.expect("SENDGRID_API_KEY must be set");
+        let no_replay = std::env::var("NO_REPLY_EMAIL").unwrap_or_default();//.expect("NO_REPLY_EMAIL must be set");
         let api_url = std::env::var("SENDGRID_API_URL")
             .unwrap_or("https://api.sendgrid.com/v3/mail/send".to_string());
         Self {

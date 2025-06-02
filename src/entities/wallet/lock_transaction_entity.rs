@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use currency_transaction_entity::CurrencyTransactionDbService;
 use middleware::db;
@@ -8,15 +7,14 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::engine::any::Any;
-use surrealdb::method::Query;
+use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
+use super::{currency_transaction_entity, wallet_entity};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryBindingsVal;
-use super::{currency_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LockTransaction {
@@ -57,7 +55,8 @@ impl<'a> LockTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS lock_tx_out ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS unlock_tx_in ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE FIELD IF NOT EXISTS unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"UserRequest\":{{ \"user_id\":record}} }}|{{\"Delivery\":{{ \"post_id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
+// TODO -check locked- use enum check for Withdraw and Timestamp
+    DEFINE FIELD IF NOT EXISTS unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"Withdraw\":{{ \"id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -76,23 +75,21 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-        
-        let (user_2_lock_tx, qry) = self.lock_user_asset_qry(user, amount, &currency_symbol, unlock_triggers, &user_wallet, lock_tx_id, &user_lock_wallet)?;
 
-        let qry = user_2_lock_tx
-            .get_bindings()
-            .iter()
-            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
+        let user_2_lock_qry_bindings = self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
 
-        let mut lock_res = qry.await?;
+        let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
+        // TODO -check locked- check what failed then remove dbg!
+        dbg!(&lock_res);
         lock_res = lock_res.check()?;
-        let res: Option<Thing> = lock_res.take(0)?;
+        let res: Option<Thing> = lock_res.take(19)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock tx".to_string(),
         }))
     }
 
-    fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: &CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>) -> Result<QryBindingsVal<Value>, AppError> {
+    pub(crate) fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>,
+                                      exclude_sql_transaction: bool,) -> Result<QryBindingsVal<Value>, AppError> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(user);
@@ -107,10 +104,15 @@ impl<'a> LockTransactionDbService<'a> {
             true,
         )?;
         let user_2_lock_qry = user_2_lock_tx.get_query_string();
-
+        
+        let (begin_tx, commit_tx) = if exclude_sql_transaction {
+            ("", "")
+        } else {
+            ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;")
+        };
         let fund_qry = format!(
             "
-        BEGIN TRANSACTION;
+        {begin_tx}
 
            {user_2_lock_qry}
 
@@ -121,23 +123,24 @@ impl<'a> LockTransactionDbService<'a> {
                 unlock_triggers: $un_triggers,
             }} RETURN id;
 
-            RETURN $lock_tx[0].id;
-        COMMIT TRANSACTION;
-
+            LET $lock_tx_id = $lock_tx[0].id;
+            // this will be accessible in take(0) but if using RETURN then only first RETURN in TRANSACTION is accessible with take()
+            $lock_tx_id;
+        {commit_tx}
         "
         );
 
         let mut bindings = HashMap::<String, Value>::with_capacity(6);
         bindings.insert("l_tx_id".to_string(), Value::from(lock_tx_id));
         bindings.insert("lock_amt".to_string(), Value::from(amount));
-        bindings.insert("user".to_string(), user.to_raw().into());
-        bindings.insert("un_triggers".to_string(), Value::Array(unlock_triggers.into()));
+        bindings.insert("user".to_string(), user.clone().into());
+        // TODO -check locked- serialize so db check is ok
+        let unlock_vals = unlock_triggers.iter().map(|ut| Value::from(serde_json::to_string(ut).unwrap())).collect();
+        bindings.insert("un_triggers".to_string(), Value::Array(unlock_vals));
         bindings.insert("currency".to_string(), Value::from(currency_symbol.to_string()));
 
-        user_2_lock_tx
-            .get_bindings()
-            .iter()
-            .fold(bindings, |binds, item| binds.insert(item.0.clone(), item.1.clone()));
+        bindings.extend(user_2_lock_tx
+            .get_bindings());
 
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
     }
