@@ -303,7 +303,7 @@ pub async fn create_post_entity_route(
     };
 
     let new_post_id = PostDbService::get_new_post_thing();
-    // try saving file first so post is not created in case it fails
+
     let media_links = if let Some(uploaded_file) = input_value.file_1 {
         let file = convert_field_file_data(uploaded_file)?;
 
