@@ -206,17 +206,17 @@ async fn save_access_gain_action(
     let user = local_user_db_service
         .get(IdentIdName::Id(user_id.clone()))
         .await?;
-    
+
     if user.email_verified.is_none() {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Verify email first".to_string(),
-        })); 
+        }));
     }
     if user
-            .email_verified
-            .unwrap()
-            .to_lowercase()
-            .ne(&form_value.email.to_lowercase())
+        .email_verified
+        .unwrap()
+        .to_lowercase()
+        .ne(&form_value.email.to_lowercase())
     {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Profile email different than provided".to_string(),

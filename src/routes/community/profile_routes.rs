@@ -55,7 +55,10 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/accounts/edit", post(profile_save))
         .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
-        .route("/api/users/current/email/verification/start", post(email_verification_start))
+        .route(
+            "/api/users/current/email/verification/start",
+            post(email_verification_start),
+        )
         .route(
             "/api/users/current/email/verification/confirm",
             post(email_verification_confirm),

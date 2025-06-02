@@ -28,7 +28,7 @@ async fn create_post_like() {
     response.assert_status_ok();
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 0);
-    
+
     // throw if like post that does not exist
     let response = post_helpers::create_post_like(&server, "post:that_does_not_exist").await;
     response.assert_status_failure();

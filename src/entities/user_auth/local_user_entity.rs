@@ -287,7 +287,7 @@ impl<'a> LocalUserDbService<'a> {
 
         Ok(())
     }
-    
+
     pub async fn set_user_email(&self, user_id: Thing, verified_email: String) -> CtxResult<()> {
         let qry = "
             BEGIN TRANSACTION;

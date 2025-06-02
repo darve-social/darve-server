@@ -136,9 +136,13 @@ impl<'a> FundingTransactionDbService<'a> {
         }))
     }
 
-    // not used anywhere- so commenting for now - @anukulpandey
-    // pub(crate) async fn user_withdrawal_tx(&self) -> CtxResult<()> {
-    //     todo!()
+    // pub(crate) async fn user_withdrawal_tx(
+    //     &self,
+    //     user: &Thing,
+    //     external_account: String,
+    //     amount: i64,
+    //     currency_symbol: CurrencySymbol,
+    // ) -> CtxResult<()> {
     // }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
