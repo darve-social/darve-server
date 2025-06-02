@@ -11,4 +11,5 @@ pub trait FileStorageInterface {
     ) -> Result<String, String>;
 
     async fn download(&self, path: Option<&str>, file_name: &str) -> Result<Vec<u8>, String>;
+    async fn delete(&self, path: Option<&str>, file_name: &str) -> Result<(), String>;
 }

@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{remove_file, File},
     io::{Read, Write},
     path::Path,
 };
@@ -66,5 +66,16 @@ impl FileStorageInterface for LocalFileStorage {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
         Ok(buffer)
+    }
+
+    async fn delete(&self, path: Option<&str>, file_name: &str) -> Result<(), String> {
+        let object_name = if path.is_none() || path.unwrap().is_empty() {
+            file_name.to_string()
+        } else {
+            format!("{}/{}", path.unwrap(), file_name)
+        };
+        let path = format!("{}/{}", self.uploads_dir, object_name);
+        remove_file(&path).map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
