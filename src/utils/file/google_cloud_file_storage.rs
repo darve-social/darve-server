@@ -1,5 +1,7 @@
 use crate::interfaces::file_storage::FileStorageInterface;
 use async_trait::async_trait;
+use google_cloud_storage::client::google_cloud_auth::credentials::CredentialsFile;
+use google_cloud_storage::http::objects::delete::DeleteObjectRequest;
 use google_cloud_storage::{
     client::{Client, ClientConfig},
     http::objects::{
@@ -8,11 +10,11 @@ use google_cloud_storage::{
         upload::{Media, UploadObjectRequest, UploadType},
     },
 };
-use google_cloud_storage::client::google_cloud_auth::credentials::CredentialsFile;
 
 pub struct GoogleCloudFileStorage {
     client: Client,
     bucket: String,
+    endpoint: String,
 }
 
 impl GoogleCloudFileStorage {
@@ -22,10 +24,11 @@ impl GoogleCloudFileStorage {
             println!("GOOGLE_CLOUD_STORAGE_CREDENTIALS filepath not set - going anonymous");
             ClientConfig::default().anonymous()
         } else {
-            
             ClientConfig::default()
                 .with_credentials(
-                    CredentialsFile::new_from_file(cred_filepath.expect("none check exists above")).await.expect("Credentials file not found")
+                    CredentialsFile::new_from_file(cred_filepath.expect("none check exists above"))
+                        .await
+                        .expect("Credentials file not found"),
                 )
                 .await
                 .expect("Failed to load Google Cloud Storage credentials")
@@ -34,13 +37,17 @@ impl GoogleCloudFileStorage {
         let bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")
             .expect("GOOGLE_CLOUD_STORAGE_BUCKET must be set");
 
-        if let Ok(storage_endpoint) = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT") {
-            config.storage_endpoint = storage_endpoint
-        }
+        let endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT")
+            .map(|storage_endpoint| {
+                config.storage_endpoint = storage_endpoint.clone();
+                format!("{}/download/storage/v1/b/{}/o", storage_endpoint, bucket)
+            })
+            .unwrap_or_else(|_| format!("{}/{}", config.storage_endpoint, bucket));
 
         GoogleCloudFileStorage {
             bucket,
             client: Client::new(config),
+            endpoint,
         }
     }
 }
@@ -74,13 +81,12 @@ impl FileStorageInterface for GoogleCloudFileStorage {
             content_length: Some(bytes.len() as u64),
         });
 
-        let obj = self
-            .client
+        self.client
             .upload_object(&req, bytes, &upload_type)
             .await
             .map_err(|e| e.to_string())?;
 
-        Ok(obj.media_link)
+        Ok(format!("{}/{}", self.endpoint, object_name))
     }
 
     async fn download(&self, path: Option<&str>, file_name: &str) -> Result<Vec<u8>, String> {
@@ -103,5 +109,25 @@ impl FileStorageInterface for GoogleCloudFileStorage {
             .map_err(|e| e.to_string())?;
 
         Ok(data)
+    }
+
+    async fn delete(&self, path: Option<&str>, file_name: &str) -> Result<(), String> {
+        let object_name = if path.is_none() || path.unwrap().is_empty() {
+            file_name.to_string()
+        } else {
+            format!("{}/{}", path.unwrap(), file_name)
+        };
+
+        let request_type = DeleteObjectRequest {
+            bucket: self.bucket.clone(),
+            object: object_name,
+            ..Default::default()
+        };
+
+        self.client
+            .delete_object(&request_type)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
