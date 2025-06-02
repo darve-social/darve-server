@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use currency_transaction_entity::CurrencyTransactionDbService;
 use middleware::db;
@@ -7,12 +8,14 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{Id, Thing};
+use surrealdb::engine::any::Any;
+use surrealdb::method::Query;
+use surrealdb::sql::{Id, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
-
+use crate::middleware::utils::db_utils::QryBindingsVal;
 use super::{currency_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -35,6 +38,7 @@ pub enum UnlockTrigger {
     // UserRequest{user_id: Thing},
     // Delivery{post_id: Thing},
     Timestamp { at: DateTime<Utc> },
+    Withdraw{id: Thing}
 }
 
 pub struct LockTransactionDbService<'a> {
@@ -72,11 +76,27 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
+        
+        let (user_2_lock_tx, qry) = self.lock_user_asset_qry(user, amount, &currency_symbol, unlock_triggers, &user_wallet, lock_tx_id, &user_lock_wallet)?;
+
+        let qry = user_2_lock_tx
+            .get_bindings()
+            .iter()
+            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
+
+        let mut lock_res = qry.await?;
+        lock_res = lock_res.check()?;
+        let res: Option<Thing> = lock_res.take(0)?;
+        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+            description: "Error in lock tx".to_string(),
+        }))
+    }
+
+    fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: &CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>) -> Result<QryBindingsVal<Value>, AppError> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
-
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
-
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(user);
+        
         let user_2_lock_tx = CurrencyTransactionDbService::get_transfer_qry(
             &user_wallet,
             &user_lock_wallet,
@@ -106,26 +126,20 @@ impl<'a> LockTransactionDbService<'a> {
 
         "
         );
-        let qry = self
-            .db
-            .query(fund_qry)
-            .bind(("l_tx_id", lock_tx_id))
-            .bind(("lock_amt", amount))
-            .bind(("user", user.clone()))
-            .bind(("un_triggers", unlock_triggers))
-            .bind(("currency", currency_symbol));
 
-        let qry = user_2_lock_tx
+        let mut bindings = HashMap::<String, Value>::with_capacity(6);
+        bindings.insert("l_tx_id".to_string(), Value::from(lock_tx_id));
+        bindings.insert("lock_amt".to_string(), Value::from(amount));
+        bindings.insert("user".to_string(), user.to_raw().into());
+        bindings.insert("un_triggers".to_string(), Value::Array(unlock_triggers.into()));
+        bindings.insert("currency".to_string(), Value::from(currency_symbol.to_string()));
+
+        user_2_lock_tx
             .get_bindings()
             .iter()
-            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
+            .fold(bindings, |binds, item| binds.insert(item.0.clone(), item.1.clone()));
 
-        let mut lock_res = qry.await?;
-        lock_res = lock_res.check()?;
-        let res: Option<Thing> = lock_res.take(0)?;
-        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-            description: "Error in lock tx".to_string(),
-        }))
+        Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
     }
 
     pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {

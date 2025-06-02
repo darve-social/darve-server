@@ -7,9 +7,11 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
+use darve_server::entities::wallet::lock_transaction_entity;
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use crate::middleware;
 
 use super::{currency_transaction_entity, wallet_entity};
@@ -30,6 +32,12 @@ pub struct FundingTransaction {
     pub r_updated: Option<String>,
 }
 
+enum WithdrawStatus {
+    Locked,
+    ExternalProcess,
+    Complete,
+}
+
 pub struct FundingTransactionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
@@ -38,6 +46,7 @@ pub struct FundingTransactionDbService<'a> {
 pub const TABLE_NAME: &str = "funding_transaction";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
+const LOCK_TRANSACTION_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 
 impl<'a> FundingTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -50,6 +59,8 @@ impl<'a> FundingTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS withdraw_lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS withdraw_status ON TABLE {TABLE_NAME} TYPE option<string> ASSERT $value INSIDE ['LOCKED','EXTERNAL_PROCESS','COMPLETE'] ;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
@@ -136,14 +147,28 @@ impl<'a> FundingTransactionDbService<'a> {
         }))
     }
 
-    // pub(crate) async fn user_withdrawal_tx(
-    //     &self,
-    //     user: &Thing,
-    //     external_account: String,
-    //     amount: i64,
-    //     currency_symbol: CurrencySymbol,
-    // ) -> CtxResult<()> {
-    // }
+    pub(crate) async fn user_withdrawal_tx_start(
+        &self,
+        user: &Thing,
+        amount: i64,
+    ) -> CtxResult<()> {
+
+        let withdraw_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
+        
+        
+        
+        let lock_db_service = LockTransactionDbService{
+            db: self.db,
+            ctx: self.ctx,
+        };
+
+        let lock_id = lock_db_service.lock_user_asset_tx(user, amount, CurrencySymbol::USD, vec![UnlockTrigger::Withdraw {id:withdraw_tx_id}]).await?;
+        
+
+
+        
+
+    }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
         let opt =
