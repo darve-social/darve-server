@@ -23,8 +23,10 @@ pub struct FundingTransaction {
     pub currency: CurrencySymbol,
     pub external_tx_id: String,
     pub external_account_id: Option<String>,
-    pub internal_tx: Thing,
+    pub internal_tx: Option<Thing>,
     pub user: Thing,
+    pub withdraw_lock_tx: Option<Thing>,
+    pub withdraw_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -205,6 +207,44 @@ impl<'a> FundingTransactionDbService<'a> {
 
     }
 
+    pub(crate) async fn user_withdrawal_tx_revert(
+        &self,
+        withdraw_tx_id: Thing,
+        external_tx_id: String,
+    ) -> CtxResult<()> {
+        
+        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
+
+        // TODO check if external tx matches, amount matches
+        let lock_db_service = LockTransactionDbService{
+            db: self.db,
+            ctx: self.ctx,
+        };
+
+        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or()?;
+        lock_db_service.unlock_user_asset_tx(&lock_tx_id).await?;
+        Ok(())
+    }
+    
+    pub(crate) async fn user_withdrawal_tx_complete(
+        &self,
+        withdraw_tx_id: Thing,
+        external_tx_id: String,
+    ) -> CtxResult<()> {
+        
+        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
+
+        // TODO check if external tx matches, amount matches
+        let lock_db_service = LockTransactionDbService{
+            db: self.db,
+            ctx: self.ctx,
+        };
+
+        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or()?;
+        lock_db_service.process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone()).await?;
+        Ok(())
+    }
+    
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
         let opt =
             get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
