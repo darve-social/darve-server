@@ -221,7 +221,7 @@ impl<'a> FundingTransactionDbService<'a> {
             ctx: self.ctx,
         };
 
-        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or()?;
+        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Lock tx not found".to_string()}))?;
         lock_db_service.unlock_user_asset_tx(&lock_tx_id).await?;
         Ok(())
     }
@@ -240,7 +240,7 @@ impl<'a> FundingTransactionDbService<'a> {
             ctx: self.ctx,
         };
 
-        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or()?;
+        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Lock tx not found".to_string()}))?;
         lock_db_service.process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone()).await?;
         Ok(())
     }
