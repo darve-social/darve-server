@@ -23,6 +23,10 @@ echo "✅ Backend is up — starting dev env"
 
 for user in "${USERS[@]}"; do
   echo "Registering user: $(echo $user | jq .username)"
-  curl -s -X POST -H "Content-Type: application/json" -d "$user" "$SCHEMA://$HOST:$PORT$API_PATH"
+  response=$(curl -s -X POST -H "Content-Type: application/json" -d "$user" "$SCHEMA://$HOST:$PORT$API_PATH")
+  userid=$(echo "$response" | jq -r '.id.tb + "%3A" + .id.id.String' 2>/dev/null)
+  if [ -n "$userid" ]; then
+    curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$userid/100"
+  fi
   echo -e 
 done
