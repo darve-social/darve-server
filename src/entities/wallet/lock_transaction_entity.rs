@@ -7,10 +7,12 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
+use surrealdb::err::Error;
 use surrealdb::sql::{Id, Thing};
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::currency_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::middleware;
 
 use super::{currency_transaction_entity, wallet_entity};
@@ -121,10 +123,24 @@ impl<'a> LockTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut lock_res = qry.await?;
-        lock_res = lock_res.check()?;
+        // take custom error or default db error
+        let query_err = lock_res.take_errors().values().fold(None, |ret, error|{
+            if let Some(AppError::BalanceTooLow) = ret {
+                return ret;
+            }
+            
+            match error {
+                surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW =>Some(AppError::BalanceTooLow),
+                _=> Some(AppError::SurrealDb { source: error.to_string() })
+            }
+        });
+        if let Some(err) = query_err {
+            return Err(self.ctx.to_ctx_error(err));
+        }
+       
         let res: Option<Thing> = lock_res.take(0)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-            description: "Error in lock tx".to_string(),
+            description: "Error in lock fn".to_string(),
         }))
     }
 
