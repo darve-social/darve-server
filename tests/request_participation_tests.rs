@@ -1,4 +1,6 @@
 mod helpers;
+
+use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::task::task_request_entity;
@@ -39,13 +41,14 @@ async fn create_task_request_participation() {
     let username1 = "usnnnn1".to_string();
     let username2 = "usnnnn2".to_string();
     let username3 = "usnnnn3".to_string();
+    let username4 = "usnnnn4".to_string();
     let (server, user_ident0) = create_login_test_user(&server, username0.clone()).await;
     let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
     let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
 
     let comm_name = "comm-naMMe1".to_lowercase();
 
-    ////////// user 1 creates post (user 2 creates task on this post for user 0 who delivers it)
+    ////////// user 1 creates post (user 2 creates task and user3 participates on this post for user 0 who delivers it, user4 tries to participates without enough funds)
 
     // create community
     let create_response = server
@@ -273,6 +276,25 @@ async fn create_task_request_participation() {
         .find(|p| p.user.clone().unwrap().username == username3)
         .unwrap();
     assert_eq!(participant.amount, user3_offer_amt);
+
+
+    // user4 tries to participate without funds
+    
+    let (server, user_ident4) = create_login_test_user(&server, username4.clone()).await;
+    let user4_thing = get_string_thing(user_ident4).unwrap();
+    let balance = wallet_service.get_user_balance(&user4_thing).await.unwrap();
+
+    assert_eq!(balance.balance_usd, 0);
+    let participate_response = server
+        .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
+        .json(&TaskRequestOfferInput {
+            amount: user3_offer_amt,
+            currency: Some(CurrencySymbol::USD),
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
     ////////// login user 0 and check tasks
 

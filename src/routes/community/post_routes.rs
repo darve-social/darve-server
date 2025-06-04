@@ -7,6 +7,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use axum_htmx::HX_REDIRECT;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
@@ -302,23 +303,29 @@ pub async fn create_post_entity_route(
     };
 
     let new_post_id = PostDbService::get_new_post_thing();
-    let mut media_links = vec![];
-    // try saving file first so post is not created in case it fails
-    if let Some(uploaded_file) = input_value.file_1 {
+
+    let media_links = if let Some(uploaded_file) = input_value.file_1 {
         let file = convert_field_file_data(uploaded_file)?;
 
+        let file_name = format!(
+            "{}_{}",
+            new_post_id.clone().to_raw().replace(":", "_"),
+            file.file_name
+        );
         let result = ctx_state
             .file_storage
             .upload(
                 file.data,
-                Some(&new_post_id.clone().to_raw().replace(":", "_")),
-                &file.file_name,
+                Some("posts"),
+                &file_name,
                 file.content_type.as_deref(),
             )
             .await
             .map_err(|e| ctx.to_ctx_error(AppError::Generic { description: e }))?;
 
-        media_links.push(result);
+        vec![result]
+    } else {
+        vec![]
     };
 
     let topic_val: Option<Thing> = if input_value.topic_id.trim().len() > 0 {
@@ -326,7 +333,8 @@ pub async fn create_post_entity_route(
     } else {
         None
     };
-    let post = post_db_service
+
+    let post_res = post_db_service
         .create_update(Post {
             id: Some(new_post_id),
             belongs_to: disc.id.clone().unwrap(),
@@ -337,7 +345,7 @@ pub async fn create_post_entity_route(
             media_links: if media_links.is_empty() {
                 None
             } else {
-                Some(media_links)
+                Some(media_links.clone())
             },
             metadata: None,
             r_created: None,
@@ -352,7 +360,24 @@ pub async fn create_post_entity_route(
                 Some(input_value.tags)
             },
         })
-        .await?;
+        .await;
+
+    let post = match post_res {
+        Ok(value) => value,
+        Err(err) => {
+            let futures = media_links.into_iter().map(|link| {
+                let file_storage = ctx_state.file_storage.clone();
+                async move {
+                    if let Some(filename) = link.split('/').last() {
+                        let _ = file_storage.delete(Some("posts"), filename).await;
+                    }
+                }
+            });
+
+            join_all(futures).await;
+            return Err(err);
+        }
+    };
 
     // set latest post
     disc_db

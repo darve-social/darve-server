@@ -54,6 +54,8 @@ const LOCK_TX_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = wallet_entity::TRANSACTION_HEAD_F;
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 
+pub const THROW_BALANCE_TOO_LOW:&str = "Not enough balance";
+
 impl<'a> CurrencyTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let gateway_wallet = APP_GATEWAY_WALLET.clone();
@@ -210,7 +212,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
 
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
-                THROW \"Not enough funds\";
+                THROW \"{THROW_BALANCE_TOO_LOW}\";
             }};
 
             LET $out_tx_id = rand::ulid();

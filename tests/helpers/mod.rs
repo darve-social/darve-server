@@ -6,6 +6,7 @@ use chrono::Duration;
 use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::middleware;
 use darve_server::routes::user_auth::webauthn;
+use dotenv::dotenv;
 use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
 use serde_json::json;
@@ -25,6 +26,8 @@ async fn init_test_db() -> Surreal<Any> {
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
 #[allow(dead_code)]
 pub async fn create_test_server() -> (TestServer, CtxState) {
+    dotenv().ok();
+
     let db = init_test_db().await;
 
     let ctx_state = create_ctx_state(

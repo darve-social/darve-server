@@ -30,6 +30,7 @@ pub enum AppError {
     SurrealDbNoResult { source: String, id: String },
     SurrealDbParse { source: String, id: String },
     ValidationErrors { value: Value },
+    BalanceTooLow,
 }
 
 /// ApiError has to have the req_id to report to the client and implements IntoResponse.
@@ -122,6 +123,7 @@ impl fmt::Display for AppError {
             AppError::AuthorizationFail { .. } => write!(f, "not authorized"),
             AppError::Stripe { .. } => write!(f, "Stripe error"),
             AppError::ValidationErrors { value } => write!(f, "{value}"),
+            AppError::BalanceTooLow => write!(f, "Balance too low"),
         }
     }
 }
@@ -169,6 +171,7 @@ impl IntoResponse for CtxError {
             | AppError::AuthFailCtxNotInRequestExt => StatusCode::FORBIDDEN,
             AppError::ValidationErrors { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::AuthFailNoJwtCookie => StatusCode::UNAUTHORIZED,
+            AppError::BalanceTooLow => StatusCode::PAYMENT_REQUIRED,
         };
         let err = self.error.clone();
         let body_str = get_error_body(&self, self.is_htmx);
