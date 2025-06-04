@@ -44,6 +44,9 @@ tracing-subscriber = { version = "0.3.19", features = ["json"] }
 tracing = "0.1.41"
 google-cloud-storage = "0.24.0"
 async-trait = "0.1.88"
+sha2 = "0.10.9"
+hmac = "0.12.1"
+hex = "0.4.3"
 
 [dev-dependencies]
 fake = "4.3.0"
