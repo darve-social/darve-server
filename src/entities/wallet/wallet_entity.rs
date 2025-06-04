@@ -104,7 +104,6 @@ pub struct WalletDbService<'a> {
 pub const TABLE_NAME: &str = "wallet";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
-// const ENDOWMENT_TABLE: &str = crate::entity::funding_transaction_entity::TABLE_NAME;
 
 pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
@@ -251,10 +250,6 @@ impl<'a> WalletDbService<'a> {
         ))
     }
 
-    // pub(crate) fn get_user_funding_wallet_id(ident: &Thing) -> Thing {
-    //     Thing::from((TABLE_NAME, format!("{}_f", ident.id).as_str()))
-    // }
-
     // not used anywhere - commenting for now @anukulpandey
     // pub(crate) fn get_user_id(wallet_id: &Thing) -> Thing {
     //     Thing::from((USER_TABLE, wallet_id.id.clone()))
@@ -274,7 +269,7 @@ impl<'a> WalletDbService<'a> {
     }
 }
 
-// TODO: Fix failing test
+// TODO: -wallet tests- move to /tests and fix
 
 // #[cfg(test)]
 // mod tests {
@@ -283,12 +278,12 @@ impl<'a> WalletDbService<'a> {
 //         CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET,
 //     };
 //     use crate::entities::wallet::{
-//         currency_transaction_entity, funding_transaction_entity, lock_transaction_entity,
+//         currency_transaction_entity, gateway_transaction_entity, lock_transaction_entity,
 //     };
 //     use crate::middleware;
 //     use chrono::{Duration, Utc};
 //     use currency_transaction_entity::{CurrencyTransaction, CurrencyTransactionDbService};
-//     use funding_transaction_entity::FundingTransactionDbService;
+//     use gateway_transaction_entity::GatewayTransactionDbService;
 //     use lock_transaction_entity::{LockTransaction, LockTransactionDbService, UnlockTrigger};
 //     use middleware::ctx::Ctx;
 //     use middleware::db;
@@ -328,7 +323,7 @@ impl<'a> WalletDbService<'a> {
 //             .await
 //             .expect("user id");
 
-//         let fund_service = FundingTransactionDbService { db: &db, ctx: &ctx };
+//         let fund_service = GatewayTransactionDbService { db: &db, ctx: &ctx };
 //         let lock_service = LockTransactionDbService { db: &db, ctx: &ctx };
 //         let wallet_service = WalletDbService { db: &db, ctx: &ctx };
 //         let tx_service = CurrencyTransactionDbService { db: &db, ctx: &ctx };
@@ -365,7 +360,7 @@ impl<'a> WalletDbService<'a> {
 //             .await
 //             .expect("user");
 
-//         assert_eq!(user_tx.funding_tx.expect("ident"), endow_tx_id);
+//         assert_eq!(user_tx.gateway_tx.expect("ident"), endow_tx_id);
 //         assert_eq!(user_tx.with_wallet, APP_GATEWAY_WALLET.clone());
 //         // dbg!(&user_tx);
 
@@ -564,7 +559,7 @@ impl<'a> WalletDbService<'a> {
 //         );
 //         assert_eq!(balance_view1.balance_usd, 0);
 
-//         let endowment_service = FundingTransactionDbService { db: &db, ctx: &ctx };
+//         let endowment_service = GatewayTransactionDbService { db: &db, ctx: &ctx };
 //         let _endow_usr1 = endowment_service
 //             .user_endowment_tx(
 //                 &get_string_thing(usr1.clone()).unwrap(),

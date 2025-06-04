@@ -16,7 +16,7 @@ use crate::middleware;
 use super::{currency_transaction_entity, lock_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FundingTransaction {
+pub struct GatewayTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub amount: i64,
@@ -39,17 +39,17 @@ enum WithdrawStatus {
     Complete,
 }
 
-pub struct FundingTransactionDbService<'a> {
+pub struct GatewayTransactionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
 
-pub const TABLE_NAME: &str = "funding_transaction";
+pub const TABLE_NAME: &str = "gateway_transaction";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
 const LOCK_TRANSACTION_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 
-impl<'a> FundingTransactionDbService<'a> {
+impl<'a> GatewayTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let curr_usd = CurrencySymbol::USD;
         let curr_reef = CurrencySymbol::REEF;
@@ -73,13 +73,13 @@ impl<'a> FundingTransactionDbService<'a> {
     ");
         let mutation = self.db.query(sql).await?;
 
-        mutation.check().expect("should mutate fundingTransaction");
+        mutation.check().expect("should mutate gatewayTransaction");
 
         Ok(())
     }
 
-    // creates fundingTransaction
-    pub(crate) async fn user_endowment_tx(
+    // creates gatewayTransaction
+    pub(crate) async fn user_deposit_tx(
         &self,
         user: &Thing,
         external_account: String,
@@ -92,7 +92,7 @@ impl<'a> FundingTransactionDbService<'a> {
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
-        let funding_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(
+        let gateway_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(
             &gwy_wallet,
             &user_wallet,
             amount,
@@ -101,7 +101,7 @@ impl<'a> FundingTransactionDbService<'a> {
             None,
             true,
         )?;
-        let funding_2_user_qry = funding_2_user_tx.get_query_string();
+        let gateway_2_user_qry = gateway_2_user_tx.get_query_string();
 
         let fund_qry = format!(
             "
@@ -118,7 +118,7 @@ impl<'a> FundingTransactionDbService<'a> {
 
             //LET $fund_id = $fund_tx[0].id;
 
-           {funding_2_user_qry}
+           {gateway_2_user_qry}
 
             RETURN $fund_tx[0].id;
         COMMIT TRANSACTION;
@@ -135,7 +135,7 @@ impl<'a> FundingTransactionDbService<'a> {
             .bind(("ext_account_id", external_account))
             .bind(("currency", currency_symbol));
 
-        let qry = funding_2_user_tx
+        let qry = gateway_2_user_tx
             .get_bindings()
             .iter()
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
@@ -148,7 +148,7 @@ impl<'a> FundingTransactionDbService<'a> {
         }))
     }
 
-    pub(crate) async fn user_withdrawal_tx_start(
+    pub(crate) async fn user_withdraw_tx_start(
         &self,
         user: &Thing,
         amount: i64,
@@ -207,7 +207,7 @@ impl<'a> FundingTransactionDbService<'a> {
 
     }
 
-    pub(crate) async fn user_withdrawal_tx_revert(
+    pub(crate) async fn user_withdraw_tx_revert(
         &self,
         withdraw_tx_id: Thing,
         external_tx_id: String,
@@ -226,7 +226,7 @@ impl<'a> FundingTransactionDbService<'a> {
         Ok(())
     }
     
-    pub(crate) async fn user_withdrawal_tx_complete(
+    pub(crate) async fn user_withdraw_tx_complete(
         &self,
         withdraw_tx_id: Thing,
         external_tx_id: String,
@@ -245,9 +245,9 @@ impl<'a> FundingTransactionDbService<'a> {
         Ok(())
     }
     
-    pub async fn get(&self, ident: IdentIdName) -> CtxResult<FundingTransaction> {
+    pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =
-            get_entity::<FundingTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+            get_entity::<GatewayTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 

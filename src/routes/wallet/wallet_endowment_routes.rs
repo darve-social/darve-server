@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
-use funding_transaction_entity::FundingTransactionDbService;
+use gateway_transaction_entity::GatewayTransactionDbService;
 use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event};
 use surrealdb::sql::Thing;
 use wallet_entity::{CurrencySymbol, WalletDbService};
@@ -22,7 +22,7 @@ use user_auth::user_notification_entity::{
 };
 
 use crate::entities::user_auth;
-use crate::entities::wallet::{funding_transaction_entity, wallet_entity};
+use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
 use crate::middleware;
 
 const PRODUCT_ID_KEY: &str = "product_id";
@@ -109,7 +109,7 @@ async fn test_endowment_transaction(
 
     let another_user_thing = get_string_thing(endow_user_id)?;
 
-    let fund_service = FundingTransactionDbService {
+    let fund_service = GatewayTransactionDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     };
@@ -119,7 +119,7 @@ async fn test_endowment_transaction(
     };
 
     fund_service
-        .user_endowment_tx(
+        .user_deposit_tx(
             &another_user_thing,
             "ext_acc123".to_string(),
             "ext_tx_id_123".to_string(),
@@ -261,7 +261,7 @@ async fn handle_webhook(
     ctx: Ctx,
     StripeEvent(event): StripeEvent,
 ) -> CtxResult<Response> {
-    let fund_service = FundingTransactionDbService {
+    let fund_service = GatewayTransactionDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     };
@@ -313,7 +313,7 @@ async fn handle_webhook(
             let external_tx_id = payment_intent.id;
 
             let endowment_saved = fund_service
-                .user_endowment_tx(
+                .user_deposit_tx(
                     &user_id,
                     external_account,
                     external_tx_id.to_string(),
