@@ -245,6 +245,15 @@ impl<'a> GatewayTransactionDbService<'a> {
         lock_db_service.process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone()).await?;
         Ok(())
     }
+
+    pub(crate) async fn user_withdraw_tx_status_update(
+        &self,
+        withdraw_tx_id: Thing,
+        external_tx_id: String,
+        new_status: String
+    ) -> CtxResult<()> {
+        todo!()
+    }
     
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =
