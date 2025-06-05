@@ -625,19 +625,18 @@ async fn participate_task_request_offer(
     }
     .get_ctx_user_thing()
     .await?;
-    let task_request_offer_db_service = TaskRequestDbService {
+    let task_request_db_service = TaskRequestDbService {
         db: &_db,
         ctx: &ctx,
     };
 
-    let task_offer = task_request_offer_db_service
+    let task_offer = task_request_db_service
         .add_participation(
             get_string_thing(task_offer_id)?,
             from_user.clone(),
             t_request_offer_input.amount,
         )
         .await?;
-    // dbg!(&task_offer);
 
     let _notif_res = UserNotificationDbService {
         db: &_db,

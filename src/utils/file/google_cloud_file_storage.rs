@@ -35,7 +35,7 @@ impl GoogleCloudFileStorage {
         };
 
         let bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")
-            .expect("GOOGLE_CLOUD_STORAGE_BUCKET must be set");
+            .unwrap_or("darve_storage".to_string());
 
         let endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT")
             .map(|storage_endpoint| {

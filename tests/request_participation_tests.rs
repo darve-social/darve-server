@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::helpers::{create_login_test_user, create_test_server};
 use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
+use darve_server::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::NO_SUCH_THING;
@@ -127,7 +128,7 @@ async fn create_task_request_participation() {
         })
         .add_header("Accept", "application/json")
         .await;
-
+    dbg!(&task_request);
     task_request.assert_status_success();
     let created_task = task_request.json::<CreatedResponse>();
 
@@ -278,13 +279,13 @@ async fn create_task_request_participation() {
     assert_eq!(participant.amount, user3_offer_amt);
 
 
-    // user4 tries to participate without funds
+    // user4 tries to participate without balance and gets error
     
     let (server, user_ident4) = create_login_test_user(&server, username4.clone()).await;
     let user4_thing = get_string_thing(user_ident4).unwrap();
     let balance = wallet_service.get_user_balance(&user4_thing).await.unwrap();
-
     assert_eq!(balance.balance_usd, 0);
+
     let participate_response = server
         .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
         .json(&TaskRequestOfferInput {
@@ -508,4 +509,5 @@ async fn create_task_request_participation() {
         assert_eq!(ts >= prev_val, true);
         ts
     });
+    
 }

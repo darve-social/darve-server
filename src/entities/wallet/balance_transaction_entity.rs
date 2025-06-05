@@ -15,7 +15,7 @@ use surrealdb::sql::{to_value, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 use wallet_routes::CurrencyTransactionView;
 
-use super::{funding_transaction_entity, lock_transaction_entity, wallet_entity};
+use super::{gateway_transaction_entity, lock_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
@@ -27,7 +27,7 @@ pub struct CurrencyTransaction {
     pub transfer_title: Option<String>,
     pub tx_ident: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub funding_tx: Option<Thing>,
+    pub gateway_tx: Option<Thing>,
     pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prev_transaction: Option<Thing>,
@@ -42,21 +42,21 @@ pub struct CurrencyTransaction {
     pub r_updated: Option<String>,
 }
 
-pub struct CurrencyTransactionDbService<'a> {
+pub struct BalanceTransactionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
 
-pub const TABLE_NAME: &str = "currency_transaction";
+pub const TABLE_NAME: &str = "balance_transaction";
 const WALLET_TABLE: &str = wallet_entity::TABLE_NAME;
-const FUNDING_TX_TABLE: &str = funding_transaction_entity::TABLE_NAME;
+const GATEWAY_TX_TABLE: &str = gateway_transaction_entity::TABLE_NAME;
 const LOCK_TX_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = wallet_entity::TRANSACTION_HEAD_F;
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 
 pub const THROW_BALANCE_TOO_LOW:&str = "Not enough balance";
 
-impl<'a> CurrencyTransactionDbService<'a> {
+impl<'a> BalanceTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let gateway_wallet = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();
@@ -72,11 +72,11 @@ impl<'a> CurrencyTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
-    DEFINE FIELD IF NOT EXISTS funding_tx ON TABLE {TABLE_NAME} TYPE option<record<{FUNDING_TX_TABLE}>>;// TODO- ASSERT {{
+    DEFINE FIELD IF NOT EXISTS gateway_tx ON TABLE {TABLE_NAME} TYPE option<record<{GATEWAY_TX_TABLE}>>;// TODO- ASSERT {{
 //     IF $this.balance<0 && $this.wallet!={gateway_wallet} {{
 //         THROW \"Final balance must exceed 0\"
 //     }} ELSE IF $this.balance<0 && !record_exists($value)  {{
-//         THROW \"Tried to make funding_tx but funding_tx tx not found\"
+//         THROW \"Tried to make gateway_tx but gateway_tx tx not found\"
 //     }} ELSE {{
 //         RETURN true
 //     }}
@@ -158,7 +158,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
             transfer_title: None,
             tx_ident: wallet_id.id.to_raw(),
-            funding_tx: None,
+            gateway_tx: None,
             currency,
             prev_transaction: None,
             amount_in: None,
@@ -186,7 +186,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
-        funding_tx: Option<Thing>,
+        gateway_tx: Option<Thing>,
         lock_tx: Option<Thing>,
         exclude_sql_transaction: bool,
     ) -> AppResult<QryBindingsVal<Value>> {
@@ -227,7 +227,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 prev_transaction: $w_from.{TRANSACTION_HEAD_F}.{currency}.id,
                 amount_out: type::number($amt),
                 balance: $updated_from_balance,
-                funding_tx: $funding_tx_id,
+                gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
 
@@ -250,7 +250,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 prev_transaction: $prev_in_tx,
                 amount_in: type::number($amt),
                 balance: $w_to_prev_balance + type::number($amt),
-                funding_tx: $funding_tx_id,
+                gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
 
@@ -292,8 +292,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             })?,
         );
         bindings.insert(
-            "funding_tx_id".to_string(),
-            to_value(funding_tx).map_err(|e| AppError::SurrealDb {
+            "gateway_tx_id".to_string(),
+            to_value(gateway_tx).map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })?,
         );

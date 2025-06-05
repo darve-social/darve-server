@@ -12,6 +12,9 @@ use crate::{
 
 use askama::Template;
 use chrono::{Duration, Utc};
+use surrealdb::sql::Thing;
+use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use crate::entities::wallet::wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 pub struct UserService<'a> {
     user_repository: LocalUserDbService<'a>,
@@ -151,4 +154,5 @@ impl<'a> UserService<'a> {
             })
             .collect::<String>()
     }
+
 }

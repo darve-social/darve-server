@@ -39,7 +39,7 @@ use entities::user_auth::access_rule_entity::AccessRuleDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
 use entities::user_auth::user_notification_entity::UserNotificationDbService;
-use entities::wallet::currency_transaction_entity::CurrencyTransactionDbService;
+use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::{header::USER_AGENT, StatusCode};
@@ -133,7 +133,7 @@ pub async fn run_migrations(db: db::Db) -> AppResult<()> {
         .mutate_db()
         .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
-    CurrencyTransactionDbService { db: &db, ctx: &c }
+    BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     LockTransactionDbService { db: &db, ctx: &c }

@@ -1,6 +1,12 @@
 mod helpers;
 
+use std::time::SystemTime;
+use chrono::DateTime;
+use uuid::Uuid;
 use darve_server::{middleware, routes::wallet::wallet_routes};
+use darve_server::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use darve_server::entities::wallet::wallet_entity::CurrencySymbol;
+use darve_server::middleware::ctx::Ctx;
 use helpers::{create_login_test_user, create_test_server};
 use middleware::utils::string_utils::get_string_thing;
 use wallet_routes::CurrencyTransactionHistoryView;
@@ -53,4 +59,42 @@ async fn test_wallet_history() {
         created.transactions.get(0).unwrap().amount_in,
         Some(endow_amt)
     );
+}
+
+#[tokio::test]
+async fn lock_user_balance() {
+    
+    println!("Creating test server");
+    let (server, _ctx_state) = create_test_server().await;
+
+    // create 2 users with user1 and user2 names
+    let username1 = "userrr1".to_string();
+    let username2 = "userrr2".to_string();
+
+    let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
+
+    let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
+
+    let _ = get_string_thing(user_ident1.clone()).expect("user1");
+    let user2_id = get_string_thing(user_ident2.clone()).expect("user2");
+
+    // endow using user2 by calling /api/dev/endow/:user_id/:amount
+    let endow_amt = 32;
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user2_id.to_string(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+
+    endow_user_response.assert_status_success();
+    let endow_response_text = endow_user_response.text();
+    println!("endow_user_response: {}", endow_response_text);
+    let ctx = Ctx::new(Ok(user_ident2.to_string()), Uuid::new_v4(), false);
+    let lock_service = LockTransactionDbService { db: &_ctx_state._db, ctx: &ctx }.lock_user_asset_tx(&user2_id, 11, CurrencySymbol::USD, vec![UnlockTrigger::Timestamp { at: DateTime::from(SystemTime::now()) }]).await.unwrap();
+    dbg!(&lock_service);
+    // TODO -check locked- add checks
 }

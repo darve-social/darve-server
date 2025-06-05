@@ -3,7 +3,7 @@ use axum::extract::State;
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
-use currency_transaction_entity::CurrencyTransactionDbService;
+use balance_transaction_entity::BalanceTransactionDbService;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
@@ -15,7 +15,7 @@ use surrealdb::sql::Thing;
 use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::{currency_transaction_entity, wallet_entity};
+use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
 
 pub fn routes(state: CtxState) -> Router {
@@ -90,7 +90,7 @@ pub async fn get_wallet_history(
         count: params.count.unwrap_or(20),
         start: params.start.unwrap_or(0),
     });
-    let tx_service = CurrencyTransactionDbService {
+    let tx_service = BalanceTransactionDbService {
         db: &ctx_state._db,
         ctx: &ctx,
     };
