@@ -198,15 +198,18 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
         let qry = format!(
             "{begin_tx}
+            LET $lock_id=<string>\"time::now()\";
+            UPDATE $w_from_id SET lock_id=$lock_id;
+            UPSERT ONLY $w_to_id SET lock_id=$lock_id;
 
             LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F}.{currency};
             LET $w_to = SELECT * FROM ONLY $w_to_id;
 
-            $w_to = IF $w_to == NONE {{
+            $w_to = IF $w_to.user == NONE {{
                 LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
-
                 LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
-                RETURN CREATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
+
+                RETURN UPDATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
             }}ELSE{{RETURN $w_to;}};
 
             LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
@@ -256,8 +259,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
             LET $tx_in_id = $tx_in[0].id;
 
-            UPDATE $w_to.id SET {TRANSACTION_HEAD_F}.{currency}=$tx_in_id;
-
+            UPDATE $w_to.id SET lock_id=NONE;
+            UPDATE $w_from.id SET lock_id=NONE;
         {commit_tx}
         ");
         let mut bindings = HashMap::new();

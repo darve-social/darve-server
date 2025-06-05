@@ -254,7 +254,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     ) -> CtxResult<()> {
         todo!()
     }
-    
+
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =
             get_entity::<GatewayTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;
