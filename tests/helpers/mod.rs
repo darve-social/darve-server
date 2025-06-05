@@ -82,7 +82,7 @@ pub async fn create_login_test_user(
 }
 
 #[allow(dead_code)]
-pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser) {
+pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser, String) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
 
     let create_user = &server
@@ -94,10 +94,11 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
             "full_name": Some(faker::name::en::Name().fake::<String>()),
         }))
         .await;
+
     create_user.assert_status_success();
     let user = create_user.json::<LocalUser>();
 
-    (server, user)
+    (server, user, pwd)
 }
 
 #[allow(dead_code)]

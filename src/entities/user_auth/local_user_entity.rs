@@ -201,7 +201,7 @@ impl<'a> LocalUserDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn create(&self, ct_input: LocalUser, auth: AuthType) -> CtxResult<String> {
+    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
         let local_user_id: String = self
             .db
             .create(TABLE_NAME)
@@ -210,14 +210,6 @@ impl<'a> LocalUserDbService<'a> {
             .map(|v: Option<RecordWithId>| v.unwrap().id.id.to_raw())
             .map(|id| format!("{TABLE_NAME}:{id}"))
             .map_err(CtxError::from(self.ctx))?;
-        let auth = Authentication::new(local_user_id.clone(), auth)?;
-        // dbg!(&auth);
-        AuthenticationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .create(auth)
-        .await?;
         Ok(local_user_id)
     }
 

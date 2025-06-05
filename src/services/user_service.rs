@@ -1,23 +1,25 @@
 use std::sync::Arc;
 
 use crate::{
-    entities::user_auth::local_user_entity::LocalUserDbService,
+    entities::user_auth::{
+        authentication_entity::{AuthType, AuthenticationDbService},
+        local_user_entity::LocalUserDbService,
+    },
     interfaces::send_email::SendEmailInterface,
     middleware::{
-        error::AppError,
+        error::{AppError, AppResult},
         utils::{db_utils::IdentIdName, string_utils::get_string_thing},
     },
     models::EmailVerificationCode,
+    utils::hash::{hash_password, verify_password},
 };
 
 use askama::Template;
 use chrono::{Duration, Utc};
-use surrealdb::sql::Thing;
-use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
-use crate::entities::wallet::wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 pub struct UserService<'a> {
     user_repository: LocalUserDbService<'a>,
+    auth_repository: AuthenticationDbService<'a>,
     email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
     email_code_ttl: Duration,
 }
@@ -27,9 +29,11 @@ impl<'a> UserService<'a> {
         user_repository: LocalUserDbService<'a>,
         email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
         email_code_ttl: Duration,
+        auth_repository: AuthenticationDbService<'a>,
     ) -> Self {
         Self {
             user_repository,
+            auth_repository,
             email_sender,
             email_code_ttl,
         }
@@ -145,6 +149,76 @@ impl<'a> UserService<'a> {
         })
     }
 
+    pub async fn set_password(&self, user_id: &str, password: &str) -> AppResult<()> {
+        let user_thing = get_string_thing(user_id.to_string())?;
+
+        let user = self
+            .user_repository
+            .get(IdentIdName::Id(user_thing.clone()))
+            .await?;
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?;
+
+        if auth.is_some() {
+            return Err(AppError::Generic {
+                description: "User has already set a password".to_string(),
+            });
+        }
+
+        let (_, hash) = hash_password(password).expect("Hash password error");
+
+        self.auth_repository
+            .create(
+                user.id.as_ref().unwrap().to_raw(),
+                hash,
+                AuthType::PASSWORD,
+                None,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_password(
+        &self,
+        user_id: &str,
+        new_pass: &str,
+        old_pass: &str,
+    ) -> AppResult<()> {
+        let user_thing = get_string_thing(user_id.to_string())?;
+
+        let user = self
+            .user_repository
+            .get(IdentIdName::Id(user_thing))
+            .await?;
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?;
+
+        if auth.is_none() {
+            return Err(AppError::Generic {
+                description: "User hasn't set password yet".to_string(),
+            });
+        };
+        if !verify_password(&auth.unwrap().token, old_pass) {
+            return Err(AppError::Generic {
+                description: "Invalid password".to_string(),
+            });
+        }
+        let (_, hash) = hash_password(new_pass).expect("Hash password error");
+
+        self.auth_repository
+            .update_token(user_id.to_string(), AuthType::PASSWORD, hash)
+            .await?;
+
+        Ok(())
+    }
+
     fn generate_verification_code(&self) -> String {
         use rand::Rng;
         (0..6)
@@ -154,5 +228,4 @@ impl<'a> UserService<'a> {
             })
             .collect::<String>()
     }
-
 }

@@ -1,5 +1,5 @@
 mod helpers;
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::{create_fake_login_test_user, create_login_test_user, create_test_server};
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
@@ -12,7 +12,6 @@ use darve_server::{
         user_auth::{follow_routes, login_routes},
     },
 };
-use fake::{faker, Fake};
 use follow_entity::FollowDbService;
 use follow_routes::UserListView;
 use helpers::{fake_username_min_len, post_helpers::create_fake_post};
@@ -27,13 +26,13 @@ use uuid::Uuid;
 #[tokio::test]
 async fn get_user_followers() {
     let (server, ctx_state) = create_test_server().await;
-    let username1 = "usnnnn".to_string();
-    let username2 = "usnnnn2".to_string();
-    let username3 = "usnnnn3".to_string();
-    let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
-    let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
-    let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
-    let user2_id = get_string_thing(user_ident2.clone()).expect("user2");
+    let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
+    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let user_ident1 = user1.id.as_ref().unwrap().to_raw();
+    let username1 = user1.username.to_string();
+    let username2 = user2.username.to_string();
+    let user1_id = user1.id.unwrap();
+    let user2_id = user2.id.unwrap();
 
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
     let follow_db_service = FollowDbService {
@@ -106,8 +105,8 @@ async fn get_user_followers() {
     assert_eq!(created.profile_view.unwrap().followers_nr, 1);
 
     //login as username3
-    let (server, _) = create_login_test_user(&server, username3.clone()).await;
-
+    let (server, user3, user3_pwd) = create_fake_login_test_user(server).await;
+    let username3 = user3.username;
     // follow u1
     let create_response = server
         .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
@@ -182,7 +181,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username1.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user1_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -223,7 +222,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username3.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user3_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -247,7 +246,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username1.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user1_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -276,7 +275,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username3.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user3_pwd.clone(),
             next: None,
         })
         .await;
@@ -328,7 +327,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username1.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user1_pwd.clone(),
             next: None,
         })
         .await;
@@ -356,7 +355,7 @@ async fn get_user_followers() {
         .post("/api/login")
         .json(&LoginInput {
             username: username3.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user3_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -382,7 +381,6 @@ async fn get_user_followers() {
 #[tokio::test(flavor = "multi_thread")]
 async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let (server, ctx_state) = create_test_server().await;
-
     let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
     let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
@@ -399,8 +397,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let post_3 = create_fake_post(&server, &profile_discussion, None, None).await;
     let post_4 = create_fake_post(&server, &profile_discussion, None, None).await;
 
-    let (_, user_ident2) =
-        create_login_test_user(&server, faker::internet::en::Username().fake::<String>()).await;
+    let (_, user_ident2) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
     let user2_id = get_string_thing(user_ident2.clone()).expect("user1");
     let ctx = Ctx::new(Ok(user_ident2.clone()), Uuid::new_v4(), false);

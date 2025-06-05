@@ -19,7 +19,7 @@ use community_routes::CommunityInput;
 use discussion_entity::{Discussion, DiscussionDbService};
 use discussion_routes::{DiscussionInput, DiscussionPostView};
 use discussion_topic_routes::TopicInput;
-use helpers::{create_login_test_user, create_test_server};
+use helpers::create_test_server;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
@@ -29,10 +29,13 @@ use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::PostDbService;
 
+use crate::helpers::create_fake_login_test_user;
+
 #[tokio::test]
 async fn get_discussion_view() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
     let disc_name = "discName1".to_lowercase();
 
     let create_response = server
@@ -154,8 +157,9 @@ async fn get_discussion_view() {
 #[tokio::test]
 async fn create_discussion() {
     let (server, ctx_state) = create_test_server().await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
     let disc_name = "discName1".to_lowercase();
     let _ = "discName2".to_lowercase();
 

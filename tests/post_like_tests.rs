@@ -1,6 +1,6 @@
 mod helpers;
 
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::{create_fake_login_test_user, create_test_server};
 use darve_server::routes::community::post_routes::PostLikeResponse;
 use helpers::community_helpers::create_fake_community;
 use helpers::post_helpers::{self, create_fake_post};
@@ -8,7 +8,8 @@ use helpers::post_helpers::{self, create_fake_post};
 #[tokio::test]
 async fn create_post_like() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
     let result = create_fake_post(server, &result.default_discussion, None, None).await;

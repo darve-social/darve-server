@@ -12,7 +12,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events,
+        self, auth, events, users,
         wallet::{wallet_endowment_routes, wallet_routes},
     },
     services::auth_service::{AuthRegisterInput, AuthService},
@@ -176,6 +176,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(wallet_routes::routes(ctx_state.clone()))
         .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         .merge(events::routes(ctx_state.clone()))
+        .merge(users::routes(ctx_state.clone()))
         .layer(AutoVaryLayer)
         // .layer(axum::middleware::map_response(mw_req_logger))
         // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))

@@ -23,6 +23,7 @@ use crate::{
         },
     },
     utils::{
+        hash::{hash_password, verify_password},
         jwt::JWT,
         validate_utils::validate_username,
         verification::{apple, facebook, google},
@@ -80,12 +81,20 @@ impl<'a> AuthService<'a> {
             .get(UsernameIdent(input.username.to_string()).into())
             .await?;
 
-        self.auth_repository
-            .authenticate(
-                &self.ctx,
-                AuthType::PASSWORD(Some(input.password.to_string()), user.id.clone()),
-            )
-            .await?;
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?
+            .ok_or(AppError::Generic {
+                description: "Password not found".to_string(),
+            })?;
+
+        if !verify_password(&auth.token, &input.password) {
+            return Err(AppError::Generic {
+                description: "Password is not correct".to_string(),
+            }
+            .into());
+        }
 
         Ok((
             self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
@@ -123,9 +132,8 @@ impl<'a> AuthService<'a> {
             image_uri: input.image_uri,
             birth_date: input.birth_day,
         };
-
-        self.register(user, AuthType::PASSWORD(Some(input.password), None))
-            .await
+        let (_, hash) = hash_password(&input.password).expect("Hash password error");
+        self.register(user, AuthType::PASSWORD, &hash).await
     }
 
     pub async fn register_login_by_apple(
@@ -137,10 +145,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth = AuthType::APPLE(apple_user.id);
-
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), apple_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::APPLE,
+                apple_user.id.clone(),
+                apple_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -170,7 +180,9 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: None,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::APPLE, &apple_user.id)
+                        .await;
                 }
                 _ => Err(err),
             },
@@ -182,9 +194,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth: AuthType = AuthType::FACEBOOK(fb_user.id.clone());
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), fb_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::FACEBOOK,
+                fb_user.id.clone(),
+                fb_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -214,7 +229,9 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: None,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::FACEBOOK, &fb_user.id)
+                        .await;
                 }
                 _ => Err(err),
             },
@@ -230,9 +247,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth: AuthType = AuthType::GOOGLE(google_user.sub.clone());
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), google_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::GOOGLE,
+                google_user.sub.clone(),
+                google_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -263,7 +283,9 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: google_user.picture,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::GOOGLE, &google_user.sub)
+                        .await;
                 }
                 _ => Err(err),
             },
@@ -273,16 +295,15 @@ impl<'a> AuthService<'a> {
     async fn get_user_id_by_social_auth(
         &self,
         auth: AuthType,
+        token: String,
         email: Option<String>,
     ) -> CtxResult<String> {
-        let res_user_id = self
-            .auth_repository
-            .authenticate(&self.ctx, auth.clone())
-            .await;
+        let auth = self.auth_repository.get_by_token(auth, token).await?;
 
-        if res_user_id.is_ok() {
-            return res_user_id;
+        if auth.is_some() {
+            return Ok(auth.unwrap().local_user.id.to_raw());
         }
+
         match email {
             Some(val) => {
                 let user = self
@@ -360,9 +381,14 @@ impl<'a> AuthService<'a> {
     async fn register(
         &self,
         mut data: LocalUser,
-        auth: AuthType,
+        auth_type: AuthType,
+        token: &str,
     ) -> CtxResult<(String, LocalUser)> {
-        let user_id = self.user_repository.create(data.clone(), auth).await?;
+        let user_id = self.user_repository.create(data.clone()).await?;
+        let auth = self
+            .auth_repository
+            .create(user_id.clone(), token.to_string(), auth_type, None)
+            .await?;
         let token = self.build_jwt_token(&user_id).await?;
         data.id = Some(get_string_thing(user_id)?);
 
