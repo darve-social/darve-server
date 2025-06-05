@@ -1,5 +1,5 @@
 use askama_axum::Template;
-use currency_transaction_entity::CurrencyTransactionDbService;
+use balance_transaction_entity::BalanceTransactionDbService;
 use middleware::db;
 use middleware::utils::db_utils::{
     get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -16,10 +16,10 @@ use surrealdb::Response;
 use surrealdb::sql::Thing;
 
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::currency_transaction_entity::THROW_BALANCE_TOO_LOW;
+use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::middleware;
 use crate::middleware::error::AppResult;
-use super::currency_transaction_entity;
+use super::balance_transaction_entity;
 
 pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResult<()> {
     let query_err = query_response.take_errors().values().fold(None, |ret, error| {
@@ -124,7 +124,7 @@ pub struct WalletDbService<'a> {
 
 pub const TABLE_NAME: &str = "wallet";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
-const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
+const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
 
 pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
@@ -207,21 +207,21 @@ impl<'a> WalletDbService<'a> {
             }));
         }
         let currency_symbol = CurrencySymbol::USD;
-        let init_tx_usd = CurrencyTransactionDbService {
+        let init_tx_usd = BalanceTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         }
         .create_init_record(&wallet_id, currency_symbol.clone())
         .await?;
         let currency_symbol = CurrencySymbol::REEF;
-        let init_tx_reef = CurrencyTransactionDbService {
+        let init_tx_reef = BalanceTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         }
         .create_init_record(&wallet_id, currency_symbol.clone())
         .await?;
         let currency_symbol = CurrencySymbol::ETH;
-        let init_tx_eth = CurrencyTransactionDbService {
+        let init_tx_eth = BalanceTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         }
@@ -299,11 +299,11 @@ impl<'a> WalletDbService<'a> {
 //         CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET,
 //     };
 //     use crate::entities::wallet::{
-//         currency_transaction_entity, gateway_transaction_entity, lock_transaction_entity,
+//         balance_transaction_entity, gateway_transaction_entity, lock_transaction_entity,
 //     };
 //     use crate::middleware;
 //     use chrono::{Duration, Utc};
-//     use currency_transaction_entity::{CurrencyTransaction, CurrencyTransactionDbService};
+//     use balance_transaction_entity::{CurrencyTransaction, CurrencyTransactionDbService};
 //     use gateway_transaction_entity::GatewayTransactionDbService;
 //     use lock_transaction_entity::{LockTransaction, LockTransactionDbService, UnlockTrigger};
 //     use middleware::ctx::Ctx;

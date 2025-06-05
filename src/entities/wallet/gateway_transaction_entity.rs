@@ -1,4 +1,4 @@
-use currency_transaction_entity::CurrencyTransactionDbService;
+use balance_transaction_entity::BalanceTransactionDbService;
 use middleware::db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
@@ -14,7 +14,7 @@ use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService,
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 
-use super::{currency_transaction_entity, lock_transaction_entity, wallet_entity};
+use super::{balance_transaction_entity, lock_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GatewayTransaction {
@@ -47,7 +47,7 @@ pub struct GatewayTransactionDbService<'a> {
 
 pub const TABLE_NAME: &str = "gateway_transaction";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
-const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
+const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
 const LOCK_TRANSACTION_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 
 impl<'a> GatewayTransactionDbService<'a> {
@@ -93,7 +93,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
-        let gateway_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(
+        let gateway_2_user_tx = BalanceTransactionDbService::get_transfer_qry(
             &gwy_wallet,
             &user_wallet,
             amount,

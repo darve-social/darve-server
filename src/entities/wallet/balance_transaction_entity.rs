@@ -42,12 +42,12 @@ pub struct CurrencyTransaction {
     pub r_updated: Option<String>,
 }
 
-pub struct CurrencyTransactionDbService<'a> {
+pub struct BalanceTransactionDbService<'a> {
     pub db: &'a db::Db,
     pub ctx: &'a Ctx,
 }
 
-pub const TABLE_NAME: &str = "currency_transaction";
+pub const TABLE_NAME: &str = "balance_transaction";
 const WALLET_TABLE: &str = wallet_entity::TABLE_NAME;
 const GATEWAY_TX_TABLE: &str = gateway_transaction_entity::TABLE_NAME;
 const LOCK_TX_TABLE: &str = lock_transaction_entity::TABLE_NAME;
@@ -56,7 +56,7 @@ const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 
 pub const THROW_BALANCE_TOO_LOW:&str = "Not enough balance";
 
-impl<'a> CurrencyTransactionDbService<'a> {
+impl<'a> BalanceTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let gateway_wallet = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();

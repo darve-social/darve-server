@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use currency_transaction_entity::CurrencyTransactionDbService;
+use balance_transaction_entity::BalanceTransactionDbService;
 use middleware::db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
@@ -15,9 +15,9 @@ use surrealdb::sql::Value::Object;
 use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
-use super::{currency_transaction_entity, wallet_entity};
+use super::{balance_transaction_entity, wallet_entity};
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::currency_transaction_entity::THROW_BALANCE_TOO_LOW;
+use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryBindingsVal;
@@ -52,7 +52,7 @@ pub struct LockTransactionDbService<'a> {
 
 pub const TABLE_NAME: &str = "lock_transaction";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
-const TRANSACTION_TABLE: &str = currency_transaction_entity::TABLE_NAME;
+const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
 
 impl<'a> LockTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -111,7 +111,7 @@ impl<'a> LockTransactionDbService<'a> {
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(user);
 
-        let user_2_lock_tx = CurrencyTransactionDbService::get_transfer_qry(
+        let user_2_lock_tx = BalanceTransactionDbService::get_transfer_qry(
             &user_wallet,
             &user_lock_wallet,
             amount,
@@ -194,7 +194,7 @@ impl<'a> LockTransactionDbService<'a> {
                 description: "Lock out tx does not exist".to_string(),
             }));
         } else {
-            let lock_tx = CurrencyTransactionDbService {
+            let lock_tx = BalanceTransactionDbService {
                 db: self.db,
                 ctx: self.ctx,
             }
@@ -213,7 +213,7 @@ impl<'a> LockTransactionDbService<'a> {
         let lock_tx_id = lock.id;
         let user_wallet = WalletDbService::get_user_wallet_id(&lock.user);
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(&lock.user);
-        let lock_2_user_tx = CurrencyTransactionDbService::get_transfer_qry(
+        let lock_2_user_tx = BalanceTransactionDbService::get_transfer_qry(
             &user_lock_wallet,
             &user_wallet,
             amount,
@@ -257,7 +257,7 @@ impl<'a> LockTransactionDbService<'a> {
         lock_id: &Thing,
         pay_to_user: &Thing,
     ) -> CtxResult<()> {
-        let curr_tx_service = CurrencyTransactionDbService {
+        let curr_tx_service = BalanceTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         };
