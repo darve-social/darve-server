@@ -11,6 +11,7 @@ use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 
 use super::{currency_transaction_entity, lock_transaction_entity, wallet_entity};
@@ -194,13 +195,13 @@ impl<'a> GatewayTransactionDbService<'a> {
         
         let qry = user_2_lock_qry_bindings
             .get_bindings()
-            .iter()
-            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
+            .into_iter()
+            .fold(qry, |q, item| q.bind((item.0, item.1)));
         
         let mut fund_res = qry.await?;
-        fund_res = fund_res.check()?;
-        // TODO it's probably take(1) - check
-        let res: Option<Thing> = fund_res.take(0)?;
+        check_transaction_custom_error(&mut fund_res)?;
+        
+        let res: Option<Thing> = fund_res.take(22)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
         }))

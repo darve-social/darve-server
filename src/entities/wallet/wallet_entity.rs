@@ -11,12 +11,33 @@ use middleware::{
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use surrealdb::err::Error;
+use surrealdb::Response;
 use surrealdb::sql::Thing;
 
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::currency_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::middleware;
-
+use crate::middleware::error::AppResult;
 use super::currency_transaction_entity;
+
+pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResult<()> {
+    let query_err = query_response.take_errors().values().fold(None, |ret, error| {
+        if let Some(AppError::BalanceTooLow) = ret {
+            return ret;
+        }
+
+        match error {
+            surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW => Some(AppError::BalanceTooLow),
+            surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
+            _ => Some(AppError::SurrealDb { source: error.to_string() }),
+        }
+    });
+    match query_err{
+        None => Ok(()),
+        Some(err) => Err(err)
+    }
+}
 
 pub(crate) static APP_GATEWAY_WALLET: Lazy<Thing> =
     Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));

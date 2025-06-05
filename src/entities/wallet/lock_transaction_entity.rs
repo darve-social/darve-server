@@ -18,6 +18,7 @@ use wallet_entity::{CurrencySymbol, WalletDbService};
 use super::{currency_transaction_entity, wallet_entity};
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::currency_transaction_entity::THROW_BALANCE_TOO_LOW;
+use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryBindingsVal;
 
@@ -85,11 +86,8 @@ impl<'a> LockTransactionDbService<'a> {
         let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
 
         // take custom error or default db error
-        let query_err = Self::get_tx_query_custom_error(&mut lock_res);
-        if let Some(err) = query_err {
-            return Err(self.ctx.to_ctx_error(err));
-        }
-
+        check_transaction_custom_error(&mut lock_res)?;
+        
         let res: Option<Thing> = lock_res.take(19)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
@@ -105,21 +103,6 @@ impl<'a> LockTransactionDbService<'a> {
         // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
         //     description: "Error in lock tx".to_string(),
         // }))
-    }
-
-    pub fn get_tx_query_custom_error(lock_res: &mut Response) -> Option<AppError> {
-        let query_err = lock_res.take_errors().values().fold(None, |ret, error| {
-            if let Some(AppError::BalanceTooLow) = ret {
-                return ret;
-            }
-
-            match error {
-                surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW => Some(AppError::BalanceTooLow),
-                surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
-                _ => Some(AppError::SurrealDb { source: error.to_string() }),
-            }
-        });
-        query_err
     }
 
     pub(crate) fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>,
