@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
 use surrealdb::err::Error;
+use surrealdb::Response;
+use surrealdb::sql::Value::Object;
+use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{currency_transaction_entity, wallet_entity};
@@ -57,7 +60,6 @@ impl<'a> LockTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS lock_tx_out ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS unlock_tx_in ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-// TODO -check locked- use enum check for Withdraw and Timestamp
     DEFINE FIELD IF NOT EXISTS unlock_triggers ON TABLE {TABLE_NAME} TYPE array<{{\"Withdraw\":{{ \"id\":record}} }}|{{\"Timestamp\":{{ \"at\":string}} }}>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
@@ -81,13 +83,43 @@ impl<'a> LockTransactionDbService<'a> {
         let user_2_lock_qry_bindings = self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
 
         let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
-        // TODO -check locked- check what failed then remove dbg!
-        dbg!(&lock_res);
-        lock_res = lock_res.check()?;
+
+        // take custom error or default db error
+        let query_err = Self::get_tx_query_custom_error(&mut lock_res);
+        if let Some(err) = query_err {
+            return Err(self.ctx.to_ctx_error(err));
+        }
+
         let res: Option<Thing> = lock_res.take(19)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-            description: "Error in lock tx".to_string(),
+            description: "Error in lock fn".to_string(),
         }))
+
+
+
+
+
+        // - old code
+        // lock_res = lock_res.check()?;
+        // let res: Option<Thing> = lock_res.take(19)?;
+        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+        //     description: "Error in lock tx".to_string(),
+        // }))
+    }
+
+    pub fn get_tx_query_custom_error(lock_res: &mut Response) -> Option<AppError> {
+        let query_err = lock_res.take_errors().values().fold(None, |ret, error| {
+            if let Some(AppError::BalanceTooLow) = ret {
+                return ret;
+            }
+
+            match error {
+                surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW => Some(AppError::BalanceTooLow),
+                surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
+                _ => Some(AppError::SurrealDb { source: error.to_string() }),
+            }
+        });
+        query_err
     }
 
     pub(crate) fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>,
@@ -136,36 +168,35 @@ impl<'a> LockTransactionDbService<'a> {
         bindings.insert("l_tx_id".to_string(), Value::from(lock_tx_id));
         bindings.insert("lock_amt".to_string(), Value::from(amount));
         bindings.insert("user".to_string(), user.clone().into());
-        // TODO -check locked- serialize so db check is ok
-        let unlock_vals = unlock_triggers.iter().map(|ut| Value::from(serde_json::to_string(ut).unwrap())).collect();
+        let unlock_vals = unlock_triggers.into_iter().map(|ut|surrealdb::sql::to_value(ut).unwrap()).collect();
         bindings.insert("un_triggers".to_string(), Value::Array(unlock_vals));
         bindings.insert("currency".to_string(), Value::from(currency_symbol.to_string()));
-////// TODO check
+
         bindings.extend(user_2_lock_tx
             .get_bindings());
 
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
-        ///////////////
-        let mut lock_res = qry.await?;
-        // take custom error or default db error
-        let query_err = lock_res.take_errors().values().fold(None, |ret, error|{
-            if let Some(AppError::BalanceTooLow) = ret {
-                return ret;
-            }
-
-            match error {
-                surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW =>Some(AppError::BalanceTooLow),
-                _=> Some(AppError::SurrealDb { source: error.to_string() })
-            }
-        });
-        if let Some(err) = query_err {
-            return Err(self.ctx.to_ctx_error(err));
-        }
-
-        let res: Option<Thing> = lock_res.take(0)?;
-        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-            description: "Error in lock fn".to_string(),
-        }))
+        // -old code
+        // let mut lock_res = qry.await?;
+        // // take custom error or default db error
+        // let query_err = lock_res.take_errors().values().fold(None, |ret, error|{
+        //     if let Some(AppError::BalanceTooLow) = ret {
+        //         return ret;
+        //     }
+        //
+        //     match error {
+        //         surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW =>Some(AppError::BalanceTooLow),
+        //         _=> Some(AppError::SurrealDb { source: error.to_string() })
+        //     }
+        // });
+        // if let Some(err) = query_err {
+        //     return Err(self.ctx.to_ctx_error(err));
+        // }
+        //
+        // let res: Option<Thing> = lock_res.take(0)?;
+        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+        //     description: "Error in lock fn".to_string(),
+        // }))
     }
 
     pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {
