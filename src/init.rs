@@ -12,7 +12,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events,
+        self, auth, events, stripe_webhook_v2,
         wallet::{wallet_endowment_routes, wallet_routes},
     },
     services::auth_service::{AuthRegisterInput, AuthService},
@@ -152,6 +152,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .nest_service("/assets", ServeDir::new("assets"))
         // No requirements
         // Also behind /api, but no auth requirement on this route
+        .merge(stripe_webhook_v2::routes(ctx_state.clone()))
         .merge(init_server_routes::routes(ctx_state.clone()))
         .merge(auth::routes(ctx_state.clone()))
         .merge(login_routes::routes(ctx_state.clone()))
