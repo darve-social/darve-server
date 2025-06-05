@@ -45,7 +45,6 @@ impl<'a> Accounts<'a> {
                 "country": identity.country,
                 "entity_type": identity.entity_type.unwrap_or(EntityType::Individual)
             },
-            "dashboard": "full",
             "include": [
                 "configuration.recipient",
                 "identity",
@@ -78,7 +77,6 @@ impl<'a> Accounts<'a> {
             .await
             .map_err(|e| e.to_string())?;
 
-        println!(">>>>>>{:?}", res);
         if !res.status().is_success() {
             return Err(res.text().await.map_err(|e| e.to_string())?);
         };

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -29,6 +31,13 @@ pub struct EmailVerification {
     pub user: Thing,
     pub email: String,
     pub r_created: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeAccount {
+    user: Thing,
+    account_id: String,
+    created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -119,6 +128,14 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE email_verification TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE email_verification COLUMNS user UNIQUE;
     DEFINE INDEX IF NOT EXISTS code_idx ON TABLE email_verification COLUMNS code UNIQUE;
+
+    DEFINE TABLE IF NOT EXISTS stripe_account SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE stripe_account TYPE record<{TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS account_id ON TABLE stripe_account TYPE string;
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE stripe_account TYPE datetime DEFAULT time::now();
+    DEFINE FIELD IF NOT EXISTS updated_at ON TABLE stripe_account TYPE option<datetime>;
+    DEFINE INDEX IF NOT EXISTS stripe_account_user_idx ON TABLE stripe_account COLUMNS user;
+    DEFINE INDEX IF NOT EXISTS stripe_account_account_idx ON TABLE stripe_account COLUMNS account_id UNIQUE; 
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -305,5 +322,48 @@ impl<'a> LocalUserDbService<'a> {
         res.check()?;
 
         Ok(())
+    }
+
+    pub async fn add_stripe_account(
+        &self,
+        user_id: &Thing,
+        account_id: &str,
+    ) -> CtxResult<StripeAccount> {
+        let mut res = self
+            .db
+            .query("CREATE stripe_account SET user = $user_id, account_id = $account_id")
+            .bind(("user_id", user_id.to_raw()))
+            .bind(("account_id", account_id.to_string()))
+            .await?;
+
+        Ok(res.take::<Option<StripeAccount>>(0)?.unwrap())
+    }
+
+    pub async fn get_stripe_account_by_id(&self, account_id: &str) -> CtxResult<StripeAccount> {
+        let mut res = self
+            .db
+            .query("SELECT * FROM stripe_account WHERE account_id = $account_id")
+            .bind(("account_id", account_id.to_string()))
+            .await?;
+
+        let data = res.take::<Option<StripeAccount>>(0)?;
+
+        data.ok_or(self.ctx.to_ctx_error(AppError::SurrealDb {
+            source: "Stripe Account not found".to_string(),
+        }))
+    }
+
+    pub async fn get_stripe_account_by_user(&self, user_id: &Thing) -> CtxResult<StripeAccount> {
+        let mut res = self
+            .db
+            .query("SELECT * FROM stripe_account WHERE user = $user_id")
+            .bind(("user_id", user_id.to_raw()))
+            .await?;
+
+        let data = res.take::<Option<StripeAccount>>(0)?;
+
+        data.ok_or(self.ctx.to_ctx_error(AppError::SurrealDb {
+            source: "Stripe Account not found".to_string(),
+        }))
     }
 }

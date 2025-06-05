@@ -50,7 +50,7 @@ impl<'a> WalletService<'a> {
 
         let result = self
             .payment
-            .outbound_payments(&account.id, "usd", 100.00, None)
+            .outbound_payments(&account.id, "eur", 100.00, None)
             .await;
 
         match result {

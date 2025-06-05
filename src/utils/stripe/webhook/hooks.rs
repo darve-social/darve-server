@@ -55,6 +55,5 @@ pub fn verify_and_parse_event(
     if (Utc::now().timestamp() - timestamp).abs() > 300 {
         return Err(WebhookError::BadTimestamp(timestamp));
     }
-
     Ok(serde_json::from_str(payload).map_err(|e| WebhookError::ParseError(e))?)
 }

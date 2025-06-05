@@ -18,8 +18,8 @@ use crate::{
     services::wallet::WalletService,
     utils::stripe::{
         models::EventType,
+        stripe::StripePayment,
         webhook::{event::HookEvent, hooks::verify_and_parse_event},
-        StripePayment,
     },
 };
 use async_trait::async_trait;
@@ -63,7 +63,7 @@ async fn webhook(
     ctx: Ctx,
     hook_event: HookEvent,
 ) -> CtxResult<Response> {
-    let stripe = StripePayment::new(state.stripe_secret_key.clone());
+    let stripe = Box::new(StripePayment::new(state.stripe_secret_key.clone()));
 
     let event = stripe
         .get_event(&hook_event.id)
@@ -76,14 +76,25 @@ async fn webhook(
                 source: format!("Invalid event data {:?}", event.event_type),
             })?;
 
-            let wallet_service = WalletService::new(&state._db, &ctx, Box::new(stripe));
+            let wallet_service = WalletService::new(&state._db, &ctx, stripe);
 
             let _ = wallet_service
                 .withdraw(&account_id.as_str().unwrap())
                 .await
                 .map_err(|e| e.to_string());
         }
-        _ => {}
+        EventType::OutboundPaymentCanceled => {
+            todo!()
+        }
+        EventType::OutboundPaymentFailed => {
+            todo!()
+        }
+        EventType::OutboundPaymentReturned => {
+            todo!()
+        }
+        EventType::OutboundPaymentPosted => {
+            todo!()
+        }
     }
 
     Ok("".into_response())

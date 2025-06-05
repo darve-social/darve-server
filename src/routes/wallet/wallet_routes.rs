@@ -19,7 +19,7 @@ use crate::entities::wallet::{currency_transaction_entity, wallet_entity};
 use crate::interfaces::payment::PaymentInterface;
 use crate::middleware;
 use crate::middleware::error::AppError;
-use crate::utils::stripe::StripePayment;
+use crate::utils::stripe::stripe::StripePayment;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -115,16 +115,16 @@ async fn withdraw(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<Stri
     };
     let user = user_service.get_ctx_user().await?;
 
-    // if user.email_verified.is_none() {
-    //     return Err(ctx.to_ctx_error(AppError::Generic {
-    //         description: "Email must be set".to_string(),
-    //     }));
-    // }
+    if user.email_verified.is_none() {
+        return Err(ctx.to_ctx_error(AppError::Generic {
+            description: "Email must be set".to_string(),
+        }));
+    }
 
     let stripe = StripePayment::new(ctx_state.stripe_secret_key);
 
     let account = stripe
-        .create_recipient_account("genzhalo+1@gmail.com", "de")
+        .create_recipient_account(&user.email_verified.unwrap(), "de")
         .await
         .map_err(|e| ctx.to_ctx_error(AppError::Stripe { source: e }))?;
 

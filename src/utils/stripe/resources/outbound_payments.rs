@@ -49,6 +49,7 @@ impl<'a> OutboundPayment<'a> {
             },
             "to": {
                 "recipient": to.account,
+                "currency": to.currency
             },
             "amount": {
                 "value": amount.amount,
