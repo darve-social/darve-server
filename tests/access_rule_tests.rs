@@ -231,7 +231,7 @@ async fn display_access_rule_content() {
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.email_code_ttl,
+        ctx_state.code_ttl,
         AuthenticationDbService {
             db: &ctx_state._db,
             ctx: &ctx,

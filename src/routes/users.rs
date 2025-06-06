@@ -43,7 +43,7 @@ async fn set_password(
             ctx: &ctx,
         },
         state.email_sender,
-        state.email_code_ttl,
+        state.code_ttl,
         AuthenticationDbService {
             db: &state._db,
             ctx: &ctx,
@@ -76,7 +76,7 @@ async fn reset_password(
             ctx: &ctx,
         },
         state.email_sender,
-        state.email_code_ttl,
+        state.code_ttl,
         AuthenticationDbService {
             db: &state._db,
             ctx: &ctx,

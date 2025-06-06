@@ -14,6 +14,7 @@ use surrealdb::engine::any::{connect, Any};
 use surrealdb::Surreal;
 use webauthn::webauthn_routes::create_webauth_config;
 
+#[allow(dead_code)]
 async fn init_test_db() -> Surreal<Any> {
     let db = connect("mem://").await.unwrap();
     db.use_ns("namespace").use_db("database").await.unwrap();
@@ -84,17 +85,16 @@ pub async fn create_login_test_user(
 #[allow(dead_code)]
 pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser, String) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
-
+    let username = fake_username_min_len(6);
     let create_user = &server
         .post("/api/register")
         .json(&json!({
-            "username": fake_username_min_len(6),
+            "username": username,
             "password": pwd.clone(),
             "email": Some(faker::internet::en::FreeEmail().fake::<String>()),
             "full_name": Some(faker::name::en::Name().fake::<String>()),
         }))
         .await;
-
     create_user.assert_status_success();
     let user = create_user.json::<LocalUser>();
 
@@ -105,7 +105,7 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
 pub fn fake_username_min_len(min_len: usize) -> String {
     use fake::{faker::internet::en::Username, Fake};
     (0..)
-        .map(|_| Username().fake::<String>())
+        .map(|_| Username().fake::<String>().replace(".", "_"))
         .find(|u| u.len() >= min_len)
         .unwrap()
 }

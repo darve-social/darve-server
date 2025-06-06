@@ -69,7 +69,13 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         false,
     );
 
-    let auth_service = AuthService::new(&ctx_state._db, &c, ctx_state.jwt.clone());
+    let auth_service = AuthService::new(
+        &ctx_state._db,
+        &c,
+        ctx_state.jwt.clone(),
+        ctx_state.email_sender.clone(),
+        ctx_state.code_ttl,
+    );
 
     let _ = auth_service
         .register_password(AuthRegisterInput {

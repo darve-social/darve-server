@@ -79,7 +79,13 @@ pub async fn register_user(
 ) -> CtxResult<CreatedResponse> {
     payload.validate()?;
 
-    let auth_service = AuthService::new(&state._db, ctx, state.jwt.clone());
+    let auth_service = AuthService::new(
+        &state._db,
+        ctx,
+        state.jwt.clone(),
+        state.email_sender.clone(),
+        state.code_ttl,
+    );
     let (_, user) = auth_service.register_password(payload).await?;
     Ok(CreatedResponse {
         success: true,

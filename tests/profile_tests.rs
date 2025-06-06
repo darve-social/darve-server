@@ -1,7 +1,7 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::user_auth::local_user_entity::LocalUserDbService,
+    entities::user_auth::local_user_entity::{LocalUserDbService, UseCodeFor},
     middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
         community::{
@@ -341,7 +341,7 @@ async fn email_verification_and_confirmation() {
     response.assert_status_success();
 
     let code = user_db
-        .get_email_verification(user_id.clone())
+        .get_code(user_id.clone(), UseCodeFor::EmailVerification)
         .await
         .unwrap()
         .expect("verification should exist")
@@ -358,7 +358,9 @@ async fn email_verification_and_confirmation() {
     let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    let res = user_db.get_email_verification(user_id).await;
+    let res = user_db
+        .get_code(user_id, UseCodeFor::EmailVerification)
+        .await;
     assert!(res.unwrap().is_none());
 }
 
@@ -406,9 +408,9 @@ async fn email_confirmation_with_invalid_code() {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
-    response
+    assert!(response
         .text()
-        .contains("Too many attempts. Wait and start new verification");
+        .contains("Too many attempts. Wait and start new verification"));
 }
 
 #[tokio::test]

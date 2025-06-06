@@ -99,6 +99,7 @@ impl<'a> AuthenticationDbService<'a> {
             .bind(("user", Thing::from_str(&user).unwrap()))
             .bind(("auth_type", auth))
             .await?;
+
         Ok(res.take::<Option<Authentication>>(0)?)
     }
 

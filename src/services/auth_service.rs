@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use askama::Template;
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -10,9 +11,10 @@ use crate::{
         community::community_entity::CommunityDbService,
         user_auth::{
             authentication_entity::{AuthType, AuthenticationDbService},
-            local_user_entity::{LocalUser, LocalUserDbService},
+            local_user_entity::{LocalUser, LocalUserDbService, UseCodeFor},
         },
     },
+    interfaces::send_email::SendEmailInterface,
     middleware::{
         ctx::Ctx,
         db,
@@ -22,21 +24,15 @@ use crate::{
             string_utils::get_string_thing,
         },
     },
+    models::ResetPassword,
     utils::{
+        generate,
         hash::{hash_password, verify_password},
         jwt::JWT,
         validate_utils::validate_username,
         verification::{apple, facebook, google},
     },
 };
-
-pub struct AuthService<'a> {
-    ctx: &'a Ctx,
-    jwt: Arc<JWT>,
-    user_repository: LocalUserDbService<'a>,
-    auth_repository: AuthenticationDbService<'a>,
-    community_repository: CommunityDbService<'a>,
-}
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {
@@ -62,14 +58,48 @@ pub struct AuthLoginInput {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct ForgotPasswordInput {
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResetPasswordInput {
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub password: String,
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub code: String,
+    #[validate(email)]
+    pub email: String,
+}
+
+pub struct AuthService<'a> {
+    ctx: &'a Ctx,
+    jwt: Arc<JWT>,
+    code_ttl: Duration,
+    user_repository: LocalUserDbService<'a>,
+    auth_repository: AuthenticationDbService<'a>,
+    community_repository: CommunityDbService<'a>,
+    email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+}
+
 impl<'a> AuthService<'a> {
-    pub fn new(db: &'a db::Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
+    pub fn new(
+        db: &'a db::Db,
+        ctx: &'a Ctx,
+        jwt: Arc<JWT>,
+        email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+        code_ttl: Duration,
+    ) -> AuthService<'a> {
         AuthService {
             ctx,
             jwt,
             user_repository: LocalUserDbService { db: &db, ctx: &ctx },
             auth_repository: AuthenticationDbService { db: &db, ctx: &ctx },
             community_repository: CommunityDbService { db: &db, ctx: &ctx },
+            email_sender,
+            code_ttl,
         }
     }
 
@@ -290,6 +320,108 @@ impl<'a> AuthService<'a> {
                 _ => Err(err),
             },
         }
+    }
+
+    pub async fn reset_password(&self, input: ResetPasswordInput) -> CtxResult<()> {
+        input.validate()?;
+
+        let user = self.user_repository.get_by_email(&input.email).await?;
+
+        let verification_data = self
+            .user_repository
+            .get_code(user.id.clone().unwrap(), UseCodeFor::ResetPassword)
+            .await?;
+
+        if verification_data.is_none() {
+            return Err(AppError::Generic {
+                description: "Invalid verification".to_string(),
+            }
+            .into());
+        }
+        let data = verification_data.unwrap();
+
+        let is_too_many_attempts = data.failed_code_attempts >= 3;
+
+        if is_too_many_attempts {
+            return Err(AppError::Generic {
+                description: "Too many attempts. Wait and start new verification.".to_string(),
+            }
+            .into());
+        }
+
+        let is_expired = Utc::now().signed_duration_since(data.r_created) > self.code_ttl;
+
+        if is_expired {
+            return Err(AppError::Generic {
+                description: "Start new verification".to_string(),
+            }
+            .into());
+        }
+
+        if data.code != input.code {
+            self.user_repository.increase_code_attempt(data.id).await?;
+
+            return Err(AppError::Generic {
+                description: "Wrong code.".to_string(),
+            }
+            .into());
+        }
+
+        let (_, hash) = hash_password(&input.password).expect("Hash password error");
+
+        self.auth_repository
+            .update_token(user.id.unwrap().to_raw(), AuthType::PASSWORD, hash)
+            .await?;
+
+        self.user_repository.delete_code(data.id).await?;
+
+        Ok(())
+    }
+
+    pub async fn forgot_password(&self, data: ForgotPasswordInput) -> CtxResult<()> {
+        data.validate()?;
+
+        let user = self.user_repository.get_by_email(&data.email).await?;
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?;
+
+        if auth.is_none() {
+            return Err(AppError::Generic {
+                description: "User has not set password yet".to_string(),
+            }
+            .into());
+        }
+
+        let code = generate::generate_number_code(6);
+
+        let _ = self
+            .user_repository
+            .create_code(
+                user.id.unwrap(),
+                code.clone(),
+                data.email,
+                UseCodeFor::ResetPassword,
+            )
+            .await?;
+
+        let model = ResetPassword {
+            code: &code,
+            ttl: &self.code_ttl.num_minutes().to_string(),
+        };
+
+        self.email_sender
+            .send(
+                vec![user.email_verified.unwrap()],
+                &model.render().unwrap(),
+                "Reset Password",
+            )
+            .await
+            .map_err(|e| AppError::Generic { description: e })?;
+
+        Ok(())
     }
 
     async fn get_user_id_by_social_auth(

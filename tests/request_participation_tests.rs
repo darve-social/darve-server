@@ -41,10 +41,10 @@ async fn create_task_request_participation() {
     let user_ident0 = user0.id.as_ref().unwrap().to_raw();
     let username0 = user0.username.to_string();
 
-    let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
+    let (server, user1, _) = create_fake_login_test_user(&server).await;
     let user_ident1 = user1.id.as_ref().unwrap().to_raw();
-    let username1 = user1.username.to_string();
-    let user1_id = user1.id.unwrap();
+    let _ = user1.username.to_string();
+    let _ = user1.id.unwrap();
 
     let (server, user3, user3_pwd) = create_fake_login_test_user(&server).await;
     let user_ident3 = user3.id.as_ref().unwrap().to_raw();
