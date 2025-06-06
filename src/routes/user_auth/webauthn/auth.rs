@@ -393,13 +393,10 @@ pub async fn start_authentication(
         .passkey_json
         .ok_or(WebauthnError::UserHasNoCredentials)?;
 
-    let allow_credentials = serde_json::from_str::<Passkey>(&passkey_json)
+    let passkey = serde_json::from_str::<Passkey>(&passkey_json)
         .map_err(|_| WebauthnError::UserHasNoCredentials)?;
 
-    let res = match app_state
-        .webauthn
-        .start_passkey_authentication(&[allow_credentials])
-    {
+    let res = match app_state.webauthn.start_passkey_authentication(&[passkey]) {
         Ok((rcr, auth_state)) => {
             // Drop the mutex to allow the mut borrows below to proceed
             // drop(users_guard);
@@ -465,17 +462,15 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserNotFound);
             }
 
-            let auth = auth_db_service
-                .get_by_auth_type(exists_id.unwrap(), AuthType::PASSKEY)
-                .await?
-                .ok_or(WebauthnError::UserHasNoCredentials)?;
-
             let cred_id = STANDARD.encode(auth_result.cred_id().to_vec());
-            if auth.token != cred_id {}
+
+            auth_db_service
+                .update_token(exists_id.clone().unwrap(), AuthType::PASSKEY, cred_id)
+                .await?;
 
             let token = state
                 .jwt
-                .encode(&auth.local_user.id.to_raw())
+                .encode(&exists_id.unwrap())
                 .expect("JWT encode should work");
 
             cookies.add(
