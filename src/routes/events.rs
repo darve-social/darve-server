@@ -45,7 +45,6 @@ async fn get_events_sse(
         Err(_) => None,
         Ok(msg) => match msg.event {
             AppEventType::UserNotificationEvent(..) if msg.receivers.contains(&user_id) => {
-                // TODO -remove receivers- on client side
                 Some(Ok(Event::default().data(json!(msg).to_string())))
             }
             _ => None,
