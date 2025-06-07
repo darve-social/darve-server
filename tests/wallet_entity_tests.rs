@@ -106,7 +106,7 @@ async fn lock_user_balance() {
     dbg!(&balances);
     assert_eq!(balances.balance_locked.balance_usd, lock_amt);
     assert_eq!(balances.balance.balance_usd, endow_amt-lock_amt);
-    let unlock_id = LockTransactionDbService { db: &_ctx_state._db, ctx: &ctx }.unlock_user_asset_tx(&lock_id).await.unwrap();
+    let _unlock_id = LockTransactionDbService { db: &_ctx_state._db, ctx: &ctx }.unlock_user_asset_tx(&lock_id).await.unwrap();
     // TODO -check locked- add checks
     
     let response = server.get("/api/user/wallet/balance")

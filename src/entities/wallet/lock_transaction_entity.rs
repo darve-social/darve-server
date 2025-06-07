@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use balance_transaction_entity::BalanceTransactionDbService;
+use chrono::{DateTime, Utc};
 use middleware::db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
@@ -9,15 +9,11 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
-use surrealdb::err::Error;
-use surrealdb::Response;
-use surrealdb::sql::Value::Object;
 use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryBindingsVal;
