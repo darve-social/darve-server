@@ -1,5 +1,5 @@
 mod helpers;
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::{create_fake_login_test_user, create_test_server};
 use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
@@ -20,7 +20,8 @@ use uuid::Uuid;
 #[tokio::test]
 async fn create_discussion() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let comm_name = "community_123";
     let create_response = server

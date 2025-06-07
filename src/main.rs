@@ -41,7 +41,7 @@ async fn main() -> AppResult<()> {
     let apple_mobile_client_id =
         std::env::var("APPLE_MOBILE_CLIENT_ID").expect("Missing APPLE_MOBILE_CLIENT_ID in env");
 
-    let email_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
+    let code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
         .unwrap_or("5".to_string())
         .parse::<u8>()
         .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
@@ -68,7 +68,7 @@ async fn main() -> AppResult<()> {
         upload_file_size_max_mb,
         apple_mobile_client_id,
         google_client_id,
-        email_code_ttl,
+        code_ttl,
     )
     .await;
 

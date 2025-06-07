@@ -10,17 +10,19 @@ use darve_server::entities::community::community_entity;
 use darve_server::entities::user_auth::{access_right_entity, authorization_entity};
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
-use helpers::{create_login_test_user, create_test_server};
+use helpers::create_test_server;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::request_utils::CreatedResponse;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
+use crate::helpers::create_fake_login_test_user;
+
 #[tokio::test]
 async fn get_community_view() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, _) = create_login_test_user(&server, "usnnnns".to_string()).await;
+    let (server, _, _) = create_fake_login_test_user(&server).await;
     let disc_name = "discName1".to_lowercase();
 
     let create_response = server
@@ -67,7 +69,9 @@ async fn get_community_view() {
 #[tokio::test]
 async fn create_community() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
+
     let comm_name = "discName1".to_lowercase();
     let comm_name2 = "disc_name2".to_lowercase();
 

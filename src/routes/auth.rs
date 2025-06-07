@@ -16,7 +16,9 @@ use crate::{
         mw_ctx::{CtxState, JWT_KEY},
         utils::extractor_utils::JsonOrFormValidated,
     },
-    services::auth_service::{AuthLoginInput, AuthRegisterInput, AuthService},
+    services::auth_service::{
+        AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
+    },
 };
 
 pub fn routes(state: CtxState) -> Router {
@@ -24,6 +26,8 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/auth/sign_with_facebook", post(sign_by_fb))
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
         .route("/api/auth/sign_with_google", post(sign_by_google))
+        .route("/api/forgot_password", post(forgot_password))
+        .route("/api/reset_password", post(reset_password))
         .route("/api/login", post(signin))
         .route("/api/register", post(signup))
         .with_state(state)
@@ -40,7 +44,13 @@ async fn sign_by_fb(
     cookies: Cookies,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
-    let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
 
@@ -61,7 +71,13 @@ async fn sign_by_apple(
     cookies: Cookies,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
-    let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
 
     let (token, user) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
@@ -84,7 +100,13 @@ async fn sign_by_google(
     cookies: Cookies,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
-    let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
 
     let (token, user) = auth_service
         .sign_by_google(&body.token, &state.google_client_id)
@@ -107,7 +129,13 @@ async fn signin(
     cookies: Cookies,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
-    let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
 
     let (token, user) = auth_service.login_password(body).await?;
 
@@ -128,8 +156,13 @@ async fn signup(
     cookies: Cookies,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthRegisterInput>,
 ) -> CtxResult<Response> {
-    let auth_service = AuthService::new(&state._db, &ctx, state.jwt.clone());
-
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
     let (token, user) = auth_service.register_password(body).await?;
 
     cookies.add(
@@ -141,4 +174,36 @@ async fn signup(
     );
 
     Ok((StatusCode::OK, Json(json!(user))).into_response())
+}
+
+async fn forgot_password(
+    State(state): State<CtxState>,
+    ctx: Ctx,
+    Json(body): Json<ForgotPasswordInput>,
+) -> CtxResult<Response> {
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
+    let _ = auth_service.forgot_password(body).await?;
+    Ok((StatusCode::OK).into_response())
+}
+
+async fn reset_password(
+    State(state): State<CtxState>,
+    ctx: Ctx,
+    Json(body): Json<ResetPasswordInput>,
+) -> CtxResult<Response> {
+    let auth_service = AuthService::new(
+        &state._db,
+        &ctx,
+        state.jwt.clone(),
+        state.email_sender,
+        state.code_ttl,
+    );
+    let _ = auth_service.reset_password(body).await?;
+    Ok((StatusCode::OK).into_response())
 }

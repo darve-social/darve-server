@@ -1151,6 +1151,7 @@ dependencies = [
 name = "darve_server"
 version = "0.1.10"
 dependencies = [
+ "argon2",
  "askama",
  "askama_axum",
  "async-stripe",

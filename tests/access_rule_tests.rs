@@ -2,19 +2,19 @@ mod helpers;
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::AccessRuleDbService;
 use access_rule_routes::{AccessRuleForm, AccessRuleInput};
-use authentication_entity::AuthType;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR};
 use axum::extract::{Path, State};
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
+use darve_server::entities::user_auth::authentication_entity::AuthenticationDbService;
 use darve_server::entities::user_auth::{
-    access_right_entity, access_rule_entity, authentication_entity, authorization_entity,
-    local_user_entity,
+    access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
 use darve_server::middleware;
 use darve_server::routes::community::{community_routes, discussion_topic_routes};
 use darve_server::routes::user_auth::access_rule_routes;
+use darve_server::services::user_service::UserService;
 use discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
 use local_user_entity::{LocalUser, LocalUserDbService};
 use middleware::ctx::Ctx;
@@ -26,19 +26,24 @@ use uuid::Uuid;
 
 use crate::helpers::community_helpers::create_fake_community;
 use crate::helpers::post_helpers::create_fake_post;
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::{create_fake_login_test_user, create_test_server};
 
 #[tokio::test]
 async fn display_access_rule_content() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
 
-    let fake_comm = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+    let fake_comm =
+        create_fake_community(server, &ctx_state, user.id.as_ref().unwrap().to_raw()).await;
 
     let comm_id = Thing::try_from(fake_comm.id.clone()).unwrap();
     let comm_name = fake_comm.name.clone();
 
-    let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = &Ctx::new(
+        Ok(user.id.as_ref().unwrap().to_raw()),
+        Uuid::new_v4(),
+        false,
+    );
     let comm_db = CommunityDbService {
         db: &ctx_state._db,
         ctx: &ctx,
@@ -212,17 +217,31 @@ async fn display_access_rule_content() {
     );
 
     // check view with low access user
-    let user_service = LocalUserDbService {
+    let new_user_id = &LocalUserDbService {
         db: &ctx_state._db,
         ctx: &ctx,
-    };
-    let new_user_id = user_service
-        .create(
-            LocalUser::default("visitor".to_string()),
-            AuthType::PASSWORD(Some("visitor".to_string()), None),
-        )
+    }
+    .create(LocalUser::default("visitor".to_string()))
+    .await
+    .unwrap();
+
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+        ctx_state.email_sender.clone(),
+        ctx_state.code_ttl,
+        AuthenticationDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
+    );
+
+    user_service
+        .set_password(&new_user_id, "visitor")
         .await
-        .expect("local user");
+        .unwrap();
 
     AccessRightDbService {
         db: &ctx_state._db,
@@ -240,7 +259,7 @@ async fn display_access_rule_content() {
     .await
     .expect("authorized");
 
-    let ctx_no_user = Ctx::new(Ok(new_user_id), Uuid::new_v4(), false);
+    let ctx_no_user = Ctx::new(Ok(new_user_id.to_string()), Uuid::new_v4(), false);
     let comm_view = get_community(
         State(ctx_state.clone()),
         ctx_no_user,
