@@ -87,8 +87,7 @@ impl<'a> LockTransactionDbService<'a> {
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
-        
-        let res: Option<Thing> = lock_res.take(19)?;
+        let res: Option<Thing> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
@@ -232,7 +231,7 @@ impl<'a> LockTransactionDbService<'a> {
 
             LET $lock_tx = UPDATE $l_tx_id SET unlock_tx_in = $tx_in_id;
 
-            RETURN $lock_tx[0];
+            $lock_tx[0];
         COMMIT TRANSACTION;
 
         "
@@ -245,8 +244,8 @@ impl<'a> LockTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut lock_res = qry.await?;
-        lock_res = lock_res.check()?;
-        let res: Option<LockTransaction> = lock_res.take(0)?;
+        check_transaction_custom_error(&mut lock_res)?;
+        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in unlock tx".to_string(),
         }))

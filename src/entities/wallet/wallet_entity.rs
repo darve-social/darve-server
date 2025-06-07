@@ -147,10 +147,10 @@ impl<'a> WalletDbService<'a> {
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS lock_id ON TABLE {TABLE_NAME} TYPE option<string> ASSERT {{
-    IF $before = NONE {{
+    IF $before==NONE || $value==NONE || $before==$value {{
         RETURN true
     }} ELSE {{
-        THROW \"{THROW_WALLET_LOCKED}\"
+        THROW \"{THROW_WALLET_LOCKED}\"//+<string>($before)+\" vv=\"+<string>($value)
     }} }};
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     // DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
