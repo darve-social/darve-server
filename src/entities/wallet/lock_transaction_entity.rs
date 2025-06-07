@@ -9,6 +9,7 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
+use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
@@ -82,18 +83,11 @@ impl<'a> LockTransactionDbService<'a> {
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
-
-        let res: Option<Thing> = lock_res.take(19)?;
+        let res: Option<Thing> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
 
-        // - old code
-        // lock_res = lock_res.check()?;
-        // let res: Option<Thing> = lock_res.take(19)?;
-        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock tx".to_string(),
-        // }))
     }
 
     pub(crate) fn lock_user_asset_qry(
@@ -161,27 +155,6 @@ impl<'a> LockTransactionDbService<'a> {
         bindings.extend(user_2_lock_tx.get_bindings());
 
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
-        // -old code
-        // let mut lock_res = qry.await?;
-        // // take custom error or default db error
-        // let query_err = lock_res.take_errors().values().fold(None, |ret, error|{
-        //     if let Some(AppError::BalanceTooLow) = ret {
-        //         return ret;
-        //     }
-        //
-        //     match error {
-        //         surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW =>Some(AppError::BalanceTooLow),
-        //         _=> Some(AppError::SurrealDb { source: error.to_string() })
-        //     }
-        // });
-        // if let Some(err) = query_err {
-        //     return Err(self.ctx.to_ctx_error(err));
-        // }
-        //
-        // let res: Option<Thing> = lock_res.take(0)?;
-        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock fn".to_string(),
-        // }))
     }
 
     pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {
@@ -234,7 +207,7 @@ impl<'a> LockTransactionDbService<'a> {
 
             LET $lock_tx = UPDATE $l_tx_id SET unlock_tx_in = $tx_in_id;
 
-            RETURN $lock_tx[0];
+            $lock_tx[0];
         COMMIT TRANSACTION;
 
         "
@@ -247,8 +220,8 @@ impl<'a> LockTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut lock_res = qry.await?;
-        lock_res = lock_res.check()?;
-        let res: Option<LockTransaction> = lock_res.take(0)?;
+        check_transaction_custom_error(&mut lock_res)?;
+        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in unlock tx".to_string(),
         }))

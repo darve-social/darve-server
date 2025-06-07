@@ -12,12 +12,25 @@ use middleware::mw_ctx::{create_ctx_state, CtxState};
 use serde_json::json;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::Surreal;
+use darve_server::middleware::db;
+use darve_server::middleware::db::DBConfig;
 use webauthn::webauthn_routes::create_webauth_config;
 
 #[allow(dead_code)]
-async fn init_test_db() -> Surreal<Any> {
-    let db = connect("mem://").await.unwrap();
-    db.use_ns("namespace").use_db("database").await.unwrap();
+async fn init_test_db(mem_db: bool) -> Surreal<Any> {
+    let db = if(mem_db){
+        let db = connect("mem://").await.unwrap();
+        db.use_ns("namespace").use_db("database").await.unwrap();
+        db
+    }else {
+        let config = DBConfig::from_env();
+        println!("remote db config={:?}",&config);
+        let db = db::start(config).await.unwrap();
+        db.query("REMOVE DATABASE IF EXISTS test").await.unwrap();
+        println!("remote db data reset");
+        db
+    };
+
     darve_server::init::run_migrations(db.clone())
         .await
         .expect("migrations run");
@@ -29,7 +42,7 @@ async fn init_test_db() -> Surreal<Any> {
 pub async fn create_test_server() -> (TestServer, CtxState) {
     dotenv().ok();
 
-    let db = init_test_db().await;
+    let db = init_test_db(true).await;
 
     let ctx_state = create_ctx_state(
         db,

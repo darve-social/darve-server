@@ -17,6 +17,7 @@ use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
+use crate::middleware::utils::db_utils::QryOrder::DESC;
 
 pub fn routes(state: CtxState) -> Router {
     Router::new()
@@ -85,8 +86,8 @@ pub async fn get_wallet_history(
     };
     let user_id = user_service.get_ctx_user_thing().await?;
     let pagination = Some(Pagination {
-        order_by: Some("id".to_string()),
-        order_dir: None,
+        order_by: Some("r_created".to_string()),
+        order_dir: Some(DESC),
         count: params.count.unwrap_or(20),
         start: params.start.unwrap_or(0),
     });

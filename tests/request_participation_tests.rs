@@ -135,7 +135,6 @@ async fn create_task_request_participation() {
         })
         .add_header("Accept", "application/json")
         .await;
-    dbg!(&task_request);
     task_request.assert_status_success();
     let created_task = task_request.json::<CreatedResponse>();
 
@@ -301,6 +300,7 @@ async fn create_task_request_participation() {
         .add_header("Accept", "application/json")
         .await;
 
+    // participate_response.assert_status_failure();
     participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
     ////////// login user 0 and check tasks
