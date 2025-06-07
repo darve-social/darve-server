@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use balance_transaction_entity::BalanceTransactionDbService;
+use chrono::{DateTime, Utc};
 use middleware::db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
@@ -9,15 +9,11 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
-use surrealdb::err::Error;
-use surrealdb::Response;
-use surrealdb::sql::Value::Object;
 use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryBindingsVal;
@@ -87,8 +83,7 @@ impl<'a> LockTransactionDbService<'a> {
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
-        
-        let res: Option<Thing> = lock_res.take(19)?;
+        let res: Option<Thing> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
@@ -232,7 +227,7 @@ impl<'a> LockTransactionDbService<'a> {
 
             LET $lock_tx = UPDATE $l_tx_id SET unlock_tx_in = $tx_in_id;
 
-            RETURN $lock_tx[0];
+            $lock_tx[0];
         COMMIT TRANSACTION;
 
         "
@@ -245,8 +240,8 @@ impl<'a> LockTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut lock_res = qry.await?;
-        lock_res = lock_res.check()?;
-        let res: Option<LockTransaction> = lock_res.take(0)?;
+        check_transaction_custom_error(&mut lock_res)?;
+        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in unlock tx".to_string(),
         }))

@@ -20,7 +20,6 @@ use uuid::Uuid;
 use crate::helpers::{create_login_test_user, create_test_server};
 use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
-use darve_server::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::NO_SUCH_THING;
@@ -128,7 +127,6 @@ async fn create_task_request_participation() {
         })
         .add_header("Accept", "application/json")
         .await;
-    dbg!(&task_request);
     task_request.assert_status_success();
     let created_task = task_request.json::<CreatedResponse>();
 
@@ -295,6 +293,7 @@ async fn create_task_request_participation() {
         .add_header("Accept", "application/json")
         .await;
 
+    // participate_response.assert_status_failure();
     participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
     ////////// login user 0 and check tasks
@@ -478,14 +477,14 @@ async fn create_task_request_participation() {
     let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
     assert_eq!(created.transactions.len(), 6);
 
-    created.transactions.iter().fold(0i64, |prev_val, tx_v| {
+    created.transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
         let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-        let ts = date_time.unwrap().timestamp();
+        let ts = date_time.unwrap().timestamp_millis();
         println!(
             "for {} with {} in {:?} out {:?} after tx balance={}",
             tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
         );
-        assert_eq!(ts >= prev_val, true);
+        assert_eq!(ts <= prev_val, true, "curr={} prev={}", ts, prev_val);
         ts
     });
 
@@ -499,14 +498,14 @@ async fn create_task_request_participation() {
     let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
     assert_eq!(created.transactions.len(), 4);
 
-    created.transactions.iter().fold(0i64, |prev_val, tx_v| {
+    created.transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
         let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-        let ts = date_time.unwrap().timestamp();
+        let ts = date_time.unwrap().timestamp_millis();
         println!(
             "for {} with {} in {:?} out {:?} after tx balance={}",
             tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
         );
-        assert_eq!(ts >= prev_val, true);
+        assert_eq!(ts <= prev_val, true, "curr={} prev={}", ts, prev_val);
         ts
     });
     

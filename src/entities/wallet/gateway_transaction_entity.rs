@@ -107,7 +107,6 @@ impl<'a> GatewayTransactionDbService<'a> {
         let fund_qry = format!(
             "
         BEGIN TRANSACTION;
-
             LET $fund_tx = INSERT INTO {TABLE_NAME} {{
                 id: $fund_tx_id,
                 amount: $fund_amt,
@@ -117,11 +116,9 @@ impl<'a> GatewayTransactionDbService<'a> {
                 currency: $currency,
             }} RETURN id;
 
-            //LET $fund_id = $fund_tx[0].id;
-
            {gateway_2_user_qry}
 
-            RETURN $fund_tx[0].id;
+            $fund_tx[0].id;
         COMMIT TRANSACTION;
 
         "
@@ -142,8 +139,8 @@ impl<'a> GatewayTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut fund_res = qry.await?;
-        fund_res = fund_res.check()?;
-        let res: Option<Thing> = fund_res.take(0)?;
+        check_transaction_custom_error(&mut fund_res)?;
+        let res: Option<Thing> = fund_res.take(fund_res.num_statements()-1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in endowment tx".to_string(),
         }))
@@ -254,7 +251,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     ) -> CtxResult<()> {
         todo!()
     }
-    
+
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =
             get_entity::<GatewayTransaction>(&self.db, TABLE_NAME.to_string(), &ident).await?;

@@ -31,6 +31,7 @@ pub enum AppError {
     SurrealDbParse { source: String, id: String },
     ValidationErrors { value: Value },
     BalanceTooLow,
+    WalletLocked,
 }
 
 /// ApiError has to have the req_id to report to the client and implements IntoResponse.
@@ -124,6 +125,7 @@ impl fmt::Display for AppError {
             AppError::Stripe { .. } => write!(f, "Stripe error"),
             AppError::ValidationErrors { value } => write!(f, "{value}"),
             AppError::BalanceTooLow => write!(f, "Balance too low"),
+            AppError::WalletLocked => write!(f, "Wallet locked"),
         }
     }
 }
@@ -163,6 +165,7 @@ impl IntoResponse for CtxError {
             | AppError::SurrealDbParse { .. }
             | AppError::Generic { .. }
             | AppError::Stripe { .. }
+            | AppError::WalletLocked { .. }
             | AppError::SurrealDb { .. } => StatusCode::BAD_REQUEST,
             AppError::AuthenticationFail
             | AppError::RegisterFail
