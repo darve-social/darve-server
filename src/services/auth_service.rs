@@ -3,6 +3,7 @@ use std::sync::Arc;
 use askama::Template;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -10,7 +11,7 @@ use crate::{
     entities::{
         community::community_entity::CommunityDbService,
         user_auth::{
-            authentication_entity::{AuthType, AuthenticationDbService},
+            authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
             local_user_entity::{LocalUser, LocalUserDbService, UseCodeFor},
         },
     },
@@ -517,9 +518,14 @@ impl<'a> AuthService<'a> {
         token: &str,
     ) -> CtxResult<(String, LocalUser)> {
         let user_id = self.user_repository.create(data.clone()).await?;
-        let auth = self
+        let _ = self
             .auth_repository
-            .create(user_id.clone(), token.to_string(), auth_type, None)
+            .create(CreateAuthInput {
+                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                token: token.to_string(),
+                auth_type,
+                passkey_json: None,
+            })
             .await?;
         let token = self.build_jwt_token(&user_id).await?;
         data.id = Some(get_string_thing(user_id)?);

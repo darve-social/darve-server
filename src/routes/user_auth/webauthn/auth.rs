@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use axum::extract::State;
 use axum::{
     extract::{Extension, Json, Path},
@@ -15,6 +17,7 @@ use webauthn_rs::prelude::*;
 
 use super::error::WebauthnError;
 use super::startup::AppState;
+use crate::entities::user_auth::authentication_entity::CreateAuthInput;
 use crate::entities::user_auth::{authentication_entity, local_user_entity};
 use crate::middleware;
 use crate::middleware::mw_ctx::JWT_KEY;
@@ -279,7 +282,12 @@ pub async fn finish_register(
         let passkey_json = Some(serde_json::to_string(&valid_passkey.unwrap()).unwrap());
 
         auth_db_service
-            .create(user_id, cred_id, AuthType::PASSKEY, passkey_json)
+            .create(CreateAuthInput {
+                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                token: cred_id,
+                auth_type: AuthType::PASSKEY,
+                passkey_json,
+            })
             .await?;
 
         Ok(StatusCode::OK)

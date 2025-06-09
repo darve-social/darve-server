@@ -13,6 +13,14 @@ use middleware::{
 
 use crate::middleware;
 
+#[derive(Debug, Serialize)]
+pub struct CreateAuthInput {
+    pub local_user: Thing,
+    pub token: String,
+    pub auth_type: AuthType,
+    pub passkey_json: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
     PASSWORD,
@@ -60,31 +68,9 @@ impl<'a> AuthenticationDbService<'a> {
         Ok(())
     }
 
-    pub async fn create(
-        &self,
-        user: String,
-        token: String,
-        auth_type: AuthType,
-        passkey_json: Option<String>,
-    ) -> CtxResult<Authentication> {
-        let mut res = self
-            .db
-            .query(
-                "CREATE ONLY type::table($table) SET 
-                    local_user=<record>$user, 
-                    auth_type=$auth_type, 
-                    token=$value,
-                    passkey_json=$passkey_json;
-            ",
-            )
-            .bind(("table", TABLE_NAME))
-            .bind(("user", Thing::from_str(&user).unwrap()))
-            .bind(("auth_type", auth_type))
-            .bind(("value", token))
-            .bind(("passkey_json", passkey_json))
-            .await?;
-
-        Ok(res.take::<Option<Authentication>>(0)?.unwrap())
+    pub async fn create(&self, input: CreateAuthInput) -> CtxResult<Authentication> {
+        let create_auth: Option<Authentication> = self.db.create(TABLE_NAME).content(input).await?;
+        Ok(create_auth.unwrap())
     }
 
     pub async fn get_by_auth_type(

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     entities::user_auth::{
-        authentication_entity::{AuthType, AuthenticationDbService},
+        authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
         local_user_entity::{LocalUserDbService, UseCodeFor},
     },
     interfaces::send_email::SendEmailInterface,
@@ -165,12 +165,12 @@ impl<'a> UserService<'a> {
         let (_, hash) = hash_password(password).expect("Hash password error");
 
         self.auth_repository
-            .create(
-                user.id.as_ref().unwrap().to_raw(),
-                hash,
-                AuthType::PASSWORD,
-                None,
-            )
+            .create(CreateAuthInput {
+                local_user: user_thing,
+                token: hash,
+                auth_type: AuthType::PASSWORD,
+                passkey_json: None,
+            })
             .await?;
 
         Ok(())
