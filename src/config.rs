@@ -1,3 +1,5 @@
+use dotenvy;
+
 #[derive(Debug)]
 pub struct AppConfig {
     pub db_namespace: String,
@@ -24,6 +26,7 @@ pub struct AppConfig {
 }
 impl AppConfig {
     pub fn from_env() -> Self {
+        let _ = dotenvy::dotenv();
         let db_namespace = std::env::var("DB_NAMESPACE").unwrap_or("namespace".to_string());
         let db_database = std::env::var("DB_DATABASE").unwrap_or("database".to_string());
         let db_password = std::env::var("DB_PASSWORD").ok();
