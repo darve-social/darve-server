@@ -22,11 +22,15 @@ pub struct Database {
 impl Database {
     pub async fn connect(config: DbConfig<'_>) -> Self {
         info!("->> connecting DB config = {:?}", config);
-        let conn = connect(config.url).await.expect("");
+        let conn = connect(config.url)
+            .await
+            .expect("Failed to connect to SurrealDB");
 
         match (config.password, config.username) {
             (Some(password), Some(username)) => {
-                conn.signin(Root { username, password }).await.expect("");
+                conn.signin(Root { username, password })
+                    .await
+                    .expect("Failed to sign in to SurrealDB");
             }
             _ => {}
         }
@@ -34,9 +38,13 @@ impl Database {
         conn.use_ns(config.namespace)
             .use_db(config.database)
             .await
-            .expect("");
+            .expect("Failed to select namespace and database");
 
-        let version = conn.version().await.expect("");
+        let version = conn
+            .version()
+            .await
+            .expect("Failed to get SurrealDB version");
+
         info!("->> connected DB version: {version}");
         Self { client: conn }
     }
