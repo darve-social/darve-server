@@ -1,5 +1,5 @@
 use balance_transaction_entity::BalanceTransactionDbService;
-use middleware::db;
+
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
+use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
@@ -41,7 +42,7 @@ enum WithdrawStatus {
 }
 
 pub struct GatewayTransactionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -140,7 +141,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
-        let res: Option<Thing> = fund_res.take(fund_res.num_statements()-1)?;
+        let res: Option<Thing> = fund_res.take(fund_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in endowment tx".to_string(),
         }))
@@ -152,17 +153,25 @@ impl<'a> GatewayTransactionDbService<'a> {
         amount: i64,
         external_account_id: String,
     ) -> CtxResult<Thing> {
-
         let withdraw_fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
-        
-        let lock_db_service = LockTransactionDbService{
+
+        let lock_db_service = LockTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         };
 
-        let user_2_lock_qry_bindings = lock_db_service.lock_user_asset_qry(user, amount, CurrencySymbol::USD, vec![UnlockTrigger::Withdraw {id: withdraw_fund_tx_id.clone() }], true)?;
+        let user_2_lock_qry_bindings = lock_db_service.lock_user_asset_qry(
+            user,
+            amount,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Withdraw {
+                id: withdraw_fund_tx_id.clone(),
+            }],
+            true,
+        )?;
         let user_2_lock_qry = user_2_lock_qry_bindings.get_query_string();
-        let qry = format!("\
+        let qry = format!(
+            "\
          BEGIN TRANSACTION;
 
            {user_2_lock_qry}
@@ -179,7 +188,8 @@ impl<'a> GatewayTransactionDbService<'a> {
 
             LET $fund_tx_id = $fund_tx[0].id;
             $fund_tx_id;
-        COMMIT TRANSACTION;");
+        COMMIT TRANSACTION;"
+        );
 
         let qry = self
             .db
@@ -189,20 +199,19 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("user", user.clone()))
             .bind(("ext_account_id", external_account_id))
             .bind(("currency", CurrencySymbol::USD));
-        
+
         let qry = user_2_lock_qry_bindings
             .get_bindings()
             .into_iter()
             .fold(qry, |q, item| q.bind((item.0, item.1)));
-        
+
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
-        
+
         let res: Option<Thing> = fund_res.take(22)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
         }))
-
     }
 
     pub(crate) async fn user_withdraw_tx_revert(
@@ -210,36 +219,46 @@ impl<'a> GatewayTransactionDbService<'a> {
         withdraw_tx_id: Thing,
         external_tx_id: String,
     ) -> CtxResult<()> {
-        
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
 
         // TODO check if external tx matches, amount matches
-        let lock_db_service = LockTransactionDbService{
+        let lock_db_service = LockTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         };
 
-        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Lock tx not found".to_string()}))?;
+        let lock_tx_id =
+            withdraw_tx
+                .withdraw_lock_tx
+                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                    description: "Lock tx not found".to_string(),
+                }))?;
         lock_db_service.unlock_user_asset_tx(&lock_tx_id).await?;
         Ok(())
     }
-    
+
     pub(crate) async fn user_withdraw_tx_complete(
         &self,
         withdraw_tx_id: Thing,
         external_tx_id: String,
     ) -> CtxResult<()> {
-        
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
 
         // TODO check if external tx matches, amount matches
-        let lock_db_service = LockTransactionDbService{
+        let lock_db_service = LockTransactionDbService {
             db: self.db,
             ctx: self.ctx,
         };
 
-        let lock_tx_id = withdraw_tx.withdraw_lock_tx.ok_or(self.ctx.to_ctx_error(AppError::Generic {description:"Lock tx not found".to_string()}))?;
-        lock_db_service.process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone()).await?;
+        let lock_tx_id =
+            withdraw_tx
+                .withdraw_lock_tx
+                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                    description: "Lock tx not found".to_string(),
+                }))?;
+        lock_db_service
+            .process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone())
+            .await?;
         Ok(())
     }
 
@@ -247,7 +266,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         &self,
         withdraw_tx_id: Thing,
         external_tx_id: String,
-        new_status: String
+        new_status: String,
     ) -> CtxResult<()> {
         todo!()
     }

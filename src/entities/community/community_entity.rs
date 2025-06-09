@@ -3,8 +3,8 @@ use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
+use crate::database::client::Db;
 use crate::{entities::user_auth, middleware};
-use middleware::db;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -63,7 +63,7 @@ impl Community {
 }
 
 pub struct CommunityDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

@@ -1,6 +1,7 @@
 use balance_transaction_entity::BalanceTransactionDbService;
 use chrono::{DateTime, Utc};
-use middleware::db;
+
+use crate::database::client::Db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -38,11 +39,11 @@ pub enum UnlockTrigger {
     // UserRequest{user_id: Thing},
     // Delivery{post_id: Thing},
     Timestamp { at: DateTime<Utc> },
-    Withdraw{id: Thing}
+    Withdraw { id: Thing },
 }
 
 pub struct LockTransactionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -76,21 +77,17 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-
-        let user_2_lock_qry_bindings = self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
+        let user_2_lock_qry_bindings =
+            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
 
         let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
-        let res: Option<Thing> = lock_res.take(lock_res.num_statements()-1)?;
+        let res: Option<Thing> = lock_res.take(lock_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
-
-
-
-
 
         // - old code
         // lock_res = lock_res.check()?;
@@ -100,8 +97,14 @@ impl<'a> LockTransactionDbService<'a> {
         // }))
     }
 
-    pub(crate) fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>,
-                                      exclude_sql_transaction: bool,) -> Result<QryBindingsVal<Value>, AppError> {
+    pub(crate) fn lock_user_asset_qry(
+        &self,
+        user: &Thing,
+        amount: i64,
+        currency_symbol: CurrencySymbol,
+        unlock_triggers: Vec<UnlockTrigger>,
+        exclude_sql_transaction: bool,
+    ) -> Result<QryBindingsVal<Value>, AppError> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(user);
@@ -146,12 +149,17 @@ impl<'a> LockTransactionDbService<'a> {
         bindings.insert("l_tx_id".to_string(), Value::from(lock_tx_id));
         bindings.insert("lock_amt".to_string(), Value::from(amount));
         bindings.insert("user".to_string(), user.clone().into());
-        let unlock_vals = unlock_triggers.into_iter().map(|ut|surrealdb::sql::to_value(ut).unwrap()).collect();
+        let unlock_vals = unlock_triggers
+            .into_iter()
+            .map(|ut| surrealdb::sql::to_value(ut).unwrap())
+            .collect();
         bindings.insert("un_triggers".to_string(), Value::Array(unlock_vals));
-        bindings.insert("currency".to_string(), Value::from(currency_symbol.to_string()));
+        bindings.insert(
+            "currency".to_string(),
+            Value::from(currency_symbol.to_string()),
+        );
 
-        bindings.extend(user_2_lock_tx
-            .get_bindings());
+        bindings.extend(user_2_lock_tx.get_bindings());
 
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
         // -old code
@@ -241,7 +249,7 @@ impl<'a> LockTransactionDbService<'a> {
 
         let mut lock_res = qry.await?;
         check_transaction_custom_error(&mut lock_res)?;
-        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements()-1)?;
+        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in unlock tx".to_string(),
         }))

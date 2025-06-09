@@ -1,10 +1,10 @@
+use crate::database::client::Db;
 use crate::entities::community::post_entity;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
 use crate::middleware;
 use chrono::{DateTime, Utc};
 use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
-use middleware::db;
 use middleware::utils::db_utils::{
     get_entity, get_entity_list, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
@@ -83,7 +83,7 @@ pub enum UserTaskRole {
 }
 
 pub struct TaskRequestDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

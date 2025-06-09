@@ -1,14 +1,13 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use middleware::db;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
 
-use crate::middleware;
 use crate::routes::community::community_routes::DiscussionNotificationEvent;
+use crate::{database::client::Db, middleware};
 
 use super::{discussion_entity, discussion_topic_entity, post_entity};
 
@@ -30,7 +29,7 @@ pub struct DiscussionNotification {
 }*/
 
 pub struct DiscussionNotificationDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

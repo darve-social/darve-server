@@ -5,10 +5,10 @@ use std::time::Duration;
 use surrealdb::sql::{Datetime as DatetimeSur, Id, Thing};
 use validator::Validate;
 
+use crate::database::client::Db;
 use crate::middleware;
 use access_rule_entity::AccessRuleDbService;
 use authorization_entity::{get_parent_ids, Authorization, AUTH_ACTIVITY_OWNER};
-use middleware::db;
 use middleware::utils::db_utils::{get_entity_list, IdentIdName};
 use middleware::utils::string_utils::get_string_thing;
 use middleware::{
@@ -55,7 +55,7 @@ where
 }
 
 pub struct AccessRightDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

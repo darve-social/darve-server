@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::database::client::Db;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,7 +16,6 @@ use crate::{
     },
     middleware::{
         ctx::Ctx,
-        db,
         error::{AppError, CtxResult},
         utils::{
             db_utils::{IdentIdName, UsernameIdent},
@@ -62,7 +62,7 @@ pub struct AuthLoginInput {
 }
 
 impl<'a> AuthService<'a> {
-    pub fn new(db: &'a db::Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
+    pub fn new(db: &'a Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
         AuthService {
             ctx,
             jwt,

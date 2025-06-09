@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use crate::{
+    database::client::Db,
     entities::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
     middleware::{
         ctx::Ctx,
-        db,
         error::{AppError, AppResult},
         mw_ctx::{self, CtxState},
     },
@@ -96,7 +96,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         .await;
 }
 
-pub async fn run_migrations(db: db::Db) -> AppResult<()> {
+pub async fn run_migrations(db: Db) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;

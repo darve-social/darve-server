@@ -23,7 +23,6 @@ base64 = "0.22.1"
 axum-test = "16.1.0"
 askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
 askama = { git = "https://github.com/djc/askama.git", branch = "main" }
-dotenv = "0.15.0"
 axum-htmx = { version = "0.6.0", features = ["auto-vary"] }
 validator = { version = "0.18.1", features = ["derive"] }
 regex = "1.10.6"

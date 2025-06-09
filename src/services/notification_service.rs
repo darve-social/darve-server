@@ -1,5 +1,6 @@
 use tokio::sync::broadcast::Sender;
 
+use crate::database::client::Db;
 use crate::{
     entities::{
         community::discussion_notification_entity::{
@@ -13,7 +14,6 @@ use crate::{
     },
     middleware::{
         ctx::Ctx,
-        db,
         error::{AppError, CtxResult},
         mw_ctx::{AppEvent, AppEventType},
     },
@@ -34,7 +34,7 @@ pub struct NotificationService<'a> {
 
 impl<'a> NotificationService<'a> {
     pub fn new(
-        db: &'a db::Db,
+        db: &'a Db,
         ctx: &'a Ctx,
         event_sender: &'a Sender<AppEvent>,
     ) -> NotificationService<'a> {

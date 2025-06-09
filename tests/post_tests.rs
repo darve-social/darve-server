@@ -5,13 +5,14 @@ use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
 use community_routes::get_community;
+use darve_server::database::client::Db;
 use darve_server::entities::community::community_entity;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::middleware::error::CtxResult;
 use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
-use darve_server::middleware::{self, db};
+use darve_server::middleware::{self};
 use darve_server::routes::community::community_routes;
 use darve_server::routes::community::post_routes::GetPostsQuery;
 use darve_server::routes::community::profile_routes::get_profile_community;
@@ -284,7 +285,7 @@ async fn get_latest_posts(
     posts_nr: i8,
     profile_discussion_id: Thing,
     ctx: &Ctx,
-    db: &db::Db,
+    db: &Db,
 ) -> CtxResult<Vec<RecordWithId>> {
     PostDbService { db, ctx }
         .get_by_discussion_desc_view::<RecordWithId>(

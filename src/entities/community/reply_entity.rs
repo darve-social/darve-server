@@ -1,7 +1,7 @@
+use crate::database::client::Db;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use middleware::db;
 use middleware::utils::db_utils::{
     get_entity_list_view, get_entity_view, with_not_found_err, IdentIdName, Pagination, QryOrder,
     ViewFieldSelector,
@@ -32,7 +32,7 @@ pub struct Reply {
 }
 
 pub struct ReplyDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

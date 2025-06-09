@@ -1,3 +1,5 @@
+use crate::config::AppConfig;
+use crate::database::client::Db;
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::send_email::SendEmailInterface;
@@ -20,8 +22,6 @@ use tokio::sync::broadcast;
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
-use super::db;
-
 #[derive(Debug, Clone, Serialize)]
 pub enum AppEventType {
     UserNotificationEvent(UserNotificationEvent),
@@ -38,7 +38,7 @@ pub struct AppEvent {
 
 #[derive(Clone)]
 pub struct CtxState {
-    pub _db: db::Db,
+    pub _db: Db,
     pub start_password: String,
     pub is_development: bool,
     pub stripe_secret_key: String,
@@ -72,38 +72,36 @@ impl StripeConfig for CtxState {
     }
 }
 
-pub async fn create_ctx_state(
-    db: db::Db,
-    start_password: String,
-    is_development: bool,
-    jwt_secret: String,
-    jwt_duration: Duration,
-    stripe_secret_key: String,
-    stripe_wh_secret: String,
-    stripe_platform_account: String,
-    upload_max_size_mb: u64,
-    apple_mobile_client_id: String,
-    google_client_id: String,
-    email_code_ttl: u8,
-) -> CtxState {
+pub async fn create_ctx_state(db: Db, config: &AppConfig) -> CtxState {
     let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
         _db: db,
-        start_password,
-        is_development,
-        stripe_secret_key,
-        stripe_wh_secret,
-        stripe_platform_account,
+        start_password: config.init_server_password.clone(),
+        is_development: config.is_development,
+        stripe_secret_key: config.stripe_secret_key.clone(),
+        stripe_wh_secret: config.stripe_wh_secret.clone(),
+        stripe_platform_account: config.stripe_platform_account.clone(),
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
-        upload_max_size_mb,
-        jwt: Arc::new(JWT::new(jwt_secret, jwt_duration)),
-        apple_mobile_client_id,
-        google_client_id,
-        file_storage: Arc::new(GoogleCloudFileStorage::from_env().await),
+        upload_max_size_mb: config.upload_file_size_max_mb,
+        jwt: Arc::new(JWT::new(config.jwt_secret.clone(), Duration::days(7))),
+        apple_mobile_client_id: config.apple_mobile_client_id.clone(),
+        google_client_id: config.google_client_id.clone(),
+        file_storage: Arc::new(
+            GoogleCloudFileStorage::new(
+                &config.gcs_bucket,
+                config.gcs_credentials.as_deref(),
+                config.gcs_endpoint.as_deref(),
+            )
+            .await,
+        ),
         event_sender,
-        email_sender: Arc::new(EmailSender::from_env()),
-        email_code_ttl: Duration::minutes(email_code_ttl as i64),
+        email_sender: Arc::new(EmailSender::new(
+            &config.sendgrid_api_key,
+            &config.sendgrid_api_url,
+            &config.no_replay,
+        )),
+        email_code_ttl: Duration::minutes(config.code_ttl as i64),
     };
     ctx_state
 }

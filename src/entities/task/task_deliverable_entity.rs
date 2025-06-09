@@ -1,6 +1,6 @@
+use crate::database::client::Db;
 use middleware::{
     ctx::Ctx,
-    db,
     error::{AppError, CtxError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ pub struct TaskDeliverable {
 }
 
 pub struct TaskDeliverableDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

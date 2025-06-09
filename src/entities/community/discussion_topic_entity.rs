@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
-use middleware::db;
 use middleware::utils::db_utils::{exists_entity, get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
 
+use crate::database::client::Db;
 use crate::middleware;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
@@ -27,7 +27,7 @@ pub struct DiscussionTopic {
 }
 
 pub struct DiscussionTopicDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

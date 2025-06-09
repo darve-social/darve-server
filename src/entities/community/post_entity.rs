@@ -5,7 +5,6 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
-use middleware::db;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
     IdentIdName, Pagination, QryOrder, ViewFieldSelector,
@@ -16,6 +15,7 @@ use middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 
+use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 
@@ -56,7 +56,7 @@ pub struct Post {
 }
 
 pub struct PostDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

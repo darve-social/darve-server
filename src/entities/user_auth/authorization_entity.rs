@@ -1,5 +1,4 @@
 use middleware::ctx::Ctx;
-use middleware::db::Db;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -10,6 +9,7 @@ use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::utils::db_utils::RecordWithId;
 use middleware::utils::string_utils::get_string_thing;
 
+use crate::database::client::Db;
 use crate::middleware;
 
 const AUTH_DOMAIN_ID_AUTHORIZE_DELIM: &str = "#";

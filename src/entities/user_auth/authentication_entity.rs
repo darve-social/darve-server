@@ -5,16 +5,15 @@ use strum::EnumString;
 use surrealdb::sql::Thing;
 use webauthn_rs::prelude::{CredentialID, Passkey};
 
-use middleware::db;
-use middleware::{
-    ctx::Ctx,
-    error::{AppError, CtxResult},
-};
-
+use crate::database::client::Db;
 use crate::middleware;
 use crate::middleware::error::AppResult;
 use crate::middleware::utils::db_utils::QryBindingsVal;
 use crate::middleware::utils::string_utils::get_string_thing;
+use middleware::{
+    ctx::Ctx,
+    error::{AppError, CtxResult},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
 pub enum AuthType {
@@ -126,7 +125,7 @@ impl Authentication {
 const TABLE_NAME: &str = "authentication";
 
 pub struct AuthenticationDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
