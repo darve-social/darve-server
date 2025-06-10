@@ -340,7 +340,7 @@ impl<'a> AuthService<'a> {
             .into());
         }
         let data = verification_data.unwrap();
-
+// TODO -code verification logic- same code verification logic is used for email and password - can we combine is same method 
         let is_too_many_attempts = data.failed_code_attempts >= 3;
 
         if is_too_many_attempts {
