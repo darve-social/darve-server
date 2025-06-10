@@ -74,7 +74,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         &c,
         ctx_state.jwt.clone(),
         ctx_state.email_sender.clone(),
-        ctx_state.code_ttl,
+        ctx_state.verification_code_ttl,
     );
 
     let _ = auth_service

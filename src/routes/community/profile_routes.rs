@@ -627,7 +627,7 @@ async fn email_verification_start(
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.code_ttl,
+        ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state._db,
             ctx: &ctx,
@@ -664,7 +664,7 @@ async fn email_verification_confirm(
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.code_ttl,
+        ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state._db,
             ctx: &ctx,

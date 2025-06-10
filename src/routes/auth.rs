@@ -49,7 +49,7 @@ async fn sign_by_fb(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
@@ -76,7 +76,7 @@ async fn sign_by_apple(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
 
     let (token, user) = auth_service
@@ -105,7 +105,7 @@ async fn sign_by_google(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
 
     let (token, user) = auth_service
@@ -134,7 +134,7 @@ async fn signin(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
 
     let (token, user) = auth_service.login_password(body).await?;
@@ -161,7 +161,7 @@ async fn signup(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
     let (token, user) = auth_service.register_password(body).await?;
 
@@ -186,7 +186,7 @@ async fn forgot_password(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
     let _ = auth_service.forgot_password(body).await?;
     Ok((StatusCode::OK).into_response())
@@ -202,7 +202,7 @@ async fn reset_password(
         &ctx,
         state.jwt.clone(),
         state.email_sender,
-        state.code_ttl,
+        state.verification_code_ttl,
     );
     let _ = auth_service.reset_password(body).await?;
     Ok((StatusCode::OK).into_response())

@@ -84,7 +84,7 @@ pub async fn register_user(
         ctx,
         state.jwt.clone(),
         state.email_sender.clone(),
-        state.code_ttl,
+        state.verification_code_ttl,
     );
     let (_, user) = auth_service.register_password(payload).await?;
     Ok(CreatedResponse {

@@ -472,6 +472,7 @@ pub async fn finish_authentication(
 
             let cred_id = STANDARD.encode(auth_result.cred_id().to_vec());
 
+            // TODO -passkey token should not be updated- check why are we updating instead of just comparing signature/public key
             auth_db_service
                 .update_token(exists_id.clone().unwrap(), AuthType::PASSKEY, cred_id)
                 .await?;
