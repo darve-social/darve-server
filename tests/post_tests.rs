@@ -1,6 +1,7 @@
 mod helpers;
 
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::create_fake_login_test_user;
+use crate::helpers::create_test_server;
 use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
@@ -33,7 +34,8 @@ use uuid::Uuid;
 #[tokio::test]
 async fn create_post() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
@@ -68,7 +70,8 @@ async fn create_post() {
 #[tokio::test]
 async fn create_post_with_the_same_name() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
@@ -96,7 +99,8 @@ async fn create_post_with_the_same_name() {
 #[tokio::test]
 async fn create_post_with_file_test() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = get_profile_discussion_id(server, user_ident.clone()).await;
     let _ = create_fake_post_with_large_file(server, &ctx_state, &result).await;
@@ -114,7 +118,8 @@ async fn create_post_with_file_test() {
 #[tokio::test]
 async fn get_latest() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
@@ -151,7 +156,8 @@ async fn get_latest() {
 #[tokio::test]
 async fn create_post_with_tags() {
     let (server, _) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let default_discussion =
         community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
@@ -188,7 +194,8 @@ async fn create_post_with_tags() {
 #[tokio::test]
 async fn filter_posts_by_tag() {
     let (server, _) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
     let default_discussion =
         community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
     let tags = vec!["tag".to_string(), "tag1".to_string()];

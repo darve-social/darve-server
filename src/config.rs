@@ -13,7 +13,7 @@ pub struct AppConfig {
     pub jwt_secret: String,
     pub upload_file_size_max_mb: u64,
     pub apple_mobile_client_id: String,
-    pub code_ttl: u8,
+    pub verification_code_ttl: u8,
     pub google_client_id: String,
     pub init_server_password: String,
     pub is_development: bool,
@@ -51,7 +51,7 @@ impl AppConfig {
         let apple_mobile_client_id =
             std::env::var("APPLE_MOBILE_CLIENT_ID").expect("Missing APPLE_MOBILE_CLIENT_ID in env");
 
-        let code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
+        let verification_code_ttl = std::env::var("EMAIL_CODE_TIME_TO_LIVE")
             .unwrap_or("5".to_string())
             .parse::<u8>()
             .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
@@ -89,7 +89,7 @@ impl AppConfig {
             jwt_secret,
             upload_file_size_max_mb,
             apple_mobile_client_id,
-            code_ttl,
+            verification_code_ttl,
             google_client_id,
             init_server_password,
             is_development,

@@ -1,6 +1,7 @@
 mod helpers;
 
 use crate::helpers::community_helpers::create_fake_community;
+use crate::helpers::create_fake_login_test_user;
 use authorization_entity::{
     get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_ADMIN, AUTH_ACTIVITY_EDITOR,
     AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER, AUTH_REC_NAME_DISCUSSION, AUTH_REC_NAME_POST,
@@ -10,7 +11,7 @@ use darve_server::entities::user_auth::access_right_entity::AccessRightDbService
 use darve_server::entities::user_auth::authorization_entity;
 use darve_server::entities::user_auth::authorization_entity::AUTH_ACTIVITY_VISITOR;
 use darve_server::middleware::ctx::Ctx;
-use helpers::{create_login_test_user, create_test_server};
+use helpers::create_test_server;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -258,16 +259,10 @@ async fn authorization_compare() {
 }
 
 #[tokio::test]
-async fn get_auth_parent_record_id() {
-    let (server, _) = create_test_server().await;
-    let (_, _) = create_login_test_user(&server, "usnnnn".to_string()).await;
-}
-
-#[tokio::test]
 async fn authorize_save() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
-
+    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
     let comm_id = Thing::try_from(

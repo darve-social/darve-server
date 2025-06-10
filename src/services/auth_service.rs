@@ -1,19 +1,22 @@
 use std::sync::Arc;
 
-use crate::database::client::Db;
-use chrono::{DateTime, Utc};
+use askama::Template;
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
+    database::client::Db,
     entities::{
         community::community_entity::CommunityDbService,
         user_auth::{
-            authentication_entity::{AuthType, AuthenticationDbService},
-            local_user_entity::{LocalUser, LocalUserDbService},
+            authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
+            local_user_entity::{LocalUser, LocalUserDbService, VerificationCodeFor},
         },
     },
+    interfaces::send_email::SendEmailInterface,
     middleware::{
         ctx::Ctx,
         error::{AppError, CtxResult},
@@ -22,20 +25,15 @@ use crate::{
             string_utils::get_string_thing,
         },
     },
+    models::ResetPassword,
     utils::{
+        generate,
+        hash::{hash_password, verify_password},
         jwt::JWT,
         validate_utils::validate_username,
         verification::{apple, facebook, google},
     },
 };
-
-pub struct AuthService<'a> {
-    ctx: &'a Ctx,
-    jwt: Arc<JWT>,
-    user_repository: LocalUserDbService<'a>,
-    auth_repository: AuthenticationDbService<'a>,
-    community_repository: CommunityDbService<'a>,
-}
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {
@@ -61,14 +59,48 @@ pub struct AuthLoginInput {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct ForgotPasswordInput {
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResetPasswordInput {
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub password: String,
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub code: String,
+    #[validate(email)]
+    pub email: String,
+}
+
+pub struct AuthService<'a> {
+    ctx: &'a Ctx,
+    jwt: Arc<JWT>,
+    code_ttl: Duration,
+    user_repository: LocalUserDbService<'a>,
+    auth_repository: AuthenticationDbService<'a>,
+    community_repository: CommunityDbService<'a>,
+    email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+}
+
 impl<'a> AuthService<'a> {
-    pub fn new(db: &'a Db, ctx: &'a Ctx, jwt: Arc<JWT>) -> AuthService<'a> {
+    pub fn new(
+        db: &'a Db,
+        ctx: &'a Ctx,
+        jwt: Arc<JWT>,
+        email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+        code_ttl: Duration,
+    ) -> AuthService<'a> {
         AuthService {
             ctx,
             jwt,
             user_repository: LocalUserDbService { db: &db, ctx: &ctx },
             auth_repository: AuthenticationDbService { db: &db, ctx: &ctx },
             community_repository: CommunityDbService { db: &db, ctx: &ctx },
+            email_sender,
+            code_ttl,
         }
     }
 
@@ -80,12 +112,20 @@ impl<'a> AuthService<'a> {
             .get(UsernameIdent(input.username.to_string()).into())
             .await?;
 
-        self.auth_repository
-            .authenticate(
-                &self.ctx,
-                AuthType::PASSWORD(Some(input.password.to_string()), user.id.clone()),
-            )
-            .await?;
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?
+            .ok_or(AppError::Generic {
+                description: "Password not found".to_string(),
+            })?;
+
+        if !verify_password(&auth.token, &input.password) {
+            return Err(AppError::Generic {
+                description: "Password is not correct".to_string(),
+            }
+            .into());
+        }
 
         Ok((
             self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
@@ -123,9 +163,8 @@ impl<'a> AuthService<'a> {
             image_uri: input.image_uri,
             birth_date: input.birth_day,
         };
-
-        self.register(user, AuthType::PASSWORD(Some(input.password), None))
-            .await
+        let (_, hash) = hash_password(&input.password).expect("Hash password error");
+        self.register(user, AuthType::PASSWORD, &hash).await
     }
 
     pub async fn register_login_by_apple(
@@ -137,10 +176,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth = AuthType::APPLE(apple_user.id);
-
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), apple_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::APPLE,
+                apple_user.id.clone(),
+                apple_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -170,7 +211,9 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: None,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::APPLE, &apple_user.id)
+                        .await;
                 }
                 _ => Err(err),
             },
@@ -182,9 +225,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth: AuthType = AuthType::FACEBOOK(fb_user.id.clone());
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), fb_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::FACEBOOK,
+                fb_user.id.clone(),
+                fb_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -214,7 +260,9 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: None,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::FACEBOOK, &fb_user.id)
+                        .await;
                 }
                 _ => Err(err),
             },
@@ -230,9 +278,12 @@ impl<'a> AuthService<'a> {
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let auth: AuthType = AuthType::GOOGLE(google_user.sub.clone());
         let res_user_id = self
-            .get_user_id_by_social_auth(auth.clone(), google_user.email.clone())
+            .get_user_id_by_social_auth(
+                AuthType::GOOGLE,
+                google_user.sub.clone(),
+                google_user.email.clone(),
+            )
             .await;
 
         match res_user_id {
@@ -263,26 +314,129 @@ impl<'a> AuthService<'a> {
                         social_links: None,
                         image_uri: google_user.picture,
                     };
-                    return self.register(new_user, auth).await;
+                    return self
+                        .register(new_user, AuthType::GOOGLE, &google_user.sub)
+                        .await;
                 }
                 _ => Err(err),
             },
         }
     }
 
+    pub async fn reset_password(&self, input: ResetPasswordInput) -> CtxResult<()> {
+        input.validate()?;
+
+        let user = self.user_repository.get_by_email(&input.email).await?;
+
+        let verification_data = self
+            .user_repository
+            .get_code(user.id.clone().unwrap(), VerificationCodeFor::ResetPassword)
+            .await?;
+
+        if verification_data.is_none() {
+            return Err(AppError::Generic {
+                description: "Invalid verification".to_string(),
+            }
+            .into());
+        }
+        let data = verification_data.unwrap();
+        // TODO -code verification logic- same code verification logic is used for email and password - can we combine is same method
+        let is_too_many_attempts = data.failed_code_attempts >= 3;
+
+        if is_too_many_attempts {
+            return Err(AppError::Generic {
+                description: "Too many attempts. Wait and start new verification.".to_string(),
+            }
+            .into());
+        }
+
+        let is_expired = Utc::now().signed_duration_since(data.r_created) > self.code_ttl;
+
+        if is_expired {
+            return Err(AppError::Generic {
+                description: "Start new verification".to_string(),
+            }
+            .into());
+        }
+
+        if data.code != input.code {
+            self.user_repository.increase_code_attempt(data.id).await?;
+
+            return Err(AppError::Generic {
+                description: "Wrong code.".to_string(),
+            }
+            .into());
+        }
+
+        let (_, hash) = hash_password(&input.password).expect("Hash password error");
+
+        self.auth_repository
+            .update_token(user.id.unwrap().to_raw(), AuthType::PASSWORD, hash)
+            .await?;
+
+        self.user_repository.delete_code(data.id).await?;
+
+        Ok(())
+    }
+
+    pub async fn forgot_password(&self, data: ForgotPasswordInput) -> CtxResult<()> {
+        data.validate()?;
+
+        let user = self.user_repository.get_by_email(&data.email).await?;
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?;
+
+        if auth.is_none() {
+            return Err(AppError::Generic {
+                description: "User has not set password yet".to_string(),
+            }
+            .into());
+        }
+
+        let code = generate::generate_number_code(6);
+
+        let _ = self
+            .user_repository
+            .create_code(
+                user.id.unwrap(),
+                code.clone(),
+                data.email,
+                VerificationCodeFor::ResetPassword,
+            )
+            .await?;
+
+        let model = ResetPassword {
+            code: &code,
+            ttl: &self.code_ttl.num_minutes().to_string(),
+        };
+
+        self.email_sender
+            .send(
+                vec![user.email_verified.unwrap()],
+                &model.render().unwrap(),
+                "Reset Password",
+            )
+            .await
+            .map_err(|e| AppError::Generic { description: e })?;
+
+        Ok(())
+    }
+
     async fn get_user_id_by_social_auth(
         &self,
         auth: AuthType,
+        token: String,
         email: Option<String>,
     ) -> CtxResult<String> {
-        let res_user_id = self
-            .auth_repository
-            .authenticate(&self.ctx, auth.clone())
-            .await;
+        let auth = self.auth_repository.get_by_token(auth, token).await?;
 
-        if res_user_id.is_ok() {
-            return res_user_id;
+        if auth.is_some() {
+            return Ok(auth.unwrap().local_user.id.to_raw());
         }
+
         match email {
             Some(val) => {
                 let user = self
@@ -360,9 +514,19 @@ impl<'a> AuthService<'a> {
     async fn register(
         &self,
         mut data: LocalUser,
-        auth: AuthType,
+        auth_type: AuthType,
+        token: &str,
     ) -> CtxResult<(String, LocalUser)> {
-        let user_id = self.user_repository.create(data.clone(), auth).await?;
+        let user_id = self.user_repository.create(data.clone()).await?;
+        let _ = self
+            .auth_repository
+            .create(CreateAuthInput {
+                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                token: token.to_string(),
+                auth_type,
+                passkey_json: None,
+            })
+            .await?;
         let token = self.build_jwt_token(&user_id).await?;
         data.id = Some(get_string_thing(user_id)?);
 

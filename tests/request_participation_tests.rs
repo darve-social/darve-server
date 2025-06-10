@@ -1,4 +1,5 @@
 mod helpers;
+use std::i64;
 
 use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
@@ -17,7 +18,7 @@ use darve_server::{
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::{create_fake_login_test_user, create_login_test_user, create_test_server};
 use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
 use login_routes::LoginInput;
@@ -37,14 +38,21 @@ use wallet_routes::CurrencyTransactionHistoryView;
 #[tokio::test]
 async fn create_task_request_participation() {
     let (server, ctx_state) = create_test_server().await;
-    let username0 = "usnnnn0".to_string();
-    let username1 = "usnnnn1".to_string();
+    let (server, user0, user0_pwd) = create_fake_login_test_user(&server).await;
+    let user_ident0 = user0.id.as_ref().unwrap().to_raw();
+    let username0 = user0.username.to_string();
+
+    let (server, user1, _) = create_fake_login_test_user(&server).await;
+    let user_ident1 = user1.id.as_ref().unwrap().to_raw();
+    let _ = user1.username.to_string();
+    let _ = user1.id.unwrap();
+
+    let (server, user3, user3_pwd) = create_fake_login_test_user(&server).await;
+    let user_ident3 = user3.id.as_ref().unwrap().to_raw();
+    let username3 = user3.username.to_string();
+
     let username2 = "usnnnn2".to_string();
-    let username3 = "usnnnn3".to_string();
     let username4 = "usnnnn4".to_string();
-    let (server, user_ident0) = create_login_test_user(&server, username0.clone()).await;
-    let (server, user_ident3) = create_login_test_user(&server, username3.clone()).await;
-    let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
 
     let comm_name = "comm-naMMe1".to_lowercase();
 
@@ -167,7 +175,7 @@ async fn create_task_request_participation() {
         .post("/api/login")
         .json(&LoginInput {
             username: username3.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user3_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -276,9 +284,8 @@ async fn create_task_request_participation() {
         .unwrap();
     assert_eq!(participant.amount, user3_offer_amt);
 
-
     // user4 tries to participate without balance and gets error
-    
+
     let (server, user_ident4) = create_login_test_user(&server, username4.clone()).await;
     let user4_thing = get_string_thing(user_ident4).unwrap();
     let balance = wallet_service.get_user_balance(&user4_thing).await.unwrap();
@@ -303,7 +310,7 @@ async fn create_task_request_participation() {
         .post("/api/login")
         .json(&LoginInput {
             username: username0.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user0_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -431,7 +438,7 @@ async fn create_task_request_participation() {
         .post("/api/login")
         .json(&LoginInput {
             username: username3.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user3_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -477,16 +484,19 @@ async fn create_task_request_participation() {
     let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
     assert_eq!(created.transactions.len(), 6);
 
-    created.transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
-        let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-        let ts = date_time.unwrap().timestamp_millis();
-        println!(
-            "for {} with {} in {:?} out {:?} after tx balance={}",
-            tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
-        );
-        assert_eq!(ts <= prev_val, true, "curr={} prev={}", ts, prev_val);
-        ts
-    });
+    created
+        .transactions
+        .iter()
+        .fold(i64::MAX, |prev_val, tx_v| {
+            let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let ts = date_time.unwrap().timestamp();
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts <= prev_val, true);
+            ts
+        });
 
     // check transaction history /api/user/wallet/history
     let transaction_history_response = server
@@ -498,15 +508,17 @@ async fn create_task_request_participation() {
     let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
     assert_eq!(created.transactions.len(), 4);
 
-    created.transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
-        let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-        let ts = date_time.unwrap().timestamp_millis();
-        println!(
-            "for {} with {} in {:?} out {:?} after tx balance={}",
-            tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
-        );
-        assert_eq!(ts <= prev_val, true, "curr={} prev={}", ts, prev_val);
-        ts
-    });
-    
+    created
+        .transactions
+        .iter()
+        .fold(i64::MAX, |prev_val, tx_v| {
+            let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
+            let ts = date_time.unwrap().timestamp();
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts <= prev_val, true);
+            ts
+        });
 }

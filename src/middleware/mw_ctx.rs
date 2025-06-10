@@ -50,7 +50,7 @@ pub struct CtxState {
     pub apple_mobile_client_id: String,
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
-    pub email_code_ttl: Duration,
+    pub verification_code_ttl: Duration,
     pub jwt: Arc<JWT>,
     pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
     pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
@@ -101,7 +101,7 @@ pub async fn create_ctx_state(db: Db, config: &AppConfig) -> CtxState {
             &config.sendgrid_api_url,
             &config.no_replay,
         )),
-        email_code_ttl: Duration::minutes(config.code_ttl as i64),
+        verification_code_ttl: Duration::minutes(config.verification_code_ttl as i64),
     };
     ctx_state
 }

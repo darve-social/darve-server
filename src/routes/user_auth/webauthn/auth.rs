@@ -1,9 +1,13 @@
+use std::any::Any;
+
 use axum::extract::State;
 use axum::{
     extract::{Extension, Json, Path},
     http::StatusCode,
     response::IntoResponse,
 };
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use surrealdb::sql::Thing;
 use tower_cookies::{Cookie, Cookies};
 use tower_sessions::Session;
@@ -13,6 +17,7 @@ use webauthn_rs::prelude::*;
 
 use super::error::WebauthnError;
 use super::startup::AppState;
+use crate::entities::user_auth::authentication_entity::CreateAuthInput;
 use crate::entities::user_auth::{authentication_entity, local_user_entity};
 use crate::middleware;
 use crate::middleware::mw_ctx::JWT_KEY;
@@ -244,7 +249,7 @@ pub async fn finish_register(
         return Ok(StatusCode::BAD_REQUEST);
     }
 
-    let user_db_service = &LocalUserDbService {
+    let user_db_service = LocalUserDbService {
         db: &_db,
         ctx: &ctx,
     };
@@ -264,15 +269,27 @@ pub async fn finish_register(
         if !username_is_available {
             return Err(WebauthnError::UserExists);
         }
-        user_db_service
-            .create(
-                LocalUser::default(register_user_ident),
-                AuthType::PASSKEY(
-                    Some(valid_passkey.as_ref().unwrap().cred_id().clone()),
-                    valid_passkey,
-                ),
-            )
+        let user_id = user_db_service
+            .create(LocalUser::default(register_user_ident))
             .await?;
+
+        let auth_db_service = AuthenticationDbService {
+            db: &_db,
+            ctx: &ctx,
+        };
+
+        let cred_id = STANDARD.encode(valid_passkey.as_ref().unwrap().cred_id().to_vec());
+        let passkey_json = Some(serde_json::to_string(&valid_passkey.unwrap()).unwrap());
+
+        auth_db_service
+            .create(CreateAuthInput {
+                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                token: cred_id,
+                auth_type: AuthType::PASSKEY,
+                passkey_json,
+            })
+            .await?;
+
         Ok(StatusCode::OK)
     } else {
         // user is making passkey for existing username
@@ -377,30 +394,17 @@ pub async fn start_authentication(
         return Err(WebauthnError::UserNotFound);
     }
 
-    let allow_credentials: Vec<Passkey> = auth_db_service
-        .get_by_auth_type(exists_id.clone().unwrap(), AuthType::PASSKEY(None, None))
+    let passkey_json = auth_db_service
+        .get_by_auth_type(exists_id.clone().unwrap(), AuthType::PASSKEY)
         .await?
-        .into_iter()
-        .filter_map(|auth| match auth.passkey_json {
-            None => None,
-            Some(pk_str) => {
-                let pk_res = serde_json::from_str::<Passkey>(&pk_str);
-                if pk_res.is_err() {
-                    println!("ERROR parsing into json PASSKEY={}", pk_str);
-                }
-                pk_res.ok()
-            }
-        })
-        .collect();
+        .ok_or(WebauthnError::UserHasNoCredentials)?
+        .passkey_json
+        .ok_or(WebauthnError::UserHasNoCredentials)?;
 
-    if allow_credentials.len() < 1 {
-        return Err(WebauthnError::UserHasNoCredentials);
-    }
+    let passkey = serde_json::from_str::<Passkey>(&passkey_json)
+        .map_err(|_| WebauthnError::UserHasNoCredentials)?;
 
-    let res = match app_state
-        .webauthn
-        .start_passkey_authentication(&*allow_credentials)
-    {
+    let res = match app_state.webauthn.start_passkey_authentication(&[passkey]) {
         Ok((rcr, auth_state)) => {
             // Drop the mutex to allow the mut borrows below to proceed
             // drop(users_guard);
@@ -466,20 +470,16 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserNotFound);
             }
 
-            let user_id = auth_db_service
-                .authenticate(
-                    &ctx,
-                    AuthType::PASSKEY(Some(auth_result.cred_id().clone()), None),
-                )
-                .await;
+            let cred_id = STANDARD.encode(auth_result.cred_id().to_vec());
 
-            if user_id.is_err() {
-                return Err(WebauthnError::UserHasNoCredentials);
-            }
+            // TODO -passkey token should not be updated- check why are we updating instead of just comparing signature/public key
+            auth_db_service
+                .update_token(exists_id.clone().unwrap(), AuthType::PASSKEY, cred_id)
+                .await?;
 
             let token = state
                 .jwt
-                .encode(&user_id.unwrap())
+                .encode(&exists_id.unwrap())
                 .expect("JWT encode should work");
 
             cookies.add(

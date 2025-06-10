@@ -44,7 +44,13 @@ tracing = "0.1.41"
 google-cloud-storage = "0.24.0"
 async-trait = "0.1.88"
 dotenvy = "0.15.7"
-sentry = { version = "0.38.1", default-features = false, features = ["curl", "backtrace", "contexts", "panic"]}
+sentry = { version = "0.39.0", default-features = false, features = [
+    "curl",
+    "backtrace",
+    "contexts",
+    "panic",
+] }
+argon2 = "0.5.3"
 
 [dev-dependencies]
 fake = "4.3.0"

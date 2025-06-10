@@ -1,7 +1,7 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::user_auth::local_user_entity::LocalUserDbService,
+    entities::user_auth::local_user_entity::{LocalUserDbService, VerificationCodeFor},
     middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
         community::{
@@ -24,6 +24,8 @@ use middleware::utils::request_utils::CreatedResponse;
 use profile_routes::{ProfileChat, ProfileChatList, SearchInput};
 use serde_json::json;
 use uuid::Uuid;
+
+use crate::helpers::fake_username_min_len;
 
 #[tokio::test]
 async fn search_users() {
@@ -128,11 +130,13 @@ async fn search_users() {
 #[tokio::test]
 async fn get_user_chat() {
     let (server, ctx_state) = create_test_server().await;
-    let username1 = "usnnnn".to_string();
-    let username2 = "usnnnn2".to_string();
-    let username3 = "usnnnn3".to_string();
-    let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
-    let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
+    let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
+    let user_ident1 = user1.id.as_ref().unwrap().to_raw();
+
+    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let user_ident2: String = user2.id.as_ref().unwrap().to_raw();
+    let username1 = user1.username.to_string();
+    let username3 = fake_username_min_len(9);
 
     // logged in as username2
     // get user chats
@@ -189,7 +193,7 @@ async fn get_user_chat() {
         .post("/api/login")
         .json(&LoginInput {
             username: username1.clone(),
-            password: "some3242paSs#$".to_string(),
+            password: user1_pwd.clone(),
             next: None,
         })
         .add_header("Accept", "application/json")
@@ -265,8 +269,8 @@ async fn get_user_chat() {
 #[tokio::test]
 async fn get_user_chat_1() {
     let (server, _) = create_test_server().await;
-    let (_, local_user_1) = create_fake_login_test_user(&server).await;
-    let (_, local_user_2) = create_fake_login_test_user(&server).await;
+    let (_, local_user_1, _) = create_fake_login_test_user(&server).await;
+    let (_, local_user_2, _) = create_fake_login_test_user(&server).await;
 
     let create_response = server
         .get("/api/user_chat/list")
@@ -311,7 +315,7 @@ async fn get_user_chat_1() {
 async fn email_verification_and_confirmation() {
     let (server, ctx_state) = create_test_server().await;
 
-    let (server, user) = create_fake_login_test_user(&server).await;
+    let (server, user, _) = create_fake_login_test_user(&server).await;
     let username = user.username;
     let user_id = user.id.clone().unwrap();
     let new_email = "asdasdasd@asdasd.com";
@@ -337,7 +341,7 @@ async fn email_verification_and_confirmation() {
     response.assert_status_success();
 
     let code = user_db
-        .get_email_verification(user_id.clone())
+        .get_code(user_id.clone(), VerificationCodeFor::EmailVerification)
         .await
         .unwrap()
         .expect("verification should exist")
@@ -354,7 +358,9 @@ async fn email_verification_and_confirmation() {
     let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    let res = user_db.get_email_verification(user_id).await;
+    let res = user_db
+        .get_code(user_id, VerificationCodeFor::EmailVerification)
+        .await;
     assert!(res.unwrap().is_none());
 }
 
@@ -362,7 +368,7 @@ async fn email_verification_and_confirmation() {
 async fn email_confirmation_with_invalid_code() {
     let (server, _) = create_test_server().await;
 
-    let (server, _) = create_fake_login_test_user(&server).await;
+    let (server, _, _pwd) = create_fake_login_test_user(&server).await;
     let new_email = "asdasdasd@asdasd.com";
 
     server
@@ -402,15 +408,15 @@ async fn email_confirmation_with_invalid_code() {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
-    response
+    assert!(response
         .text()
-        .contains("Too many attempts. Wait and start new verification");
+        .contains("Too many attempts. Wait and start new verification"));
 }
 
 #[tokio::test]
 async fn update_user_avatar() {
     let (server, _) = create_test_server().await;
-    let (_, local_user) = create_fake_login_test_user(&server).await;
+    let (_, local_user, _pwd) = create_fake_login_test_user(&server).await;
 
     let create_response = update_current_user(&server).await;
     create_response.assert_status_success();
@@ -426,4 +432,119 @@ async fn update_user_avatar() {
         .as_ref()
         .unwrap()
         .contains("profile_image.jpg"));
+}
+
+#[tokio::test]
+async fn set_user_password() {
+    let (server, state) = create_test_server().await;
+    let new_password = "setPassword123";
+
+    // Create and login user
+    let (server, local_user, _old_password) = create_fake_login_test_user(&server).await;
+
+    // Set password using POST endpoint (no old password required)
+    let response = server
+        .post("/api/users/current/password")
+        .json(&serde_json::json!({
+            "password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    assert!(response.text().contains("User has already set a password"));
+
+    let _ = state
+        ._db
+        .query("DELETE authentication WHERE local_user=$user")
+        .bind(("user", local_user.id.unwrap()))
+        .await;
+
+    let response = server
+        .post("/api/users/current/password")
+        .json(&serde_json::json!({
+            "password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    // Logout
+    server.get("/logout").await;
+
+    // Login with new password (should succeed)
+    let login_response = server
+        .post("/api/login")
+        .json(&serde_json::json!({
+            "username": local_user.username,
+            "password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    login_response.assert_status_success();
+
+    // Test validation: password too short should fail
+    let response = server
+        .post("/api/users/current/password")
+        .json(&serde_json::json!({
+            "password": "12345" // Less than 6 characters
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+}
+
+#[tokio::test]
+async fn update_user_password() {
+    let (server, _) = create_test_server().await;
+    let new_password = "newPassword456";
+
+    // Create and login user
+    let (server, local_user, password) = create_fake_login_test_user(&server).await;
+
+    // Try to update password with wrong old password
+    let response = server
+        .patch("/api/users/current/password")
+        .json(&serde_json::json!({
+            "old_password": "wrongPassword",
+            "new_password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+
+    // Update password with correct old password
+    let response = server
+        .patch("/api/users/current/password")
+        .json(&serde_json::json!({
+            "old_password": password,
+            "new_password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    // Logout
+    server.get("/logout").await;
+
+    // Try to login with old password (should fail)
+    let login_response = server
+        .post("/api/login")
+        .json(&serde_json::json!({
+            "username": local_user.username,
+            "password": password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    login_response.assert_status_failure();
+
+    // Login with new password (should succeed)
+    let login_response = server
+        .post("/api/login")
+        .json(&serde_json::json!({
+            "username": local_user.username,
+            "password": new_password
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    login_response.assert_status_success();
 }
