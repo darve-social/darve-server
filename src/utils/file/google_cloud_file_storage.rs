@@ -18,15 +18,14 @@ pub struct GoogleCloudFileStorage {
 }
 
 impl GoogleCloudFileStorage {
-    pub async fn from_env() -> Self {
-        let cred_filepath = std::env::var("GOOGLE_CLOUD_STORAGE_CREDENTIALS").ok();
-        let mut config = if cred_filepath.is_none() {
+    pub async fn new(bucket: &str, cred: Option<&str>, endpoint: Option<&str>) -> Self {
+        let mut config = if cred.is_none() {
             println!("GOOGLE_CLOUD_STORAGE_CREDENTIALS filepath not set - going anonymous");
             ClientConfig::default().anonymous()
         } else {
             ClientConfig::default()
                 .with_credentials(
-                    CredentialsFile::new_from_file(cred_filepath.expect("none check exists above"))
+                    CredentialsFile::new_from_file(cred.unwrap().to_string())
                         .await
                         .expect("Credentials file not found"),
                 )
@@ -34,18 +33,15 @@ impl GoogleCloudFileStorage {
                 .expect("Failed to load Google Cloud Storage credentials")
         };
 
-        let bucket = std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET")
-            .unwrap_or("darve_storage".to_string());
-
-        let endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT")
+        let endpoint = endpoint
             .map(|storage_endpoint| {
-                config.storage_endpoint = storage_endpoint.clone();
+                config.storage_endpoint = storage_endpoint.to_string();
                 format!("{}/download/storage/v1/b/{}/o", storage_endpoint, bucket)
             })
-            .unwrap_or_else(|_| format!("{}/{}", config.storage_endpoint, bucket));
+            .unwrap_or_else(|| format!("{}/{}", config.storage_endpoint, bucket));
 
         GoogleCloudFileStorage {
-            bucket,
+            bucket: bucket.to_string(),
             client: Client::new(config),
             endpoint,
         }

@@ -1,7 +1,7 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::user_auth::local_user_entity::{LocalUserDbService, UseCodeFor},
+    entities::user_auth::local_user_entity::{LocalUserDbService, VerificationCodeFor},
     middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
         community::{
@@ -341,7 +341,7 @@ async fn email_verification_and_confirmation() {
     response.assert_status_success();
 
     let code = user_db
-        .get_code(user_id.clone(), UseCodeFor::EmailVerification)
+        .get_code(user_id.clone(), VerificationCodeFor::EmailVerification)
         .await
         .unwrap()
         .expect("verification should exist")
@@ -359,7 +359,7 @@ async fn email_verification_and_confirmation() {
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
     let res = user_db
-        .get_code(user_id, UseCodeFor::EmailVerification)
+        .get_code(user_id, VerificationCodeFor::EmailVerification)
         .await;
     assert!(res.unwrap().is_none());
 }

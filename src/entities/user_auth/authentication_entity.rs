@@ -5,13 +5,12 @@ use serde::{Deserialize, Serialize};
 use strum::EnumString;
 use surrealdb::sql::Thing;
 
-use middleware::db;
+use crate::database::client::Db;
+use crate::middleware;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
-
-use crate::middleware;
 
 #[derive(Debug, Serialize)]
 pub struct CreateAuthInput {
@@ -44,7 +43,7 @@ pub struct Authentication {
 const TABLE_NAME: &str = "authentication";
 
 pub struct AuthenticationDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

@@ -1,5 +1,5 @@
 use balance_transaction_entity::BalanceTransactionDbService;
-use middleware::db;
+
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
+use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
@@ -41,7 +42,7 @@ enum WithdrawStatus {
 }
 
 pub struct GatewayTransactionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -140,7 +141,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
-        let res: Option<Thing> = fund_res.take(fund_res.num_statements()-1)?;
+        let res: Option<Thing> = fund_res.take(fund_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in endowment tx".to_string(),
         }))

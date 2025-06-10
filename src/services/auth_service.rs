@@ -8,6 +8,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
+    database::client::Db,
     entities::{
         community::community_entity::CommunityDbService,
         user_auth::{
@@ -18,7 +19,6 @@ use crate::{
     interfaces::send_email::SendEmailInterface,
     middleware::{
         ctx::Ctx,
-        db,
         error::{AppError, CtxResult},
         utils::{
             db_utils::{IdentIdName, UsernameIdent},
@@ -87,7 +87,7 @@ pub struct AuthService<'a> {
 
 impl<'a> AuthService<'a> {
     pub fn new(
-        db: &'a db::Db,
+        db: &'a Db,
         ctx: &'a Ctx,
         jwt: Arc<JWT>,
         email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
@@ -340,7 +340,7 @@ impl<'a> AuthService<'a> {
             .into());
         }
         let data = verification_data.unwrap();
-// TODO -code verification logic- same code verification logic is used for email and password - can we combine is same method 
+        // TODO -code verification logic- same code verification logic is used for email and password - can we combine is same method
         let is_too_many_attempts = data.failed_code_attempts >= 3;
 
         if is_too_many_attempts {

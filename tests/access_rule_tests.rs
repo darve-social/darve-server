@@ -16,6 +16,7 @@ use darve_server::routes::community::{community_routes, discussion_topic_routes}
 use darve_server::routes::user_auth::access_rule_routes;
 use darve_server::services::user_service::UserService;
 use discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
+use helpers::create_fake_login_test_user;
 use local_user_entity::{LocalUser, LocalUserDbService};
 use middleware::ctx::Ctx;
 use middleware::error::AppError;
@@ -25,25 +26,21 @@ use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::helpers::community_helpers::create_fake_community;
+use crate::helpers::create_test_server;
 use crate::helpers::post_helpers::create_fake_post;
-use crate::helpers::{create_fake_login_test_user, create_test_server};
 
 #[tokio::test]
 async fn display_access_rule_content() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
+    let user_ident = user.id.unwrap().clone().to_raw();
 
-    let fake_comm =
-        create_fake_community(server, &ctx_state, user.id.as_ref().unwrap().to_raw()).await;
+    let fake_comm = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
     let comm_id = Thing::try_from(fake_comm.id.clone()).unwrap();
     let comm_name = fake_comm.name.clone();
 
-    let ctx = &Ctx::new(
-        Ok(user.id.as_ref().unwrap().to_raw()),
-        Uuid::new_v4(),
-        false,
-    );
+    let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
     let comm_db = CommunityDbService {
         db: &ctx_state._db,
         ctx: &ctx,
@@ -231,7 +228,7 @@ async fn display_access_rule_content() {
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.code_ttl,
+        ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state._db,
             ctx: &ctx,

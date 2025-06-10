@@ -2,63 +2,47 @@ pub mod community_helpers;
 pub mod post_helpers;
 pub mod user_helpers;
 use axum_test::{TestServer, TestServerConfig};
-use chrono::Duration;
+use darve_server::config::AppConfig;
+use darve_server::database::client::{Database, DbConfig};
 use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::middleware;
 use darve_server::routes::user_auth::webauthn;
-use dotenv::dotenv;
 use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
 use serde_json::json;
-use surrealdb::engine::any::{connect, Any};
+use surrealdb::engine::any::Any;
 use surrealdb::Surreal;
-use darve_server::middleware::db;
-use darve_server::middleware::db::DBConfig;
 use webauthn::webauthn_routes::create_webauth_config;
 
 #[allow(dead_code)]
-async fn init_test_db(mem_db: bool) -> Surreal<Any> {
-    let db = if(mem_db){
-        let db = connect("mem://").await.unwrap();
-        db.use_ns("namespace").use_db("database").await.unwrap();
-        db
-    }else {
-        let config = DBConfig::from_env();
-        println!("remote db config={:?}",&config);
-        let db = db::start(config).await.unwrap();
-        db.query("REMOVE DATABASE IF EXISTS test").await.unwrap();
-        println!("remote db data reset");
-        db
-    };
-
-    darve_server::init::run_migrations(db.clone())
+async fn init_test_db(config: &mut AppConfig) -> Surreal<Any> {
+    println!("remote db config={:?}", &config);
+    config.db_database = "db_test".to_string();
+    config.db_url = "mem://".to_string();
+    config.db_password = None;
+    config.db_username = None;
+    let db = Database::connect(DbConfig {
+        url: &config.db_url,
+        database: &config.db_database,
+        namespace: &config.db_namespace,
+        password: config.db_password.as_deref(),
+        username: config.db_username.as_deref(),
+    })
+    .await;
+    darve_server::init::run_migrations(db.client.clone())
         .await
         .expect("migrations run");
-    db
+
+    db.client
 }
 
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
 #[allow(dead_code)]
 pub async fn create_test_server() -> (TestServer, CtxState) {
-    dotenv().ok();
+    let mut config = AppConfig::from_env();
 
-    let db = init_test_db(true).await;
-
-    let ctx_state = create_ctx_state(
-        db,
-        "123".to_string(),
-        true,
-        "".to_string(),
-        Duration::new(7 * 86400, 0).unwrap(),
-        "".to_string(),
-        "".to_string(),
-        "".to_string(),
-        15,
-        "".to_string(),
-        "".to_string(),
-        10,
-    )
-    .await;
+    let db = init_test_db(&mut config).await;
+    let ctx_state = create_ctx_state(db, &config).await;
 
     let wa_config = create_webauth_config();
     let routes_all = darve_server::init::main_router(&ctx_state.clone(), wa_config).await;

@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
+use crate::database::client::Db;
+use crate::middleware;
 use authorization_entity::Authorization;
-use middleware::db;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_list, get_entity_view, with_not_found_err, IdentIdName,
     ViewFieldSelector,
@@ -12,8 +13,6 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-
-use crate::middleware;
 
 use super::authorization_entity;
 
@@ -43,7 +42,7 @@ pub struct AccessRule {
 }
 
 pub struct AccessRuleDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

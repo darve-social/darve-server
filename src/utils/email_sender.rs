@@ -1,24 +1,19 @@
 use crate::interfaces::send_email::SendEmailInterface;
 use async_trait::async_trait;
+use reqwest::Client;
 
 pub struct EmailSender {
     api_key: String,
     api_url: String,
     no_replay: String,
-    client: reqwest::Client,
 }
 
 impl EmailSender {
-    pub fn from_env() -> Self {
-        let api_key = std::env::var("SENDGRID_API_KEY").unwrap_or_default();//.expect("SENDGRID_API_KEY must be set");
-        let no_replay = std::env::var("NO_REPLY_EMAIL").unwrap_or_default();//.expect("NO_REPLY_EMAIL must be set");
-        let api_url = std::env::var("SENDGRID_API_URL")
-            .unwrap_or("https://api.sendgrid.com/v3/mail/send".to_string());
+    pub fn new(api_key: &str, api_url: &str, no_replay: &str) -> Self {
         Self {
-            api_key,
-            api_url,
-            no_replay,
-            client: reqwest::Client::new(),
+            api_key: api_key.to_string(),
+            api_url: api_url.to_string(),
+            no_replay: no_replay.to_string(),
         }
     }
 }
@@ -40,8 +35,7 @@ impl SendEmailInterface for EmailSender {
             "subject": subject,
         });
 
-        let response = self
-            .client
+        let response = Client::new()
             .post(&self.api_url)
             .bearer_auth(&self.api_key)
             .header("Content-Type", "application/json")

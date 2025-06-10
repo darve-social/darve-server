@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
 
+use crate::database::client::Db;
 use crate::entities::community::community_entity;
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::middleware;
@@ -22,7 +23,7 @@ use community_entity::{Community, CommunityDbService};
 use discussion_routes::{get_discussion_view, DiscussionView};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
-use middleware::db::Db;
+
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};

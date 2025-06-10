@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 
+use crate::database::client::Db;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::community::{community_entity, discussion_entity};
 use crate::entities::user_auth::{
@@ -28,7 +29,7 @@ use discussion_topic_routes::{
 use futures::Stream;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
-use middleware::db::Db;
+
 use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};

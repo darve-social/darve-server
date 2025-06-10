@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::database::client::Db;
 use askama::Template;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -20,7 +21,7 @@ use access_right_entity::AccessRightDbService;
 use authorization_entity::{get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_OWNER};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
-use middleware::db::Db;
+
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;

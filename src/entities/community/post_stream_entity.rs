@@ -1,8 +1,8 @@
+use crate::database::client::Db;
 use serde::Deserialize;
 use std::collections::HashMap;
 use surrealdb::sql::Thing;
 
-use middleware::db;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::QryBindingsVal;
 use middleware::{
@@ -17,7 +17,7 @@ use crate::middleware;
 use super::post_entity;
 
 pub struct PostStreamDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

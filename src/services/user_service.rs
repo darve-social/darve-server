@@ -107,7 +107,10 @@ impl<'a> UserService<'a> {
 
         let verification_data = self
             .user_repository
-            .get_code(user.id.clone().unwrap(), VerificationCodeFor::EmailVerification)
+            .get_code(
+                user.id.clone().unwrap(),
+                VerificationCodeFor::EmailVerification,
+            )
             .await?;
 
         if let Some(data) = verification_data {

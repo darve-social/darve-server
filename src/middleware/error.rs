@@ -176,6 +176,8 @@ impl IntoResponse for CtxError {
             AppError::AuthFailNoJwtCookie => StatusCode::UNAUTHORIZED,
             AppError::BalanceTooLow => StatusCode::PAYMENT_REQUIRED,
         };
+
+        let _ = sentry::capture_error(&self.error);
         let err = self.error.clone();
         let body_str = get_error_body(&self, self.is_htmx);
         let mut response = (status_code, body_str.to_string()).into_response();

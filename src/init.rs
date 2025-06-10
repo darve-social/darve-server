@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use crate::{
+    database::client::Db,
     entities::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
     middleware::{
         ctx::Ctx,
-        db,
         error::{AppError, AppResult},
         mw_ctx::{self, CtxState},
     },
@@ -21,7 +21,7 @@ use axum::{
     body::Body,
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    serve, Router,
 };
 use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
@@ -60,7 +60,7 @@ use uuid::Uuid;
 use axum::http;
 use http::Request;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
-use tracing::{info, Span};
+use tracing::{info, instrument::WithSubscriber, Span};
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     let c = Ctx::new(
@@ -102,7 +102,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         .await;
 }
 
-pub async fn run_migrations(db: db::Db) -> AppResult<()> {
+pub async fn run_migrations(db: Db) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -235,7 +235,11 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
                 })
                 .on_failure(
                     |error: ServerErrorsFailureClass, _: Duration, _span: &Span| {
-                        tracing::debug!("something went wrong {:?}", error)
+                        tracing::debug!("something went wrong {:?}", error);
+                        sentry::capture_message(
+                            &format!("server error: {:?}", error),
+                            sentry::Level::Error,
+                        );
                     },
                 ),
         )

@@ -2,10 +2,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
+use crate::database::client::Db;
 use crate::middleware;
 use access_right_entity::AccessRightDbService;
 use authorization_entity::Authorization;
-use middleware::db;
 use middleware::error::AppError::EntityFailIdNotFound;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, RecordWithId,
@@ -87,7 +87,7 @@ impl ViewFieldSelector for UsernameView {
 }
 
 pub struct LocalUserDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

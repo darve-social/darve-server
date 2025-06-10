@@ -3,7 +3,7 @@ mod helpers;
 use darve_server::{
     entities::user_auth::{
         authentication_entity::AuthType,
-        local_user_entity::{LocalUserDbService, UseCodeFor},
+        local_user_entity::{LocalUserDbService, VerificationCodeFor},
     },
     middleware::ctx::Ctx,
 };
@@ -45,7 +45,10 @@ async fn test_forgot_password_success() {
         ctx: &ctx,
     };
     let data = user_db
-        .get_code(user.id.as_ref().unwrap().clone(), UseCodeFor::ResetPassword)
+        .get_code(
+            user.id.as_ref().unwrap().clone(),
+            VerificationCodeFor::ResetPassword,
+        )
         .await
         .unwrap();
 
@@ -55,7 +58,7 @@ async fn test_forgot_password_success() {
 
     assert_eq!(user_code.user, user.id.as_ref().unwrap().clone());
     assert_eq!(user_code.email, email);
-    assert_eq!(user_code.use_for, UseCodeFor::ResetPassword)
+    assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
 }
 
 #[tokio::test]
@@ -160,7 +163,10 @@ async fn test_reset_password_success() {
         ctx: &ctx,
     };
     let data = user_db
-        .get_code(user.id.as_ref().unwrap().clone(), UseCodeFor::ResetPassword)
+        .get_code(
+            user.id.as_ref().unwrap().clone(),
+            VerificationCodeFor::ResetPassword,
+        )
         .await
         .unwrap();
 
@@ -178,7 +184,10 @@ async fn test_reset_password_success() {
     response.assert_status_success();
 
     let code = user_db
-        .get_code(user.id.as_ref().unwrap().clone(), UseCodeFor::ResetPassword)
+        .get_code(
+            user.id.as_ref().unwrap().clone(),
+            VerificationCodeFor::ResetPassword,
+        )
         .await
         .unwrap();
 
@@ -240,7 +249,10 @@ async fn test_reset_password_to_many_requests() {
         ctx: &ctx,
     };
     let _ = user_db
-        .get_code(user.id.as_ref().unwrap().clone(), UseCodeFor::ResetPassword)
+        .get_code(
+            user.id.as_ref().unwrap().clone(),
+            VerificationCodeFor::ResetPassword,
+        )
         .await
         .unwrap();
 

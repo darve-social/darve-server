@@ -1,6 +1,7 @@
 use balance_transaction_entity::BalanceTransactionDbService;
 use chrono::{DateTime, Utc};
-use middleware::db;
+
+use crate::database::client::Db;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -42,7 +43,7 @@ pub enum UnlockTrigger {
 }
 
 pub struct LockTransactionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -83,11 +84,17 @@ impl<'a> LockTransactionDbService<'a> {
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
-        let res: Option<Thing> = lock_res.take(lock_res.num_statements()-1)?;
+        let res: Option<Thing> = lock_res.take(lock_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
 
+        // - old code
+        // lock_res = lock_res.check()?;
+        // let res: Option<Thing> = lock_res.take(19)?;
+        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
+        //     description: "Error in lock tx".to_string(),
+        // }))
     }
 
     pub(crate) fn lock_user_asset_qry(
@@ -221,7 +228,7 @@ impl<'a> LockTransactionDbService<'a> {
 
         let mut lock_res = qry.await?;
         check_transaction_custom_error(&mut lock_res)?;
-        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements()-1)?;
+        let res: Option<LockTransaction> = lock_res.take(lock_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in unlock tx".to_string(),
         }))

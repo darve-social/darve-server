@@ -1,12 +1,13 @@
 use crate::{
+    database::client::Db,
     entities::{community::post_entity::PostDbService, user_auth::local_user_entity::LocalUser},
-    middleware::{ctx::Ctx, db, error::CtxResult, utils::string_utils::get_string_thing},
+    middleware::{ctx::Ctx, error::CtxResult, utils::string_utils::get_string_thing},
 };
 
 use surrealdb::sql::Thing;
 
 pub struct PostService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

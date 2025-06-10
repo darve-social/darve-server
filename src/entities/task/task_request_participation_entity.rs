@@ -1,4 +1,3 @@
-use middleware::db;
 use middleware::error::AppResult;
 use middleware::{
     ctx::Ctx,
@@ -10,6 +9,7 @@ use surrealdb::sql::{Id, Thing};
 use wallet::lock_transaction_entity::LockTransactionDbService;
 use wallet::wallet_entity::CurrencySymbol;
 
+use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{self, lock_transaction_entity};
 use crate::middleware;
@@ -34,7 +34,7 @@ pub struct RewardVote {
 }
 
 pub struct TaskParticipationDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

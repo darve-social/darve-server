@@ -1,5 +1,6 @@
+use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
-use crate::middleware::{self, db};
+use crate::middleware::{self};
 use crate::routes::wallet::wallet_routes;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
@@ -43,7 +44,7 @@ pub struct CurrencyTransaction {
 }
 
 pub struct BalanceTransactionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -54,7 +55,7 @@ const LOCK_TX_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 const TRANSACTION_HEAD_F: &str = wallet_entity::TRANSACTION_HEAD_F;
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 
-pub const THROW_BALANCE_TOO_LOW:&str = "Not enough balance";
+pub const THROW_BALANCE_TOO_LOW: &str = "Not enough balance";
 
 impl<'a> BalanceTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {

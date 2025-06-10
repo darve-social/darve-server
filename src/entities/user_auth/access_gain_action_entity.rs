@@ -2,14 +2,13 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, VariantNames};
 use surrealdb::sql::{Id, Thing};
 
-use middleware::db;
+use crate::database::client::Db;
+use crate::middleware;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-
-use crate::middleware;
 
 use super::{access_right_entity, access_rule_entity, local_user_entity};
 
@@ -42,7 +41,7 @@ pub enum AccessGainActionStatus {
 }
 
 pub struct AccessGainActionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

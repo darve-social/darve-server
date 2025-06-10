@@ -1,16 +1,14 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use middleware::db;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
 
-use crate::middleware;
-
 use super::local_user_entity::{self, LocalUser};
-
+use crate::database::client::Db;
+use crate::middleware;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Follow {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -22,7 +20,7 @@ pub struct Follow {
 }
 
 pub struct FollowDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

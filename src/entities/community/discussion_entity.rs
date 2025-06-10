@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
-use middleware::db;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName,
     QryBindingsVal, ViewFieldSelector,
@@ -15,6 +14,7 @@ use middleware::{
 use user_auth::access_right_entity::AccessRightDbService;
 use user_auth::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
+use crate::database::client::Db;
 use crate::entities::user_auth::{self, local_user_entity};
 use crate::middleware;
 
@@ -43,7 +43,7 @@ pub struct Discussion {
 }
 
 pub struct DiscussionDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 

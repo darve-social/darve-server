@@ -8,8 +8,8 @@ use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
+use crate::database::client::Db;
 use crate::middleware::ctx::Ctx;
-use crate::middleware::db::Db;
 use crate::middleware::error::{AppError, AppResult, CtxError, CtxResult};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));

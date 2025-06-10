@@ -1,6 +1,7 @@
 use askama_axum::Template;
 use balance_transaction_entity::BalanceTransactionDbService;
-use middleware::db;
+
+use crate::database::client::Db;
 use middleware::utils::db_utils::{
     get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
@@ -12,40 +13,53 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use surrealdb::err::Error;
-use surrealdb::Response;
 use surrealdb::sql::Thing;
+use surrealdb::Response;
 
+use super::balance_transaction_entity;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
 use crate::middleware;
 use crate::middleware::error::AppResult;
-use super::balance_transaction_entity;
 
 pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResult<()> {
-    let query_err = query_response.take_errors().values().fold(None, |ret, error| {
-        if let Some(AppError::WalletLocked) = ret {
-            return ret;
-        }
-        if let Some(AppError::BalanceTooLow) = ret {
-            return ret;
-        }
+    let query_err = query_response
+        .take_errors()
+        .values()
+        .fold(None, |ret, error| {
+            if let Some(AppError::WalletLocked) = ret {
+                return ret;
+            }
+            if let Some(AppError::BalanceTooLow) = ret {
+                return ret;
+            }
 
-        match error {
-            surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_WALLET_LOCKED => Some(AppError::WalletLocked),
-            surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW => Some(AppError::BalanceTooLow),
-            surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
-            _ => Some(AppError::SurrealDb { source: error.to_string() }),
-        }
-    });
-    match query_err{
+            match error {
+                surrealdb::Error::Db(Error::Thrown(throw_val))
+                    if throw_val == THROW_WALLET_LOCKED =>
+                {
+                    Some(AppError::WalletLocked)
+                }
+                surrealdb::Error::Db(Error::Thrown(throw_val))
+                    if throw_val == THROW_BALANCE_TOO_LOW =>
+                {
+                    Some(AppError::BalanceTooLow)
+                }
+                surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
+                _ => Some(AppError::SurrealDb {
+                    source: error.to_string(),
+                }),
+            }
+        });
+    match query_err {
         None => Ok(()),
-        Some(err) => Err(err)
+        Some(err) => Err(err),
     }
 }
 
 pub(crate) static APP_GATEWAY_WALLET: Lazy<Thing> =
     Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
-pub const THROW_WALLET_LOCKED:&str = "Wallet locked";
+pub const THROW_WALLET_LOCKED: &str = "Wallet locked";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Wallet {
@@ -123,7 +137,7 @@ pub struct UserView {
 }
 
 pub struct WalletDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
@@ -318,7 +332,7 @@ impl<'a> WalletDbService<'a> {
 //     use gateway_transaction_entity::GatewayTransactionDbService;
 //     use lock_transaction_entity::{LockTransaction, LockTransactionDbService, UnlockTrigger};
 //     use middleware::ctx::Ctx;
-//     use middleware::db;
+//
 //     use middleware::error::AppResult;
 //     use middleware::utils::db_utils::IdentIdName;
 //     use middleware::utils::string_utils::get_string_thing;
@@ -837,7 +851,7 @@ impl<'a> WalletDbService<'a> {
 //         dbg!(res);
 //     }
 
-//     async fn backup(_db: db::Db) {
+//     async fn backup(_db: Db) {
 //         let mut backup = _db.export(()).await.unwrap();
 //         let mut file = tokio::fs::OpenOptions::new()
 //             .write(true)
@@ -859,7 +873,7 @@ impl<'a> WalletDbService<'a> {
 //         }
 //     }
 
-//     async fn run_migrations(db: db::Db) -> AppResult<()> {
+//     async fn run_migrations(db: Db) -> AppResult<()> {
 //         let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
 
 //         LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
@@ -874,7 +888,7 @@ impl<'a> WalletDbService<'a> {
 //         Ok(())
 //     }
 
-//     async fn init_db_test() -> (db::Db, Ctx) {
+//     async fn init_db_test() -> (Db, Ctx) {
 //         let db = connect("mem://").await.unwrap();
 //         db.use_ns("namespace").use_db("database").await.unwrap();
 //         run_migrations(db.clone()).await.expect("migrations run");

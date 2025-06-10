@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use strum::Display;
 use surrealdb::sql::{to_value, Id, Thing, Value};
 
-use middleware::db;
+use crate::database::client::Db;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
     get_entity_list_view, IdentIdName, Pagination, QryBindingsVal, ViewFieldSelector,
@@ -63,7 +63,7 @@ pub enum UserNotificationEvent {
 }
 
 pub struct UserNotificationDbService<'a> {
-    pub db: &'a db::Db,
+    pub db: &'a Db,
     pub ctx: &'a Ctx,
 }
 
