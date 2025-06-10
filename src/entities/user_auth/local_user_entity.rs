@@ -26,7 +26,7 @@ pub struct VerificationCode {
     pub failed_code_attempts: u8,
     pub user: Thing,
     pub email: String,
-    pub use_for: UseCodeFor,
+    pub use_for: VerificationCodeFor,
     pub r_created: DateTime<Utc>,
 }
 
@@ -75,7 +75,7 @@ struct UsernameView {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum UseCodeFor {
+pub enum VerificationCodeFor {
     EmailVerification,
     ResetPassword,
 }
@@ -254,7 +254,7 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn get_code(
         &self,
         user_id: Thing,
-        use_for: UseCodeFor,
+        use_for: VerificationCodeFor,
     ) -> CtxResult<Option<VerificationCode>> {
         let qry = format!("SELECT * FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;");
         let mut res = self
@@ -272,7 +272,7 @@ impl<'a> LocalUserDbService<'a> {
         user_id: Thing,
         code: String,
         email: String,
-        use_for: UseCodeFor,
+        use_for: VerificationCodeFor,
     ) -> CtxResult<()> {
         let qry = format!("
             BEGIN TRANSACTION;
@@ -319,7 +319,7 @@ impl<'a> LocalUserDbService<'a> {
             .query(qry)
             .bind(("user_id", user_id))
             .bind(("email", verified_email))
-            .bind(("use_for", UseCodeFor::EmailVerification))
+            .bind(("use_for", VerificationCodeFor::EmailVerification))
             .await?;
 
         res.check()?;

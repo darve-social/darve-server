@@ -12,7 +12,7 @@ use crate::{
         community::community_entity::CommunityDbService,
         user_auth::{
             authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
-            local_user_entity::{LocalUser, LocalUserDbService, UseCodeFor},
+            local_user_entity::{LocalUser, LocalUserDbService, VerificationCodeFor},
         },
     },
     interfaces::send_email::SendEmailInterface,
@@ -330,7 +330,7 @@ impl<'a> AuthService<'a> {
 
         let verification_data = self
             .user_repository
-            .get_code(user.id.clone().unwrap(), UseCodeFor::ResetPassword)
+            .get_code(user.id.clone().unwrap(), VerificationCodeFor::ResetPassword)
             .await?;
 
         if verification_data.is_none() {
@@ -404,7 +404,7 @@ impl<'a> AuthService<'a> {
                 user.id.unwrap(),
                 code.clone(),
                 data.email,
-                UseCodeFor::ResetPassword,
+                VerificationCodeFor::ResetPassword,
             )
             .await?;
 

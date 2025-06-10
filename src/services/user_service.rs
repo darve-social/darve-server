@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     entities::user_auth::{
         authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
-        local_user_entity::{LocalUserDbService, UseCodeFor},
+        local_user_entity::{LocalUserDbService, VerificationCodeFor},
     },
     interfaces::send_email::SendEmailInterface,
     middleware::{
@@ -71,7 +71,7 @@ impl<'a> UserService<'a> {
                 user.id.unwrap(),
                 code.clone(),
                 email.to_string(),
-                UseCodeFor::EmailVerification,
+                VerificationCodeFor::EmailVerification,
             )
             .await?;
 
@@ -107,7 +107,7 @@ impl<'a> UserService<'a> {
 
         let verification_data = self
             .user_repository
-            .get_code(user.id.clone().unwrap(), UseCodeFor::EmailVerification)
+            .get_code(user.id.clone().unwrap(), VerificationCodeFor::EmailVerification)
             .await?;
 
         if let Some(data) = verification_data {
