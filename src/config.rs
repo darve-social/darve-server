@@ -23,7 +23,9 @@ pub struct AppConfig {
     pub gcs_bucket: String,
     pub gcs_endpoint: Option<String>,
     pub gcs_credentials: Option<String>,
+    pub sentry_project_link: Option<String>,
 }
+
 impl AppConfig {
     pub fn from_env() -> Self {
         let _ = dotenvy::dotenv();
@@ -73,6 +75,8 @@ impl AppConfig {
             .expect("set DEVELOPMENT env var")
             .eq("true");
 
+        let sentry_project_link = std::env::var("SENTRY_PROJECT_LINK").ok();
+
         Self {
             db_namespace,
             db_database,
@@ -95,6 +99,7 @@ impl AppConfig {
             gcs_bucket,
             gcs_endpoint,
             gcs_credentials,
+            sentry_project_link,
         }
     }
 }

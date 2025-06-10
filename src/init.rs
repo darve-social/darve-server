@@ -21,7 +21,7 @@ use axum::{
     body::Body,
     response::{IntoResponse, Response},
     routing::get,
-    Router,
+    serve, Router,
 };
 use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
@@ -60,7 +60,7 @@ use uuid::Uuid;
 use axum::http;
 use http::Request;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
-use tracing::{info, Span};
+use tracing::{info, instrument::WithSubscriber, Span};
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     let c = Ctx::new(
@@ -228,7 +228,11 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
                 })
                 .on_failure(
                     |error: ServerErrorsFailureClass, _: Duration, _span: &Span| {
-                        tracing::debug!("something went wrong {:?}", error)
+                        tracing::debug!("something went wrong {:?}", error);
+                        sentry::capture_message(
+                            &format!("server error: {:?}", error),
+                            sentry::Level::Error,
+                        );
                     },
                 ),
         )
