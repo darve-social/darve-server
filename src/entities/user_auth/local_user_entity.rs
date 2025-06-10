@@ -4,7 +4,6 @@ use surrealdb::sql::Thing;
 
 use crate::middleware;
 use access_right_entity::AccessRightDbService;
-use authentication_entity::{AuthType, Authentication, AuthenticationDbService};
 use authorization_entity::Authorization;
 use middleware::db;
 use middleware::error::AppError::EntityFailIdNotFound;
@@ -18,16 +17,16 @@ use middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 
-use super::{access_right_entity, authentication_entity, authorization_entity};
+use super::{access_right_entity, authorization_entity};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EmailVerification {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerificationCode {
+    pub id: Thing,
     pub code: String,
     pub failed_code_attempts: u8,
     pub user: Thing,
     pub email: String,
+    pub use_for: VerificationCodeFor,
     pub r_created: DateTime<Utc>,
 }
 
@@ -75,6 +74,12 @@ struct UsernameView {
     username: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum VerificationCodeFor {
+    EmailVerification,
+    ResetPassword,
+}
+
 impl ViewFieldSelector for UsernameView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, username".to_string()
@@ -87,6 +92,7 @@ pub struct LocalUserDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "local_user";
+pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 
 impl<'a> LocalUserDbService<'a> {
     pub fn get_table_name() -> &'static str {
@@ -111,14 +117,14 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
     DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
 
-    DEFINE TABLE IF NOT EXISTS email_verification SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS user ON TABLE email_verification TYPE record<{TABLE_NAME}>;
-    DEFINE FIELD IF NOT EXISTS email ON TABLE email_verification TYPE string;
-    DEFINE FIELD IF NOT EXISTS code ON TABLE email_verification TYPE string;
-    DEFINE FIELD IF NOT EXISTS failed_code_attempts ON TABLE email_verification TYPE number DEFAULT 0;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE email_verification TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE email_verification COLUMNS user UNIQUE;
-    DEFINE INDEX IF NOT EXISTS code_idx ON TABLE email_verification COLUMNS code UNIQUE;
+    DEFINE TABLE IF NOT EXISTS {VERIFICATION_CODE_TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE record<{TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS email ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS use_for ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS code ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS failed_code_attempts ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE INDEX IF NOT EXISTS user_use_for_idx ON TABLE {VERIFICATION_CODE_TABLE_NAME} COLUMNS user, use_for UNIQUE;
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -180,6 +186,15 @@ impl<'a> LocalUserDbService<'a> {
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
+    pub async fn get_by_email(&self, email: &str) -> CtxResult<LocalUser> {
+        let ident = IdentIdName::ColumnIdent {
+            column: "email_verified".to_string(),
+            val: email.to_string(),
+            rec: false,
+        };
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
 
     pub async fn get_username(&self, ident: IdentIdName) -> CtxResult<String> {
         let u_view = self.get_view::<UsernameView>(ident).await?;
@@ -201,7 +216,7 @@ impl<'a> LocalUserDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn create(&self, ct_input: LocalUser, auth: AuthType) -> CtxResult<String> {
+    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
         let local_user_id: String = self
             .db
             .create(TABLE_NAME)
@@ -210,14 +225,6 @@ impl<'a> LocalUserDbService<'a> {
             .map(|v: Option<RecordWithId>| v.unwrap().id.id.to_raw())
             .map(|id| format!("{TABLE_NAME}:{id}"))
             .map_err(CtxError::from(self.ctx))?;
-        let auth = Authentication::new(local_user_id.clone(), auth)?;
-        // dbg!(&auth);
-        AuthenticationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .create(auth)
-        .await?;
         Ok(local_user_id)
     }
 
@@ -242,64 +249,77 @@ impl<'a> LocalUserDbService<'a> {
         Ok(res.unwrap_or(0))
     }
 
-    pub async fn get_email_verification(
+    //////////   VERIFICATION CODE 
+    
+    pub async fn get_code(
         &self,
         user_id: Thing,
-    ) -> CtxResult<Option<EmailVerification>> {
-        let qry = "SELECT * FROM email_verification WHERE user = $user_id";
-        let mut res = self.db.query(qry).bind(("user_id", user_id)).await?;
-        let data: Option<EmailVerification> = res.take(0)?;
+        use_for: VerificationCodeFor,
+    ) -> CtxResult<Option<VerificationCode>> {
+        let qry = format!("SELECT * FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;");
+        let mut res = self
+            .db
+            .query(qry)
+            .bind(("user_id", user_id))
+            .bind(("use_for", use_for))
+            .await?;
+        let data: Option<VerificationCode> = res.take(0)?;
         Ok(data)
     }
 
-    pub async fn create_email_verification(
+    pub async fn create_code(
         &self,
         user_id: Thing,
         code: String,
         email: String,
+        use_for: VerificationCodeFor,
     ) -> CtxResult<()> {
-        let qry = "
+        let qry = format!("
             BEGIN TRANSACTION;
-                DELETE FROM email_verification WHERE user = $user_id;
-                CREATE email_verification SET user = $user_id, code = $code, email = $email;
+                DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
+                CREATE {VERIFICATION_CODE_TABLE_NAME} SET user=$user_id, code=$code, email=$email, use_for=$use_for;
             COMMIT TRANSACTION;
-        ";
+        ");
         let res = self
             .db
             .query(qry)
             .bind(("user_id", user_id))
             .bind(("code", code))
             .bind(("email", email))
+            .bind(("use_for", use_for))
             .await?;
         res.check()?;
         Ok(())
     }
 
-    pub async fn set_failed_verification_attempt(&self, verification_id: Thing) -> CtxResult<()> {
-        let qry = "UPDATE $verification_id SET failed_code_attempts = $failed_code_attempts+1;";
+    pub async fn increase_code_attempt(&self, code_id: Thing) -> CtxResult<()> {
         let res = self
             .db
-            .query(qry)
-            .bind(("verification_id", verification_id))
+            .query("UPDATE $code_id SET failed_code_attempts += 1;")
+            .bind(("code_id", code_id.clone()))
             .await?;
-
         res.check()?;
+        Ok(())
+    }
 
+    pub async fn delete_code(&self, id: Thing) -> CtxResult<()> {
+        let _: Option<VerificationCode> = self.db.delete((id.tb, id.id.to_raw())).await?;
         Ok(())
     }
 
     pub async fn set_user_email(&self, user_id: Thing, verified_email: String) -> CtxResult<()> {
-        let qry = "
+        let qry = format!("
             BEGIN TRANSACTION;
-                DELETE FROM email_verification WHERE user = $user_id;
+                DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
                 UPDATE $user_id SET email_verified = $email;
             COMMIT TRANSACTION;
-        ";
+        ");
         let res = self
             .db
             .query(qry)
             .bind(("user_id", user_id))
             .bind(("email", verified_email))
+            .bind(("use_for", VerificationCodeFor::EmailVerification))
             .await?;
 
         res.check()?;

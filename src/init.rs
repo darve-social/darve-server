@@ -12,7 +12,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events,
+        self, auth, events, users,
         wallet::{wallet_endowment_routes, wallet_routes},
     },
     services::auth_service::{AuthRegisterInput, AuthService},
@@ -69,7 +69,13 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         false,
     );
 
-    let auth_service = AuthService::new(&ctx_state._db, &c, ctx_state.jwt.clone());
+    let auth_service = AuthService::new(
+        &ctx_state._db,
+        &c,
+        ctx_state.jwt.clone(),
+        ctx_state.email_sender.clone(),
+        ctx_state.verification_code_ttl,
+    );
 
     let _ = auth_service
         .register_password(AuthRegisterInput {
@@ -176,6 +182,7 @@ pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Rou
         .merge(wallet_routes::routes(ctx_state.clone()))
         .merge(wallet_endowment_routes::routes(ctx_state.clone()))
         .merge(events::routes(ctx_state.clone()))
+        .merge(users::routes(ctx_state.clone()))
         .layer(AutoVaryLayer)
         // .layer(axum::middleware::map_response(mw_req_logger))
         // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))

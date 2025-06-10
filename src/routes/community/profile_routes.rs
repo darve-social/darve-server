@@ -35,6 +35,7 @@ use utils::template_utils::ProfileFormPage;
 
 use super::{discussion_routes, post_routes};
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
+use crate::entities::user_auth::authentication_entity::AuthenticationDbService;
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::user_auth::follow_routes;
 use crate::services::user_service::UserService;
@@ -626,7 +627,11 @@ async fn email_verification_start(
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.email_code_ttl,
+        ctx_state.verification_code_ttl,
+        AuthenticationDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
     );
 
     let current_user_id = ctx.user_id()?;
@@ -659,7 +664,11 @@ async fn email_verification_confirm(
             ctx: &ctx,
         },
         ctx_state.email_sender.clone(),
-        ctx_state.email_code_ttl,
+        ctx_state.verification_code_ttl,
+        AuthenticationDbService {
+            db: &ctx_state._db,
+            ctx: &ctx,
+        },
     );
 
     let current_user_id = ctx.user_id()?;

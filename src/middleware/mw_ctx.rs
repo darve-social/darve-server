@@ -50,7 +50,7 @@ pub struct CtxState {
     pub apple_mobile_client_id: String,
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
-    pub email_code_ttl: Duration,
+    pub verification_code_ttl: Duration,
     pub jwt: Arc<JWT>,
     pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
     pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
@@ -84,7 +84,7 @@ pub async fn create_ctx_state(
     upload_max_size_mb: u64,
     apple_mobile_client_id: String,
     google_client_id: String,
-    email_code_ttl: u8,
+    verification_code_ttl: u8,
 ) -> CtxState {
     let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
@@ -103,7 +103,7 @@ pub async fn create_ctx_state(
         file_storage: Arc::new(GoogleCloudFileStorage::from_env().await),
         event_sender,
         email_sender: Arc::new(EmailSender::from_env()),
-        email_code_ttl: Duration::minutes(email_code_ttl as i64),
+        verification_code_ttl: Duration::minutes(verification_code_ttl as i64),
     };
     ctx_state
 }

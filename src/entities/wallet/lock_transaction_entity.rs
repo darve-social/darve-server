@@ -38,7 +38,7 @@ pub enum UnlockTrigger {
     // UserRequest{user_id: Thing},
     // Delivery{post_id: Thing},
     Timestamp { at: DateTime<Utc> },
-    Withdraw{id: Thing}
+    Withdraw { id: Thing },
 }
 
 pub struct LockTransactionDbService<'a> {
@@ -76,8 +76,8 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-
-        let user_2_lock_qry_bindings = self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
+        let user_2_lock_qry_bindings =
+            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
 
         let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
 
@@ -88,20 +88,16 @@ impl<'a> LockTransactionDbService<'a> {
             description: "Error in lock fn".to_string(),
         }))
 
-
-
-
-
-        // - old code
-        // lock_res = lock_res.check()?;
-        // let res: Option<Thing> = lock_res.take(19)?;
-        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock tx".to_string(),
-        // }))
     }
 
-    pub(crate) fn lock_user_asset_qry(&self, user: &Thing, amount: i64, currency_symbol: CurrencySymbol, unlock_triggers: Vec<UnlockTrigger>,
-                                      exclude_sql_transaction: bool,) -> Result<QryBindingsVal<Value>, AppError> {
+    pub(crate) fn lock_user_asset_qry(
+        &self,
+        user: &Thing,
+        amount: i64,
+        currency_symbol: CurrencySymbol,
+        unlock_triggers: Vec<UnlockTrigger>,
+        exclude_sql_transaction: bool,
+    ) -> Result<QryBindingsVal<Value>, AppError> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
         let user_lock_wallet = WalletDbService::get_user_lock_wallet_id(user);
@@ -146,35 +142,19 @@ impl<'a> LockTransactionDbService<'a> {
         bindings.insert("l_tx_id".to_string(), Value::from(lock_tx_id));
         bindings.insert("lock_amt".to_string(), Value::from(amount));
         bindings.insert("user".to_string(), user.clone().into());
-        let unlock_vals = unlock_triggers.into_iter().map(|ut|surrealdb::sql::to_value(ut).unwrap()).collect();
+        let unlock_vals = unlock_triggers
+            .into_iter()
+            .map(|ut| surrealdb::sql::to_value(ut).unwrap())
+            .collect();
         bindings.insert("un_triggers".to_string(), Value::Array(unlock_vals));
-        bindings.insert("currency".to_string(), Value::from(currency_symbol.to_string()));
+        bindings.insert(
+            "currency".to_string(),
+            Value::from(currency_symbol.to_string()),
+        );
 
-        bindings.extend(user_2_lock_tx
-            .get_bindings());
+        bindings.extend(user_2_lock_tx.get_bindings());
 
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
-        // -old code
-        // let mut lock_res = qry.await?;
-        // // take custom error or default db error
-        // let query_err = lock_res.take_errors().values().fold(None, |ret, error|{
-        //     if let Some(AppError::BalanceTooLow) = ret {
-        //         return ret;
-        //     }
-        //
-        //     match error {
-        //         surrealdb::Error::Db(Error::Thrown(throw_val)) if throw_val == THROW_BALANCE_TOO_LOW =>Some(AppError::BalanceTooLow),
-        //         _=> Some(AppError::SurrealDb { source: error.to_string() })
-        //     }
-        // });
-        // if let Some(err) = query_err {
-        //     return Err(self.ctx.to_ctx_error(err));
-        // }
-        //
-        // let res: Option<Thing> = lock_res.take(0)?;
-        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock fn".to_string(),
-        // }))
     }
 
     pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {
