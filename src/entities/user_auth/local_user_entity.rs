@@ -20,7 +20,7 @@ use middleware::{
 use super::{access_right_entity, authorization_entity};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct UserCode {
+pub struct VerificationCode {
     pub id: Thing,
     pub code: String,
     pub failed_code_attempts: u8,
@@ -92,6 +92,7 @@ pub struct LocalUserDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "local_user";
+pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 
 impl<'a> LocalUserDbService<'a> {
     pub fn get_table_name() -> &'static str {
@@ -116,16 +117,14 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
     DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
 
-    DEFINE TABLE IF NOT EXISTS user_codes SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS user ON TABLE user_codes TYPE record<{TABLE_NAME}>;
-    DEFINE FIELD IF NOT EXISTS email ON TABLE user_codes TYPE string;
-    DEFINE FIELD IF NOT EXISTS use_for ON TABLE user_codes TYPE string;
-    DEFINE FIELD IF NOT EXISTS code ON TABLE user_codes TYPE string;
-    DEFINE FIELD IF NOT EXISTS failed_code_attempts ON TABLE user_codes TYPE number DEFAULT 0;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE user_codes TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE user_codes COLUMNS user;
-    DEFINE INDEX IF NOT EXISTS code_idx ON TABLE user_codes COLUMNS code;
-    DEFINE INDEX IF NOT EXISTS use_for_idx ON TABLE user_codes COLUMNS use_for;
+    DEFINE TABLE IF NOT EXISTS {VERIFICATION_CODE_TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS user ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE record<{TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS email ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS use_for ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS code ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS failed_code_attempts ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE INDEX IF NOT EXISTS user_use_for_idx ON TABLE {VERIFICATION_CODE_TABLE_NAME} COLUMNS user, use_for UNIQUE;
 ");
         let local_user_mutation = self.db.query(sql).await?;
 
@@ -250,19 +249,21 @@ impl<'a> LocalUserDbService<'a> {
         Ok(res.unwrap_or(0))
     }
 
+    //////////   VERIFICATION CODE 
+    
     pub async fn get_code(
         &self,
         user_id: Thing,
         use_for: UseCodeFor,
-    ) -> CtxResult<Option<UserCode>> {
-        let qry = "SELECT * FROM user_codes WHERE user = $user_id AND use_for = $use_for;";
+    ) -> CtxResult<Option<VerificationCode>> {
+        let qry = format!("SELECT * FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;");
         let mut res = self
             .db
             .query(qry)
             .bind(("user_id", user_id))
             .bind(("use_for", use_for))
             .await?;
-        let data: Option<UserCode> = res.take(0)?;
+        let data: Option<VerificationCode> = res.take(0)?;
         Ok(data)
     }
 
@@ -273,12 +274,12 @@ impl<'a> LocalUserDbService<'a> {
         email: String,
         use_for: UseCodeFor,
     ) -> CtxResult<()> {
-        let qry = "
+        let qry = format!("
             BEGIN TRANSACTION;
-                DELETE FROM user_codes WHERE user = $user_id AND use_for = $use_for;
-                CREATE user_codes SET user=$user_id, code=$code, email=$email, use_for=$use_for;
+                DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
+                CREATE {VERIFICATION_CODE_TABLE_NAME} SET user=$user_id, code=$code, email=$email, use_for=$use_for;
             COMMIT TRANSACTION;
-        ";
+        ");
         let res = self
             .db
             .query(qry)
@@ -302,17 +303,17 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn delete_code(&self, id: Thing) -> CtxResult<()> {
-        let _: Option<UserCode> = self.db.delete((id.tb, id.id.to_raw())).await?;
+        let _: Option<VerificationCode> = self.db.delete((id.tb, id.id.to_raw())).await?;
         Ok(())
     }
 
     pub async fn set_user_email(&self, user_id: Thing, verified_email: String) -> CtxResult<()> {
-        let qry = "
+        let qry = format!("
             BEGIN TRANSACTION;
-                DELETE FROM user_codes WHERE user = $user_id AND use_for = $use_for;
+                DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
                 UPDATE $user_id SET email_verified = $email;
             COMMIT TRANSACTION;
-        ";
+        ");
         let res = self
             .db
             .query(qry)
