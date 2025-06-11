@@ -27,6 +27,7 @@ pub fn routes(state: CtxState) -> Router {
 #[derive(Template, Serialize, Debug)]
 #[template(path = "nera2/register_form.html")]
 struct RegisterForm {
+    email: Option<String>,
     username: Option<String>,
     next: Option<String>,
     loggedin: bool,
@@ -45,6 +46,7 @@ pub async fn display_register_page(
     Ok(ProfileFormPage::new(
         Box::new(RegisterForm {
             username: qry.remove("u"),
+            email: None,
             next,
             loggedin: ctx.user_id().is_ok(),
         }),
@@ -66,6 +68,7 @@ pub async fn display_register_form(
 
     Ok(RegisterForm {
         username: qry.remove("u"),
+        email: None,
         next,
         loggedin: ctx.user_id().is_ok(),
     }

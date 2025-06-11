@@ -10,14 +10,20 @@ use serde_json::json;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::{
+    entities::user_auth::{
+        authentication_entity::AuthenticationDbService, local_user_entity::LocalUserDbService,
+    },
     middleware::{
         ctx::Ctx,
         error::CtxResult,
         mw_ctx::{CtxState, JWT_KEY},
         utils::extractor_utils::JsonOrFormValidated,
     },
-    services::auth_service::{
-        AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
+    services::{
+        auth_service::{
+            AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
+        },
+        user_service::UserService,
     },
 };
 
@@ -156,14 +162,34 @@ async fn signup(
     cookies: Cookies,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthRegisterInput>,
 ) -> CtxResult<Response> {
+    let email = body.email.clone();
     let auth_service = AuthService::new(
         &state._db,
         &ctx,
         state.jwt.clone(),
-        state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
     );
     let (token, user) = auth_service.register_password(body).await?;
+
+    if let Some(email) = email {
+        let user_service = UserService::new(
+            LocalUserDbService {
+                db: &state._db,
+                ctx: &ctx,
+            },
+            state.email_sender.clone(),
+            state.verification_code_ttl,
+            AuthenticationDbService {
+                db: &state._db,
+                ctx: &ctx,
+            },
+        );
+
+        user_service
+            .start_email_verification(user.id.as_ref().unwrap().to_raw().as_str(), &email)
+            .await?;
+    }
 
     cookies.add(
         Cookie::build((JWT_KEY, token))
