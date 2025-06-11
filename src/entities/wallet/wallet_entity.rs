@@ -305,7 +305,7 @@ impl<'a> WalletDbService<'a> {
         })
     }
 
-    pub fn get_user_wallet_id(user_id: &Thing) -> Thing {
+    pub(crate) fn get_user_wallet_id(user_id: &Thing) -> Thing {
         // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
         Thing::from((TABLE_NAME, user_id.id.clone()))
     }
