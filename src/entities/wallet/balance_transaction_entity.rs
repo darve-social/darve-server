@@ -1,3 +1,4 @@
+use super::{gateway_transaction_entity, lock_transaction_entity, wallet_entity};
 use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware::{self};
@@ -15,8 +16,6 @@ use std::collections::HashMap;
 use surrealdb::sql::{to_value, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 use wallet_routes::CurrencyTransactionView;
-
-use super::{gateway_transaction_entity, lock_transaction_entity, wallet_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
@@ -125,6 +124,7 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
     ) -> CtxResult<()> {
         let tx_qry =
             Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
+
         let res = tx_qry.into_query(self.db).await?;
         res.check()?;
         Ok(())
@@ -200,14 +200,14 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
 
         let qry = format!(
             "{begin_tx}
-            LET $lock_id=time::now();
+            LET $lock_id=time::now() + 10s;
             UPDATE $w_from_id SET lock_id=$lock_id;
             LET $upd_lck = UPDATE $w_to_id SET lock_id=$lock_id;
             IF array::len($upd_lck)==0 {{
                CREATE $w_to_id SET lock_id=$lock_id, {TRANSACTION_HEAD_F}={{}}; 
             }};
             
-
+            
             LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F}.{currency};
             LET $w_to = SELECT * FROM ONLY $w_to_id FETCH {TRANSACTION_HEAD_F}.{currency};
 
@@ -220,6 +220,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
 
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
+                UPDATE $w_from_id SET lock_id=NONE;
+                UPDATE $w_to_id SET lock_id=NONE;
                 THROW \"{THROW_BALANCE_TOO_LOW}\";
             }};
 

@@ -10,7 +10,6 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
-use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
@@ -77,10 +76,34 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-        let user_2_lock_qry_bindings =
-            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
+        let wallet_id = WalletDbService::get_user_lock_wallet_id(user);
+        let wallet_db_service = WalletDbService {
+            db: self.db,
+            ctx: self.ctx,
+        };
 
-        let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
+        let _ = wallet_db_service.lock(&wallet_id).await?;
+
+        let qry_bindings =
+            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false);
+
+        let qry = match qry_bindings {
+            Ok(qry) => qry,
+            Err(e) => {
+                let _ = wallet_db_service.unlock(&wallet_id).await;
+                return Err(self.ctx.to_ctx_error(e));
+            }
+        };
+
+        let mut lock_res = match qry.into_query(self.db).await {
+            Ok(res) => res,
+            Err(e) => {
+                let _ = wallet_db_service.unlock(&wallet_id).await;
+                return Err(self.ctx.to_ctx_error(e.into()));
+            }
+        };
+
+        let _ = wallet_db_service.unlock(&wallet_id).await;
 
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
