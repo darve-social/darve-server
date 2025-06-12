@@ -61,6 +61,7 @@ impl AppConfig {
         let gcs_bucket =
             std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET").unwrap_or("darve_storage".to_string());
         let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT").ok();
+        println!(".env GCS_ENDPOINT: {:?}", gcs_endpoint);
         let gcs_credentials = std::env::var("GOOGLE_CLOUD_STORAGE_CREDENTIALS").ok();
 
         let init_server_password =
