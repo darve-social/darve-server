@@ -60,7 +60,13 @@ impl AppConfig {
             std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
         let gcs_bucket =
             std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET").unwrap_or("darve_storage".to_string());
-        let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT").ok();
+        let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT").ok().and_then(|v| {
+            if !v.is_empty() && v != "https://storage.googleapis.com" {
+                Some(v)
+            } else {
+               None 
+            }
+        });
         println!(".env GCS_ENDPOINT: {:?}", gcs_endpoint);
         let gcs_credentials = std::env::var("GOOGLE_CLOUD_STORAGE_CREDENTIALS").ok();
 
