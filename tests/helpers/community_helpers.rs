@@ -46,7 +46,7 @@ pub async fn create_fake_community(
     let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
 
     let community_db_service = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 

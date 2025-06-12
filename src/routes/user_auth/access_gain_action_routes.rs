@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
@@ -35,7 +36,7 @@ use utils::template_utils::ProfileFormPage;
 
 use super::register_routes;
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route(
             "/access-rule/:access_rule_id/join",
@@ -46,7 +47,6 @@ pub fn routes(state: CtxState) -> Router {
             get(access_gain_action_form),
         )
         .route("/api/join/access-rule", post(save_access_gain_action))
-        .with_state(state)
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -82,7 +82,7 @@ impl ViewFieldSelector for AccessRuleView {
 }
 
 async fn access_gain_action_page(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
     Query(mut qry): Query<HashMap<String, String>>,
@@ -99,13 +99,13 @@ async fn access_gain_action_page(
             .into_response());
     }
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
     .await?;
     let access_rule = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get(IdentIdName::Id(get_string_thing(access_rule_id)?))
@@ -135,7 +135,7 @@ async fn access_gain_action_page(
 }
 
 async fn access_gain_action_form(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
     Query(mut qry): Query<HashMap<String, String>>,
@@ -152,13 +152,13 @@ async fn access_gain_action_form(
             .into_response());
     }
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
     .await?;
     let access_rule = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get(IdentIdName::Id(get_string_thing(access_rule_id)?))
@@ -188,19 +188,19 @@ async fn access_gain_action_form(
 }
 
 async fn save_access_gain_action(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<AccessGainActionInput>,
 ) -> CtxResult<Response> {
     let user_id = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let user = local_user_db_service
@@ -224,7 +224,7 @@ async fn save_access_gain_action(
     }
 
     let access_rule = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_view::<AccessRuleView>(IdentIdName::Id(get_string_thing(
@@ -233,7 +233,7 @@ async fn save_access_gain_action(
     .await?;
 
     let access_gain_action_db_service = AccessGainActionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -297,7 +297,7 @@ async fn save_access_gain_action(
         AccessGainActionStatus::Complete => {
             let a_right = AccessRightDbService {
                 ctx: &ctx,
-                db: &ctx_state._db,
+                db: &ctx_state.db.client,
             }
             .add_paid_access_right(
                 user_id.clone(),

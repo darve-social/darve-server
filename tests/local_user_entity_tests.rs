@@ -18,7 +18,7 @@ async fn user_query() {
     let (_, uid) = create_login_test_user(&server, username.clone()).await;
 
     let db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     };
     let user = db_service.get(UsernameIdent(username.clone()).into()).await;
@@ -46,7 +46,7 @@ async fn test_exists() {
     let (_, uid) = create_login_test_user(&server, username.clone()).await;
 
     let db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     };
     let user = db_service

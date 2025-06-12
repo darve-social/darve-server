@@ -1,8 +1,6 @@
 use crate::config::AppConfig;
-use crate::database::client::Db;
+use crate::database::client::Database;
 use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
-use crate::interfaces::file_storage::FileStorageInterface;
-use crate::interfaces::send_email::SendEmailInterface;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::routes::community::community_routes::DiscussionNotificationEvent;
 use crate::utils::email_sender::EmailSender;
@@ -10,8 +8,7 @@ use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
 use axum::body::Body;
 use axum::http::header::ACCEPT;
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::http::HeaderMap;
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
 use axum_htmx::HxRequest;
 use chrono::Duration;
@@ -36,9 +33,8 @@ pub struct AppEvent {
     pub receivers: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct CtxState {
-    pub _db: Db,
+    pub db: Database,
     pub start_password: String,
     pub is_development: bool,
     pub stripe_secret_key: String,
@@ -51,9 +47,9 @@ pub struct CtxState {
     pub google_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
     pub verification_code_ttl: Duration,
-    pub jwt: Arc<JWT>,
-    pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
-    pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
+    pub jwt: JWT,
+    pub email_sender: EmailSender,
+    pub file_storage: Arc<GoogleCloudFileStorage>,
 }
 
 impl Debug for CtxState {
@@ -62,20 +58,10 @@ impl Debug for CtxState {
     }
 }
 
-pub trait StripeConfig {
-    fn get_webhook_secret(&self) -> String;
-}
-
-impl StripeConfig for CtxState {
-    fn get_webhook_secret(&self) -> String {
-        self.stripe_wh_secret.clone()
-    }
-}
-
-pub async fn create_ctx_state(db: Db, config: &AppConfig) -> CtxState {
+pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
     let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
-        _db: db,
+        db: db,
         start_password: config.init_server_password.clone(),
         is_development: config.is_development,
         stripe_secret_key: config.stripe_secret_key.clone(),
@@ -84,7 +70,7 @@ pub async fn create_ctx_state(db: Db, config: &AppConfig) -> CtxState {
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
         upload_max_size_mb: config.upload_file_size_max_mb,
-        jwt: Arc::new(JWT::new(config.jwt_secret.clone(), Duration::days(7))),
+        jwt: JWT::new(config.jwt_secret.clone(), Duration::days(7)),
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
         google_client_id: config.google_client_id.clone(),
         file_storage: Arc::new(
@@ -96,14 +82,14 @@ pub async fn create_ctx_state(db: Db, config: &AppConfig) -> CtxState {
             .await,
         ),
         event_sender,
-        email_sender: Arc::new(EmailSender::new(
+        email_sender: EmailSender::new(
             &config.sendgrid_api_key,
             &config.sendgrid_api_url,
             &config.no_replay,
-        )),
+        ),
         verification_code_ttl: Duration::minutes(config.verification_code_ttl as i64),
     };
-    ctx_state
+    Arc::new(ctx_state)
 }
 
 pub const JWT_KEY: &str = "jwt";
@@ -115,7 +101,7 @@ pub struct Claims {
 }
 
 pub async fn mw_ctx_constructor(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     cookies: Cookies,
     HxRequest(is_htmx): HxRequest,
     headers: HeaderMap,
@@ -160,21 +146,8 @@ pub async fn mw_ctx_constructor(
             return (StatusCode::NOT_FOUND, "User not found").into_response();
         }
     }*/
-
     req.extensions_mut().insert(ctx);
 
-    next.run(req).await
-}
-
-pub async fn mw_require_login(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-    req: Request<Body>,
-    next: Next,
-) -> Response {
-    if ctx.user_id().is_err() {
-        return (StatusCode::FORBIDDEN, "Login required").into_response();
-    };
     next.run(req).await
 }
 

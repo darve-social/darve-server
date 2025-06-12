@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::sync::Arc;
 
 use axum::extract::State;
 use axum::{
@@ -68,7 +68,7 @@ use middleware::utils::string_utils::get_string_thing;
 // the challenge to the browser.
 
 pub async fn start_register(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     Extension(app_state): Extension<AppState>,
     session: Session,
     _cookies: Cookies,
@@ -88,7 +88,7 @@ pub async fn start_register(
     // the unique id, and not the username!
 
     let user_db_service = &LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let exclude_credentials: Option<Vec<CredentialID>> = None;
@@ -191,7 +191,7 @@ pub async fn start_register(
 // to verify these and persist them.
 
 pub async fn finish_register(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     _cookies: Cookies,
     ctx: Ctx,
     Extension(app_state): Extension<AppState>,
@@ -250,7 +250,7 @@ pub async fn finish_register(
     }
 
     let user_db_service = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let logged_user_id = ctx.user_id().ok();
@@ -274,7 +274,7 @@ pub async fn finish_register(
             .await?;
 
         let auth_db_service = AuthenticationDbService {
-            db: &_db,
+            db: &state.db.client,
             ctx: &ctx,
         };
 
@@ -347,7 +347,7 @@ pub async fn finish_register(
 // The user indicates the wish to start authentication and we need to provide a challenge.
 
 pub async fn start_authentication(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Extension(app_state): Extension<AppState>,
     session: Session,
@@ -378,11 +378,11 @@ pub async fn start_authentication(
         .ok_or(WebauthnError::UserHasNoCredentials)?;*/
 
     let user_db_service = &LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let auth_db_service = &AuthenticationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -432,7 +432,7 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     cookies: Cookies,
     Extension(app_state): Extension<AppState>,
@@ -456,11 +456,11 @@ pub async fn finish_authentication(
             // TODO get credential by localUserId:{type:PASSKEY(auth_result.cred_id())}
 
             let user_db_service = &LocalUserDbService {
-                db: &state._db,
+                db: &state.db.client,
                 ctx: &ctx,
             };
             let auth_db_service = &AuthenticationDbService {
-                db: &state._db,
+                db: &state.db.client,
                 ctx: &ctx,
             };
 

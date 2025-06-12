@@ -7,6 +7,7 @@ use axum::routing::post;
 use axum::{Extension, Router};
 use middleware::mw_ctx::CtxState;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_cookies::cookie::SameSite;
 use tower_sessions::cookie::time::Duration;
@@ -31,7 +32,7 @@ pub fn create_webauth_config() -> WebauthnConfig {
     wa_config
 }
 
-pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -> Router {
+pub fn routes(wa_config: WebauthnConfig, wasm_dir_path: &str) -> Router<Arc<CtxState>> {
     let is_https = wa_config.is_https.clone();
     // Create the app
     let webauthn_state = AppState::new(wa_config);
@@ -78,8 +79,7 @@ pub fn routes(state: CtxState, wa_config: WebauthnConfig, wasm_dir_path: &str) -
         "/passkey",
         tower_http::services::ServeDir::new(wasm_dir_path),
     );
-
-    webauthn_app_routes.with_state(state)
+    webauthn_app_routes
 }
 
 async fn handler_404() -> impl IntoResponse {

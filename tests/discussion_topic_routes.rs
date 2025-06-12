@@ -1,6 +1,6 @@
 mod helpers;
 use crate::helpers::{create_fake_login_test_user, create_test_server};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
 use community_routes::CommunityInput;
@@ -42,7 +42,7 @@ async fn create_discussion() {
 
     let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
     let comm_db = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let comm = comm_db
@@ -53,7 +53,7 @@ async fn create_discussion() {
     let comm_disc_id = comm.default_discussion.unwrap();
 
     let disc_db = DiscussionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -106,11 +106,11 @@ async fn create_discussion() {
         State(ctx_state.clone()),
         ctx.clone(),
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -142,11 +142,11 @@ async fn create_discussion() {
         State(ctx_state.clone()),
         ctx.clone(),
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -162,11 +162,11 @@ async fn create_discussion() {
         State(ctx_state.clone()),
         ctx,
         Path(comm_name),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: topic1_id,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");

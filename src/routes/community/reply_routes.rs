@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
@@ -23,7 +25,7 @@ use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::services::notification_service::NotificationService;
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route(
             "/api/discussion/:discussion_id/post/:post_uri/reply",
@@ -33,7 +35,6 @@ pub fn routes(state: CtxState) -> Router {
             "/api/discussion/:discussion_id/post/:post_ident/replies",
             get(get_post_replies),
         )
-        .with_state(state)
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -69,12 +70,12 @@ impl ViewFieldSelector for PostReplyView {
 }
 
 async fn get_post_replies(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id_post_ident): Path<(String, String)>,
 ) -> CtxResult<Html<String>> {
     let diss_db = DiscussionDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     diss_db
@@ -91,7 +92,7 @@ async fn get_post_replies(
     }
 
     let post_replies = ReplyDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_by_post_desc_view::<PostReplyView>(ident, 0, 120)
@@ -103,15 +104,13 @@ async fn get_post_replies(
 }
 
 async fn create_entity(
-    State(CtxState {
-        _db, event_sender, ..
-    }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id_post_uri): Path<(String, String)>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
 ) -> CtxResult<Html<String>> {
     let created_by = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -120,7 +119,7 @@ async fn create_entity(
     let discussion = get_string_thing(discussion_id_post_uri.0)?;
 
     let post_db_service = PostDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let post_id = post_db_service
@@ -139,7 +138,7 @@ async fn create_entity(
         .await?;
 
     let reply_db_service = ReplyDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let reply = reply_db_service
@@ -161,7 +160,7 @@ async fn create_entity(
 
     let post = post_db_service.increase_replies_nr(post_id.clone()).await?;
 
-    let n_service = NotificationService::new(&_db, &ctx, &event_sender);
+    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
     n_service
         .on_discussion_post_reply(
             &created_by,

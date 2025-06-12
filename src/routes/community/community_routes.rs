@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
@@ -35,7 +36,7 @@ use template_utils::ProfileFormPage;
 
 use super::discussion_routes;
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     let view_routes = Router::new()
         .route("/community", get(create_update_form))
         .route("/community/:name", get(get_community));
@@ -43,7 +44,6 @@ pub fn routes(state: CtxState) -> Router {
     Router::new()
         .merge(view_routes)
         .route("/api/community", post(create_update))
-        .with_state(state)
 }
 
 #[derive(Template, Serialize)]
@@ -91,10 +91,10 @@ impl ViewFieldSelector for CommunityView {
 }
 
 pub async fn get_community(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(name): Path<String>,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<CommunityPage> {
     let ident_id_name = match name.contains(":") {
         true => {
@@ -108,7 +108,7 @@ pub async fn get_community(
         },
     };
     let mut comm_view = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_view::<CommunityView>(ident_id_name)
@@ -116,7 +116,7 @@ pub async fn get_community(
     // TODO -rename to profile_discussion_view- change in FE
     comm_view.profile_discussion_view = Some(
         get_discussion_view(
-            &ctx_state._db,
+            &ctx_state.db.client,
             &ctx,
             comm_view.profile_discussion.clone(),
             q_params,
@@ -134,7 +134,7 @@ pub async fn get_community(
 }
 
 async fn create_update_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
@@ -144,7 +144,7 @@ async fn create_update_form(
                 None => None,
                 Some(id) => Some(
                     CommunityDbService {
-                        db: &_db,
+                        db: &state.db.client,
                         ctx: &ctx,
                     }
                     .get_view::<CommunityView>(IdentIdName::Id(get_string_thing(id.clone())?))
@@ -159,18 +159,18 @@ async fn create_update_form(
 }
 
 async fn create_update(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<CommunityInput>,
 ) -> CtxResult<Response> {
     let user_id = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
-    let comm = create_update_community(&_db, &ctx, form_value, &user_id).await?;
+    let comm = create_update_community(&state.db.client, &ctx, form_value, &user_id).await?;
     let res = CreatedResponse {
         success: true,
         id: comm.id.unwrap().to_raw(),

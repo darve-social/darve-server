@@ -22,6 +22,7 @@ use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
+use std::sync::Arc;
 use surrealdb::sql::{Id, Thing};
 use task_request_entity::{
     DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole,
@@ -34,7 +35,7 @@ use user_notification_entity::{
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/task_request", post(create_entity))
         .route(
@@ -67,9 +68,8 @@ pub fn routes(state: CtxState) -> Router {
             "/api/task_offer/:task_offer_id/participate",
             post(participate_task_request_offer),
         )
-        // the file max limit is set on PostInput property
-        // .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
-        .with_state(state)
+    // the file max limit is set on PostInput property
+    // .layer(DefaultBodyLimit::max(1024 * 1024 * 30))
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -187,19 +187,16 @@ pub struct DeliverableView {
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 */
-async fn user_requests_received(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<String> {
+async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<String> {
     let to_user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let list = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
@@ -229,19 +226,16 @@ async fn user_requests_received(
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 */
-async fn user_requests_given(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<String> {
+async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<String> {
     let from_user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let list = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
@@ -250,12 +244,12 @@ async fn user_requests_given(
 }
 
 async fn post_task_requests(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(post_id): Path<String>,
 ) -> CtxResult<String> {
     let list = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
@@ -307,14 +301,12 @@ async fn post_task_requests(
 // }
 
 async fn create_entity(
-    State(CtxState {
-        _db, event_sender, ..
-    }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(t_request_input): JsonOrFormValidated<TaskRequestInput>,
 ) -> CtxResult<Html<String>> {
     let from_user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -350,7 +342,7 @@ async fn create_entity(
     // TODO in db transaction
     let lock = if offer_amount > 0 {
         let lock_service = LockTransactionDbService {
-            db: &_db,
+            db: &state.db.client,
             ctx: &ctx,
         };
         Some(
@@ -370,7 +362,7 @@ async fn create_entity(
     };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
     let participant = TaskParticipationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .create_update(TaskRequestParticipantion {
@@ -383,7 +375,7 @@ async fn create_entity(
     })
     .await?;
     let t_request = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .create(TaskRequest {
@@ -404,7 +396,7 @@ async fn create_entity(
     })
     .await?;
 
-    let n_service = NotificationService::new(&_db, &ctx, &event_sender);
+    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
 
     let _ = n_service
         .on_update_balance(&from_user.clone(), &vec![from_user.clone()])
@@ -426,13 +418,13 @@ async fn create_entity(
 }
 
 async fn accept_task_request(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_id): Path<String>,
     Json(t_request_input): Json<AcceptTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
     let to_user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -443,7 +435,7 @@ async fn accept_task_request(
         false => TaskStatus::Rejected,
     };
     TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .update_status_received_by_user(to_user, task_id.clone(), status, None, None)
@@ -457,15 +449,13 @@ async fn accept_task_request(
 }
 
 async fn deliver_task_request(
-    State(CtxState {
-        _db, event_sender, ..
-    }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_id): Path<String>,
     TypedMultipart(t_request_input): TypedMultipart<DeliverTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
     let delivered_by = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -473,7 +463,7 @@ async fn deliver_task_request(
 
     let task_id = get_string_thing(task_id)?;
     let task_req_ser = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -490,7 +480,7 @@ async fn deliver_task_request(
             let post_id = get_string_thing(t_request_input.post_id.ok_or(AppError::Generic {
                 description: "Missing post_id".to_string(),
             })?)?;
-            record_exists(&_db, &post_id)
+            record_exists(&state.db.client, &post_id)
                 .await
                 .map_err(|e| ctx.to_ctx_error(e))?;
             (None, Some(post_id))
@@ -537,12 +527,12 @@ async fn deliver_task_request(
     })?;
 
     let participations_service = TaskParticipationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
     let notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ids(&task.participants)
@@ -551,7 +541,7 @@ async fn deliver_task_request(
     .map(|t| t.user)
     .collect();
 
-    let n_service = NotificationService::new(&_db, &ctx, &event_sender);
+    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
 
     match task.reward_type {
         RewardType::OnDelivery => {
@@ -614,19 +604,19 @@ async fn deliver_task_request(
 */
 
 async fn participate_task_request_offer(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_offer_id): Path<String>,
     JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Html<String>> {
     let from_user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
     let task_request_db_service = TaskRequestDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -639,7 +629,7 @@ async fn participate_task_request_offer(
         .await?;
 
     let _notif_res = UserNotificationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .create(UserNotification {

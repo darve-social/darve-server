@@ -29,7 +29,7 @@ async fn init_server() {
 
     let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx,
     }
     .get(UsernameIdent(username.clone()).into())
@@ -37,7 +37,7 @@ async fn init_server() {
     let user = user.unwrap();
     // dbg!(&user);
     let access_rights = AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx,
     }
     .list_by_user(&user.id.unwrap())

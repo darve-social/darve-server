@@ -3,7 +3,7 @@ use access_right_entity::AccessRightDbService;
 use access_rule_entity::AccessRuleDbService;
 use access_rule_routes::{AccessRuleForm, AccessRuleInput};
 use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER, AUTH_ACTIVITY_VISITOR};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
@@ -42,7 +42,7 @@ async fn display_access_rule_content() {
 
     let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
     let comm_db = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
@@ -69,7 +69,7 @@ async fn display_access_rule_content() {
     let ar_0 = created.access_rules.get(0).unwrap();
     let ar_id = ar_0.id.clone().unwrap();
     let ar_db = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -86,11 +86,11 @@ async fn display_access_rule_content() {
         State(ctx_state.clone()),
         ctx.clone(),
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -126,11 +126,11 @@ async fn display_access_rule_content() {
         State(ctx_state.clone()),
         ctx.clone(),
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -147,11 +147,11 @@ async fn display_access_rule_content() {
         State(ctx_state.clone()),
         ctx.clone(),
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: topic1_id.clone(),
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -189,11 +189,11 @@ async fn display_access_rule_content() {
         State(ctx_state.clone()),
         ctx_no_user,
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: topic1_id.clone(),
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -215,7 +215,7 @@ async fn display_access_rule_content() {
 
     // check view with low access user
     let new_user_id = &LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .create(LocalUser::default("visitor".to_string()))
@@ -224,15 +224,16 @@ async fn display_access_rule_content() {
 
     let user_service = UserService::new(
         LocalUserDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
-        ctx_state.email_sender.clone(),
+        &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
+        &ctx_state.db.verification_code,
     );
 
     user_service
@@ -241,7 +242,7 @@ async fn display_access_rule_content() {
         .unwrap();
 
     AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx,
     }
     .authorize(
@@ -261,11 +262,11 @@ async fn display_access_rule_content() {
         State(ctx_state.clone()),
         ctx_no_user,
         Path(comm_name.clone()),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: topic1_id.clone(),
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");

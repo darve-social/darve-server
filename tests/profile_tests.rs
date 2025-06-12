@@ -1,7 +1,10 @@
 mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::user_auth::local_user_entity::{LocalUserDbService, VerificationCodeFor},
+    entities::{
+        user_auth::local_user_entity::LocalUserDbService, verification_code::VerificationCodeFor,
+    },
+    interfaces::repositories::verification_code::VerificationCodeRepositoryInterface,
     middleware::{self, utils::db_utils::UsernameIdent},
     routes::{
         community::{
@@ -226,7 +229,7 @@ async fn get_user_chat() {
 
     let ctx = Ctx::new(Ok(user_ident1), Uuid::new_v4(), false);
     let discussion_posts = get_discussion_view(
-        &ctx_state._db,
+        &ctx_state.db.client,
         &ctx,
         chat_disc_id.clone(),
         DiscussionParams {
@@ -247,7 +250,7 @@ async fn get_user_chat() {
     let (_, user_ident3) = create_login_test_user(&server, username3.clone()).await;
     let ctx = Ctx::new(Ok(user_ident3), Uuid::new_v4(), false);
     let d_view = get_discussion_view(
-        &ctx_state._db,
+        &ctx_state.db.client,
         &ctx,
         chat_disc_id.clone(),
         DiscussionParams {
@@ -328,7 +331,7 @@ async fn email_verification_and_confirmation() {
 
     response.assert_status_success();
 
-    let db = &ctx_state._db;
+    let db = &ctx_state.db.client;
     let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
     let user_db = LocalUserDbService { db, ctx: &ctx };
 
@@ -340,11 +343,12 @@ async fn email_verification_and_confirmation() {
 
     response.assert_status_success();
 
-    let code = user_db
-        .get_code(user_id.clone(), VerificationCodeFor::EmailVerification)
+    let code = ctx_state
+        .db
+        .verification_code
+        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
         .await
         .unwrap()
-        .expect("verification should exist")
         .code;
 
     let response = server
@@ -358,10 +362,13 @@ async fn email_verification_and_confirmation() {
     let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    let res = user_db
-        .get_code(user_id, VerificationCodeFor::EmailVerification)
+    let code = ctx_state
+        .db
+        .verification_code
+        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
         .await;
-    assert!(res.unwrap().is_none());
+
+    assert!(code.is_err());
 }
 
 #[tokio::test]
@@ -454,7 +461,8 @@ async fn set_user_password() {
     assert!(response.text().contains("User has already set a password"));
 
     let _ = state
-        ._db
+        .db
+        .client
         .query("DELETE authentication WHERE local_user=$user")
         .bind(("user", local_user.id.unwrap()))
         .await;

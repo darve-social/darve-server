@@ -1,21 +1,21 @@
-use axum::extract::{FromRequest, Query, Request};
+use axum::body::Body;
+use axum::extract::{self, FromRequest, Request};
 use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::{
     async_trait,
-    extract::FromRequestParts,
-    http::request::Parts,
     response::{IntoResponse, Response},
     Form, Json, RequestExt,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use stripe::Event;
 use surrealdb::sql::Thing;
 use validator::{Validate, ValidationErrors};
 
-use crate::middleware::error::{to_err_html, ErrorResponseBody};
+use crate::middleware::error::{to_err_html, AppError, ErrorResponseBody};
 use crate::middleware::mw_ctx::CtxState;
-
+use crate::utils::validate_utils::deserialize_option_string_id;
 /*
 #[derive(Debug)]
 pub struct HostDomainId(String);
@@ -64,7 +64,7 @@ impl FromRequestParts<CtxState> for HostDomainId
                 err.into_response()
             }
             )?;
-        let domainService = DomainDbService { db: &state._db, ctx: &ctx };
+        let domainService = DomainDbService { db: &ctx_state.db.client, ctx: &ctx };
         let domain = domainService.get(hostName.clone()).await.map_err(|e| {
             println!("extractor_utils - ERROR host domain NOT FOUND in db");
             e.into_response()
@@ -130,11 +130,11 @@ where
     S: Send + Sync,
     Json<T>: FromRequest<()>,
     Form<T>: FromRequest<()>,
-    T: DeserializeOwned + Validate + 'static,
+    T: DeserializeOwned + Validate + Send + Sync + 'static,
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request<Body>, _state: &S) -> Result<Self, Self::Rejection> {
         let content_type_header = req.headers().get(CONTENT_TYPE);
         let content_type = content_type_header.and_then(|value| value.to_str().ok());
 
@@ -169,41 +169,44 @@ where
 // TODO make DiscussionParams more generic so can be used elswhere for pagination like wallet routes
 #[derive(Debug, Deserialize, Clone)]
 pub struct DiscussionParams {
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_option_string_id")]
     pub topic_id: Option<Thing>,
     pub start: Option<i32>,
     pub count: Option<i8>,
 }
-#[derive(Deserialize)]
-struct DiscParamsRaw {
-    topic_id: Option<String>,
-    start: Option<i32>,
-    count: Option<i8>,
-}
-#[async_trait]
-impl FromRequestParts<CtxState> for DiscussionParams {
-    type Rejection = Response;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &CtxState,
-    ) -> Result<Self, Self::Rejection> {
-        let qry: Query<DiscParamsRaw> =
-            Query::from_request_parts(parts, state)
-                .await
-                .map_err(|err| {
-                    dbg!(&err);
-                    err.into_response()
-                })?;
+pub async fn extract_stripe_event(req: Request<Body>, state: &CtxState) -> Result<Event, AppError> {
+    let (parts, body) = req.into_parts();
+    let headers = &parts.headers.clone();
 
-        let Query(dp_raw) = qry;
+    let signature = headers
+        .get("stripe-signature")
+        .ok_or_else(|| AppError::Stripe {
+            source: "Missing Stripe signature".to_string(),
+        })?
+        .to_str()
+        .map_err(|e| AppError::Stripe {
+            source: e.to_string(),
+        })?;
 
-        Ok(DiscussionParams {
-            topic_id: match dp_raw.topic_id {
-                Some(tid_string) => Thing::try_from(tid_string).ok(),
-                _ => None,
-            },
-            count: dp_raw.count,
-            start: dp_raw.start,
-        })
-    }
+    let req = Request::from_parts(parts, body);
+
+    println!("?>>>>>{:?}", req);
+    let payload: String =
+        req.extract()
+            .await
+            .map_err(|e: extract::rejection::StringRejection| AppError::Stripe {
+                source: e.to_string(),
+            })?;
+    println!(
+        "?>>payload>>>{:?}",
+        serde_json::from_str::<Event>(&payload).unwrap()
+    );
+    let event = stripe::Webhook::construct_event(&payload, signature, &state.stripe_wh_secret)
+        .map_err(|e| AppError::Stripe {
+            source: e.to_string(),
+        })?;
+    println!("?>>payload>>>{:?}", event);
+    Ok(event)
 }

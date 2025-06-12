@@ -76,7 +76,7 @@ async fn create_task_request_participation() {
 
     let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
     let community_db_service = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let community: Community = community_db_service
@@ -211,7 +211,7 @@ async fn create_task_request_participation() {
     let _res = participate_response.json::<CreatedResponse>();
 
     let wallet_service = WalletDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
@@ -254,7 +254,7 @@ async fn create_task_request_participation() {
     let _res = participate_response.json::<CreatedResponse>();
 
     let wallet_service = WalletDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
