@@ -61,6 +61,7 @@ use axum::http;
 use http::Request;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
 use tracing::{info, instrument::WithSubscriber, Span};
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     let c = Ctx::new(
@@ -147,6 +148,9 @@ pub async fn run_migrations(db: Db) -> AppResult<()> {
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
     UserNotificationDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
+    GatewayTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     Ok(())
