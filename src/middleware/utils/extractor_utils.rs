@@ -192,21 +192,15 @@ pub async fn extract_stripe_event(req: Request<Body>, state: &CtxState) -> Resul
 
     let req = Request::from_parts(parts, body);
 
-    println!("?>>>>>{:?}", req);
     let payload: String =
         req.extract()
             .await
             .map_err(|e: extract::rejection::StringRejection| AppError::Stripe {
                 source: e.to_string(),
             })?;
-    println!(
-        "?>>payload>>>{:?}",
-        serde_json::from_str::<Event>(&payload).unwrap()
-    );
     let event = stripe::Webhook::construct_event(&payload, signature, &state.stripe_wh_secret)
         .map_err(|e| AppError::Stripe {
             source: e.to_string(),
         })?;
-    println!("?>>payload>>>{:?}", event);
     Ok(event)
 }
