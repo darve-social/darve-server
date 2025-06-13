@@ -13,10 +13,12 @@ use darve_server::{
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use reply_routes::PostReplyInput;
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 #[tokio::test]
+#[serial]
 async fn create_reply() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;

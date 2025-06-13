@@ -26,11 +26,13 @@ use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
 use profile_routes::{ProfileChat, ProfileChatList, SearchInput};
 use serde_json::json;
+use serial_test::serial;
 use uuid::Uuid;
 
 use crate::helpers::fake_username_min_len;
 
 #[tokio::test]
+#[serial]
 async fn search_users() {
     let (server, _) = create_test_server().await;
     let username1 = "its_user_one".to_string();
@@ -131,6 +133,7 @@ async fn search_users() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_user_chat() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
@@ -270,6 +273,7 @@ async fn get_user_chat() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_user_chat_1() {
     let (server, _) = create_test_server().await;
     let (_, local_user_1, _) = create_fake_login_test_user(&server).await;
@@ -315,6 +319,7 @@ async fn get_user_chat_1() {
 }
 
 #[tokio::test]
+#[serial]
 async fn email_verification_and_confirmation() {
     let (server, ctx_state) = create_test_server().await;
 
@@ -372,6 +377,7 @@ async fn email_verification_and_confirmation() {
 }
 
 #[tokio::test]
+#[serial]
 async fn email_confirmation_with_invalid_code() {
     let (server, _) = create_test_server().await;
 
@@ -421,6 +427,7 @@ async fn email_confirmation_with_invalid_code() {
 }
 
 #[tokio::test]
+#[serial]
 async fn update_user_avatar() {
     let (server, _) = create_test_server().await;
     let (_, local_user, _pwd) = create_fake_login_test_user(&server).await;
@@ -442,6 +449,7 @@ async fn update_user_avatar() {
 }
 
 #[tokio::test]
+#[serial]
 async fn set_user_password() {
     let (server, state) = create_test_server().await;
     let new_password = "setPassword123";
@@ -502,6 +510,7 @@ async fn set_user_password() {
 }
 
 #[tokio::test]
+#[serial]
 async fn update_user_password() {
     let (server, _) = create_test_server().await;
     let new_password = "newPassword456";

@@ -20,10 +20,12 @@ use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
+use serial_test::serial;
 use user_notification_entity::UserNotification;
 use uuid::Uuid;
 
 #[tokio::test]
+#[serial]
 async fn get_user_followers() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
@@ -380,6 +382,7 @@ async fn get_user_followers() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let (server, ctx_state) = create_test_server().await;
     let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;

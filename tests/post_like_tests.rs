@@ -4,8 +4,10 @@ use crate::helpers::{create_fake_login_test_user, create_test_server};
 use darve_server::routes::community::post_routes::PostLikeResponse;
 use helpers::community_helpers::create_fake_community;
 use helpers::post_helpers::{self, create_fake_post};
+use serial_test::serial;
 
 #[tokio::test]
+#[serial]
 async fn create_post_like() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;

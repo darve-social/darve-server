@@ -10,7 +10,6 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
-use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
@@ -77,11 +76,10 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-        let user_2_lock_qry_bindings =
-            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
+        let qry_bindings =
+            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, true)?;
 
-        let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
-
+        let mut lock_res = qry_bindings.into_query(self.db).await?;
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
         let res: Option<Thing> = lock_res.take(lock_res.num_statements() - 1)?;
@@ -93,7 +91,7 @@ impl<'a> LockTransactionDbService<'a> {
         // lock_res = lock_res.check()?;
         // let res: Option<Thing> = lock_res.take(19)?;
         // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock tx".to_string(),
+        // description: "Error in lock tx".to_string(),
         // }))
     }
 

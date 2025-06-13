@@ -12,10 +12,12 @@ use darve_server::entities::user_auth::authorization_entity;
 use darve_server::entities::user_auth::authorization_entity::AUTH_ACTIVITY_VISITOR;
 use darve_server::middleware::ctx::Ctx;
 use helpers::create_test_server;
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 #[tokio::test]
+#[serial]
 async fn authorization_compare() {
     let root_rec = "community";
 
@@ -259,6 +261,7 @@ async fn authorization_compare() {
 }
 
 #[tokio::test]
+#[serial]
 async fn authorize_save() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;

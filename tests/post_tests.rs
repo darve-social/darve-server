@@ -29,10 +29,12 @@ use helpers::post_helpers::{
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde_json::{from_value, Value};
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 #[tokio::test]
+#[serial]
 async fn create_post() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -69,6 +71,7 @@ async fn create_post() {
 }
 
 #[tokio::test]
+#[serial]
 async fn create_post_with_the_same_name() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -98,6 +101,7 @@ async fn create_post_with_the_same_name() {
 }
 
 #[tokio::test]
+#[serial]
 async fn create_post_with_file_test() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -117,6 +121,7 @@ async fn create_post_with_file_test() {
 }
 
 #[tokio::test]
+#[serial]
 async fn get_latest() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -156,6 +161,7 @@ async fn get_latest() {
 }
 
 #[tokio::test]
+#[serial]
 async fn create_post_with_tags() {
     let (server, _) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -194,6 +200,7 @@ async fn create_post_with_tags() {
 }
 
 #[tokio::test]
+#[serial]
 async fn filter_posts_by_tag() {
     let (server, _) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -290,6 +297,7 @@ async fn filter_posts_by_tag() {
     assert_eq!(posts.len(), 1);
 }
 
+#[allow(dead_code)]
 async fn get_latest_posts(
     posts_nr: i8,
     profile_discussion_id: Thing,

@@ -9,6 +9,7 @@ use darve_server::middleware;
 use darve_server::routes::community::{
     community_routes, discussion_routes, discussion_topic_routes,
 };
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -32,6 +33,7 @@ use post_entity::PostDbService;
 use crate::helpers::create_fake_login_test_user;
 
 #[tokio::test]
+#[serial]
 async fn get_discussion_view() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
@@ -155,6 +157,7 @@ async fn get_discussion_view() {
 }
 
 #[tokio::test]
+#[serial]
 async fn create_discussion() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;

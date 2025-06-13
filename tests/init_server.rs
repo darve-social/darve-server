@@ -2,6 +2,7 @@ mod helpers;
 use darve_server::entities::user_auth::{access_right_entity, local_user_entity};
 use darve_server::middleware;
 use darve_server::routes::user_auth::init_server_routes;
+use serial_test::serial;
 use uuid::Uuid;
 
 use crate::helpers::create_test_server;
@@ -11,6 +12,7 @@ use local_user_entity::LocalUserDbService;
 use middleware::{ctx::Ctx, utils::db_utils::UsernameIdent};
 
 #[tokio::test]
+#[serial]
 async fn init_server() {
     let (server, ctx_state) = create_test_server().await;
     // let (server,user_ident) = create_login_test_user(&server).await;
