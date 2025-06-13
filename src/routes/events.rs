@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, sync::Arc};
 
 use crate::{
     entities::user_auth::local_user_entity::LocalUserDbService,
@@ -21,18 +21,16 @@ use futures::Stream;
 use serde_json::json;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
-pub fn routes(state: CtxState) -> Router {
-    Router::new()
-        .route("/api/events/sse", get(get_events_sse))
-        .with_state(state)
+pub fn routes() -> Router<Arc<CtxState>> {
+    Router::new().route("/api/events/sse", get(get_events_sse))
 }
 
 async fn get_events_sse(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let user = LocalUserDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()

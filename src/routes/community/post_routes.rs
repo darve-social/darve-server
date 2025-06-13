@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
@@ -31,6 +33,7 @@ use tempfile::NamedTempFile;
 
 use crate::entities::community::{discussion_entity, post_entity, post_stream_entity};
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
+use crate::interfaces::file_storage::FileStorageInterface;
 use crate::middleware;
 
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -42,11 +45,11 @@ use crate::utils::template_utils::ProfileFormPage;
 use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
 use super::{discussion_routes, discussion_topic_routes, reply_routes};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
     // .route("/discussion/:discussion_id/post/:title_uri", get(get_post));
 
-    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
+    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
         .merge(view_routes)
         .route("/api/posts", get(get_posts))
@@ -56,7 +59,6 @@ pub fn routes(state: CtxState) -> Router {
             "/api/discussion/:discussion_id/post",
             post(create_post_entity_route),
         )
-        .with_state(state)
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -135,7 +137,7 @@ impl From<Post> for PostPageTemplate {
 
 // commenting this out as it not used anywhere - @anukulpandey
 // async fn get_post(
-//     State(CtxState { _db, .. }): State<CtxState>,
+//     State(state): State<CtxState>,
 //     ctx: Ctx,
 //     Path(disc_id_title_uri): Path<(String, String)>,
 // ) -> CtxResult<PostPageTemplate> {
@@ -194,12 +196,12 @@ pub struct GetPostsResponse {
 
 async fn get_posts(
     Query(query): Query<GetPostsQuery>,
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
 ) -> CtxResult<Json<GetPostsResponse>> {
     let post_db_service = PostDbService {
         ctx: &ctx,
-        db: &_db,
+        db: &state.db.client,
     };
     let pagination = Pagination {
         order_by: Some("id".to_string()),
@@ -212,12 +214,12 @@ async fn get_posts(
 }
 
 async fn create_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService {
-        db: &_db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -230,14 +232,14 @@ async fn create_form(
         authorize_height: 99,
     };
     AccessRightDbService {
-        db: &_db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .is_authorized(&user_id, &required_comm_auth)
     .await?;
 
     let dis_template = DiscussionDbService {
-        db: &_db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_view::<DiscussionView>(IdentIdName::Id(disc_id))
@@ -261,20 +263,20 @@ async fn create_form(
 pub async fn create_post_entity_route(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
     input_value.validate()?;
 
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
     .await?;
     let user_id = user.id.expect("user exists");
     let disc_db = DiscussionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let disc = disc_db
@@ -290,7 +292,7 @@ pub async fn create_post_entity_route(
             authorize_height: 0,
         };
         AccessRightDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         }
         .is_authorized(&user_id, &min_authorisation)
@@ -298,7 +300,7 @@ pub async fn create_post_entity_route(
     }
 
     let post_db_service = PostDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -398,7 +400,7 @@ pub async fn create_post_entity_route(
         r_created: post.r_created,
     };
 
-    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    let n_service = NotificationService::new(&ctx_state.db.client, &ctx, &ctx_state.event_sender);
     let content = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
         n_service
@@ -412,7 +414,7 @@ pub async fn create_post_entity_route(
         n_service.on_community_post(&user_id, &content).await?;
 
         PostStreamDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         }
         .to_user_follower_streams(post.created_by.clone(), &post.id.clone().expect("has id"))
@@ -444,7 +446,7 @@ pub async fn create_post_entity_route(
 
 async fn get_post_home_uri(ctx_state: &CtxState, ctx: &Ctx, post_id: Thing) -> CtxResult<String> {
     let owner_view = PostDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_view::<PostDiscussionCommunityOwnerView>(IdentIdName::Id(post_id))
@@ -465,10 +467,10 @@ pub struct PostLikeResponse {
 async fn like(
     ctx: Ctx,
     Path(post_id): Path<String>,
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<PostLikeResponse>> {
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
@@ -477,7 +479,7 @@ async fn like(
     let post_thing = get_string_thing(post_id)?;
 
     let count = PostService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .like(&post_thing, &user)
@@ -485,7 +487,7 @@ async fn like(
 
     let user_id = user.id.unwrap();
 
-    let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+    let n_service = NotificationService::new(&&ctx_state.db.client, &ctx, &ctx_state.event_sender);
     n_service
         .on_like(&user_id, vec![user_id.clone()], post_thing)
         .await?;
@@ -496,17 +498,17 @@ async fn like(
 async fn unlike(
     ctx: Ctx,
     Path(post_id): Path<String>,
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<PostLikeResponse>> {
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
     .await?;
 
     let count = PostService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .unlike(post_id, &user)

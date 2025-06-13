@@ -37,7 +37,7 @@ async fn get_user_followers() {
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
     let follow_db_service = FollowDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     };
     let followers_nr = follow_db_service
         .user_followers_number(user1_id.clone())
@@ -371,7 +371,8 @@ async fn get_user_followers() {
     assert_eq!(created.post_list.len(), 2);
 
     let notifications: surrealdb::Result<Vec<UserNotification>> = ctx_state
-        ._db
+        .db
+        .client
         .select(user_notification_entity::TABLE_NAME)
         .await;
     dbg!(&notifications);
@@ -386,7 +387,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
     let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
     let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
 
-    let profile_discussion = get_profile_community(&ctx_state._db, &ctx, user1_id.clone())
+    let profile_discussion = get_profile_community(&ctx_state.db.client, &ctx, user1_id.clone())
         .await
         .unwrap()
         .default_discussion
@@ -404,7 +405,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
 
     let follow_db_service = FollowDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     };
 
     let create_response = server
@@ -426,7 +427,7 @@ async fn add_latest_three_posts_of_follower_to_ctx_user() {
 
     let post_stream_db_service = PostStreamDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     };
 
     let streams = post_stream_db_service

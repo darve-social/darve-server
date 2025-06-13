@@ -1,22 +1,23 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use axum::body::Body;
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::response::{Redirect, Response};
 use axum::routing::{get, post};
-use axum::{async_trait, Router};
+use axum::Router;
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use stripe::{
     Account, AccountId, AccountLink, AccountLinkType, AccountType, Client, CreateAccount,
     CreateAccountCapabilities, CreateAccountCapabilitiesCardPayments,
     CreateAccountCapabilitiesTransfers, CreateAccountLink, CreatePaymentLink,
-    CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, Event, IdOrCreate,
-    PaymentLink, Price, Product,
+    CreatePaymentLinkLineItems, CreatePrice, CreateProduct, Currency, IdOrCreate, PaymentLink,
+    Price, Product,
 };
 use stripe::{
     CreatePaymentLinkInvoiceCreation, CreatePaymentLinkInvoiceCreationInvoiceData,
@@ -34,7 +35,7 @@ use community_entity::CommunityDbService;
 use community_routes::community_admin_access;
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxError, CtxResult};
-use middleware::mw_ctx::{CtxState, StripeConfig};
+use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::string_utils::get_string_thing;
 use register_routes::display_register_page;
@@ -44,13 +45,14 @@ use crate::entities::user_auth::{
     access_gain_action_entity, access_right_entity, access_rule_entity, authorization_entity,
 };
 use crate::middleware;
+use crate::middleware::utils::extractor_utils::extract_stripe_event;
 use crate::routes::user_auth::register_routes;
 
 use super::community_routes;
 
 const PRICE_USER_ID_KEY: &str = "user_id";
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route(
             "/community/:community_id/stripe/link-start",
@@ -62,7 +64,6 @@ pub fn routes(state: CtxState) -> Router {
         )
         .route("/api/stripe/access-rule/:ar_id", get(access_rule_payment))
         .route("/api/stripe/webhook", post(handle_webhook))
-        .with_state(state)
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -114,17 +115,18 @@ impl ViewFieldSelector for AccessRuleChargeView {
 }
 
 async fn get_link_start_page(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     Path(community_id): Path<String>,
     ctx: Ctx,
 ) -> CtxResult<StripeLinkStartPage> {
-    let (comm_id, mut comm) = community_admin_access(&ctx_state._db, &ctx, community_id).await?;
+    let (comm_id, mut comm) =
+        community_admin_access(&ctx_state.db.client, &ctx, community_id).await?;
 
     if ctx_state.is_development {
         comm.stripe_connect_account_id = Some("acct_1Q29UUEdDBSaSZL3".to_string());
     }
 
-    let client = Client::new(ctx_state.stripe_secret_key);
+    let client = Client::new(ctx_state.stripe_secret_key.clone());
 
     let connect_account_id = match comm.stripe_connect_account_id.clone() {
         None => {
@@ -149,7 +151,7 @@ async fn get_link_start_page(
             comm.stripe_connect_account_id = Some(acc.id.clone().to_string());
             comm = CommunityDbService {
                 ctx: &ctx,
-                db: &ctx_state._db,
+                db: &ctx_state.db.client,
             }
             .create_update(comm)
             .await?;
@@ -198,7 +200,7 @@ async fn get_link_start_page(
             comm.stripe_connect_complete = true;
             CommunityDbService {
                 ctx: &ctx,
-                db: &ctx_state._db,
+                db: &ctx_state.db.client,
             }
             .create_update(comm)
             .await?;
@@ -218,11 +220,12 @@ async fn get_link_start_page(
 }
 
 async fn get_link_complete_page(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(community_id): Path<String>,
 ) -> CtxResult<StripeLinkCompletePage> {
-    let (comm_id, mut comm) = community_admin_access(&ctx_state._db, &ctx, community_id).await?;
+    let (comm_id, mut comm) =
+        community_admin_access(&ctx_state.db.client, &ctx, community_id).await?;
 
     if ctx_state.is_development {
         comm.stripe_connect_account_id = Some("acct_1Q29UUEdDBSaSZL3".to_string());
@@ -238,9 +241,12 @@ async fn get_link_complete_page(
                     source: e1.to_string(),
                 })
             })?;
-        let requirements_due =
-            get_account_requirements_due(&Client::new(ctx_state.stripe_secret_key), &ctx, &acc_id)
-                .await?;
+        let requirements_due = get_account_requirements_due(
+            &Client::new(ctx_state.stripe_secret_key.clone()),
+            &ctx,
+            &acc_id,
+        )
+        .await?;
 
         if requirements_due {
             format!("/community/{}/stripe/link-start", comm_id.clone().to_raw())
@@ -249,7 +255,7 @@ async fn get_link_complete_page(
                 comm.stripe_connect_complete = true;
                 CommunityDbService {
                     ctx: &ctx,
-                    db: &ctx_state._db,
+                    db: &ctx_state.db.client,
                 }
                 .create_update(comm)
                 .await?;
@@ -290,7 +296,7 @@ impl TryFrom<MyStripeProductId> for Thing {
 }
 
 async fn access_rule_payment(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(access_rule_id): Path<String>,
 ) -> CtxResult<Response> {
@@ -308,7 +314,7 @@ async fn access_rule_payment(
     let user_id = ctx.user_id()?;
 
     let mut charge_access_rule = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_view::<AccessRuleChargeView>(IdentIdName::Id(get_string_thing(access_rule_id.clone())?))
@@ -345,7 +351,8 @@ async fn access_rule_payment(
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_secret_key).with_stripe_account(acc_id.clone());
+    let client =
+        Client::new(ctx_state.stripe_secret_key.clone()).with_stripe_account(acc_id.clone());
 
     let product = {
         let pr_id: ProductId = MyThing(charge_access_rule.id).into();
@@ -479,7 +486,7 @@ async fn access_rule_payment(
     })?;
 
     /*let action_id =
-    PaymentActionDbService { ctx: &ctx, db: &ctx_state._db }.create_update(PaymentAction {
+    PaymentActionDbService { ctx: &ctx, db: &ctx_state.db.client }.create_update(PaymentAction {
         id: Thing::from((PaymentActionDbService::get_table_name(), Id::from(payment_link.id.as_str()))),
         community: charge_access_rule.community,
         access_rules: vec![charge_access_rule.id],
@@ -502,40 +509,13 @@ async fn access_rule_payment(
     Ok(Redirect::temporary(payment_link.url.as_str()).into_response())
 }
 
-struct StripeEvent(Event);
-
-#[async_trait]
-impl<S> FromRequest<S> for StripeEvent
-where
-    String: FromRequest<S>,
-    S: Send + Sync + StripeConfig,
-{
-    type Rejection = Response;
-
-    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
-        let signature = if let Some(sig) = req.headers().get("stripe-signature") {
-            sig.to_owned()
-        } else {
-            return Err(StatusCode::BAD_REQUEST.into_response());
-        };
-
-        let payload = String::from_request(req, state)
-            .await
-            .map_err(IntoResponse::into_response)?;
-
-        let wh_secret = state.get_webhook_secret();
-        Ok(Self(
-            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret)
-                .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,
-        ))
-    }
-}
-
 async fn handle_webhook(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    StripeEvent(event): StripeEvent,
+    State(ctx_state): State<Arc<CtxState>>,
+    req: Request<Body>,
 ) -> CtxResult<Response> {
+    let event = extract_stripe_event(req, &ctx_state).await?;
+
     match event.type_ {
         /*EventType::CheckoutSessionCompleted => {
             if let EventObject::CheckoutSession(session) = event.data.object {
@@ -547,13 +527,13 @@ async fn handle_webhook(
                         dbg!(&session);
                         if let Some(payment_link_id) = session.payment_link {
                             let payment_link_id = payment_link_id.id().to_string();
-                            let payment_action_db_service = PaymentActionDbService { ctx: &ctx, db: &ctx_state._db };
+                            let payment_action_db_service = PaymentActionDbService { ctx: &ctx, db: &ctx_state.db.client };
                             let mut p_action = payment_action_db_service.get(IdentIdName::Id(format!("{}:{payment_link_id}", PaymentActionDbService::get_table_name()))).await?;
                             p_action.paid = true;
                             let p_action = payment_action_db_service.create_update(p_action).await?;
                             // dbg!(&p_action);
                             for access_rule in p_action.access_rules {
-                                let a_right = LocalUserDbService { ctx: &ctx, db: &ctx_state._db }.add_paid_access_right(p_action.local_user.clone(), access_rule, p_action.id.clone()).await?;
+                                let a_right = LocalUserDbService { ctx: &ctx, db: &ctx_state.db.client }.add_paid_access_right(p_action.local_user.clone(), access_rule, p_action.id.clone()).await?;
                                 // dbg!(a_right);
                             }
                         }
@@ -586,7 +566,7 @@ async fn handle_webhook(
                     .clone();
 
                 AccessGainActionDbService {
-                    db: &ctx_state._db,
+                    db: &ctx_state.db.client,
                     ctx: &ctx,
                 }
                 .create_update(AccessGainAction {
@@ -612,7 +592,7 @@ async fn handle_webhook(
                 ))
                 .unwrap();*/
                 let j_action_db = AccessGainActionDbService {
-                    db: &ctx_state._db,
+                    db: &ctx_state.db.client,
                     ctx: &ctx,
                 };
                 let mut j_action = AccessGainAction {
@@ -650,7 +630,7 @@ async fn handle_webhook(
                     let (usr_id, a_rule_thing) = user_a_rule;
                     let a_right = AccessRightDbService {
                         ctx: &ctx,
-                        db: &ctx_state._db,
+                        db: &ctx_state.db.client,
                     }
                     .add_paid_access_right(
                         usr_id.clone(),

@@ -43,7 +43,7 @@ async fn get_community_view() {
     create_response.assert_status_success();
 
     let comm_db = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     };
     let comm_rec = comm_db.get(IdentIdName::Id(comm_id)).await;
@@ -122,7 +122,7 @@ async fn create_community() {
 
     let ctx1 = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
     let comm_db = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: ctx1,
     };
 
@@ -158,7 +158,7 @@ async fn create_community() {
     let _ = community2.default_discussion.clone().unwrap();
 
     let db_service = AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: ctx1,
     };
     let user_auth = db_service
@@ -192,7 +192,7 @@ async fn create_community() {
 
     assert_eq!(
         smaller_auth
-            .ge(&higher_auth, ctx1, &ctx_state._db)
+            .ge(&higher_auth, ctx1, &ctx_state.db.client)
             .await
             .is_err(),
         false
@@ -219,7 +219,10 @@ async fn create_community() {
     community_resp.assert_status_success();
 
     let community_resp = server
-        .get(format!("/community/{comm_name_created}?topic_id=community_topic:345").as_str())
+        .get(
+            format!("/community/{comm_name_created}?topic_id=community_topic:A01JXJXV9YQWFAS1V8GTHFAYY24")
+                .as_str(),
+        )
         .add_header(HX_REQUEST, HeaderValue::from_static("true"))
         .add_header("Accept", "application/json")
         .await;

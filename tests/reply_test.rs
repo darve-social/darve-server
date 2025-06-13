@@ -29,7 +29,7 @@ async fn create_reply() {
     .unwrap();
     let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
     let community_db_service = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx.clone(),
     };
     let community: Option<Community> = community_db_service
@@ -103,28 +103,28 @@ async fn create_reply() {
 
     let id1 = &Thing::try_from(comm_discussion_id.as_str()).unwrap();
     let id2 = &Thing::try_from(created2.id.as_str()).unwrap();
-    let rids = get_same_level_record_ids(id1, id2, &ctx, &ctx_state._db)
+    let rids = get_same_level_record_ids(id1, id2, &ctx, &ctx_state.db.client)
         .await
         .unwrap();
     // println!("id1={:?} id2={:?} //// parentIDs={:?}",id1,id2,rids);
     assert_eq!(id1.eq(&rids.1), true);
     assert_eq!(id2.eq(&rids.1), false);
 
-    let rids = get_same_level_record_ids(id2, id1, &ctx, &ctx_state._db)
+    let rids = get_same_level_record_ids(id2, id1, &ctx, &ctx_state.db.client)
         .await
         .unwrap();
     assert_eq!(id1.eq(&rids.1), true);
     assert_eq!(id2.eq(&rids.0), false);
 
-    let is_child = is_child_record(id1, id2, &ctx, &ctx_state._db)
+    let is_child = is_child_record(id1, id2, &ctx, &ctx_state.db.client)
         .await
         .unwrap();
     assert_eq!(is_child, true);
 
-    let parents = get_parent_ids(id2, Some(&comm_id), &ctx, &ctx_state._db)
+    let parents = get_parent_ids(id2, Some(&comm_id), &ctx, &ctx_state.db.client)
         .await
         .unwrap();
-    let parents1 = get_parent_ids(id2, None, &ctx, &ctx_state._db)
+    let parents1 = get_parent_ids(id2, None, &ctx, &ctx_state.db.client)
         .await
         .unwrap();
     dbg!(&parents);

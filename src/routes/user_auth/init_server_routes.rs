@@ -1,6 +1,11 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::database::client::Db;
+use crate::middleware::mw_ctx::CtxState;
+use crate::middleware::utils::string_utils::get_string_thing;
+use crate::routes::user_auth::register_routes::register_user;
+
 use askama::Template;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -23,19 +28,13 @@ use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
 use middleware::error::{AppError, CtxResult};
-use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
-use middleware::utils::string_utils::get_string_thing;
-use register_routes::register_user;
 
-use super::register_routes;
-
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/init", get(get_init_form))
         .route("/init", post(post_init_form))
         .route("/backup", get(backup))
-        .with_state(state)
 }
 
 #[derive(Template)] // this will generate the code...
@@ -45,11 +44,8 @@ struct InitServerForm {
     // the name of the struct can be anything
 }
 
-async fn get_init_form(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<Response> {
-    if !can_init(&_db, &ctx).await {
+async fn get_init_form(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<Response> {
+    if !can_init(&state.db.client, &ctx).await {
         Err(ctx.to_ctx_error(AppError::Generic {
             description: "Already initialized".to_string(),
         }))
@@ -70,18 +66,11 @@ pub struct InitServerData {
     pub email: String,
 }
 
-async fn backup(
-    State(CtxState {
-        _db,
-        is_development,
-        ..
-    }): State<CtxState>,
-    _ctx: Ctx,
-) -> Response {
-    if !is_development {
+async fn backup(State(state): State<Arc<CtxState>>) -> Response {
+    if state.is_development {
         return (StatusCode::OK, "not development").into_response();
     }
-    let mut backup = _db.export(()).await.unwrap();
+    let mut backup = state.db.client.export(()).await.unwrap();
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -102,12 +91,13 @@ async fn backup(
     }
     (StatusCode::OK, "created backup").into_response()
 }
+
 async fn post_init_form(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     payload: JsonOrFormValidated<InitServerData>,
 ) -> CtxResult<Html<String>> {
-    if !can_init(&state._db, &ctx).await {
+    if !can_init(&state.db.client, &ctx).await {
         return Err(ctx.to_ctx_error(AppError::Generic {
             description: "Already initialized".to_string(),
         }));
@@ -128,7 +118,7 @@ async fn post_init_form(
     let authorization = Authorization::new(auth_thing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99)?;
 
     let aright_db_service = &AccessRightDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let user_rec_id = get_string_thing(created_user.clone().id)?;

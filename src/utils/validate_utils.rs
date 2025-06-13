@@ -1,7 +1,9 @@
 use regex::Regex;
-use serde::{Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::str::FromStr;
+use surrealdb::sql::Thing;
 use validator::ValidationError;
 
 pub fn is_some_min_chars(some_str: Option<String>) -> Result<(), ValidationError> {
@@ -34,4 +36,25 @@ where
 {
     let opt = Option::<String>::deserialize(deserializer)?;
     Ok(opt.filter(|s| !s.trim().is_empty()))
+}
+
+pub fn deserialize_thing_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let thing = Thing::deserialize(deserializer)?;
+    Ok(thing.to_raw())
+}
+
+pub fn deserialize_option_string_id<'de, D>(deserializer: D) -> Result<Option<Thing>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(s) if !s.trim().is_empty() => Ok(Thing::from_str(&s)
+            .map(Some)
+            .map_err(|_| de::Error::custom("Invalid id"))?),
+        _ => Ok(None),
+    }
 }

@@ -1,14 +1,16 @@
 mod helpers;
 
-use std::time::SystemTime;
 use chrono::DateTime;
-use uuid::Uuid;
-use darve_server::{middleware, routes::wallet::wallet_routes};
-use darve_server::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
+use darve_server::entities::wallet::lock_transaction_entity::{
+    LockTransactionDbService, UnlockTrigger,
+};
 use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
 use darve_server::middleware::ctx::Ctx;
+use darve_server::{middleware, routes::wallet::wallet_routes};
 use helpers::{create_login_test_user, create_test_server};
 use middleware::utils::string_utils::get_string_thing;
+use std::time::SystemTime;
+use uuid::Uuid;
 use wallet_routes::CurrencyTransactionHistoryView;
 
 #[tokio::test]
@@ -62,7 +64,6 @@ async fn test_wallet_history() {
 
 #[tokio::test]
 async fn lock_user_balance() {
-    
     println!("Creating test server");
     let (server, _ctx_state) = create_test_server().await;
 
@@ -94,27 +95,47 @@ async fn lock_user_balance() {
     println!("endow_user_response: {}", endow_response_text);
     let ctx = Ctx::new(Ok(user_ident2.to_string()), Uuid::new_v4(), false);
     let lock_amt = 11;
-    let lock_id = LockTransactionDbService { db: &_ctx_state._db, ctx: &ctx }.lock_user_asset_tx(&user2_id, lock_amt, CurrencySymbol::USD, vec![UnlockTrigger::Timestamp { at: DateTime::from(SystemTime::now()) }]).await.unwrap();
+    let lock_id = LockTransactionDbService {
+        db: &_ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .lock_user_asset_tx(
+        &user2_id,
+        lock_amt,
+        CurrencySymbol::USD,
+        vec![UnlockTrigger::Timestamp {
+            at: DateTime::from(SystemTime::now()),
+        }],
+    )
+    .await
+    .unwrap();
     dbg!(&lock_id);
     // TODO -check locked- add checks
-    
-    let response = server.get("/api/user/wallet/balance")
+
+    let response = server
+        .get("/api/user/wallet/balance")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
     let balances = response.json::<WalletBalancesView>();
     dbg!(&balances);
     assert_eq!(balances.balance_locked.balance_usd, lock_amt);
-    assert_eq!(balances.balance.balance_usd, endow_amt-lock_amt);
-    let _unlock_id = LockTransactionDbService { db: &_ctx_state._db, ctx: &ctx }.unlock_user_asset_tx(&lock_id).await.unwrap();
+    assert_eq!(balances.balance.balance_usd, endow_amt - lock_amt);
+    let _unlock_id = LockTransactionDbService {
+        db: &_ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .unlock_user_asset_tx(&lock_id)
+    .await
+    .unwrap();
     // TODO -check locked- add checks
-    
-    let response = server.get("/api/user/wallet/balance")
+
+    let response = server
+        .get("/api/user/wallet/balance")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let balances = response.json::<WalletBalancesView>();//dbg!(&balances);
+    let balances = response.json::<WalletBalancesView>(); //dbg!(&balances);
     assert_eq!(balances.balance_locked.balance_usd, 0);
     assert_eq!(balances.balance.balance_usd, endow_amt);
-    
 }

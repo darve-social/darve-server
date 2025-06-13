@@ -1,21 +1,22 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
-use axum::extract::{FromRequest, Path, Request, State};
+use axum::extract::{FromRef, FromRequest, Path, Request, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{async_trait, Router};
 use gateway_transaction_entity::GatewayTransactionDbService;
+use serde::Serialize;
 use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event};
 use surrealdb::sql::Thing;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
-use middleware::mw_ctx::{CtxState, StripeConfig};
 use middleware::utils::string_utils::get_string_thing;
 use user_auth::user_notification_entity::{
     UserNotification, UserNotificationDbService, UserNotificationEvent,
@@ -24,28 +25,27 @@ use user_auth::user_notification_entity::{
 use crate::entities::user_auth;
 use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
 use crate::middleware;
+use crate::middleware::mw_ctx::CtxState;
+use crate::middleware::utils::extractor_utils::extract_stripe_event;
 
 const PRODUCT_ID_KEY: &str = "product_id";
 
-pub fn routes(state: CtxState) -> Router {
-    let routes = Router::new()
+pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
+    let mut router = Router::new()
         .route(
             "/api/user/wallet/endowment/:amount",
             get(request_endowment_intent),
         )
         .route("/api/stripe/endowment/webhook", post(handle_webhook));
 
-    // development only
-    let routes = if state.is_development {
-        routes.route(
+    if is_development {
+        router = router.route(
             "/test/api/endow/:endow_user_id/:amount",
             get(test_endowment_transaction),
-        )
-    } else {
-        routes
-    };
+        );
+    }
 
-    routes.with_state(state)
+    router
 }
 
 struct EndowmentIdent {
@@ -96,7 +96,7 @@ impl TryFrom<&String> for EndowmentIdent {
 }
 
 async fn test_endowment_transaction(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path((endow_user_id, amount)): Path<(String, i64)>,
 ) -> CtxResult<Response> {
@@ -110,11 +110,11 @@ async fn test_endowment_transaction(
     let another_user_thing = get_string_thing(endow_user_id)?;
 
     let fund_service = GatewayTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let wallet_service = WalletDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -131,7 +131,7 @@ async fn test_endowment_transaction(
     let user1_bal = wallet_service.get_user_balance(&another_user_thing).await?;
 
     let _unhandeled_res = UserNotificationDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .create(UserNotification {
@@ -147,19 +147,19 @@ async fn test_endowment_transaction(
 }
 
 async fn request_endowment_intent(
-    State(ctx_state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(amount): Path<u32>,
 ) -> CtxResult<Response> {
     let user_id = ctx.user_id()?;
     println!("User ID retrieved: {:?}", user_id);
 
-    let acc_id = AccountId::from_str(ctx_state.stripe_platform_account.as_str()).map_err(|e1| {
+    let acc_id = AccountId::from_str(&state.stripe_platform_account.as_str()).map_err(|e1| {
         ctx.to_ctx_error(AppError::Stripe {
             source: e1.to_string(),
         })
     })?;
-    let client = Client::new(ctx_state.stripe_secret_key).with_stripe_account(acc_id.clone());
+    let client = Client::new(state.stripe_secret_key.clone()).with_stripe_account(acc_id.clone());
 
     let amt = (amount * 100) as i64;
 
@@ -219,6 +219,7 @@ async fn request_endowment_intent(
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Serialize)]
 struct StripeEvent(Event);
 
 // TODO merge duplicate code in stripe_utils
@@ -226,7 +227,8 @@ struct StripeEvent(Event);
 impl<S> FromRequest<S> for StripeEvent
 where
     String: FromRequest<S>,
-    S: Send + Sync + StripeConfig,
+    S: Send + Sync,
+    CtxState: FromRef<S>,
 {
     type Rejection = Response;
 
@@ -241,7 +243,8 @@ where
             .await
             .map_err(IntoResponse::into_response)?;
 
-        let wh_secret = state.get_webhook_secret();
+        let state = CtxState::from_ref(state);
+        let wh_secret = state.stripe_wh_secret;
 
         let event =
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret);
@@ -257,12 +260,14 @@ where
 }
 
 async fn handle_webhook(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
-    StripeEvent(event): StripeEvent,
+    State(state): State<Arc<CtxState>>,
+    req: Request<Body>,
 ) -> CtxResult<Response> {
+    let event = extract_stripe_event(req, &state).await?;
+
     let fund_service = GatewayTransactionDbService {
-        db: &ctx_state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -276,7 +281,7 @@ async fn handle_webhook(
             }
         }
         _ => {
-            if ctx_state.is_development {
+            if state.is_development {
                 println!("Unknown event encountered in webhook: {:?}", event.type_);
             }
             None
@@ -329,7 +334,7 @@ async fn handle_webhook(
             }
 
             let _unhandeled_res = UserNotificationDbService {
-                db: &ctx_state._db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .create(UserNotification {

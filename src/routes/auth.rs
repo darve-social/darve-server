@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
@@ -27,7 +29,7 @@ use crate::{
     },
 };
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/auth/sign_with_facebook", post(sign_by_fb))
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
@@ -36,55 +38,53 @@ pub fn routes(state: CtxState) -> Router {
         .route("/api/reset_password", post(reset_password))
         .route("/api/login", post(signin))
         .route("/api/register", post(signup))
-        .with_state(state)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SocialSignInput {
     token: String,
 }
-
 async fn sign_by_fb(
-    State(state): State<CtxState>,
-    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     cookies: Cookies,
+    ctx: Ctx,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
 
     cookies.add(
         Cookie::build((JWT_KEY, token))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
             .path("/")
             .http_only(true)
-            .into(), //.finish(),
+            .into(),
     );
 
     Ok((StatusCode::OK, Json(json!(user))).into_response())
 }
 
 async fn sign_by_apple(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     cookies: Cookies,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
-
     let (token, user) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
         .await?;
@@ -101,17 +101,18 @@ async fn sign_by_apple(
 }
 
 async fn sign_by_google(
-    State(state): State<CtxState>,
-    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     cookies: Cookies,
+    ctx: Ctx,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
 
     let (token, user) = auth_service
@@ -130,17 +131,18 @@ async fn sign_by_google(
 }
 
 async fn signin(
-    State(state): State<CtxState>,
-    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     cookies: Cookies,
+    ctx: Ctx,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
 
     let (token, user) = auth_service.login_password(body).await?;
@@ -157,33 +159,36 @@ async fn signin(
 }
 
 async fn signup(
-    State(state): State<CtxState>,
-    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     cookies: Cookies,
+    ctx: Ctx,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthRegisterInput>,
 ) -> CtxResult<Response> {
     let email = body.email.clone();
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender.clone(),
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
+
     let (token, user) = auth_service.register_password(body).await?;
 
     if let Some(email) = email {
         let user_service = UserService::new(
             LocalUserDbService {
-                db: &state._db,
+                db: &state.db.client,
                 ctx: &ctx,
             },
-            state.email_sender.clone(),
+            &state.email_sender,
             state.verification_code_ttl,
             AuthenticationDbService {
-                db: &state._db,
+                db: &state.db.client,
                 ctx: &ctx,
             },
+            &state.db.verification_code,
         );
 
         user_service
@@ -203,33 +208,37 @@ async fn signup(
 }
 
 async fn forgot_password(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Json(body): Json<ForgotPasswordInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
+
     let _ = auth_service.forgot_password(body).await?;
     Ok((StatusCode::OK).into_response())
 }
 
 async fn reset_password(
-    State(state): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Json(body): Json<ResetPasswordInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
-        &state._db,
+        &state.db.client,
         &ctx,
-        state.jwt.clone(),
-        state.email_sender,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
+
     let _ = auth_service.reset_password(body).await?;
     Ok((StatusCode::OK).into_response())
 }

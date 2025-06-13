@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use askama_axum::axum_core::response::Response;
 use askama_axum::Template;
-use axum::extract::{DefaultBodyLimit, Path, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
@@ -38,6 +40,7 @@ use crate::database::client::Db;
 use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
 use crate::entities::user_auth::authentication_entity::AuthenticationDbService;
 use crate::entities::user_auth::{follow_entity, local_user_entity};
+use crate::interfaces::file_storage::FileStorageInterface;
 use crate::routes::user_auth::follow_routes;
 use crate::services::user_service::UserService;
 use crate::utils::file::convert::convert_field_file_data;
@@ -46,8 +49,8 @@ use crate::{middleware, utils};
 use utils::validate_utils::empty_string_as_none;
 use utils::validate_utils::validate_username;
 
-pub fn routes(state: CtxState) -> Router {
-    let max_bytes_val = (1024 * 1024 * state.upload_max_size_mb) as usize;
+pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
+    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
         .route("/u/:username_or_id", get(display_profile))
         .route("/u/following/posts", get(get_following_posts))
@@ -70,7 +73,6 @@ pub fn routes(state: CtxState) -> Router {
             get(get_create_chat_discussion),
         )
         // the file max limit is set on PostInput property
-        .with_state(state)
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -196,9 +198,12 @@ pub struct SearchInput {
     pub query: String,
 }
 
-async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<ProfileFormPage> {
+async fn profile_form(
+    State(ctx_state): State<Arc<CtxState>>,
+    ctx: Ctx,
+) -> CtxResult<ProfileFormPage> {
     let user = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user()
@@ -218,7 +223,7 @@ async fn profile_form(State(ctx_state): State<CtxState>, ctx: Ctx) -> CtxResult<
 }
 
 async fn profile_save(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     TypedMultipart(body_value): TypedMultipart<ProfileSettingsFormInput>,
 ) -> CtxResult<Html<String>> {
@@ -229,7 +234,7 @@ async fn profile_save(
     })?;
 
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let mut user = local_user_db_service.get_ctx_user().await?;
@@ -277,13 +282,13 @@ async fn profile_save(
 }
 
 async fn display_profile(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(username_or_id): Path<String>,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let is_id = username_or_id.contains(":");
@@ -301,17 +306,18 @@ async fn display_profile(
         .get_view::<ProfileView>(user_ident)
         .await?;
     let profile_comm =
-        get_profile_community(&ctx_state._db, &ctx, profile_view.user_id.clone()).await?;
+        get_profile_community(&ctx_state.db.client, &ctx, profile_view.user_id.clone()).await?;
     profile_view.community = profile_comm.id;
     profile_view.profile_discussion = profile_comm.default_discussion;
 
     let disc_id = profile_view.profile_discussion.clone().unwrap();
 
-    let dis_view = get_profile_discussion_view(&ctx_state._db, &ctx, q_params, disc_id).await?;
+    let dis_view =
+        get_profile_discussion_view(&ctx_state.db.client, &ctx, q_params, disc_id).await?;
 
     profile_view.profile_discussion_view = Some(dis_view);
     let follow_db_service = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     // TODO cache user follow numbers
@@ -338,7 +344,7 @@ async fn get_profile_discussion_view(
     q_params: DiscussionParams,
     disc_id: Thing,
 ) -> CtxResult<ProfileDiscussionView> {
-    // let mut dis_view = DiscussionDbService { db: &ctx_state._db, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
+    // let mut dis_view = DiscussionDbService { db: &ctx_state.db.client, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
     let mut dis_view = ProfileDiscussionView {
         id: Some(disc_id.clone()),
         posts: vec![],
@@ -358,17 +364,16 @@ pub async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxRes
 
 // posts user is following
 async fn get_following_posts(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    _q_params: DiscussionParams,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let stream_post_ids = PostStreamDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .user_posts_stream(user_id)
@@ -376,7 +381,7 @@ async fn get_following_posts(
     let post_list = if stream_post_ids.len() > 0 {
         // TODO resolve view access
         get_entity_list_view::<DiscussionPostView>(
-            &_db,
+            &state.db.client,
             post_entity::TABLE_NAME.to_string(),
             &IdentIdName::Ids(stream_post_ids),
             None,
@@ -390,16 +395,13 @@ async fn get_following_posts(
 }
 
 // user chat discussions
-async fn get_chats(
-    State(CtxState { _db, .. }): State<CtxState>,
-    ctx: Ctx,
-) -> CtxResult<Html<String>> {
+async fn get_chats(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
+    let comm = get_profile_community(&state.db.client, &ctx, user_id.clone()).await?;
     let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
     /*let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
     let dis = DiscussionDbService{
@@ -407,7 +409,7 @@ async fn get_chats(
         ctx: &ctx,
     }.get_()*/
     let discussions = get_entity_list_view::<DiscussionView>(
-        &_db,
+        &state.db.client,
         discussion_entity::TABLE_NAME.to_string(),
         &IdentIdName::Ids(discussion_ids),
         None,
@@ -420,12 +422,12 @@ async fn get_chats(
 }
 
 async fn get_create_chat_discussion(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(other_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
@@ -435,14 +437,14 @@ async fn get_create_chat_discussion(
         .exists(IdentIdName::Id(other_user_id.clone()))
         .await?;
 
-    let comm = get_profile_community(&_db, &ctx, user_id.clone()).await?;
+    let comm = get_profile_community(&state.db.client, &ctx, user_id.clone()).await?;
     let discussions = comm.profile_chats.clone().unwrap_or(vec![]);
     let comm_db_service = CommunityDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let discussion_db_service = DiscussionDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let existing = discussion_db_service
@@ -461,7 +463,7 @@ async fn get_create_chat_discussion(
         }
         Some(disc) => {
             get_discussion_view(
-                &_db,
+                &state.db.client,
                 &ctx,
                 disc.id.unwrap(),
                 DiscussionParams {
@@ -545,18 +547,18 @@ async fn create_chat_discussion<'a>(
 
 async fn create_user_post(
     ctx: Ctx,
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Response> {
     input_value.validate()?;
 
     let user_id = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
-    let profile_comm = get_profile_community(&ctx_state._db, &ctx, user_id).await?;
+    let profile_comm = get_profile_community(&ctx_state.db.client, &ctx, user_id).await?;
 
     create_post_entity_route(
         ctx,
@@ -568,22 +570,26 @@ async fn create_user_post(
 }
 
 async fn get_user_posts(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
     Path(username): Path<String>,
-    q_params: DiscussionParams,
+    State(ctx_state): State<Arc<CtxState>>,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let user = local_user_db_service
         .get(UsernameIdent(username).into())
         .await?;
-    let profile_comm =
-        get_profile_community(&ctx_state._db, &ctx, user.id.expect("user id").clone()).await?;
+    let profile_comm = get_profile_community(
+        &ctx_state.db.client,
+        &ctx,
+        user.id.expect("user id").clone(),
+    )
+    .await?;
     let profile_disc_view = get_profile_discussion_view(
-        &ctx_state._db,
+        &ctx_state.db.client,
         &ctx,
         q_params,
         profile_comm.default_discussion.expect("profile discussion"),
@@ -594,11 +600,11 @@ async fn get_user_posts(
 
 async fn search_users(
     ctx: Ctx,
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     // require logged in
@@ -618,29 +624,29 @@ pub struct EmailVerificationStartInput {
     pub email: String,
 }
 async fn email_verification_start(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
+    State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
-        ctx_state.email_sender.clone(),
+        &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
+        &ctx_state.db.verification_code,
     );
 
     let current_user_id = ctx.user_id()?;
 
     user_service
         .start_email_verification(&current_user_id, &data.email)
-        .await
-        .map_err(|e| ctx.to_ctx_error(e))?;
+        .await?;
 
     Ok(())
 }
@@ -655,29 +661,29 @@ pub struct EmailVerificationConfirmInput {
 }
 
 async fn email_verification_confirm(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
+    State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
-        ctx_state.email_sender.clone(),
+        &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         },
+        &ctx_state.db.verification_code,
     );
 
     let current_user_id = ctx.user_id()?;
 
     user_service
         .email_confirmation(&current_user_id, &data.code, &data.email)
-        .await
-        .map_err(|e| ctx.to_ctx_error(e))?;
+        .await?;
 
     Ok(())
 }

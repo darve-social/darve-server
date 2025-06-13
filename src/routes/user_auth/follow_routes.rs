@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::community::post_stream_entity::PostStreamDbService;
@@ -23,14 +25,13 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use user_auth::{follow_entity, local_user_entity};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/user/:user_id/followers", get(get_followers))
         .route("/api/user/:user_id/following", get(get_following))
         .route("/api/follow/:follow_user_id", post(follow_user))
         .route("/api/follow/:follow_user_id", delete(unfollow_user))
         .route("/api/user/follows/:follows_user_id", get(is_following_user))
-        .with_state(state)
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -60,13 +61,13 @@ impl From<LocalUser> for UserItemView {
 }
 
 async fn get_followers(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let user_id = get_string_thing(user_id.clone())?;
     let followers: Vec<UserItemView> = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .user_followers(user_id)
@@ -78,13 +79,13 @@ async fn get_followers(
 }
 
 async fn get_following(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let user_id = get_string_thing(user_id.clone())?;
     let following = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .user_following(user_id)
@@ -96,12 +97,12 @@ async fn get_following(
 }
 
 async fn follow_user(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let local_user_db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let from_user = local_user_db_service.get_ctx_user().await?;
@@ -112,7 +113,7 @@ async fn follow_user(
         .await?;
 
     let follow_db_service = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -126,7 +127,8 @@ async fn follow_user(
             .await?;
         follower_ids.push(follow.clone());
 
-        let n_service = NotificationService::new(&ctx_state._db, &ctx, &ctx_state.event_sender);
+        let n_service =
+            NotificationService::new(&ctx_state.db.client, &ctx, &ctx_state.event_sender);
         n_service
             .on_follow(&from_user, follows_username, follower_ids)
             .await?;
@@ -142,19 +144,19 @@ async fn follow_user(
 }
 
 async fn unfollow_user(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(unfollow_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let user_id = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
     let follow = get_string_thing(unfollow_user_id.clone())?;
     let success = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .remove_follow(user_id, follow)
@@ -167,19 +169,19 @@ async fn unfollow_user(
 }
 
 async fn is_following_user(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(following_user_id): Path<String>,
 ) -> CtxResult<Html<String>> {
     let user_id = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
     let follows_user = get_string_thing(following_user_id.clone())?;
     let success = FollowDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .is_following(user_id, follows_user.clone())
@@ -199,7 +201,7 @@ async fn add_latest_posts(
 ) {
     // let follow_profile_comm = match (CommunityDbService {
     //     ctx: &ctx,
-    //     db: &ctx_state._db,
+    //     db: &ctx_state.db.client,
     // }
     // .get_profile_community(follow_user_id.to_owned())
     // .await)
@@ -215,7 +217,7 @@ async fn add_latest_posts(
 
     let post_db_service = PostDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     };
 
     let latest_posts = match post_db_service
@@ -238,7 +240,7 @@ async fn add_latest_posts(
 
     let stream_db_service = PostStreamDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     };
     for post in latest_posts {
         if let Err(err) = stream_db_service

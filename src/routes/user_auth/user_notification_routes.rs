@@ -1,31 +1,30 @@
 use askama_axum::Template;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use serde::{Deserialize, Serialize};
 use std::clone::Clone;
 use std::string::ToString;
+use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
-use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 
 use crate::entities::user_auth::{local_user_entity, user_notification_entity};
 use crate::middleware;
+use crate::middleware::mw_ctx::CtxState;
 
-pub fn routes(state: CtxState) -> Router {
-    Router::new()
-        .route(
-            "/api/notification/user/history",
-            get(user_notification_history),
-        )
-        .with_state(state)
+pub fn routes() -> Router<Arc<CtxState>> {
+    Router::new().route(
+        "/api/notification/user/history",
+        get(user_notification_history),
+    )
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -133,18 +132,18 @@ pub struct UserNotificationTaskReceivedView {
 }
 
 async fn user_notification_history(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Html<String>> {
     let user = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
     let notifications = UserNotificationDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_by_user_view::<UserNotificationView>(user, q_params)

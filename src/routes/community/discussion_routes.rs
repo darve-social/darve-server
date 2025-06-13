@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::sync::Arc;
 
 use crate::database::client::Db;
 use crate::entities::community::post_entity::PostDbService;
@@ -45,7 +46,7 @@ use validator::Validate;
 
 use super::{community_routes, discussion_topic_routes};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     let view_routes = Router::new()
         .route(
             "/community/:community_id/discussion",
@@ -61,7 +62,6 @@ pub fn routes(state: CtxState) -> Router {
             "/api/discussion/:discussion_id/sse/htmx",
             get(discussion_sse_htmx),
         )
-        .with_state(state)
 }
 
 // used in templates
@@ -198,13 +198,18 @@ impl ViewFieldSelector for DiscussionPostView {
 // }
 
 async fn display_discussion(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<axum::Json<DiscussionView>> {
-    let dis_view =
-        get_discussion_view(&_db, &ctx, get_string_thing(discussion_id)?, q_params).await?;
+    let dis_view = get_discussion_view(
+        &state.db.client,
+        &ctx,
+        get_string_thing(discussion_id)?,
+        q_params,
+    )
+    .await?;
     Ok(axum::Json(dis_view))
 }
 
@@ -343,13 +348,13 @@ async fn get_user_discussion_auths(_db: &Db, ctx: &Ctx) -> CtxResult<Vec<Authori
 }
 
 async fn create_update_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(community_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<ProfileFormPage> {
     let user_id = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -372,20 +377,20 @@ async fn create_update_form(
                 authorize_height: 1,
             };
             AccessRightDbService {
-                db: &_db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .is_authorized(&user_id, &required_disc_auth)
             .await?;
 
             topics = DiscussionDbService {
-                db: &_db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .get_topics(id.clone())
             .await?;
             get_discussion_view(
-                &_db,
+                &state.db.client,
                 &ctx,
                 id,
                 DiscussionParams {
@@ -404,7 +409,7 @@ async fn create_update_form(
                 authorize_height: 1,
             };
             AccessRightDbService {
-                db: &_db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .is_authorized(&user_id, &required_comm_auth)
@@ -424,7 +429,7 @@ async fn create_update_form(
     };
 
     let access_rules = AccessRuleDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_list(comm_id.clone())
@@ -456,27 +461,25 @@ async fn create_update_form(
 }
 
 async fn discussion_sse_htmx(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let mut ctx = ctx.clone();
     ctx.is_htmx = true;
-    discussion_sse(State(ctx_state), ctx, Path(discussion_id), q_params).await
+    discussion_sse(State(ctx_state), ctx, Path(discussion_id), Query(q_params)).await
 }
 
 async fn discussion_sse(
-    State(CtxState {
-        _db, event_sender, ..
-    }): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
-    q_params: DiscussionParams,
+    Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let discussion_id = get_string_thing(discussion_id)?;
     let discussion = DiscussionDbService {
-        db: &_db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get(IdentIdName::Id(discussion_id))
@@ -484,14 +487,14 @@ async fn discussion_sse(
     let discussion_id = discussion.id.expect("disc id");
 
     let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
-        &_db,
+        &ctx_state.db.client,
         &ctx,
         &discussion_id,
         discussion.chat_room_user_ids,
     )
     .await?;
 
-    let rx = event_sender.subscribe();
+    let rx = ctx_state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx)
         .filter(move|msg| {
             if msg.is_err() {
@@ -599,26 +602,26 @@ async fn discussion_sse(
 }
 
 async fn create_update(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<DiscussionInput>,
 ) -> CtxResult<Response> {
     let local_user_db_service = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let aright_db_service = AccessRightDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
 
     let disc_db_ser = DiscussionDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let community_db_service = CommunityDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
