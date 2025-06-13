@@ -9,11 +9,11 @@ use darve_server::middleware::ctx::Ctx;
 use darve_server::{middleware, routes::wallet::wallet_routes};
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user, create_test_server};
-use darve_server::{middleware, routes::wallet::wallet_routes};
-use helpers::{create_login_test_user, create_test_server};
 use middleware::utils::string_utils::get_string_thing;
 use std::time::SystemTime;
+use axum::extract::State;
 use uuid::Uuid;
+use darve_server::routes::wallet::wallet_routes::get_user_balance;
 use wallet_routes::CurrencyTransactionHistoryView;
 
 #[tokio::test]
@@ -164,7 +164,7 @@ async fn check_balance_too_low() {
         false,
     );
     let transaction_service = LockTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let res_1 = transaction_service
@@ -204,7 +204,7 @@ async fn check_lock_user_wallet_parallel() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
     let (server, user2, _) = create_fake_login_test_user(&server).await;
-    let endow_amt = 32;
+    let endow_amt = 30;
     let endow_user_response = server
         .get(&format!(
             "/test/api/endow/{}/{}",
@@ -224,14 +224,15 @@ async fn check_lock_user_wallet_parallel() {
         false,
     );
     let transaction_service = LockTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
-
+    
+    let lock_amt = 5;
     let res = join_all([
         transaction_service.lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
-            32,
+            lock_amt,
             CurrencySymbol::USD,
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
@@ -239,7 +240,7 @@ async fn check_lock_user_wallet_parallel() {
         ),
         transaction_service.lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
-            10,
+            lock_amt,
             CurrencySymbol::USD,
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
@@ -247,7 +248,7 @@ async fn check_lock_user_wallet_parallel() {
         ),
         transaction_service.lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
-            1,
+            lock_amt,
             CurrencySymbol::USD,
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
@@ -265,4 +266,23 @@ async fn check_lock_user_wallet_parallel() {
         res[2].as_ref().err().unwrap().error,
         middleware::error::AppError::WalletLocked
     );
+    
+    let res = transaction_service.lock_user_asset_tx(
+        &user2.id.as_ref().unwrap(),
+        1,
+        CurrencySymbol::USD,
+        vec![UnlockTrigger::Timestamp {
+            at: DateTime::from(SystemTime::now()),
+        }],
+    ).await;
+    assert!(res.is_ok());
+    
+    let bal = get_user_balance(ctx, State(ctx_state)).await;
+    let bal: WalletBalancesView = serde_json::from_str(bal.unwrap().0.as_str()).unwrap();
+    assert_eq!(bal.balance_locked.balance_usd, 6);
+    assert_eq!(bal.balance.balance_usd, 24);
+    println!(
+        "bal: {}",
+        serde_json::to_string_pretty(&bal).unwrap()
+    )
 }
