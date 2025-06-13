@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use askama::Template;
 use axum::extract::Query;
@@ -9,19 +10,18 @@ use serde::Serialize;
 
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
-use middleware::mw_ctx::CtxState;
 use middleware::utils::request_utils::CreatedResponse;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 use validator::Validate;
 
+use crate::middleware::mw_ctx::CtxState;
 use crate::services::auth_service::{AuthRegisterInput, AuthService};
+
 use crate::{middleware, utils};
 
-pub fn routes(state: CtxState) -> Router {
-    Router::new()
-        .route("/register", get(display_register_page))
-        .with_state(state)
+pub fn routes() -> Router<Arc<CtxState>> {
+    Router::new().route("/register", get(display_register_page))
 }
 
 #[derive(Template, Serialize, Debug)]
@@ -34,7 +34,6 @@ struct RegisterForm {
 }
 
 pub async fn display_register_page(
-    // State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<Response> {
@@ -76,19 +75,21 @@ pub async fn display_register_form(
 }
 
 pub async fn register_user(
-    state: &CtxState,
+    state: &Arc<CtxState>,
     ctx: &Ctx,
     payload: AuthRegisterInput,
 ) -> CtxResult<CreatedResponse> {
     payload.validate()?;
 
     let auth_service = AuthService::new(
-        &state._db,
-        ctx,
-        state.jwt.clone(),
-        state.email_sender.clone(),
+        &state.db.client,
+        &ctx,
+        &state.jwt,
+        &state.email_sender,
         state.verification_code_ttl,
+        &state.db.verification_code,
     );
+
     let (_, user) = auth_service.register_password(payload).await?;
     Ok(CreatedResponse {
         success: true,

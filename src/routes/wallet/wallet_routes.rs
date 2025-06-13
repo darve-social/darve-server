@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use askama::Template;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
@@ -19,11 +21,10 @@ use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
 use crate::middleware::utils::db_utils::QryOrder::DESC;
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
         .route("/api/user/wallet/balance", get(get_user_balance))
-        .with_state(state)
 }
 
 #[derive(Template, Deserialize, Debug, Serialize)]
@@ -59,15 +60,15 @@ pub struct WalletUserView {
 }
 
 pub async fn get_user_balance(
-    State(ctx_state): State<CtxState>,
     ctx: Ctx,
+    State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Html<String>> {
     let user_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let wallet_service = WalletDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let user_id = user_service.get_ctx_user_thing().await?;
@@ -76,12 +77,12 @@ pub async fn get_user_balance(
 }
 
 pub async fn get_wallet_history(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    params: DiscussionParams,
+    Query(params): Query<DiscussionParams>,
 ) -> CtxResult<Html<String>> {
     let user_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let user_id = user_service.get_ctx_user_thing().await?;
@@ -92,7 +93,7 @@ pub async fn get_wallet_history(
         start: params.start.unwrap_or(0),
     });
     let tx_service = BalanceTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let user_wallet_id = WalletDbService::get_user_wallet_id(&user_id);

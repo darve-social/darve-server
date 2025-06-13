@@ -2,6 +2,7 @@ mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::create_test_server;
+use axum::extract::Query;
 use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
@@ -50,11 +51,11 @@ async fn create_post() {
         State(ctx_state.clone()),
         ctx,
         Path(result.name),
-        DiscussionParams {
+        Query(DiscussionParams {
             topic_id: None,
             start: None,
             count: None,
-        },
+        }),
     )
     .await
     .expect("community page");
@@ -123,11 +124,12 @@ async fn get_latest() {
     let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
-    let default_discussion = get_profile_community(&ctx_state._db, &ctx, user_thing_id.clone())
-        .await
-        .unwrap()
-        .default_discussion
-        .unwrap();
+    let default_discussion =
+        get_profile_community(&ctx_state.db.client, &ctx, user_thing_id.clone())
+            .await
+            .unwrap()
+            .default_discussion
+            .unwrap();
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let _ = create_fake_post(server, &default_discussion, None, None).await;
@@ -135,20 +137,20 @@ async fn get_latest() {
 
     let profile_comm = CommunityDbService {
         ctx: &ctx,
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
     }
     .get_profile_community(user_thing_id)
     .await;
     let discussion_id = profile_comm.unwrap().default_discussion.unwrap();
-    let result = get_latest_posts(2, discussion_id.clone(), &ctx, &ctx_state._db).await;
+    let result = get_latest_posts(2, discussion_id.clone(), &ctx, &ctx_state.db.client).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 2);
 
-    let result = get_latest_posts(3, discussion_id.clone(), &ctx, &ctx_state._db).await;
+    let result = get_latest_posts(3, discussion_id.clone(), &ctx, &ctx_state.db.client).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 3);
 
-    let result = get_latest_posts(1, discussion_id, &ctx, &ctx_state._db).await;
+    let result = get_latest_posts(1, discussion_id, &ctx, &ctx_state.db.client).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 1)
 }

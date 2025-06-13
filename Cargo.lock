@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "darve_server"
-version = "0.1.10"
+version = "0.1.12"
 dependencies = [
  "argon2",
  "askama",

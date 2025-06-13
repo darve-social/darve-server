@@ -32,14 +32,16 @@ impl GoogleCloudFileStorage {
                 .await
                 .expect("Failed to load Google Cloud Storage credentials")
         };
-
+        
         let endpoint = endpoint
             .map(|storage_endpoint| {
                 config.storage_endpoint = storage_endpoint.to_string();
                 format!("{}/download/storage/v1/b/{}/o", storage_endpoint, bucket)
             })
             .unwrap_or_else(|| format!("{}/{}", config.storage_endpoint, bucket));
-
+        
+        println!("GOOGLE_CLOUD_STORAGE_ENDPOINT: {}", endpoint);
+        
         GoogleCloudFileStorage {
             bucket: bucket.to_string(),
             client: Client::new(config),

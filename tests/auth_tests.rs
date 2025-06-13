@@ -1,10 +1,11 @@
 mod helpers;
 
 use darve_server::{
-    entities::user_auth::{
-        authentication_entity::AuthType,
-        local_user_entity::{LocalUserDbService, VerificationCodeFor},
+    entities::{
+        user_auth::{authentication_entity::AuthType, local_user_entity::LocalUserDbService},
+        verification_code::VerificationCodeFor,
     },
+    interfaces::repositories::verification_code::VerificationCodeRepositoryInterface,
     middleware::ctx::Ctx,
 };
 use fake::{faker, Fake};
@@ -23,7 +24,7 @@ async fn test_forgot_password_success() {
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
     let user_db = LocalUserDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -40,23 +41,17 @@ async fn test_forgot_password_success() {
 
     response.assert_status_success();
 
-    let user_db = LocalUserDbService {
-        db: &state._db,
-        ctx: &ctx,
-    };
-    let data = user_db
-        .get_code(
-            user.id.as_ref().unwrap().clone(),
+    let user_code = state
+        .db
+        .verification_code
+        .get_by_user(
+            &user.id.as_ref().unwrap().to_raw(),
             VerificationCodeFor::ResetPassword,
         )
         .await
         .unwrap();
 
-    assert!(data.is_some());
-
-    let user_code = data.unwrap();
-
-    assert_eq!(user_code.user, user.id.as_ref().unwrap().clone());
+    assert_eq!(user_code.user, user.id.as_ref().unwrap().to_raw());
     assert_eq!(user_code.email, email);
     assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
 }
@@ -103,7 +98,7 @@ async fn test_forgot_password_by_user_has_not_password_yet() {
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
     let user_db = LocalUserDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -112,7 +107,8 @@ async fn test_forgot_password_by_user_has_not_password_yet() {
         .await;
 
     state
-        ._db
+        .db
+        .client
         .query("DELETE FROM authentication WHERE local_user=$user AND auth_type=$auth_type")
         .bind(("user", user.id.as_ref().unwrap().clone()))
         .bind(("auth_type", AuthType::PASSWORD))
@@ -141,7 +137,7 @@ async fn test_reset_password_success() {
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
     let user_db = LocalUserDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -158,19 +154,15 @@ async fn test_reset_password_success() {
 
     response.assert_status_success();
 
-    let user_db = LocalUserDbService {
-        db: &state._db,
-        ctx: &ctx,
-    };
-    let data = user_db
-        .get_code(
-            user.id.as_ref().unwrap().clone(),
+    let user_code = state
+        .db
+        .verification_code
+        .get_by_user(
+            &user.id.as_ref().unwrap().to_raw(),
             VerificationCodeFor::ResetPassword,
         )
         .await
         .unwrap();
-
-    let user_code = data.unwrap();
 
     let response = server
         .post("/api/reset_password")
@@ -183,15 +175,16 @@ async fn test_reset_password_success() {
 
     response.assert_status_success();
 
-    let code = user_db
-        .get_code(
-            user.id.as_ref().unwrap().clone(),
+    let user_code = state
+        .db
+        .verification_code
+        .get_by_user(
+            &user.id.as_ref().unwrap().to_raw(),
             VerificationCodeFor::ResetPassword,
         )
-        .await
-        .unwrap();
+        .await;
 
-    assert!(code.is_none());
+    assert!(user_code.is_err());
 
     let login_response = server
         .post("/api/login")
@@ -227,7 +220,7 @@ async fn test_reset_password_to_many_requests() {
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 
     let user_db = LocalUserDbService {
-        db: &state._db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -243,18 +236,6 @@ async fn test_reset_password_to_many_requests() {
         .await;
 
     response.assert_status_success();
-
-    let user_db = LocalUserDbService {
-        db: &state._db,
-        ctx: &ctx,
-    };
-    let _ = user_db
-        .get_code(
-            user.id.as_ref().unwrap().clone(),
-            VerificationCodeFor::ResetPassword,
-        )
-        .await
-        .unwrap();
 
     let response = server
         .post("/api/reset_password")

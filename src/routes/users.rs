@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
@@ -17,11 +19,10 @@ use crate::{
     services::user_service::UserService,
 };
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/users/current/password", patch(reset_password))
         .route("/api/users/current/password", post(set_password))
-        .with_state(state)
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -31,23 +32,24 @@ struct SetPasswordInput {
 }
 
 async fn set_password(
-    State(state): State<CtxState>,
     ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<SetPasswordInput>,
 ) -> CtxResult<Response> {
     let user_id = ctx.user_id()?;
 
     let user_service = UserService::new(
         LocalUserDbService {
-            db: &state._db,
+            db: &state.db.client,
             ctx: &ctx,
         },
-        state.email_sender,
+        &state.email_sender,
         state.verification_code_ttl,
         AuthenticationDbService {
-            db: &state._db,
+            db: &state.db.client,
             ctx: &ctx,
         },
+        &state.db.verification_code,
     );
 
     user_service.set_password(&user_id, &data.password).await?;
@@ -64,28 +66,29 @@ struct ResetPasswordInput {
 }
 
 async fn reset_password(
-    State(state): State<CtxState>,
     ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<ResetPasswordInput>,
-) -> CtxResult<Response> {
+) -> CtxResult<String> {
     let user_id = ctx.user_id()?;
 
     let user_service = UserService::new(
         LocalUserDbService {
-            db: &state._db,
+            db: &state.db.client,
             ctx: &ctx,
         },
-        state.email_sender,
+        &state.email_sender,
         state.verification_code_ttl,
         AuthenticationDbService {
-            db: &state._db,
+            db: &state.db.client,
             ctx: &ctx,
         },
+        &state.db.verification_code,
     );
 
-    user_service
+    let _ = user_service
         .update_password(&user_id, &data.new_password, &data.old_password)
         .await?;
 
-    Ok("".into_response())
+    Ok("Password updated successfully.".to_string())
 }

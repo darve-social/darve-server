@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     database::client::Db,
     entities::{
@@ -21,7 +19,7 @@ use axum::{
     body::Body,
     response::{IntoResponse, Response},
     routing::get,
-    serve, Router,
+    Router,
 };
 use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
@@ -53,14 +51,16 @@ use routes::user_auth::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
     register_routes, user_notification_routes,
 };
+use std::{sync::Arc, time::Duration};
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use axum::http;
 use http::Request;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
-use tracing::{info, instrument::WithSubscriber, Span};
+use tracing::{info, Span};
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     let c = Ctx::new(
@@ -70,11 +70,12 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     );
 
     let auth_service = AuthService::new(
-        &ctx_state._db,
+        &ctx_state.db.client,
         &c,
-        ctx_state.jwt.clone(),
-        ctx_state.email_sender.clone(),
+        &ctx_state.jwt,
+        &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
+        &ctx_state.db.verification_code,
     );
 
     let _ = auth_service
@@ -102,7 +103,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         .await;
 }
 
-pub async fn run_migrations(db: Db) -> AppResult<()> {
+pub async fn run_migrations(db: &Db) -> AppResult<()> {
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -149,47 +150,43 @@ pub async fn run_migrations(db: Db) -> AppResult<()> {
     UserNotificationDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
+    GatewayTransactionDbService { db: &db, ctx: &c }
+        .mutate_db()
+        .await?;
     Ok(())
 }
 
-pub async fn main_router(ctx_state: &CtxState, wa_config: WebauthnConfig) -> Router {
+pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -> Router {
     Router::new()
         .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("assets"))
         // No requirements
         // Also behind /api, but no auth requirement on this route
-        .merge(init_server_routes::routes(ctx_state.clone()))
-        .merge(auth::routes(ctx_state.clone()))
-        .merge(login_routes::routes(ctx_state.clone()))
-        .merge(register_routes::routes(ctx_state.clone()))
-        .merge(discussion_routes::routes(ctx_state.clone()))
-        .merge(discussion_topic_routes::routes(ctx_state.clone()))
-        .merge(community_routes::routes(ctx_state.clone()))
-        .merge(access_rule_routes::routes(ctx_state.clone()))
-        .merge(post_routes::routes(ctx_state.clone()))
-        .merge(reply_routes::routes(ctx_state.clone()))
-        .merge(webauthn_routes::routes(
-            ctx_state.clone(),
-            wa_config,
-            "assets/wasm",
-        ))
-        .merge(stripe_routes::routes(ctx_state.clone()))
-        .merge(access_gain_action_routes::routes(ctx_state.clone()))
-        .merge(profile_routes::routes(ctx_state.clone()))
-        .merge(task_request_routes::routes(ctx_state.clone()))
-        .merge(follow_routes::routes(ctx_state.clone()))
-        .merge(user_notification_routes::routes(ctx_state.clone()))
-        .merge(wallet_routes::routes(ctx_state.clone()))
-        .merge(wallet_endowment_routes::routes(ctx_state.clone()))
-        .merge(events::routes(ctx_state.clone()))
-        .merge(users::routes(ctx_state.clone()))
+        .merge(init_server_routes::routes())
+        .merge(auth::routes())
+        .merge(login_routes::routes())
+        .merge(register_routes::routes())
+        .merge(discussion_routes::routes())
+        .merge(discussion_topic_routes::routes())
+        .merge(community_routes::routes())
+        .merge(access_rule_routes::routes())
+        .merge(post_routes::routes(ctx_state.upload_max_size_mb))
+        .merge(reply_routes::routes())
+        .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
+        .merge(stripe_routes::routes())
+        .merge(access_gain_action_routes::routes())
+        .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
+        .merge(task_request_routes::routes())
+        .merge(follow_routes::routes())
+        .merge(user_notification_routes::routes())
+        .merge(wallet_routes::routes())
+        .merge(wallet_endowment_routes::routes(ctx_state.is_development))
+        .merge(events::routes())
+        .merge(users::routes())
+        .with_state(ctx_state.clone())
         .layer(AutoVaryLayer)
         // .layer(axum::middleware::map_response(mw_req_logger))
         // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))
-        /*.layer(middleware::from_fn_with_state(
-            ctx_state.clone(),
-            mw_ctx::mw_require_login,
-        ))*/
         // This is where Ctx gets created, with every new request
         .layer(axum::middleware::from_fn_with_state(
             ctx_state.clone(),

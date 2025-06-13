@@ -1,7 +1,12 @@
+use std::sync::Arc;
+
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
+
+use crate::database::repositories::verification_code::VerificationCodeRepository;
+use crate::middleware::error::AppError;
 
 pub type Db = Surreal<Any>;
 
@@ -16,7 +21,8 @@ pub struct DbConfig<'a> {
 
 #[derive(Debug)]
 pub struct Database {
-    pub client: Surreal<Any>,
+    pub client: Arc<Surreal<Any>>,
+    pub verification_code: VerificationCodeRepository,
 }
 
 impl Database {
@@ -46,6 +52,18 @@ impl Database {
             .expect("Failed to get SurrealDB version");
 
         info!("->> connected DB version: {version}");
-        Self { client: conn }
+
+        let client = Arc::new(conn);
+
+        Self {
+            client: client.clone(),
+            verification_code: VerificationCodeRepository::new(client.clone()),
+        }
+    }
+
+    pub async fn run_migrations(&self) -> Result<(), AppError> {
+        self.verification_code.mutate_db().await?;
+
+        Ok(())
     }
 }

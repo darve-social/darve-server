@@ -274,7 +274,7 @@ async fn authorize_save() {
     .unwrap();
 
     let community_db_service = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx.clone(),
     };
     let community: Option<Community> = community_db_service
@@ -286,7 +286,7 @@ async fn authorize_save() {
     let comm_discussion_id = community.unwrap().default_discussion.unwrap();
 
     let acc_right_service = AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false),
     };
 
@@ -343,7 +343,7 @@ async fn authorize_save() {
     assert_eq!(is_authorized.is_ok(), true);
 
     /*let auth_1 = auth_iter.next().unwrap();
-    let a_right = AccessRightDbService { db: &ctx_state._db, ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false) }
+    let a_right = AccessRightDbService { db: &ctx_state.db.client, ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false) }
         .get(IdentIdName::ColumnIdent{rec:false, column:"authorization".to_string(), val: auth_1.to}).await.unwrap();
     assert_eq!(a_right.authorization.authorize_activity.clone(), AUTH_ACTIVITY_OWNER.to_string());
     assert_eq!(a_right.authorization.authorize_record_id.tb, auth_rec2.tb);*/

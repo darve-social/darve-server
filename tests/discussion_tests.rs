@@ -87,7 +87,7 @@ async fn get_discussion_view() {
     topic_resp.assert_status_success();
 
     let disc_rec = DiscussionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok(user_ident), Uuid::new_v4(), false),
     }
     .get(IdentIdName::Id(disc_id.clone()))
@@ -123,7 +123,7 @@ async fn get_discussion_view() {
     create_response2.assert_status_success();
 
     let disc_posts = PostDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     }
     .get_by_discussion_desc_view::<DiscussionPostView>(
@@ -136,7 +136,7 @@ async fn get_discussion_view() {
     )
     .await;
     let disc_posts_top1 = PostDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
     }
     .get_by_discussion_desc_view::<DiscussionPostView>(
@@ -209,14 +209,14 @@ async fn create_discussion() {
 
     let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
     let comm_db = CommunityDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
     let comm_disc_id = comm.unwrap().default_discussion.unwrap();
 
     let disc_db = DiscussionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
@@ -233,11 +233,11 @@ async fn create_discussion() {
     // assert_eq!(discussion_by_uri.clone().name_uri.unwrap(), disc_name.clone());
 
     let db_service = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let aright_db_service = AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let _ = db_service
@@ -257,7 +257,7 @@ async fn create_discussion() {
 
     assert_eq!(
         smaller_auth
-            .ge(&higher_auth, ctx, &ctx_state._db)
+            .ge(&higher_auth, ctx, &ctx_state.db.client)
             .await
             .is_err(),
         false
@@ -269,7 +269,7 @@ async fn create_discussion() {
         .await
         .expect("user authorizations");
     for v in user_auth.clone() {
-        let is_ge = v.ge(&smaller_auth, ctx, &ctx_state._db).await;
+        let is_ge = v.ge(&smaller_auth, ctx, &ctx_state.db.client).await;
         if is_ge.is_ok() {
             found.push(v);
         }
@@ -278,7 +278,7 @@ async fn create_discussion() {
 
     let mut found: Vec<Authorization> = vec![];
     for v in user_auth.clone() {
-        let is_ge = v.ge(&higher_auth, ctx, &ctx_state._db).await;
+        let is_ge = v.ge(&higher_auth, ctx, &ctx_state.db.client).await;
         if is_ge.unwrap() {
             found.push(v);
         }

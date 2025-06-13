@@ -5,6 +5,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
@@ -28,11 +29,10 @@ use crate::entities::user_auth::{
 };
 use crate::{middleware, utils};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/discussion/:discussion_id/topic", post(create_update))
         .route("/api/discussion/:discussion_id/topic", get(get_form))
-        .with_state(state)
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -70,13 +70,13 @@ pub struct DiscussionTopicItemForm {
 }
 
 async fn get_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<DiscussionTopicItemForm> {
     let user_id = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -84,7 +84,7 @@ async fn get_form(
 
     let disc_id = get_string_thing(discussion_id)?;
     let disc = DiscussionDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get(IdentIdName::Id(disc_id.clone()))
@@ -95,7 +95,7 @@ async fn get_form(
         authorize_height: 1,
     };
     AccessRightDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .is_authorized(&user_id, &required_diss_auth)
@@ -107,7 +107,7 @@ async fn get_form(
     };
 
     let access_rules = AccessRuleDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_list(disc.belongs_to)
@@ -125,7 +125,7 @@ async fn get_form(
         Some(topic_id) => {
             let topic_id = get_string_thing(topic_id.clone())?;
             let topic = DiscussionTopicDbService {
-                db: &_db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .get(IdentIdName::Id(topic_id))
@@ -134,7 +134,7 @@ async fn get_form(
                 None => None,
                 Some(id) => Some(
                     AccessRuleDbService {
-                        db: &_db,
+                        db: &state.db.client,
                         ctx: &ctx,
                     }
                     .get(IdentIdName::Id(id))
@@ -156,13 +156,13 @@ async fn get_form(
 }
 
 async fn create_update(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(discussion_id): Path<String>,
     JsonOrFormValidated(form_value): JsonOrFormValidated<TopicInput>,
 ) -> CtxResult<Html<String>> {
     let user_id = LocalUserDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
@@ -170,7 +170,7 @@ async fn create_update(
 
     let disc_id = get_string_thing(discussion_id)?;
     let disc_db_ser = DiscussionDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
     let comm_id = disc_db_ser
@@ -184,14 +184,14 @@ async fn create_update(
         authorize_height: 1,
     };
     AccessRightDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .is_authorized(&user_id, &required_diss_auth)
     .await?;
 
     let disc_topic_db_ser = DiscussionTopicDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     };
 
@@ -231,7 +231,7 @@ async fn create_update(
 
     let topics = disc_db_ser.get_topics(disc_id.clone()).await?;
     let access_rules = AccessRuleDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_list(comm_id.clone())

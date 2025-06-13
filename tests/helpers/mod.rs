@@ -1,6 +1,8 @@
 pub mod community_helpers;
 pub mod post_helpers;
 pub mod user_helpers;
+use std::sync::Arc;
+
 use axum_test::{TestServer, TestServerConfig};
 use darve_server::config::AppConfig;
 use darve_server::database::client::{Database, DbConfig};
@@ -10,12 +12,10 @@ use darve_server::routes::user_auth::webauthn;
 use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
 use serde_json::json;
-use surrealdb::engine::any::Any;
-use surrealdb::Surreal;
 use webauthn::webauthn_routes::create_webauth_config;
 
 #[allow(dead_code)]
-async fn init_test_db(config: &mut AppConfig) -> Surreal<Any> {
+async fn init_test_db(config: &mut AppConfig) -> Database {
     println!("remote db config={:?}", &config);
     config.db_database = "db_test".to_string();
     config.db_url = "mem://".to_string();
@@ -29,16 +29,17 @@ async fn init_test_db(config: &mut AppConfig) -> Surreal<Any> {
         username: config.db_username.as_deref(),
     })
     .await;
-    darve_server::init::run_migrations(db.client.clone())
+    db.run_migrations().await.unwrap();
+    darve_server::init::run_migrations(&db.client)
         .await
         .expect("migrations run");
 
-    db.client
+    db
 }
 
 // allowing this because we are importing these in test files and cargo compiler doesnt compile those files while building so skips the import of create_test_server
 #[allow(dead_code)]
-pub async fn create_test_server() -> (TestServer, CtxState) {
+pub async fn create_test_server() -> (TestServer, Arc<CtxState>) {
     let mut config = AppConfig::from_env();
 
     let db = init_test_db(&mut config).await;
@@ -92,6 +93,7 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
             "full_name": Some(faker::name::en::Name().fake::<String>()),
         }))
         .await;
+
     create_user.assert_status_success();
     let user = create_user.json::<LocalUser>();
 

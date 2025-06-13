@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use askama_axum::Template;
-use axum::extract::{Query, State};
+use axum::extract::Query;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
@@ -9,18 +10,18 @@ use serde::{Deserialize, Serialize};
 use tower_cookies::{Cookie, Cookies};
 use validator::Validate;
 
-use middleware::mw_ctx::{CtxState, JWT_KEY};
+use middleware::mw_ctx::JWT_KEY;
 use middleware::{ctx::Ctx, error::CtxResult};
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
+use crate::middleware::mw_ctx::CtxState;
 use crate::{middleware, utils};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/login", get(login_form))
         .route("/logout", get(logout_page))
-        .with_state(state)
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -46,7 +47,6 @@ struct LogoutContent {
 }
 
 async fn login_form(
-    State(CtxState { _db, .. }): State<CtxState>,
     ctx: Ctx,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<Response> {
@@ -70,7 +70,6 @@ async fn login_form(
 }
 
 async fn logout_page(
-    State(CtxState { _db, .. }): State<CtxState>,
     cookies: Cookies,
     ctx: Ctx,
     Query(mut qry): Query<HashMap<String, String>>,

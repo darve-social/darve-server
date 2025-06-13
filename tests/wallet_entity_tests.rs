@@ -9,6 +9,8 @@ use darve_server::middleware::ctx::Ctx;
 use darve_server::{middleware, routes::wallet::wallet_routes};
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user, create_test_server};
+use darve_server::{middleware, routes::wallet::wallet_routes};
+use helpers::{create_login_test_user, create_test_server};
 use middleware::utils::string_utils::get_string_thing;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -92,7 +94,7 @@ async fn lock_user_balance() {
     );
     let lock_amt = 32;
     let transaction_service = LockTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let lock_id = transaction_service
@@ -117,7 +119,7 @@ async fn lock_user_balance() {
     assert_eq!(balances.balance_locked.balance_usd, lock_amt);
     assert_eq!(balances.balance.balance_usd, endow_amt - lock_amt);
     let _unlock_id = LockTransactionDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .unlock_user_asset_tx(&lock_id)

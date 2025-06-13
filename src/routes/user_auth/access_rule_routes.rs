@@ -5,6 +5,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use surrealdb::sql::Thing;
 use validator::Validate;
 
@@ -26,7 +27,7 @@ use crate::entities::user_auth::{
 };
 use crate::{middleware, utils};
 
-pub fn routes(state: CtxState) -> Router {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/community/:community_id/access-rule", get(get_form_page))
         .route(
@@ -34,7 +35,6 @@ pub fn routes(state: CtxState) -> Router {
             get(get_form),
         )
         .route("/api/access-rule", post(create_update))
-        .with_state(state)
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -61,7 +61,7 @@ pub struct AccessRuleInput {
 }
 
 async fn get_form_page(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(community_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
@@ -71,13 +71,13 @@ async fn get_form_page(
 }
 
 async fn get_form(
-    State(CtxState { _db, .. }): State<CtxState>,
+    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(target_record_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<AccessRuleForm> {
     let target_id = AccessRightDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .has_owner_access(target_record_id)
@@ -108,7 +108,7 @@ async fn get_form(
         Some(id) => {
             let id = get_string_thing(id)?;
             AccessRuleDbService {
-                db: &_db,
+                db: &state.db.client,
                 ctx: &ctx,
             }
             .get(IdentIdName::Id(id))
@@ -117,7 +117,7 @@ async fn get_form(
     };
 
     let access_rules = AccessRuleDbService {
-        db: &_db,
+        db: &state.db.client,
         ctx: &ctx,
     }
     .get_list(target_id)
@@ -129,33 +129,33 @@ async fn get_form(
 }
 
 async fn create_update(
-    State(ctx_state): State<CtxState>,
+    State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(form_value): JsonOrFormValidated<AccessRuleInput>,
 ) -> CtxResult<Html<String>> {
     let user_id = LocalUserDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let comm_id = get_string_thing(form_value.target_entity_id.clone())?;
-    record_exists(&ctx_state._db, &comm_id.clone()).await?;
+    record_exists(&ctx_state.db.client, &comm_id.clone()).await?;
     let required_diss_auth = Authorization {
         authorize_record_id: comm_id.clone(),
         authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
         authorize_height: 1,
     };
     AccessRightDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .is_authorized(&user_id, &required_diss_auth)
     .await?;
 
     let access_r_db_ser = AccessRuleDbService {
-        db: &ctx_state._db,
+        db: &ctx_state.db.client,
         ctx: &ctx,
     };
     let empty_auth_tb = "not_existing_table";
@@ -221,7 +221,7 @@ async fn create_update(
             authorize_height: 1,
         };
         AccessRightDbService {
-            db: &ctx_state._db,
+            db: &ctx_state.db.client,
             ctx: &ctx,
         }
         .is_authorized(&user_id, &required_rec_auth)
