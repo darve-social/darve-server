@@ -17,7 +17,7 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-
+use crate::database::repositories::verification_code::VERIFICATION_CODE_TABLE_NAME;
 use super::{access_right_entity, authorization_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -228,7 +228,7 @@ impl<'a> LocalUserDbService<'a> {
         let qry = format!(
             "
             BEGIN TRANSACTION;
-                DELETE FROM verification_code WHERE user = $user_id AND use_for = $use_for;
+                DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
                 UPDATE $user_id SET email_verified = $email;
             COMMIT TRANSACTION;
         "
