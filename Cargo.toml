@@ -54,6 +54,7 @@ argon2 = "0.5.3"
 
 [dev-dependencies]
 fake = "4.3.0"
+serial_test = "3.2.0"
 
 [profile.release]
 opt-level = 3

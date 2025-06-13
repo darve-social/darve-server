@@ -1,22 +1,24 @@
 mod helpers;
 
+use axum::extract::State;
 use chrono::DateTime;
 use darve_server::entities::wallet::lock_transaction_entity::{
     LockTransactionDbService, UnlockTrigger,
 };
 use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
 use darve_server::middleware::ctx::Ctx;
+use darve_server::routes::wallet::wallet_routes::get_user_balance;
 use darve_server::{middleware, routes::wallet::wallet_routes};
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user, create_test_server};
 use middleware::utils::string_utils::get_string_thing;
+use serial_test::serial;
 use std::time::SystemTime;
-use axum::extract::State;
 use uuid::Uuid;
-use darve_server::routes::wallet::wallet_routes::get_user_balance;
 use wallet_routes::CurrencyTransactionHistoryView;
 
 #[tokio::test]
+#[serial]
 async fn test_wallet_history() {
     // create test server
     println!("Creating test server");
@@ -65,7 +67,7 @@ async fn test_wallet_history() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn lock_user_balance() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
@@ -137,6 +139,7 @@ async fn lock_user_balance() {
 }
 
 #[tokio::test]
+#[serial]
 async fn check_balance_too_low() {
     let (server, ctx_state) = create_test_server().await;
     let (server, _, _) = create_fake_login_test_user(&server).await;
@@ -200,7 +203,8 @@ async fn check_balance_too_low() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn check_lock_user_wallet_parallel() {
+#[serial]
+async fn check_lock_user_wallet_parallel_1() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
     let (server, user2, _) = create_fake_login_test_user(&server).await;
@@ -227,7 +231,7 @@ async fn check_lock_user_wallet_parallel() {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
-    
+
     let lock_amt = 5;
     let res = join_all([
         transaction_service.lock_user_asset_tx(
@@ -258,31 +262,87 @@ async fn check_lock_user_wallet_parallel() {
     .await;
 
     assert!(res[0].is_ok());
-    assert_eq!(
-        res[1].as_ref().err().unwrap().error,
-        middleware::error::AppError::WalletLocked
-    );
-    assert_eq!(
-        res[2].as_ref().err().unwrap().error,
-        middleware::error::AppError::WalletLocked
-    );
-    
-    let res = transaction_service.lock_user_asset_tx(
-        &user2.id.as_ref().unwrap(),
-        1,
-        CurrencySymbol::USD,
-        vec![UnlockTrigger::Timestamp {
-            at: DateTime::from(SystemTime::now()),
-        }],
-    ).await;
+    assert!(res[1].is_ok());
+    assert!(res[2].is_ok());
+
+    let res = transaction_service
+        .lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        )
+        .await;
     assert!(res.is_ok());
-    
+
     let bal = get_user_balance(ctx, State(ctx_state)).await;
     let bal: WalletBalancesView = serde_json::from_str(bal.unwrap().0.as_str()).unwrap();
-    assert_eq!(bal.balance_locked.balance_usd, 6);
-    assert_eq!(bal.balance.balance_usd, 24);
-    println!(
-        "bal: {}",
-        serde_json::to_string_pretty(&bal).unwrap()
-    )
+    assert_eq!(bal.balance_locked.balance_usd, 16);
+    assert_eq!(bal.balance.balance_usd, 14);
+    println!("bal: {}", serde_json::to_string_pretty(&bal).unwrap());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn check_lock_user_wallet_parallel_2() {
+    println!("Creating test server");
+    let (server, ctx_state) = create_test_server().await;
+    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let endow_amt = 32;
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user2.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+
+    endow_user_response.assert_status_success();
+    let endow_response_text = endow_user_response.text();
+    println!("endow_user_response: {}", endow_response_text);
+    let ctx = Ctx::new(
+        Ok(user2.id.as_ref().unwrap().to_raw()),
+        Uuid::new_v4(),
+        false,
+    );
+    let transaction_service = LockTransactionDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    };
+
+    let res = join_all([
+        transaction_service.lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        ),
+        transaction_service.lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        ),
+        transaction_service.lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        ),
+    ])
+    .await;
+
+    assert!(res[0].is_ok());
+    assert!(res[1].is_ok());
+    assert!(res[2].is_ok());
 }

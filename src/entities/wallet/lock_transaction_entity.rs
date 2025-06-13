@@ -76,35 +76,10 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
     ) -> CtxResult<Thing> {
-        let wallet_id = WalletDbService::get_user_lock_wallet_id(user);
-        let wallet_db_service = WalletDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-
-        let _ = wallet_db_service.lock(&wallet_id).await?;
-
         let qry_bindings =
-            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false);
+            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, true)?;
 
-        let qry = match qry_bindings {
-            Ok(qry) => qry,
-            Err(e) => {
-                let _ = wallet_db_service.unlock(&wallet_id).await;
-                return Err(self.ctx.to_ctx_error(e));
-            }
-        };
-
-        let mut lock_res = match qry.into_query(self.db).await {
-            Ok(res) => res,
-            Err(e) => {
-                let _ = wallet_db_service.unlock(&wallet_id).await;
-                return Err(self.ctx.to_ctx_error(e.into()));
-            }
-        };
-
-        let _ = wallet_db_service.unlock(&wallet_id).await;
-
+        let mut lock_res = qry_bindings.into_query(self.db).await?;
         // take custom error or default db error
         check_transaction_custom_error(&mut lock_res)?;
         let res: Option<Thing> = lock_res.take(lock_res.num_statements() - 1)?;
@@ -116,7 +91,7 @@ impl<'a> LockTransactionDbService<'a> {
         // lock_res = lock_res.check()?;
         // let res: Option<Thing> = lock_res.take(19)?;
         // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock tx".to_string(),
+        // description: "Error in lock tx".to_string(),
         // }))
     }
 

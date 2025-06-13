@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use askama_axum::Template;
 use balance_transaction_entity::BalanceTransactionDbService;
-use tokio::sync::RwLock;
 
 use crate::database::client::Db;
 use middleware::utils::db_utils::{
@@ -45,6 +42,11 @@ pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResul
                 }
                 surrealdb::Error::Db(Error::Thrown(throw_val))
                     if throw_val == THROW_BALANCE_TOO_LOW =>
+                {
+                    Some(AppError::BalanceTooLow)
+                }
+                surrealdb::Error::Api(surrealdb::error::Api::Query(msg))
+                    if msg.contains("Not enough balance") =>
                 {
                     Some(AppError::BalanceTooLow)
                 }
@@ -147,9 +149,6 @@ pub struct WalletDbService<'a> {
 pub const TABLE_NAME: &str = "wallet";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
-static LOCK_WALLETS: Lazy<Arc<RwLock<Vec<String>>>> =
-    Lazy::new(|| Arc::new(RwLock::new(Vec::new())));
-
 pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
 impl<'a> WalletDbService<'a> {
@@ -167,7 +166,7 @@ impl<'a> WalletDbService<'a> {
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS lock_id ON TABLE {TABLE_NAME} TYPE option<string> ASSERT {{
     IF $before==NONE || $value==NONE || $before<time::now() {{
-        RETURN true
+        RETURN true 
     }} ELSE {{
         THROW \"{THROW_WALLET_LOCKED}\"
     }} }};
@@ -180,23 +179,6 @@ impl<'a> WalletDbService<'a> {
 
         mutation.check().expect("should mutate wallet");
 
-        Ok(())
-    }
-
-    pub async fn lock(&self, wallet_id: &Thing) -> CtxResult<()> {
-        let mut data = LOCK_WALLETS.write().await;
-
-        if data.contains(&wallet_id.to_raw()) {
-            return Err(self.ctx.to_ctx_error(AppError::WalletLocked));
-        }
-
-        data.push(wallet_id.to_raw());
-        Ok(())
-    }
-
-    pub async fn unlock(&self, wallet_id: &Thing) -> CtxResult<()> {
-        let mut data = LOCK_WALLETS.write().await;
-        data.retain(|x| x != &wallet_id.to_raw());
         Ok(())
     }
 

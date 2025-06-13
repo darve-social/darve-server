@@ -72,15 +72,7 @@ impl<'a> BalanceTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
-    DEFINE FIELD IF NOT EXISTS gateway_tx ON TABLE {TABLE_NAME} TYPE option<record<{GATEWAY_TX_TABLE}>>;// TODO- ASSERT {{
-//     IF $this.balance<0 && $this.wallet!={gateway_wallet} {{
-//         THROW \"Final balance must exceed 0\"
-//     }} ELSE IF $this.balance<0 && !record_exists($value)  {{
-//         THROW \"Tried to make gateway_tx but gateway_tx tx not found\"
-//     }} ELSE {{
-//         RETURN true
-//     }}
-// }};
+    DEFINE FIELD IF NOT EXISTS gateway_tx ON TABLE {TABLE_NAME} TYPE option<record<{GATEWAY_TX_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS prev_transaction ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
@@ -89,13 +81,13 @@ impl<'a> BalanceTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS r_created_idx ON {TABLE_NAME} FIELDS r_created;
 
-DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
-	IF !$value {{
-        RETURN 0;
-    }}ELSE{{
-        RETURN $value;
-    }}
-}};
+        DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
+            IF !$value {{
+                RETURN 0;
+            }}ELSE{{
+                RETURN $value;
+            }}
+        }};
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -205,29 +197,20 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
             LET $upd_lck = UPDATE $w_to_id SET lock_id=$lock_id;
             IF array::len($upd_lck)==0 {{
                CREATE $w_to_id SET lock_id=$lock_id, {TRANSACTION_HEAD_F}={{}}; 
-            }};
-            
-            
+             }};            
             LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F}.{currency};
             LET $w_to = SELECT * FROM ONLY $w_to_id FETCH {TRANSACTION_HEAD_F}.{currency};
-
             LET $w_to = IF type::is::none($w_to.user) {{
                 LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
                 LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
-
                 RETURN UPDATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
             }}ELSE{{RETURN $w_to;}};
             LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
-
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
-                UPDATE $w_from_id SET lock_id=NONE;
-                UPDATE $w_to_id SET lock_id=NONE;
                 THROW \"{THROW_BALANCE_TOO_LOW}\";
-            }};
-
+           }};
             LET $tx_ident = rand::ulid();
             LET $out_tx_id = rand::ulid();
-
             LET $tx_out = INSERT INTO {TABLE_NAME} {{
                 id: $out_tx_id,
                 wallet: $w_from_id,
@@ -240,14 +223,10 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
-
             LET $tx_out_id = $tx_out[0].id;
-
             UPDATE $w_from.id SET {TRANSACTION_HEAD_F}.{currency}=$tx_out_id, lock_id=NONE;
-
             LET $in_tx_id = rand::ulid();
             LET $updated_to_balance = fn::zero_if_none($w_to.{TRANSACTION_HEAD_F}.{currency}.balance) + type::number($amt);
-
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
                 id: $in_tx_id,
                 wallet: $w_to_id,
@@ -260,10 +239,8 @@ DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
-
             LET $tx_in_id = $tx_in[0].id;
             UPDATE $w_to_id SET {TRANSACTION_HEAD_F}.{currency}=<record>$tx_in_id, lock_id=NONE;
-
         {commit_tx}
         ");
         let mut bindings = HashMap::new();

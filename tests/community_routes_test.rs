@@ -14,12 +14,14 @@ use helpers::create_test_server;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::request_utils::CreatedResponse;
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::helpers::create_fake_login_test_user;
 
 #[tokio::test]
+#[serial]
 async fn get_community_view() {
     let (server, ctx_state) = create_test_server().await;
     let (server, _, _) = create_fake_login_test_user(&server).await;
@@ -67,6 +69,7 @@ async fn get_community_view() {
 }
 
 #[tokio::test]
+#[serial]
 async fn create_community() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;
