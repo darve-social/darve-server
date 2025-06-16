@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 use surrealdb::sql::Thing;
-use validator::ValidationError;
+use validator::{ValidateEmail, ValidationError};
 
 pub fn is_some_min_chars(some_str: Option<String>) -> Result<(), ValidationError> {
     if let Some(str) = some_str {
@@ -57,4 +57,14 @@ where
             .map_err(|_| de::Error::custom("Invalid id"))?),
         _ => Ok(None),
     }
+}
+
+pub fn validate_email_or_username(value: &str) -> Result<(), ValidationError> {
+    if value.validate_email() {
+        return Ok(());
+    }
+    if validate_username(&value.to_string()).is_ok() {
+        return Ok(());
+    }
+    Err(ValidationError::new("email_or_username"))
 }

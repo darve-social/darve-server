@@ -102,7 +102,9 @@ pub async fn create_login_test_user(
 ) -> (&TestServer, String) {
     let create_user = &server
         .post("/api/register")
-        .json(&json!({ "username": username.to_string(), "password": "some3242paSs#$".to_string()}))
+        .json(
+            &json!({ "username": username.to_string(),  "password": "some3242paSs#$".to_string()}),
+        )
         .await;
 
     println!("Creating user with username: {username} {:?}", create_user);

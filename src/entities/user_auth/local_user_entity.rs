@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
+use super::{access_right_entity, authorization_entity};
 use crate::database::client::Db;
+use crate::database::repositories::verification_code::VERIFICATION_CODE_TABLE_NAME;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
 use access_right_entity::AccessRightDbService;
@@ -17,8 +19,6 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use crate::database::repositories::verification_code::VERIFICATION_CODE_TABLE_NAME;
-use super::{access_right_entity, authorization_entity};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
@@ -161,14 +161,23 @@ impl<'a> LocalUserDbService<'a> {
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
+
     pub async fn get_by_email(&self, email: &str) -> CtxResult<LocalUser> {
         let ident = IdentIdName::ColumnIdent {
             column: "email_verified".to_string(),
             val: email.to_string(),
             rec: false,
         };
-        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
-        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+        self.get(ident).await
+    }
+
+    pub async fn get_by_username(&self, value: &str) -> CtxResult<LocalUser> {
+        let ident = IdentIdName::ColumnIdent {
+            column: "username".to_string(),
+            val: value.to_string(),
+            rec: false,
+        };
+        self.get(ident).await
     }
 
     pub async fn get_username(&self, ident: IdentIdName) -> CtxResult<String> {
