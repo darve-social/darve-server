@@ -148,14 +148,14 @@ async fn signin(
     let (token, user) = auth_service.login_password(body).await?;
 
     cookies.add(
-        Cookie::build((JWT_KEY, token))
+        Cookie::build((JWT_KEY, token.clone()))
             // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
             .path("/")
             .http_only(true)
             .into(), //.finish(),
     );
 
-    Ok((StatusCode::OK, Json(json!(user))).into_response())
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 
 async fn signup(
@@ -197,14 +197,14 @@ async fn signup(
     }
 
     cookies.add(
-        Cookie::build((JWT_KEY, token))
+        Cookie::build((JWT_KEY, token.clone()))
             // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
             .path("/")
             .http_only(true)
             .into(), //.finish(),
     );
 
-    Ok((StatusCode::OK, Json(json!(user))).into_response())
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 
 async fn forgot_password(
