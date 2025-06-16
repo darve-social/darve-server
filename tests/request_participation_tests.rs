@@ -14,6 +14,7 @@ use darve_server::{
 };
 use serial_test::serial;
 use std::i64;
+use axum::http::StatusCode;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -301,7 +302,7 @@ async fn create_task_request_participation() {
         .await;
 
     participate_response.assert_status_failure();
-    // participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
+    participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
     ////////// login user 0 and check tasks
 
