@@ -21,12 +21,170 @@ until nc -z $HOST $PORT; do
 done
 echo "✅ Backend is up — starting dev env"
 
+declare -A REGISTERED_USERS=()
+
+index=0
+
+echo ""
+echo "Create user data..."
+
 for user in "${USERS[@]}"; do
-  echo "Registering user: $(echo $user | jq .username)"
+  username=$(echo "$user" | jq -r .username)
+  echo "🔄 Registering user: $username"
+  
   response=$(curl -s -X POST -H "Content-Type: application/json" -d "$user" "$SCHEMA://$HOST:$PORT$API_PATH")
-  userid=$(echo "$response" | jq -r '.id.tb + "%3A" + .id.id.String' 2>/dev/null)
-  if [ -n "$userid" ]; then
-    curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$userid/100"
-  fi
-  echo -e 
+  
+  token=$(echo "$response" | jq -r '.token' 2>/dev/null)
+  encode_userid=$(echo "$response" | jq -r '.user.id.tb + "%3A" + .user.id.id.String')
+  userid=$(echo "$response" | jq -r '.user.id.tb + ":" + .user.id.id.String')
+  
+  discussion_id="discussion%3A$(echo "$response" | jq -r '.user.id.id.String')"
+  curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$encode_userid/100"
+post_uris=()  # make sure it's cleared/reset
+for i in {1..3}; do
+  response=$(curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussion/$discussion_id/post" \
+    -H "Accept: application/json" \
+    -b "jwt=$token" \
+    -F "title=Post $i" \
+    -F "topic_id=" \
+    -F "content=Lorem Ipsum")
+
+  echo "$response"  # debug log
+
+  postUri=$(echo "$response" | jq -r '.uri // empty')
+  post_id=$(echo "$response" | jq -r '.id // empty')
+
+  [[ -n "$post_id" ]] && post_uris+=("$post_id")  # append only if non-empty
+
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussion/$discussion_id/post/$postUri/reply" \
+    -H "Content-Type: application/json" \
+    -b "jwt=$token" \
+    -d '{"title": "Reply 1", "content": "Lorem Ipsum"}'
 done
+
+  post_uris_json=$(printf '%s\n' "${post_uris[@]}" | jq -R . | jq -s .)
+
+  REGISTERED_USERS["$index"]=$(jq -n \
+    --arg id "$userid" \
+    --arg token "$token" \
+    --argjson posts "$post_uris_json" \
+    '{id: $id, token: $token, posts: $posts}')
+
+  ((index++))
+done
+echo ""
+echo "Setting up follow relationships..."
+
+token=$(echo "${REGISTERED_USERS[0]}" | jq -r '.token')
+id1=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
+
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id2=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+token=$(echo "${REGISTERED_USERS[1]}" | jq -r '.token')
+id0=$(echo "${REGISTERED_USERS[0]}" | jq -r '.id')
+
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id2=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+token=$(echo "${REGISTERED_USERS[2]}" | jq -r '.token')
+id0=$(echo "${REGISTERED_USERS[0]}" | jq -r '.id')
+
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id1=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+  -H "Accept: application/json" \
+  -b "jwt=$token"
+
+echo ""
+echo "Setting up challenge..."
+
+
+user1_token=$(echo "${REGISTERED_USERS[0]}" | jq -r '.token')
+user2_token=$(echo "${REGISTERED_USERS[1]}" | jq -r '.token')
+user3_token=$(echo "${REGISTERED_USERS[2]}" | jq -r '.token')
+user1_posts_json=$(echo "${REGISTERED_USERS[0]}" | jq -c '.posts')  
+user2_posts_json=$(echo "${REGISTERED_USERS[1]}" | jq -c '.posts')  
+user3_posts_json=$(echo "${REGISTERED_USERS[2]}" | jq -c '.posts')  
+user1_id=$(echo "${REGISTERED_USERS[0]}" | jq -r '.id')
+user2_id=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
+user3_id=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
+
+echo "$user1_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+    -H "Content-Type: application/json" \
+    -b "jwt=$user1_token" \
+    -d "{
+      \"post_id\": \"$post_id\",
+      \"to_user\": \"$user2_id\",
+      \"offer_amount\": 10,
+      \"content\": \"Task for user2 from post $post_id\"
+    }"
+
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+    -H "Content-Type: application/json" \
+    -b "jwt=$user1_token" \
+    -d "{
+      \"post_id\": \"$post_id\",
+      \"to_user\": \"$user3_id\",
+      \"offer_amount\": 10,
+      \"content\": \"Task for user3 from post $post_id\"
+    }"
+done
+
+echo "$user2_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+    -H "Content-Type: application/json" \
+    -b "jwt=$user2_token" \
+    -d "{
+      \"post_id\": \"$post_id\",
+      \"to_user\": \"$user3_id\",
+      \"offer_amount\": 10,
+      \"content\": \"Task for\"
+    }"
+done
+
+echo "$user3_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+    -H "Content-Type: application/json" \
+    -b "jwt=$user3_token" \
+    -d "{
+      \"post_id\": \"$post_id\",
+      \"to_user\": \"$user1_id\",
+      \"offer_amount\": 10,
+      \"content\": \"Task for\"
+    }"
+done
+
+echo ""
+echo "🎉 Development environment setup complete!"
