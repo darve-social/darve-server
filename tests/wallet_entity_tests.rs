@@ -200,6 +200,50 @@ async fn check_balance_too_low() {
         res_2.as_ref().err().unwrap().error,
         middleware::error::AppError::BalanceTooLow
     );
+    
+    let res_3 = transaction_service
+        .lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            31,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        )
+        .await;
+    assert!(
+        res_3.as_ref().is_ok()
+    );
+    
+    let res_4 = transaction_service
+        .lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        )
+        .await;
+    assert!(
+        res_4.as_ref().is_ok()
+    );
+
+
+    let res_5 = transaction_service
+        .lock_user_asset_tx(
+            &user2.id.as_ref().unwrap(),
+            1,
+            CurrencySymbol::USD,
+            vec![UnlockTrigger::Timestamp {
+                at: DateTime::from(SystemTime::now()),
+            }],
+        )
+        .await;
+    assert_eq!(
+        res_5.as_ref().err().unwrap().error,
+        middleware::error::AppError::BalanceTooLow
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
