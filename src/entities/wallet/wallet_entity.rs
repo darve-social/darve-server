@@ -46,7 +46,7 @@ pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResul
                     Some(AppError::BalanceTooLow)
                 }
                 surrealdb::Error::Api(surrealdb::error::Api::Query(msg))
-                    if msg.contains("Not enough balance") =>
+                    if msg.contains(THROW_BALANCE_TOO_LOW) =>
                 {
                     Some(AppError::BalanceTooLow)
                 }
