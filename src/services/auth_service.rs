@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use uuid::Uuid;
-use validator::Validate;
+use validator::{Validate, ValidateEmail};
 
 use crate::{
     database::client::Db,
@@ -28,7 +28,7 @@ use crate::{
     utils::{
         hash::{hash_password, verify_password},
         jwt::JWT,
-        validate_utils::validate_username,
+        validate_utils::{validate_email_or_username, validate_username},
         verification::{apple, facebook, google},
     },
 };
@@ -61,8 +61,8 @@ pub struct AuthLoginInput {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ForgotPasswordInput {
-    #[validate(email)]
-    pub email: String,
+    #[validate(custom(function = validate_email_or_username, message = "Must be a valid email or username"))]
+    pub email_or_username: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -71,8 +71,8 @@ pub struct ResetPasswordInput {
     pub password: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
     pub code: String,
-    #[validate(email)]
-    pub email: String,
+    #[validate(custom(function = validate_email_or_username, message = "Must be a valid email or username"))]
+    pub email_or_username: String,
 }
 
 pub struct AuthService<'a> {
@@ -329,7 +329,15 @@ impl<'a> AuthService<'a> {
     pub async fn reset_password(&self, input: ResetPasswordInput) -> CtxResult<()> {
         input.validate()?;
 
-        let user = self.user_repository.get_by_email(&input.email).await?;
+        let user = if input.email_or_username.validate_email() {
+            self.user_repository
+                .get_by_email(&input.email_or_username)
+                .await?
+        } else {
+            self.user_repository
+                .get_by_username(&input.email_or_username)
+                .await?
+        };
 
         let verification_data = self
             .verification_code_service
@@ -352,7 +360,22 @@ impl<'a> AuthService<'a> {
     pub async fn forgot_password(&self, data: ForgotPasswordInput) -> CtxResult<()> {
         data.validate()?;
 
-        let user = self.user_repository.get_by_email(&data.email).await?;
+        let user = if data.email_or_username.validate_email() {
+            self.user_repository
+                .get_by_email(&data.email_or_username)
+                .await?
+        } else {
+            self.user_repository
+                .get_by_username(&data.email_or_username)
+                .await?
+        };
+
+        if user.email_verified.is_none() {
+            return Err(AppError::Generic {
+                description: "The user has not set email yet".to_string(),
+            }
+            .into());
+        }
 
         let auth = self
             .auth_repository

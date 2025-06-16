@@ -24,7 +24,7 @@ axum-test = "16.1.0"
 askama_axum = { git = "https://github.com/djc/askama.git", branch = "main" }
 askama = { git = "https://github.com/djc/askama.git", branch = "main" }
 axum-htmx = { version = "0.6.0", features = ["auto-vary"] }
-validator = { version = "0.18.1", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
 regex = "1.10.6"
 futures = "0.3.30"
 tokio-stream = { version = "0.1.16", features = ["sync"] }
