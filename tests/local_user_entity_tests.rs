@@ -2,6 +2,7 @@ mod helpers;
 
 use darve_server::entities::user_auth::local_user_entity;
 use darve_server::middleware;
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -12,6 +13,7 @@ use middleware::utils::db_utils::{IdentIdName, UsernameIdent};
 use middleware::utils::string_utils::get_string_thing;
 
 #[tokio::test]
+#[serial]
 async fn user_query() {
     let (server, ctx_state) = create_test_server().await;
     let username = "usn1ame".to_string();
@@ -40,6 +42,7 @@ async fn user_query() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_exists() {
     let (server, ctx_state) = create_test_server().await;
     let username = "usn1ame".to_string();

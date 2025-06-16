@@ -10,11 +10,13 @@ use darve_server::{
 };
 use fake::{faker, Fake};
 use serde_json::json;
+use serial_test::serial;
 use uuid::Uuid;
 
 use crate::helpers::{create_fake_login_test_user, create_test_server};
 
 #[tokio::test]
+#[serial]
 async fn test_forgot_password_success() {
     let (server, state) = create_test_server().await;
     let (_, user, _password) = create_fake_login_test_user(&server).await;
@@ -57,6 +59,7 @@ async fn test_forgot_password_success() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_forgot_password_not_exists_email() {
     let (server, _) = create_test_server().await;
     let (_, _, _password) = create_fake_login_test_user(&server).await;
@@ -74,6 +77,7 @@ async fn test_forgot_password_not_exists_email() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_forgot_password_invalid_email() {
     let (server, _) = create_test_server().await;
     let (_, _, _password) = create_fake_login_test_user(&server).await;
@@ -89,6 +93,7 @@ async fn test_forgot_password_invalid_email() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_forgot_password_by_user_has_not_password_yet() {
     let (server, state) = create_test_server().await;
     let (_, user, _password) = create_fake_login_test_user(&server).await;
@@ -128,6 +133,7 @@ async fn test_forgot_password_by_user_has_not_password_yet() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_reset_password_success() {
     let (server, state) = create_test_server().await;
     let (_, user, password) = create_fake_login_test_user(&server).await;
@@ -211,6 +217,7 @@ async fn test_reset_password_success() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_reset_password_to_many_requests() {
     let (server, state) = create_test_server().await;
     let (_, user, _) = create_fake_login_test_user(&server).await;
@@ -286,6 +293,7 @@ async fn test_reset_password_to_many_requests() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_reset_password_invalid_params() {
     let (server, _) = create_test_server().await;
     let (_, _, _) = create_fake_login_test_user(&server).await;

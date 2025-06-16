@@ -17,10 +17,10 @@ use webauthn::webauthn_routes::create_webauth_config;
 #[allow(dead_code)]
 async fn init_test_db(config: &mut AppConfig) -> Database {
     println!("remote db config={:?}", &config);
-    config.db_database = "db_test".to_string();
-    config.db_url = "mem://".to_string();
-    config.db_password = None;
-    config.db_username = None;
+    config.db_database = "darve_test".to_string();
+    // config.db_url = "mem://".to_string();
+    // config.db_password = None;
+    // config.db_username = None;
     let db = Database::connect(DbConfig {
         url: &config.db_url,
         database: &config.db_database,
@@ -29,7 +29,38 @@ async fn init_test_db(config: &mut AppConfig) -> Database {
         username: config.db_username.as_deref(),
     })
     .await;
+
+    db.client
+        .query(
+            "DELETE FROM 
+                access_right,
+                access_rule,
+                authentication,
+                balance_transaction,
+                local_user,
+                wallet,
+                gateway_transaction,
+                lock_transaction,
+                transaction_head,
+                user_notification,
+                follow,
+                post_stream,
+                join_action,
+                community,
+                task_deliverable,
+                task_request,
+                task_request_participation,
+                post,
+                like,
+                discussion_topic,
+                verification_code,
+                notification;",
+        )
+        .await
+        .unwrap();
+
     db.run_migrations().await.unwrap();
+
     darve_server::init::run_migrations(&db.client)
         .await
         .expect("migrations run");

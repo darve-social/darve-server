@@ -22,6 +22,7 @@ use middleware::ctx::Ctx;
 use middleware::error::AppError;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
+use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -30,6 +31,7 @@ use crate::helpers::create_test_server;
 use crate::helpers::post_helpers::create_fake_post;
 
 #[tokio::test]
+#[serial]
 async fn display_access_rule_content() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user, _) = create_fake_login_test_user(&server).await;

@@ -10,7 +10,6 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing, Value};
-use validator::ValidateRequired;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
 use super::{balance_transaction_entity, wallet_entity};
@@ -89,12 +88,6 @@ impl<'a> LockTransactionDbService<'a> {
             description: "Error in lock fn".to_string(),
         }))
 
-        // - old code
-        // lock_res = lock_res.check()?;
-        // let res: Option<Thing> = lock_res.take(19)?;
-        // res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-        //     description: "Error in lock tx".to_string(),
-        // }))
     }
 
     pub(crate) fn lock_user_asset_qry(

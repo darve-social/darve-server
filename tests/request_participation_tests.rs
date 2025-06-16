@@ -1,7 +1,4 @@
 mod helpers;
-use std::i64;
-
-use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::task::task_request_entity;
@@ -15,6 +12,9 @@ use darve_server::routes::wallet::wallet_routes;
 use darve_server::{
     entities::community::community_entity, routes::user_auth::user_notification_routes,
 };
+use serial_test::serial;
+use std::i64;
+use axum::http::StatusCode;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -36,6 +36,7 @@ use wallet_entity::{CurrencySymbol, WalletDbService};
 use wallet_routes::CurrencyTransactionHistoryView;
 
 #[tokio::test]
+#[serial]
 async fn create_task_request_participation() {
     let (server, ctx_state) = create_test_server().await;
     let (server, user0, user0_pwd) = create_fake_login_test_user(&server).await;
@@ -300,7 +301,7 @@ async fn create_task_request_participation() {
         .add_header("Accept", "application/json")
         .await;
 
-    // participate_response.assert_status_failure();
+    participate_response.assert_status_failure();
     participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
     ////////// login user 0 and check tasks
