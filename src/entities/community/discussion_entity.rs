@@ -40,6 +40,7 @@ pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     pub created_by: Thing,
+    pub is_read_only: bool,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -63,6 +64,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS is_read_only ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
     DEFINE FIELD IF NOT EXISTS chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
@@ -149,6 +151,77 @@ impl<'a> DiscussionDbService<'a> {
                 description: format!("Expected 1 result, found {}", res.len()),
             })),
         }
+    }
+
+    pub async fn get_by_read_only(
+        &self,
+        user_ids: Vec<&str>,
+        title: Option<String>,
+    ) -> CtxResult<Discussion> {
+        let user_things = user_ids.into_iter().fold(vec![], |mut res, id| {
+            match Thing::try_from(id) {
+                Ok(v) => res.push(v),
+                Err(_) => (),
+            };
+            res
+        });
+
+        let query = format!(
+            "SELECT * FROM {TABLE_NAME} WHERE 
+                chat_room_user_ids != NONE 
+                AND array::sort(chat_room_user_ids) = array::sort($user_ids)
+                AND is_read_only = true
+                AND title = $title;",
+        );
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user_ids", user_things))
+            .bind(("title", title))
+            .await?;
+
+        let data = res.take::<Option<Discussion>>(0)?;
+        match data {
+            Some(v) => Ok(v),
+            None => Err(AppError::EntityFailIdNotFound {
+                ident: "get_by_read_only".to_string(),
+            }
+            .into()),
+        }
+    }
+
+    pub async fn get_by_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
+        let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
+            description: "error parse into Thing".to_string(),
+        })?;
+
+        let query = format!("SELECT * FROM {TABLE_NAME} WHERE chat_room_user_ids CONTAINS $user");
+        let mut res = self.db.query(query).bind(("user", user_thing)).await?;
+        let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
+        Ok(data)
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<Discussion> {
+        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
+            description: "error into Thing".to_string(),
+        })?;
+        self.get(IdentIdName::Id(thing)).await
+    }
+
+    pub async fn delete(&self, id: &str) -> CtxResult<()> {
+        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
+            description: "error into Thing".to_string(),
+        })?;
+        let _ = self
+            .db
+            .delete::<Option<Discussion>>((thing.tb, thing.id.to_raw()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            });
+
+        Ok(())
     }
 
     pub async fn create_update(&self, mut record: Discussion) -> CtxResult<Discussion> {

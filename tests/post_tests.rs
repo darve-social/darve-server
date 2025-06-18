@@ -37,7 +37,7 @@ use uuid::Uuid;
 #[serial]
 async fn create_post() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
@@ -74,7 +74,7 @@ async fn create_post() {
 #[serial]
 async fn create_post_with_the_same_name() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
@@ -104,7 +104,7 @@ async fn create_post_with_the_same_name() {
 #[serial]
 async fn create_post_with_file_test() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let result = get_profile_discussion_id(server, user_ident.clone()).await;
@@ -124,7 +124,7 @@ async fn create_post_with_file_test() {
 #[serial]
 async fn get_latest() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
@@ -164,7 +164,7 @@ async fn get_latest() {
 #[serial]
 async fn create_post_with_tags() {
     let (server, _) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let default_discussion =
@@ -203,7 +203,7 @@ async fn create_post_with_tags() {
 #[serial]
 async fn filter_posts_by_tag() {
     let (server, _) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let default_discussion =
         community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;

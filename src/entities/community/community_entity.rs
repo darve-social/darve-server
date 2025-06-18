@@ -115,6 +115,26 @@ impl<'a> CommunityDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
+    pub async fn get_by_auth_user_id(&self, id: &str) -> CtxResult<Community> {
+        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
+            description: "error into Thing".to_string(),
+        })?;
+        let res = self.get(IdentIdName::Id(thing)).await?;
+
+        let auth1 = Authorization {
+            authorize_record_id: res.id.as_ref().unwrap().clone(),
+            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+            authorize_height: 99,
+        };
+        let aright_db = AccessRightDbService {
+            db: &self.db,
+            ctx: &self.ctx,
+        };
+        aright_db.is_authorized(&res.created_by, &auth1).await?;
+
+        Ok(res)
+    }
+
     pub async fn create_profile(&self, user_id: Thing) -> CtxResult<Community> {
         let community_id = CommunityDbService::get_profile_community_id(&user_id);
         let disc_id = DiscussionDbService::get_profile_discussion_id(&user_id);
@@ -177,6 +197,7 @@ impl<'a> CommunityDbService<'a> {
                     r_created: None,
                     belongs_to: comm_id.clone(),
                     created_by: comm.created_by.clone(),
+                    is_read_only: false,
                 })
                 .await
                 .map_err(CtxError::from(self.ctx))

@@ -3,25 +3,23 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use crate::database::client::Db;
+use crate::entities::community::discussion_entity;
 use crate::entities::community::post_entity::PostDbService;
-use crate::entities::community::{community_entity, discussion_entity};
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
 use crate::middleware::mw_ctx::AppEventType;
+use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::{middleware, utils};
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::{AccessRule, AccessRuleDbService};
-use askama_axum::axum_core::response::IntoResponse;
 use askama_axum::Template;
 use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
-use axum::response::{Response, Sse};
-use axum::routing::{get, post};
-use axum::Router;
-use axum_htmx::HX_REDIRECT;
-use community_entity::CommunityDbService;
+use axum::response::Sse;
+use axum::routing::{delete, get, patch, post};
+use axum::{Json, Router};
 use community_routes::DiscussionNotificationEvent;
 use discussion_entity::{Discussion, DiscussionDbService};
 use discussion_topic_routes::{
@@ -35,8 +33,7 @@ use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
-use middleware::utils::request_utils::CreatedResponse;
-use middleware::utils::string_utils::{get_string_thing, LEN_OR_NONE};
+use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
@@ -56,7 +53,18 @@ pub fn routes() -> Router<Arc<CtxState>> {
 
     Router::new()
         .merge(view_routes)
-        .route("/api/discussion", post(create_update))
+        .route("/api/discussions", get(get_discussions))
+        .route("/api/discussions", post(create_discussion))
+        .route("/api/discussions/:discussion_id", patch(update_discussion))
+        .route("/api/discussions/:discussion_id", delete(delete_discussion))
+        .route(
+            "/api/discussions/:discussion_id/chat_users",
+            post(add_discussion_users),
+        )
+        .route(
+            "/api/discussions/:discussion_id/chat_users",
+            delete(delete_discussion_users),
+        )
         .route("/api/discussion/:discussion_id/sse", get(discussion_sse))
         .route(
             "/api/discussion/:discussion_id/sse/htmx",
@@ -101,17 +109,6 @@ impl SseEventName {
 struct DiscussionForm {
     discussion_view: DiscussionView,
     topic_form: DiscussionTopicItemsEdit,
-}
-
-#[derive(Deserialize, Serialize, Validate)]
-pub struct DiscussionInput {
-    pub id: String,
-    pub community_id: String,
-    #[validate(length(min = 5, message = "Min 5 characters"))]
-    pub title: String,
-    pub image_uri: Option<String>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub topics: Option<String>,
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -601,115 +598,109 @@ async fn discussion_sse(
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
-async fn create_update(
+async fn create_discussion(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    JsonOrFormValidated(form_value): JsonOrFormValidated<DiscussionInput>,
-) -> CtxResult<Response> {
+    Json(data): Json<CreateDiscussion>,
+) -> CtxResult<Json<Discussion>> {
     let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let aright_db_service = AccessRightDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
 
-    let disc_db_ser = DiscussionDbService {
+    let disc_service = DiscussionService::new(&state, &ctx);
+    let disc = disc_service.create(&user_id.to_raw(), data).await?;
+    Ok(Json(disc))
+}
+
+async fn get_discussions(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+) -> CtxResult<Json<Vec<Discussion>>> {
+    let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
-    let community_db_service = CommunityDbService {
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let disc_service = DiscussionService::new(&state, &ctx);
+    let discussions = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
+    Ok(Json(discussions))
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct DiscussionUsers {
+    user_ids: Vec<String>,
+}
+async fn add_discussion_users(
+    Path(discussion_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
+) -> CtxResult<()> {
+    let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let disc_service = DiscussionService::new(&state, &ctx);
+    disc_service
+        .add_chat_users(&discussion_id, &user_id.to_raw(), data.user_ids)
+        .await?;
+    Ok(())
+}
 
-    let mut update_discussion = match form_value.id.len() > 0 {
-        false => {
-            // check if provided community id exists and has permissions on provided community id
-            let comm_id_str = form_value.community_id.clone();
-            let comm_id = get_string_thing(comm_id_str.clone())?;
-            community_db_service
-                .must_exist(IdentIdName::Id(comm_id.clone()))
-                .await?;
-            let required_comm_auth = Authorization {
-                authorize_record_id: comm_id.clone(),
-                authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-                authorize_height: 1,
-            };
-            aright_db_service
-                .is_authorized(&user_id, &required_comm_auth)
-                .await?;
-            Discussion {
-                id: None,
-                belongs_to: comm_id,
-                title: None,
-                image_uri: None,
-                topics: None,
-                chat_room_user_ids: None,
-                latest_post_id: None,
-                r_created: None,
-                created_by: user_id,
-            }
-        }
-        true => {
-            // check permissions in discussion and get community id from existing discussion in db
-            let disc_id = get_string_thing(form_value.id)?;
-            let required_disc_auth = Authorization {
-                authorize_record_id: disc_id.clone(),
-                authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-                authorize_height: 1,
-            };
-            aright_db_service
-                .is_authorized(&user_id, &required_disc_auth)
-                .await?;
-            disc_db_ser.get(IdentIdName::Id(disc_id)).await?
-        }
+async fn delete_discussion_users(
+    Path(discussion_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
+) -> CtxResult<()> {
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
     };
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
 
-    /* let topics = match form_value.topics {
-        None => None,
-        Some(topics_str) => {
-            let t_str = topics_str.trim();
-            match t_str.len() {
-                0 => None,
-                _ => {
-                    let titles = t_str.split(",").into_iter().map(|s| s.trim().to_string()).collect();
-                    let res = DiscussionTopicDbService { db: &_db, ctx: &ctx }.create_titles(titles).await?;
-                    Some(res.into_iter().map(|dt| dt.id.unwrap()).collect())
-                }
-            }
-        }
-    };*/
+    let disc_service = DiscussionService::new(&state, &ctx);
+    disc_service
+        .remove_chat_users(&discussion_id, &user_id.to_raw(), data.user_ids)
+        .await?;
+    Ok(())
+}
 
-    if form_value.title.len() > 0 {
-        update_discussion.title = Some(form_value.title);
-    } else {
-        return Err(ctx.to_ctx_error(AppError::Generic {
-            description: "title must have value".to_string(),
-        }));
+async fn delete_discussion(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(discussion_id): Path<String>,
+) -> CtxResult<()> {
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
     };
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let disc_service = DiscussionService::new(&state, &ctx);
+    disc_service
+        .delete(&discussion_id, &user_id.to_raw())
+        .await?;
+    Ok(())
+}
 
-    update_discussion.image_uri = form_value.image_uri.and_then(LEN_OR_NONE);
-
-    let disc = disc_db_ser.create_update(update_discussion).await?;
-    let res = CreatedResponse {
-        success: true,
-        id: disc.id.unwrap().to_raw(),
-        uri: None,
+async fn update_discussion(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(discussion_id): Path<String>,
+    Json(data): Json<UpdateDiscussion>,
+) -> CtxResult<()> {
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
     };
-    let mut res = ctx.to_htmx_or_json::<CreatedResponse>(res)?.into_response();
-    let comm = community_db_service
-        .get(IdentIdName::Id(disc.belongs_to))
+    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let disc_service = DiscussionService::new(&state, &ctx);
+    disc_service
+        .update(&discussion_id, &user_id.to_raw(), data)
         .await?;
 
-    res.headers_mut().append(
-        HX_REDIRECT,
-        format!("/community/{}", comm.name_uri)
-            .as_str()
-            .parse()
-            .unwrap(),
-    );
-    Ok(res)
+    Ok(())
 }
