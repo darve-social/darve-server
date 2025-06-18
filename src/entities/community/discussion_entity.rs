@@ -72,6 +72,9 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS idx_chat_room_user_ids ON TABLE {TABLE_NAME} COLUMNS chat_room_user_ids;
+    DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
+    DEFINE INDEX IF NOT EXISTS idx_is_read_only ON TABLE {TABLE_NAME} COLUMNS is_read_only;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
