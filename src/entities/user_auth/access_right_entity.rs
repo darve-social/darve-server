@@ -15,7 +15,7 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-
+use crate::middleware::utils::string_utils::get_str_thing;
 use super::{
     access_gain_action_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
@@ -296,11 +296,11 @@ impl<'a> AccessRightDbService<'a> {
         Ok(a_right)
     }
 
-    pub async fn has_owner_access(&self, target_record_id: String) -> CtxResult<Thing> {
+    pub async fn has_owner_access(&self, target_record_id: &str) -> CtxResult<Thing> {
         let req_by = self.ctx.user_id()?;
         let user_id = get_string_thing(req_by)?;
 
-        let target_rec_thing = get_string_thing(target_record_id)?;
+        let target_rec_thing = get_str_thing(target_record_id)?;
         let required_auth = Authorization {
             authorize_record_id: target_rec_thing.clone(),
             authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),

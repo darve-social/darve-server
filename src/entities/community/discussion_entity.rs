@@ -171,10 +171,10 @@ impl<'a> DiscussionDbService<'a> {
 
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
-                chat_room_user_ids != NONE 
-                AND array::sort(chat_room_user_ids) = array::sort($user_ids)
+                title = $title
                 AND is_read_only = true
-                AND title = $title;",
+                AND chat_room_user_ids != NONE 
+                AND array::sort(chat_room_user_ids) = array::sort($user_ids);",
         );
 
         let mut res = self

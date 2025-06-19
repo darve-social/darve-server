@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
-
+use darve_server::middleware::utils::db_utils::record_exist_all;
 use crate::{
     entities::{
         community::{
@@ -16,6 +16,7 @@ use crate::{
         mw_ctx::CtxState,
     },
 };
+use crate::entities::user_auth::access_right_entity::AccessRightDbService;
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct CreateDiscussion {
@@ -36,6 +37,7 @@ pub struct DiscussionService<'a> {
     user_repository: LocalUserDbService<'a>,
     comm_repository: CommunityDbService<'a>,
     discussion_repository: DiscussionDbService<'a>,
+    access_right_repository: AccessRightDbService<'a>,
 }
 
 impl<'a> DiscussionService<'a> {
@@ -50,6 +52,10 @@ impl<'a> DiscussionService<'a> {
                 ctx: &ctx,
             },
             discussion_repository: DiscussionDbService {
+                db: &state.db.client,
+                ctx: &ctx,
+            },
+            access_right_repository: AccessRightDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             },
@@ -105,6 +111,8 @@ impl<'a> DiscussionService<'a> {
             }
             .into());
         };
+        
+        let users_exist = record_exist_all(self.user_repository.db, new_user_ids)
 
         let user_ids = self
             .user_repository
@@ -193,10 +201,7 @@ impl<'a> DiscussionService<'a> {
             description: "error into Thing".to_string(),
         })?;
 
-        let comm = self
-            .comm_repository
-            .get_by_auth_user_id(&data.community_id)
-            .await?;
+        let comm_id = self.access_right_repository.has_owner_access(&data.community_id).await?;
 
         if data.is_read_only && data.user_ids.is_some() {
             let mut ids = data
@@ -245,7 +250,7 @@ impl<'a> DiscussionService<'a> {
             .discussion_repository
             .create_update(Discussion {
                 id: None,
-                belongs_to: comm.id.unwrap(),
+                belongs_to: comm_id,
                 title: Some(data.title.clone()),
                 image_uri: None,
                 topics: None,

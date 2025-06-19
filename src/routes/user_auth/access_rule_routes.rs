@@ -80,7 +80,7 @@ async fn get_form(
         db: &state.db.client,
         ctx: &ctx,
     }
-    .has_owner_access(target_record_id)
+    .has_owner_access(target_record_id.as_str())
     .await?;
 
     let id_str = qry.get("id").unwrap_or(&"".to_string()).to_owned();
