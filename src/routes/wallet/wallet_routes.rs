@@ -3,7 +3,7 @@ use std::sync::Arc;
 use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::Html;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use balance_transaction_entity::BalanceTransactionDbService;
 use local_user_entity::LocalUserDbService;
@@ -14,17 +14,23 @@ use middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+use validator::Validate;
 use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
+use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::QryOrder::DESC;
+use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
+use crate::utils::paypal::Paypal;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
         .route("/api/user/wallet/balance", get(get_user_balance))
+        .route("/api/user/wallet/withdraw", post(withdraw))
 }
 
 #[derive(Template, Deserialize, Debug, Serialize)]
@@ -104,4 +110,73 @@ pub async fn get_wallet_history(
         wallet: user_wallet_id,
         transactions,
     })
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct WithdrawData {
+    #[validate(range(min = 1.0))]
+    amount: f64,
+}
+
+async fn withdraw(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<WithdrawData>,
+) -> CtxResult<()> {
+    let user_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+    let wallet_service = WalletDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+    let user = user_service.get_ctx_user().await?;
+
+    if user.email_verified.is_none() {
+        return Err(AppError::Generic {
+            description: "User email must be verified".to_string(),
+        }
+        .into());
+    }
+
+    let balances_view = wallet_service
+        .get_user_balances(&user.id.as_ref().unwrap())
+        .await?;
+
+    if (balances_view.balance.balance_usd as f64).le(&data.amount) {
+        return Err(AppError::BalanceTooLow.into());
+    }
+
+    let transaction_service = LockTransactionDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+
+    let tx = transaction_service
+        .lock_user_asset_tx(
+            &user.id.as_ref().unwrap(),
+            data.amount as i64,
+            CurrencySymbol::USD,
+            vec![],
+        )
+        .await?;
+
+    let paypal = Paypal::new(
+        &state.paypal_client_id,
+        &state.paypal_client_key,
+        &state.paypal_webhook_id,
+    );
+
+    paypal
+        .send_money(
+            &tx.to_raw(),
+            &user.email_verified.unwrap(),
+            data.amount,
+            &CurrencySymbol::USD.to_string(),
+        )
+        .await
+        .map_err(|e| AppError::Generic { description: e })?;
+
+    Ok(())
 }

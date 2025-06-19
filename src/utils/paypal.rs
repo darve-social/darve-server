@@ -2,7 +2,6 @@ use axum::{body::Bytes, http::HeaderMap};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_slice, json};
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct VerifySignatureResponse {
@@ -97,22 +96,28 @@ impl<'a> Paypal<'a> {
         }
     }
 
-    pub async fn send_money(&self, email: &str, amount: f64, currency: &str) -> Result<(), String> {
+    pub async fn send_money(
+        &self,
+        batch_id: &str,
+        email: &str,
+        amount: f64,
+        currency: &str,
+    ) -> Result<(), String> {
         if amount.le(&1.0) {
             return Err("Amount must not be less than 1".to_string());
         };
 
         let payout = json!({
             "sender_batch_header":{
-                "sender_batch_id": Uuid::new_v4().to_string(),
-                "email_subject": "You have a payout!".to_string(),
-                "email_message": "Thanks for your work!".to_string(),
+                "sender_batch_id": batch_id,
+                "email_subject": "You have a payout!",
+                "email_message": "Thanks",
             },
             "items": [{
-                "recipient_type": "EMAIL".to_string(),
+                "recipient_type": "EMAIL",
                 "amount":{
-                    "value": amount.to_string(),
-                    "currency": currency.to_string(),
+                    "value": amount,
+                    "currency": currency,
                 },
                 "receiver": email,
             }],
@@ -120,7 +125,7 @@ impl<'a> Paypal<'a> {
 
         let access_token = self.get_access_token().await?;
 
-        let res = Client::new()
+        let _ = Client::new()
             .post("https://api-m.sandbox.paypal.com/v1/payments/payouts")
             .bearer_auth(&access_token)
             .json(&payout)
