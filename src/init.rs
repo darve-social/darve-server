@@ -12,6 +12,7 @@ use crate::{
     routes::{
         self, auth, events, users,
         wallet::{wallet_endowment_routes, wallet_routes},
+        webhooks::paypal,
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -183,6 +184,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(wallet_endowment_routes::routes(ctx_state.is_development))
         .merge(events::routes())
         .merge(users::routes())
+        .merge(paypal::routes())
         .with_state(ctx_state.clone())
         .layer(AutoVaryLayer)
         // .layer(axum::middleware::map_response(mw_req_logger))

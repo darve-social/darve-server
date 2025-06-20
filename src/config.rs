@@ -24,6 +24,9 @@ pub struct AppConfig {
     pub gcs_endpoint: Option<String>,
     pub gcs_credentials: Option<String>,
     pub sentry_project_link: Option<String>,
+    pub paypal_webhook_id: String,
+    pub paypal_client_id: String,
+    pub paypal_client_key: String,
 }
 
 impl AppConfig {
@@ -60,13 +63,15 @@ impl AppConfig {
             std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
         let gcs_bucket =
             std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET").unwrap_or("darve_storage".to_string());
-        let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT").ok().and_then(|v| {
-            if !v.is_empty() && v != "https://storage.googleapis.com" {
-                Some(v)
-            } else {
-               None 
-            }
-        });
+        let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT")
+            .ok()
+            .and_then(|v| {
+                if !v.is_empty() && v != "https://storage.googleapis.com" {
+                    Some(v)
+                } else {
+                    None
+                }
+            });
         println!(".env GCS_ENDPOINT: {:?}", gcs_endpoint);
         let gcs_credentials = std::env::var("GOOGLE_CLOUD_STORAGE_CREDENTIALS").ok();
 
@@ -83,6 +88,10 @@ impl AppConfig {
             .eq("true");
 
         let sentry_project_link = std::env::var("SENTRY_PROJECT_LINK").ok();
+
+        let paypal_webhook_id = std::env::var("PAYPAL_WEBHOOK_ID").expect("Set PAYPAL_WEBHOOK_ID");
+        let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").expect("Set PAYPAL_CLIENT_ID");
+        let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").expect("Set PAYPAL_CLIENT_KEY");
 
         Self {
             db_namespace,
@@ -107,6 +116,9 @@ impl AppConfig {
             gcs_endpoint,
             gcs_credentials,
             sentry_project_link,
+            paypal_webhook_id,
+            paypal_client_id,
+            paypal_client_key,
         }
     }
 }
