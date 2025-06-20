@@ -7,10 +7,13 @@ use axum::{
     routing::post,
     Router,
 };
+use surrealdb::sql::Thing;
+use uuid::Uuid;
 
 use crate::{
-    middleware::{error::CtxResult, mw_ctx::CtxState},
-    utils::paypal::Paypal,
+    entities::wallet::gateway_transaction_entity::GatewayTransactionDbService,
+    middleware::{ctx::Ctx, error::CtxResult, mw_ctx::CtxState},
+    utils::paypal::{EventType, Paypal},
 };
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -24,7 +27,7 @@ async fn handle_webhook(
 ) -> CtxResult<()> {
     let body = req.into_body();
 
-    let bytes = to_bytes(body, 1)
+    let bytes = to_bytes(body, 1024 * 1024)
         .await
         .expect("Paypal webhook event parse body err");
 
@@ -38,20 +41,34 @@ async fn handle_webhook(
         .await
         .expect("Paypal get event form body error");
 
-    match event.event_type.as_str() {
-        "PAYMENT.PAYOUTS-ITEM.SUCCEEDED" => {
-            println!("✅ Payout succeeded: {:?}", event.resource);
-        }
-        "PAYMENT.PAYOUTS-ITEM.UNCLAIMED" => {
-            println!("⏳ Payout unclaimed: {:?}", event.resource);
-        }
-        "PAYMENT.PAYOUTS-ITEM.RETURNED" => {
-            println!("↩️ Payout returned: {:?}", event.resource);
+    let ctx = Ctx::new(
+        Err(crate::middleware::error::AppError::AuthFailNoJwtCookie),
+        Uuid::new_v4(),
+        false,
+    );
+    match event.event_type {
+        EventType::PaymentPayoutItemSucceeded => {
+            let batch_id: &str = &event.resource.sender_batch_id;
+            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let db_service = GatewayTransactionDbService {
+                db: &state.db.client,
+                ctx: &ctx,
+            };
+            db_service
+                .user_withdraw_tx_complete(batch_thing, "".to_string())
+                .await?;
         }
         _ => {
-            println!("ℹ️ Unhandled event: {:?}", event.event_type);
+            let batch_id: &str = &event.resource.sender_batch_id;
+            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let db_service = GatewayTransactionDbService {
+                db: &state.db.client,
+                ctx: &ctx,
+            };
+            db_service
+                .user_withdraw_tx_revert(batch_thing, "".to_string())
+                .await?;
         }
     }
-
     Ok(())
 }

@@ -67,8 +67,9 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string;
+        // ASSERT string::len(string::trim($value))>0
+        // ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
@@ -103,6 +104,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             None,
             true,
         )?;
+
         let gateway_2_user_qry = gateway_2_user_tx.get_query_string();
 
         let fund_qry = format!(
@@ -171,11 +173,8 @@ impl<'a> GatewayTransactionDbService<'a> {
         )?;
         let user_2_lock_qry = user_2_lock_qry_bindings.get_query_string();
         let qry = format!(
-            "\
-         BEGIN TRANSACTION;
-
-           {user_2_lock_qry}
-
+            "BEGIN TRANSACTION;
+               {user_2_lock_qry}
             LET $fund_tx = INSERT INTO {TABLE_NAME} {{
                 id: $fund_tx_id,
                 amount: $fund_amt,
@@ -183,9 +182,9 @@ impl<'a> GatewayTransactionDbService<'a> {
                 withdraw_status: 'LOCKED',
                 withdraw_lock_tx: $lock_tx_id,
                 external_account_id:$ext_account_id,
+                external_tx_id:$external_tx_id,
                 currency: $currency,
             }} RETURN id;
-
             LET $fund_tx_id = $fund_tx[0].id;
             $fund_tx_id;
         COMMIT TRANSACTION;"
@@ -198,6 +197,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("fund_amt", amount))
             .bind(("user", user.clone()))
             .bind(("ext_account_id", external_account_id))
+            .bind(("external_tx_id", "".to_string()))
             .bind(("currency", CurrencySymbol::USD));
 
         let qry = user_2_lock_qry_bindings
@@ -208,7 +208,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        let res: Option<Thing> = fund_res.take(22)?;
+        let res: Option<Thing> = fund_res.take(24)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
         }))

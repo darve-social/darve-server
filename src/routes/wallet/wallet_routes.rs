@@ -18,7 +18,7 @@ use validator::Validate;
 use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::lock_transaction_entity::LockTransactionDbService;
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
 use crate::middleware::error::AppError;
@@ -114,8 +114,8 @@ pub async fn get_wallet_history(
 
 #[derive(Debug, Deserialize, Validate)]
 struct WithdrawData {
-    #[validate(range(min = 1.0))]
-    amount: f64,
+    #[validate(range(min = 1))]
+    amount: u64,
 }
 
 async fn withdraw(
@@ -124,10 +124,6 @@ async fn withdraw(
     JsonOrFormValidated(data): JsonOrFormValidated<WithdrawData>,
 ) -> CtxResult<()> {
     let user_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let wallet_service = WalletDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
@@ -140,25 +136,16 @@ async fn withdraw(
         .into());
     }
 
-    let balances_view = wallet_service
-        .get_user_balances(&user.id.as_ref().unwrap())
-        .await?;
-
-    if (balances_view.balance.balance_usd as f64).le(&data.amount) {
-        return Err(AppError::BalanceTooLow.into());
-    }
-
-    let transaction_service = LockTransactionDbService {
+    let transaction_service = GatewayTransactionDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
 
-    let tx = transaction_service
-        .lock_user_asset_tx(
+    let lock_id = transaction_service
+        .user_withdraw_tx_start(
             &user.id.as_ref().unwrap(),
             data.amount as i64,
-            CurrencySymbol::USD,
-            vec![],
+            "".to_string(),
         )
         .await?;
 
@@ -168,15 +155,22 @@ async fn withdraw(
         &state.paypal_webhook_id,
     );
 
-    paypal
+    let res = paypal
         .send_money(
-            &tx.to_raw(),
+            &lock_id.to_raw(),
             &user.email_verified.unwrap(),
-            data.amount,
+            (data.amount as f64) / 100.00,
             &CurrencySymbol::USD.to_string(),
         )
-        .await
-        .map_err(|e| AppError::Generic { description: e })?;
+        .await;
 
-    Ok(())
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let _ = transaction_service
+                .user_withdraw_tx_revert(lock_id, "".to_string())
+                .await;
+            Err(AppError::Generic { description: e }.into())
+        }
+    }
 }

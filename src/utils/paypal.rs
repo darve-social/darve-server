@@ -1,7 +1,7 @@
 use axum::{body::Bytes, http::HeaderMap};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_slice, json};
+use serde_json::{json, Value};
 
 #[derive(Debug, Deserialize)]
 struct VerifySignatureResponse {
@@ -21,13 +21,48 @@ struct VerifySignatureRequest<'a> {
     transmission_sig: &'a str,
     transmission_time: &'a str,
     webhook_id: &'a str,
-    webhook_event: &'a WebhookEvent,
+    webhook_event: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
+pub struct PayoutResource {
+    pub sender_batch_id: String,
+    pub payout_item: PayoutItem,
+}
+
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq, Hash)]
+pub enum EventType {
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.SUCCEEDED")]
+    PaymentPayoutItemSucceeded,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.RETURNED")]
+    PaymentPayoutItemReturned,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.FAILED")]
+    PaymentPayoutItemFailed,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.DENIED")]
+    PaymentPayoutItemDenied,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.BLOCKED")]
+    PaymentPayoutItemBlocked,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.CANCELED")]
+    PaymentPayoutItemCanceled,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PayoutItem {
+    pub recipient_type: String,
+    pub receiver: String,
+    pub amount: PayoutAmount,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PayoutAmount {
+    pub currency: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct WebhookEvent {
-    pub event_type: String,
-    pub resource: serde_json::Value,
+    pub event_type: EventType,
+    pub resource: PayoutResource,
 }
 
 pub struct Paypal<'a> {
@@ -48,8 +83,10 @@ impl<'a> Paypal<'a> {
         &self,
         headers: HeaderMap,
         body: Bytes,
-    ) -> Result<WebhookEvent, &'static str> {
-        let event: WebhookEvent = from_slice(&body).expect("Paypal webhook event from slice error");
+    ) -> Result<WebhookEvent, String> {
+        let event_json: serde_json::Value =
+            serde_json::from_slice(&body).expect("Failed to parse body as JSON for verification");
+        let event = serde_json::from_value(event_json.clone()).expect("Parse event error");
 
         let sig = headers
             .get("paypal-transmission-sig")
@@ -76,23 +113,25 @@ impl<'a> Paypal<'a> {
             transmission_sig: sig,
             transmission_time: time,
             webhook_id: &self.webhook_id,
-            webhook_event: &event,
+            webhook_event: event_json.clone(),
         };
+        let access_token = self.get_access_token().await?;
         let res = Client::new()
             .post("https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature")
-            .bearer_auth(&self.client_key)
+            .bearer_auth(&access_token)
             .json(&payload)
             .send()
             .await
             .unwrap();
+        let data = res.json::<Value>().await.unwrap();
 
-        let verify_res: VerifySignatureResponse = res.json().await.unwrap();
-        println!("Verification status: {}", verify_res.verification_status);
+        println!("Verification status: {:?}", event_json.clone());
+        let verify: VerifySignatureResponse = serde_json::from_value(data).unwrap();
 
-        if verify_res.verification_status == "SUCCESS" {
+        if verify.verification_status == "SUCCESS" {
             Ok(event)
         } else {
-            Err("Paypal verification failed")
+            Err("Paypal verification failed".to_string())
         }
     }
 
@@ -103,8 +142,8 @@ impl<'a> Paypal<'a> {
         amount: f64,
         currency: &str,
     ) -> Result<(), String> {
-        if amount.le(&1.0) {
-            return Err("Amount must not be less than 1".to_string());
+        if amount.le(&0.0) {
+            return Err("Amount must be greater than 0".to_string());
         };
 
         let payout = json!({
@@ -125,13 +164,17 @@ impl<'a> Paypal<'a> {
 
         let access_token = self.get_access_token().await?;
 
-        let _ = Client::new()
+        let res = Client::new()
             .post("https://api-m.sandbox.paypal.com/v1/payments/payouts")
             .bearer_auth(&access_token)
             .json(&payout)
             .send()
             .await
             .map_err(|e| e.to_string())?;
+
+        if !res.status().is_success() {
+            return Err(res.text().await.map_err(|e| e.to_string())?);
+        }
 
         Ok(())
     }
@@ -145,6 +188,9 @@ impl<'a> Paypal<'a> {
             .await
             .map_err(|e| e.to_string())?;
 
+        if !res.status().is_success() {
+            return Err(res.text().await.map_err(|e| e.to_string())?);
+        }
         let token_response = res
             .json::<AccessTokenResponse>()
             .await
