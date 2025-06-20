@@ -125,7 +125,6 @@ impl<'a> Paypal<'a> {
             .unwrap();
         let data = res.json::<Value>().await.unwrap();
 
-        println!("Verification status: {:?}", event_json.clone());
         let verify: VerifySignatureResponse = serde_json::from_value(data).unwrap();
 
         if verify.verification_status == "SUCCESS" {
