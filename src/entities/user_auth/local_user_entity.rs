@@ -192,25 +192,6 @@ impl<'a> LocalUserDbService<'a> {
         Ok(res)
     }
 
-    pub async fn get_by_ids(&self, ids: Vec<String>) -> CtxResult<Vec<LocalUser>> {
-        let things = ids.iter().fold(vec![], |mut res, id| {
-            match Thing::try_from(id.as_str()) {
-                Ok(v) => res.push(v),
-                Err(_) => (),
-            }
-            res
-        });
-
-        if things.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let qry = format!("SELECT *  FROM {TABLE_NAME} WHERE id IN $ids");
-        let res = self.db.query(qry).bind(("ids", things));
-        let res: Vec<LocalUser> = res.await?.take(0)?;
-        Ok(res)
-    }
-
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,

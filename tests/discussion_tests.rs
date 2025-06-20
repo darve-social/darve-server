@@ -66,8 +66,8 @@ async fn get_discussion_view() {
             community_id: comm_id.to_raw(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: None,
-            is_read_only: false,
+            chat_user_ids: None,
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -197,8 +197,8 @@ async fn create_discussion() {
             community_id: comm_id.to_raw(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: None,
-            is_read_only: false,
+            chat_user_ids: None,
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -325,8 +325,8 @@ async fn create_chat_discussion() {
             community_id: comm_id,
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -355,8 +355,8 @@ async fn try_to_create_the_same_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -375,8 +375,8 @@ async fn try_to_create_the_same_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion1".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -389,8 +389,8 @@ async fn try_to_create_the_same_read_only() {
             community_id: comm_id,
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -415,8 +415,8 @@ async fn try_to_create_the_same_not_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -436,8 +436,8 @@ async fn try_to_create_the_same_not_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion1".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -451,8 +451,8 @@ async fn try_to_create_the_same_not_read_only() {
             community_id: comm_id,
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -477,8 +477,8 @@ async fn get_discussions() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -491,8 +491,8 @@ async fn get_discussions() {
             community_id: comm_id.clone(),
             title: "The Discussion1".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -535,8 +535,8 @@ async fn try_add_chat_users_into_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -593,8 +593,8 @@ async fn add_chat_users() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -649,8 +649,8 @@ async fn try_add_chat_users_by_not_owner() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -693,8 +693,8 @@ async fn try_remove_chat_users_into_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -737,8 +737,8 @@ async fn remove_chat_users() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -794,8 +794,8 @@ async fn try_remove_owner_from_chat_users() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -854,8 +854,8 @@ async fn try_remove_chat_users_by_not_owner() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -898,8 +898,8 @@ async fn try_update_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -941,8 +941,8 @@ async fn try_update_by_not_owner() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -984,8 +984,8 @@ async fn update() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: false,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -1040,8 +1040,8 @@ async fn delete_read_only() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -1091,8 +1091,8 @@ async fn try_delete_by_not_owner() {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
             image_uri: None,
-            user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_read_only: true,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;

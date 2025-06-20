@@ -368,16 +368,12 @@ async fn create_update_form(
         Some(id) => {
             let id = get_string_thing(id.clone())?;
             // auth discussion
-            let required_disc_auth = Authorization {
-                authorize_record_id: id.clone(),
-                authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-                authorize_height: 1,
-            };
+           
             AccessRightDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             }
-            .is_authorized(&user_id, &required_disc_auth)
+            .has_owner_access(&user_id, &id.to_raw())
             .await?;
 
             topics = DiscussionDbService {
@@ -400,16 +396,11 @@ async fn create_update_form(
         }
         None => {
             // auth community
-            let required_comm_auth = Authorization {
-                authorize_record_id: comm_id.clone(),
-                authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-                authorize_height: 1,
-            };
             AccessRightDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             }
-            .is_authorized(&user_id, &required_comm_auth)
+            .has_owner_access(&user_id, &comm_id.to_raw())
             .await?;
             DiscussionView {
                 id: None,
@@ -603,14 +594,9 @@ async fn create_discussion(
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
 
     let disc_service = DiscussionService::new(&state, &ctx);
-    let disc = disc_service.create(&user_id.to_raw(), data).await?;
+    let disc = disc_service.create( data).await?;
     Ok(Json(disc))
 }
 
@@ -632,20 +618,16 @@ async fn get_discussions(
 struct DiscussionUsers {
     user_ids: Vec<String>,
 }
+
 async fn add_discussion_users(
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let disc_service = DiscussionService::new(&state, &ctx);
     disc_service
-        .add_chat_users(&discussion_id, &user_id.to_raw(), data.user_ids)
+        .add_chat_users(&discussion_id, data.user_ids)
         .await?;
     Ok(())
 }
@@ -656,15 +638,9 @@ async fn delete_discussion_users(
     ctx: Ctx,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-
     let disc_service = DiscussionService::new(&state, &ctx);
     disc_service
-        .remove_chat_users(&discussion_id, &user_id.to_raw(), data.user_ids)
+        .remove_chat_users(&discussion_id, data.user_ids)
         .await?;
     Ok(())
 }
@@ -674,14 +650,9 @@ async fn delete_discussion(
     ctx: Ctx,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<()> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let disc_service = DiscussionService::new(&state, &ctx);
     disc_service
-        .delete(&discussion_id, &user_id.to_raw())
+        .delete( &discussion_id)
         .await?;
     Ok(())
 }
@@ -692,14 +663,9 @@ async fn update_discussion(
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateDiscussion>,
 ) -> CtxResult<()> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let disc_service = DiscussionService::new(&state, &ctx);
     disc_service
-        .update(&discussion_id, &user_id.to_raw(), data)
+        .update(&discussion_id, data)
         .await?;
 
     Ok(())

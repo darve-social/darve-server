@@ -40,7 +40,7 @@ pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     pub created_by: Thing,
-    pub is_read_only: bool,
+    pub is_chat_users_final: bool,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -64,7 +64,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS is_read_only ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
+    DEFINE FIELD IF NOT EXISTS is_chat_users_final ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
     DEFINE FIELD IF NOT EXISTS chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
@@ -74,7 +74,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS idx_chat_room_user_ids ON TABLE {TABLE_NAME} COLUMNS chat_room_user_ids;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
-    DEFINE INDEX IF NOT EXISTS idx_is_read_only ON TABLE {TABLE_NAME} COLUMNS is_read_only;
+    DEFINE INDEX IF NOT EXISTS idx_is_chat_users_final ON TABLE {TABLE_NAME} COLUMNS is_chat_users_final;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -172,7 +172,7 @@ impl<'a> DiscussionDbService<'a> {
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
                 title = $title
-                AND is_read_only = true
+                AND is_chat_users_final = true
                 AND chat_room_user_ids != NONE 
                 AND array::sort(chat_room_user_ids) = array::sort($user_ids);",
         );
@@ -194,7 +194,7 @@ impl<'a> DiscussionDbService<'a> {
         }
     }
 
-    pub async fn get_by_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
+    pub async fn get_by_chat_room_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
         let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
             description: "error parse into Thing".to_string(),
         })?;
@@ -203,13 +203,6 @@ impl<'a> DiscussionDbService<'a> {
         let mut res = self.db.query(query).bind(("user", user_thing)).await?;
         let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
         Ok(data)
-    }
-
-    pub async fn get_by_id(&self, id: &str) -> CtxResult<Discussion> {
-        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
-            description: "error into Thing".to_string(),
-        })?;
-        self.get(IdentIdName::Id(thing)).await
     }
 
     pub async fn delete(&self, id: &str) -> CtxResult<()> {

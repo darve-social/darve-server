@@ -177,7 +177,7 @@ impl<'a> CommunityDbService<'a> {
                     r_created: None,
                     belongs_to: comm_id.clone(),
                     created_by: comm.created_by.clone(),
-                    is_read_only: false,
+                    is_chat_users_final: false,
                 })
                 .await
                 .map_err(CtxError::from(self.ctx))

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use validator::Validate;
-use darve_server::middleware::utils::db_utils::record_exist_all;
+use crate::middleware::utils::db_utils::{record_exist_all, IdentIdName};
 use crate::{
     entities::{
         community::{
@@ -17,6 +17,8 @@ use crate::{
     },
 };
 use crate::entities::user_auth::access_right_entity::AccessRightDbService;
+use crate::middleware::error::CtxError;
+use crate::middleware::utils::string_utils::{get_str_thing, get_string_thing};
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct CreateDiscussion {
@@ -24,8 +26,8 @@ pub struct CreateDiscussion {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
     pub image_uri: Option<String>,
-    pub user_ids: Option<Vec<String>>,
-    pub is_read_only: bool,
+    pub chat_user_ids: Option<Vec<String>>,
+    pub is_chat_users_final: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -34,8 +36,8 @@ pub struct UpdateDiscussion {
 }
 
 pub struct DiscussionService<'a> {
+    ctx: &'a Ctx,
     user_repository: LocalUserDbService<'a>,
-    comm_repository: CommunityDbService<'a>,
     discussion_repository: DiscussionDbService<'a>,
     access_right_repository: AccessRightDbService<'a>,
 }
@@ -43,11 +45,8 @@ pub struct DiscussionService<'a> {
 impl<'a> DiscussionService<'a> {
     pub fn new(state: &'a CtxState, ctx: &'a Ctx) -> Self {
         Self {
+            ctx,
             user_repository: LocalUserDbService {
-                db: &state.db.client,
-                ctx: &ctx,
-            },
-            comm_repository: CommunityDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             },
@@ -62,35 +61,23 @@ impl<'a> DiscussionService<'a> {
         }
     }
 
-    pub async fn delete(&self, disc_id: &str, user_id: &str) -> AppResult<()> {
-        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+    pub async fn delete( &self,  disc_id: &str) -> AppResult<()> {
+        let user_id: Thing = get_str_thing( self.ctx.user_id()?.as_str())?;
+        self.access_right_repository.has_owner_access(&user_id, disc_id).await?;
 
-        if disc.created_by.to_raw() != user_id {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
-
-        self.discussion_repository.delete(&disc_id).await?;
+        self.discussion_repository.delete(disc_id).await?;
         Ok(())
     }
 
     pub async fn update(
         &self,
         disc_id: &str,
-        user_id: &str,
         data: UpdateDiscussion,
     ) -> AppResult<()> {
-        let mut disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        let user_id: Thing = get_str_thing( self.ctx.user_id()?.as_str())?;
+        let disc_id = self.access_right_repository.has_owner_access(&user_id, disc_id).await?;
 
-        if disc.created_by.to_raw() != user_id || disc.is_read_only {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
-
+        let mut disc = self.discussion_repository.get(IdentIdName::Id(disc_id)).await?;
         disc.title = data.title;
         self.discussion_repository.create_update(disc).await?;
 
@@ -100,28 +87,20 @@ impl<'a> DiscussionService<'a> {
     pub async fn add_chat_users(
         &self,
         disc_id: &str,
-        user_id: &str,
         new_user_ids: Vec<String>,
-    ) -> CtxResult<()> {
-        let mut disc = self.discussion_repository.get_by_id(&disc_id).await?;
-
-        if disc.created_by.to_raw() != user_id || disc.is_read_only {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
+    ) -> CtxResult<Vec<Thing>> {
         
-        let users_exist = record_exist_all(self.user_repository.db, new_user_ids)
+        if new_user_ids.is_empty() {
+            return Err(self.ctx.to_ctx_error(AppError::Generic {description:"no users present".to_string()}));
+        }
 
-        let user_ids = self
-            .user_repository
-            .get_by_ids(new_user_ids)
-            .await?
-            .into_iter()
-            .map(|u| u.id.as_ref().unwrap().clone())
-            .collect::<Vec<Thing>>();
+        let user_id: Thing = get_str_thing( self.ctx.user_id()?.as_str())?;
+        let disc_id = self.access_right_repository.has_owner_access(&user_id, disc_id).await?;
 
+        let mut disc = self.discussion_repository.get(IdentIdName::Id(disc_id)).await?;
+        
+        let user_ids = record_exist_all(self.user_repository.db, new_user_ids).await?;
+        
         let mut chat_users = disc.chat_room_user_ids.unwrap_or(vec![]);
 
         user_ids.into_iter().for_each(|id| {
@@ -131,49 +110,61 @@ impl<'a> DiscussionService<'a> {
         });
 
         disc.chat_room_user_ids = Some(chat_users);
-        self.discussion_repository.create_update(disc).await?;
+        let chat_users = self.discussion_repository.create_update(disc).await?.chat_room_user_ids.expect("users are set");
 
-        Ok(())
+        Ok(chat_users)
     }
 
     pub async fn remove_chat_users(
         &self,
         disc_id: &str,
-        user_id: &str,
         remove_user_ids: Vec<String>,
     ) -> CtxResult<()> {
-        let mut disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        
+        if remove_user_ids.is_empty() {
+            return Err(self.ctx.to_ctx_error(AppError::Generic {description:"no users present".to_string()}));
+        }
 
-        if disc.created_by.to_raw() != user_id || disc.is_read_only {
+        let user_id: Thing = get_str_thing( self.ctx.user_id()?.as_str())?;
+        let disc_id = self.access_right_repository.has_owner_access(&user_id, disc_id).await?;
+
+        let mut disc = self.discussion_repository.get(IdentIdName::Id(disc_id)).await?;
+
+        if disc.is_chat_users_final {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
             }
             .into());
         };
 
-        if disc.chat_room_user_ids.is_none() {
+        if disc.chat_room_user_ids.is_none() || disc.chat_room_user_ids.as_ref().unwrap().is_empty() {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
             }
             .into());
         };
 
-        if remove_user_ids.contains(&user_id.to_string()) {
-            return Err(AppError::Generic {
-                description: "Owner of the discussion can not remove yourself".to_string(),
-            }
-            .into());
-        };
-
-        let things = remove_user_ids.iter().fold(vec![], |mut res, id| {
+        let mut remove_things =vec![];
+        for id in remove_user_ids.iter() {
             match Thing::try_from(id.as_str()) {
-                Ok(v) => res.push(v),
-                Err(_) => (),
-            };
-            res
-        });
+                Ok(v) => {
+                    if v == user_id {
+                        return Err(self.ctx.to_ctx_error(AppError::Generic {
+                            description: "Owner of the discussion can not remove yourself".to_string(),
+                        }));
+                    }
+                    remove_things.push(v);
+                },
+                Err(_) => {
+                    return Err(AppError::Generic {
+                        description: "Invalid user id".to_string(),
+                    }
+                    .into());
+                },
+            };            
+        };
 
-        if things.is_empty() || disc.chat_room_user_ids.is_none() {
+        if remove_things.is_empty()  {
             return Ok(());
         }
 
@@ -181,7 +172,7 @@ impl<'a> DiscussionService<'a> {
             .chat_room_user_ids
             .unwrap()
             .into_iter()
-            .filter(|id| !things.contains(id))
+            .filter(|id| !remove_things.contains(id))
             .collect::<Vec<Thing>>();
 
         disc.chat_room_user_ids = Some(chat_room_user_ids);
@@ -191,29 +182,27 @@ impl<'a> DiscussionService<'a> {
     }
 
     pub async fn get_by_chat_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
-        self.discussion_repository.get_by_user(user_id).await
+        self.discussion_repository.get_by_chat_room_user(user_id).await
     }
 
-    pub async fn create(&self, user_id: &str, data: CreateDiscussion) -> CtxResult<Discussion> {
+    pub async fn create(&self, data: CreateDiscussion) -> CtxResult<Discussion> {
         data.validate()?;
 
-        let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
-            description: "error into Thing".to_string(),
-        })?;
+        let user_id = self.ctx.user_id()?;
+        let user_thing: Thing = get_str_thing(&user_id)?;
+        let comm_id = self.access_right_repository.has_owner_access(&user_thing, &data.community_id).await?;
 
-        let comm_id = self.access_right_repository.has_owner_access(&data.community_id).await?;
-
-        if data.is_read_only && data.user_ids.is_some() {
+        if data.is_chat_users_final && data.chat_user_ids.is_some() {
             let mut ids = data
-                .user_ids
+                .chat_user_ids
                 .as_ref()
                 .unwrap()
                 .iter()
                 .map(|t| t.as_str())
                 .collect::<Vec<&str>>();
 
-            if !ids.contains(&user_id) {
-                ids.push(user_id);
+            if !ids.contains(&user_id.as_str()) {
+                ids.push(&user_id);
             };
 
             let res = self
@@ -229,18 +218,12 @@ impl<'a> DiscussionService<'a> {
             }
         };
 
-        let chat_room_user_ids = match data.user_ids {
+        let chat_room_user_ids = match data.chat_user_ids {
             Some(ids) => {
-                let ids = ids
-                    .into_iter()
-                    .filter(|v| *v != *user_id)
-                    .collect::<Vec<String>>();
-                let users = self.user_repository.get_by_ids(ids).await?;
-                let mut user_ids = users
-                    .iter()
-                    .map(|v| v.id.as_ref().unwrap().clone())
-                    .collect::<Vec<Thing>>();
-                user_ids.push(user_thing.clone());
+                let mut user_ids = record_exist_all(self.user_repository.db, ids).await?;
+                if !user_ids.contains(&user_thing) {
+                    user_ids.push(user_thing.clone());
+                }
                 Some(user_ids)
             }
             None => None,
@@ -258,7 +241,7 @@ impl<'a> DiscussionService<'a> {
                 latest_post_id: None,
                 r_created: None,
                 created_by: user_thing.clone(),
-                is_read_only: data.is_read_only,
+                is_chat_users_final: data.is_chat_users_final,
             })
             .await?;
 

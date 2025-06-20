@@ -296,9 +296,7 @@ impl<'a> AccessRightDbService<'a> {
         Ok(a_right)
     }
 
-    pub async fn has_owner_access(&self, target_record_id: &str) -> CtxResult<Thing> {
-        let req_by = self.ctx.user_id()?;
-        let user_id = get_string_thing(req_by)?;
+    pub async fn has_owner_access(&self, user_id: &Thing, target_record_id: &str) -> CtxResult<Thing> {
 
         let target_rec_thing = get_str_thing(target_record_id)?;
         let required_auth = Authorization {
@@ -306,7 +304,7 @@ impl<'a> AccessRightDbService<'a> {
             authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
             authorize_height: 1,
         };
-        self.is_authorized(&user_id, &required_auth).await?;
+        self.is_authorized(user_id, &required_auth).await?;
         Ok(target_rec_thing)
     }
 }
