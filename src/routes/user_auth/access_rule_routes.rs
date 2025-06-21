@@ -76,11 +76,13 @@ async fn get_form(
     Path(target_record_id): Path<String>,
     Query(qry): Query<HashMap<String, String>>,
 ) -> CtxResult<AccessRuleForm> {
+    let req_by = ctx.user_id()?;
+    let user_id = get_string_thing(req_by)?;
     let target_id = AccessRightDbService {
         db: &state.db.client,
         ctx: &ctx,
     }
-    .has_owner_access(target_record_id)
+    .has_owner_access(&user_id, target_record_id.as_str())
     .await?;
 
     let id_str = qry.get("id").unwrap_or(&"".to_string()).to_owned();

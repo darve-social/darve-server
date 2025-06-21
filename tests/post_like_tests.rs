@@ -10,7 +10,7 @@ use serial_test::serial;
 #[serial]
 async fn create_post_like() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 

@@ -264,7 +264,7 @@ async fn authorization_compare() {
 #[serial]
 async fn authorize_save() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
 

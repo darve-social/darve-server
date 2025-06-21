@@ -19,7 +19,7 @@ use crate::helpers::{create_fake_login_test_user, create_test_server};
 #[serial]
 async fn test_forgot_password_success() {
     let (server, state) = create_test_server().await;
-    let (_, user, _password) = create_fake_login_test_user(&server).await;
+    let (_, user, _password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -62,7 +62,7 @@ async fn test_forgot_password_success() {
 #[serial]
 async fn test_forgot_password_by_username_success() {
     let (server, state) = create_test_server().await;
-    let (_, user, _password) = create_fake_login_test_user(&server).await;
+    let (_, user, _password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -105,7 +105,7 @@ async fn test_forgot_password_by_username_success() {
 #[serial]
 async fn test_forgot_password_not_exists_email() {
     let (server, _) = create_test_server().await;
-    let (_, _, _password) = create_fake_login_test_user(&server).await;
+    let (_, _, _password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -123,7 +123,7 @@ async fn test_forgot_password_not_exists_email() {
 #[serial]
 async fn test_forgot_password_invalid_email() {
     let (server, _) = create_test_server().await;
-    let (_, _, _password) = create_fake_login_test_user(&server).await;
+    let (_, _, _password, _) = create_fake_login_test_user(&server).await;
 
     let response = server
         .post("/api/forgot_password")
@@ -139,7 +139,7 @@ async fn test_forgot_password_invalid_email() {
 #[serial]
 async fn test_forgot_password_by_user_has_not_password_yet() {
     let (server, state) = create_test_server().await;
-    let (_, user, _password) = create_fake_login_test_user(&server).await;
+    let (_, user, _password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -179,7 +179,7 @@ async fn test_forgot_password_by_user_has_not_password_yet() {
 #[serial]
 async fn test_reset_password_success() {
     let (server, state) = create_test_server().await;
-    let (_, user, password) = create_fake_login_test_user(&server).await;
+    let (_, user, password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -263,7 +263,7 @@ async fn test_reset_password_success() {
 #[serial]
 async fn test_reset_password_by_username_success() {
     let (server, state) = create_test_server().await;
-    let (_, user, password) = create_fake_login_test_user(&server).await;
+    let (_, user, password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -347,7 +347,7 @@ async fn test_reset_password_by_username_success() {
 #[serial]
 async fn test_reset_password_to_many_requests() {
     let (server, state) = create_test_server().await;
-    let (_, user, _) = create_fake_login_test_user(&server).await;
+    let (_, user, _, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
@@ -423,7 +423,7 @@ async fn test_reset_password_to_many_requests() {
 #[serial]
 async fn test_reset_password_invalid_params() {
     let (server, _) = create_test_server().await;
-    let (_, _, _) = create_fake_login_test_user(&server).await;
+    let _ = create_fake_login_test_user(&server).await;
 
     let response = server
         .post("/api/reset_password")

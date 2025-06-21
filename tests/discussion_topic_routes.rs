@@ -22,7 +22,7 @@ use uuid::Uuid;
 #[serial]
 async fn create_discussion() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let comm_name = "community_123";

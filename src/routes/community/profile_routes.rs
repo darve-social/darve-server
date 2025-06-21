@@ -15,8 +15,7 @@ use validator::Validate;
 
 use community::post_entity;
 use community_entity::{Community, CommunityDbService};
-use discussion_entity::{Discussion, DiscussionDbService};
-use discussion_routes::{get_discussion_view, DiscussionPostView, DiscussionView, SseEventName};
+use discussion_routes::{DiscussionPostView, DiscussionView, SseEventName};
 use follow_entity::FollowDbService;
 use follow_routes::{UserItemView, UserListView};
 use local_user_entity::LocalUserDbService;
@@ -25,7 +24,7 @@ use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{
-    get_entity_list_view, record_exists, IdentIdName, UsernameIdent, ViewFieldSelector,
+    get_entity_list_view, IdentIdName, UsernameIdent, ViewFieldSelector,
 };
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::request_utils::CreatedResponse;
@@ -37,7 +36,7 @@ use utils::template_utils::ProfileFormPage;
 
 use super::{discussion_routes, post_routes};
 use crate::database::client::Db;
-use crate::entities::community::{self, community_entity, discussion_entity, post_stream_entity};
+use crate::entities::community::{self, community_entity, post_stream_entity};
 use crate::entities::user_auth::authentication_entity::AuthenticationDbService;
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::interfaces::file_storage::FileStorageInterface;
@@ -58,7 +57,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/user/post", post(create_user_post))
         .route("/accounts/edit", get(profile_form))
         .route("/api/accounts/edit", post(profile_save))
-        .route("/api/user_chat/list", get(get_chats))
         .route("/api/user/search", post(search_users))
         .route(
             "/api/users/current/email/verification/start",
@@ -67,10 +65,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route(
             "/api/users/current/email/verification/confirm",
             post(email_verification_confirm),
-        )
-        .route(
-            "/api/user_chat/with/:other_user_id",
-            get(get_create_chat_discussion),
         )
         // the file max limit is set on PostInput property
         .layer(DefaultBodyLimit::max(max_bytes_val))
@@ -392,157 +386,6 @@ async fn get_following_posts(
     };
 
     ctx.to_htmx_or_json(FollowingStreamView { post_list })
-}
-
-// user chat discussions
-async fn get_chats(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<Html<String>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let comm = get_profile_community(&state.db.client, &ctx, user_id.clone()).await?;
-    let discussion_ids = comm.profile_chats.unwrap_or(vec![]);
-    /*let discussions = get_entities_by_id::<Discussion>(&_db, discussion_ids).await?;
-    let dis = DiscussionDbService{
-        db: &_db,
-        ctx: &ctx,
-    }.get_()*/
-    let discussions = get_entity_list_view::<DiscussionView>(
-        &state.db.client,
-        discussion_entity::TABLE_NAME.to_string(),
-        &IdentIdName::Ids(discussion_ids),
-        None,
-    )
-    .await?;
-    ctx.to_htmx_or_json(ProfileChatList {
-        user_id,
-        discussions,
-    })
-}
-
-async fn get_create_chat_discussion(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Path(other_user_id): Path<String>,
-) -> CtxResult<Html<String>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let other_user_id = get_string_thing(other_user_id)?;
-    // TODO limit nr of requests or count them to distinguish bots for user ids
-    local_user_db_service
-        .exists(IdentIdName::Id(other_user_id.clone()))
-        .await?;
-
-    let comm = get_profile_community(&state.db.client, &ctx, user_id.clone()).await?;
-    let discussions = comm.profile_chats.clone().unwrap_or(vec![]);
-    let comm_db_service = CommunityDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let discussion_db_service = DiscussionDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let existing = discussion_db_service
-        .get_chatroom_with_users(discussions, vec![user_id.clone(), other_user_id.clone()])
-        .await?;
-    let discussion = match existing {
-        None => {
-            create_chat_discussion(
-                user_id.clone(),
-                other_user_id,
-                comm,
-                comm_db_service,
-                discussion_db_service,
-            )
-            .await?
-        }
-        Some(disc) => {
-            get_discussion_view(
-                &state.db.client,
-                &ctx,
-                disc.id.unwrap(),
-                DiscussionParams {
-                    topic_id: None,
-                    start: None,
-                    count: None,
-                },
-            )
-            .await?
-        }
-    };
-    ctx.to_htmx_or_json(ProfileChat {
-        discussion,
-        user_id,
-    })
-}
-
-async fn create_chat_discussion<'a>(
-    user_id: Thing,
-    other_user_id: Thing,
-    comm: Community,
-    comm_db_service: CommunityDbService<'a>,
-    discussion_db_service: DiscussionDbService<'a>,
-) -> CtxResult<DiscussionView> {
-    let disc = discussion_db_service
-        .create_update(Discussion {
-            id: None,
-            belongs_to: comm.id.unwrap(),
-            title: None,
-            image_uri: None,
-            topics: None,
-            chat_room_user_ids: Some(vec![user_id.clone(), other_user_id.clone()]),
-            latest_post_id: None,
-            r_created: None,
-            created_by: user_id.clone(),
-        })
-        .await?;
-    let exists = record_exists(
-        comm_db_service.db,
-        &CommunityDbService::get_profile_community_id(&user_id),
-    )
-    .await;
-    if exists.is_err() {
-        // creates profile community
-        get_profile_community(comm_db_service.db, comm_db_service.ctx, user_id.clone()).await?;
-    }
-    let exists = record_exists(
-        comm_db_service.db,
-        &CommunityDbService::get_profile_community_id(&other_user_id),
-    )
-    .await;
-    if exists.is_err() {
-        // creates profile community
-        get_profile_community(
-            comm_db_service.db,
-            comm_db_service.ctx,
-            other_user_id.clone(),
-        )
-        .await?;
-    }
-
-    comm_db_service
-        .add_profile_chat_discussion(user_id, disc.id.clone().unwrap())
-        .await?;
-    comm_db_service
-        .add_profile_chat_discussion(other_user_id, disc.id.clone().unwrap())
-        .await?;
-    let disc = DiscussionView {
-        id: disc.id,
-        title: disc.title,
-        image_uri: disc.image_uri,
-        belongs_to: disc.belongs_to,
-        chat_room_user_ids: disc.chat_room_user_ids,
-        posts: vec![],
-        latest_post: None,
-        topics: None,
-        display_topic: None,
-    };
-    Ok(disc)
 }
 
 async fn create_user_post(

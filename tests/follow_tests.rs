@@ -28,8 +28,8 @@ use uuid::Uuid;
 #[serial]
 async fn get_user_followers() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user1, user1_pwd) = create_fake_login_test_user(&server).await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let user_ident1 = user1.id.as_ref().unwrap().to_raw();
     let username1 = user1.username.to_string();
     let username2 = user2.username.to_string();
@@ -107,7 +107,7 @@ async fn get_user_followers() {
     assert_eq!(created.profile_view.unwrap().followers_nr, 1);
 
     //login as username3
-    let (server, user3, user3_pwd) = create_fake_login_test_user(server).await;
+    let (server, user3, user3_pwd, _) = create_fake_login_test_user(server).await;
     let username3 = user3.username;
     // follow u1
     let create_response = server
