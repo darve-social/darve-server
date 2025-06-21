@@ -172,12 +172,12 @@ impl<'a> CommunityDbService<'a> {
                     title: None,
                     image_uri: None,
                     topics: None,
-                    chat_room_user_ids: None,
+                    private_discussion_user_ids: None,
                     latest_post_id: None,
                     r_created: None,
                     belongs_to: comm_id.clone(),
                     created_by: comm.created_by.clone(),
-                    is_chat_users_final: false,
+                    private_discussion_users_final: false,
                 })
                 .await
                 .map_err(CtxError::from(self.ctx))

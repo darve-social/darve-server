@@ -129,7 +129,7 @@ pub struct DiscussionView {
     pub title: Option<String>,
     pub image_uri: Option<String>,
     pub belongs_to: Thing,
-    pub chat_room_user_ids: Option<Vec<Thing>>,
+    pub private_discussion_user_ids: Option<Vec<Thing>>,
     pub posts: Vec<DiscussionPostView>,
     pub latest_post: Option<DiscussionLatestPostView>,
     pub topics: Option<Vec<DiscussionTopicView>>,
@@ -138,7 +138,7 @@ pub struct DiscussionView {
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, chat_room_user_ids,  latest_post_id.{id, title, content, media_links, r_created, created_by.*} as latest_post".to_string()
+        "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, private_discussion_user_ids,  latest_post_id.{id, title, content, media_links, r_created, created_by.*} as latest_post".to_string()
     }
 }
 
@@ -234,7 +234,7 @@ pub async fn get_discussion_view(
         _db,
         ctx,
         &disc_id,
-        dis_template.chat_room_user_ids.clone(),
+        dis_template.private_discussion_user_ids.clone(),
     )
     .await?;
 
@@ -291,9 +291,9 @@ async fn is_user_chat_discussion_user_auths(
     db: &Db,
     ctx: &Ctx,
     discussion_id: &Thing,
-    discussion_chat_room_user_ids: Option<Vec<Thing>>,
+    discussion_private_discussion_user_ids: Option<Vec<Thing>>,
 ) -> CtxResult<(bool, Vec<Authorization>)> {
-    let is_chat_disc = is_user_chat_discussion(ctx, &discussion_chat_room_user_ids)?;
+    let is_chat_disc = is_user_chat_discussion(ctx, &discussion_private_discussion_user_ids)?;
 
     let user_auth = if is_chat_disc {
         vec![Authorization {
@@ -310,9 +310,9 @@ async fn is_user_chat_discussion_user_auths(
 
 pub fn is_user_chat_discussion(
     ctx: &Ctx,
-    discussion_chat_room_user_ids: &Option<Vec<Thing>>,
+    discussion_private_discussion_user_ids: &Option<Vec<Thing>>,
 ) -> CtxResult<bool> {
-    match discussion_chat_room_user_ids {
+    match discussion_private_discussion_user_ids {
         Some(chat_user_ids) => {
             let user_id = ctx.user_id()?;
             let is_in_chat_group =
@@ -407,7 +407,7 @@ async fn create_update_form(
                 title: None,
                 image_uri: None,
                 belongs_to: comm_id.clone(),
-                chat_room_user_ids: None,
+                private_discussion_user_ids: None,
                 posts: vec![],
                 latest_post: None,
                 topics: None,
@@ -478,7 +478,7 @@ async fn discussion_sse(
         &ctx_state.db.client,
         &ctx,
         &discussion_id,
-        discussion.chat_room_user_ids,
+        discussion.private_discussion_user_ids,
     )
     .await?;
 

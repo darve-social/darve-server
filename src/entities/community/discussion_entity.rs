@@ -34,13 +34,13 @@ pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chat_room_user_ids: Option<Vec<Thing>>,
+    pub private_discussion_user_ids: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_post_id: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     pub created_by: Thing,
-    pub is_chat_users_final: bool,
+    pub private_discussion_users_final: bool,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -64,17 +64,17 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS is_chat_users_final ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
+    DEFINE FIELD IF NOT EXISTS private_discussion_users_final ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
-    DEFINE FIELD IF NOT EXISTS chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
+    DEFINE FIELD IF NOT EXISTS private_discussion_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
-    DEFINE INDEX IF NOT EXISTS idx_chat_room_user_ids ON TABLE {TABLE_NAME} COLUMNS chat_room_user_ids;
+    DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
-    DEFINE INDEX IF NOT EXISTS idx_is_chat_users_final ON TABLE {TABLE_NAME} COLUMNS is_chat_users_final;
+    DEFINE INDEX IF NOT EXISTS idx_private_discussion_users_final ON TABLE {TABLE_NAME} COLUMNS private_discussion_users_final;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -142,7 +142,7 @@ impl<'a> DiscussionDbService<'a> {
         bindings_map.extend(disc_bindings_map);
         // TODO add qry bindings
         let qry = format!(
-            "SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];",
+            "SELECT * from {} WHERE private_discussion_user_ids CONTAINSALL [{}];",
             q_bind_discid_props_str, q_bind_uid_props_str
         );
         let res =
@@ -172,9 +172,9 @@ impl<'a> DiscussionDbService<'a> {
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
                 title = $title
-                AND is_chat_users_final = true
-                AND chat_room_user_ids != NONE 
-                AND array::sort(chat_room_user_ids) = array::sort($user_ids);",
+                AND private_discussion_users_final = true
+                AND private_discussion_user_ids != NONE
+                AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
         );
 
         let mut res = self
@@ -199,7 +199,7 @@ impl<'a> DiscussionDbService<'a> {
             description: "error parse into Thing".to_string(),
         })?;
 
-        let query = format!("SELECT * FROM {TABLE_NAME} WHERE chat_room_user_ids CONTAINS $user");
+        let query = format!("SELECT * FROM {TABLE_NAME} WHERE private_discussion_user_ids CONTAINS $user");
         let mut res = self.db.query(query).bind(("user", user_thing)).await?;
         let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
         Ok(data)

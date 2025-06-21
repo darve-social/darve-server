@@ -67,7 +67,7 @@ async fn get_discussion_view() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: None,
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -196,7 +196,7 @@ async fn create_discussion() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: None,
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -325,7 +325,7 @@ async fn create_chat_discussion() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -333,10 +333,10 @@ async fn create_chat_discussion() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 }
 
 #[tokio::test]
@@ -357,7 +357,7 @@ async fn try_to_create_the_same_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -373,7 +373,7 @@ async fn try_to_create_the_same_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -381,10 +381,10 @@ async fn try_to_create_the_same_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post("/api/discussions")
@@ -393,7 +393,7 @@ async fn try_to_create_the_same_read_only() {
             title: "The Discussion1".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -407,7 +407,7 @@ async fn try_to_create_the_same_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -433,7 +433,7 @@ async fn try_to_create_the_same_not_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -442,10 +442,10 @@ async fn try_to_create_the_same_not_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post("/api/discussions")
@@ -454,7 +454,7 @@ async fn try_to_create_the_same_not_read_only() {
             title: "The Discussion1".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -469,7 +469,7 @@ async fn try_to_create_the_same_not_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
@@ -495,7 +495,7 @@ async fn get_discussions() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -509,7 +509,7 @@ async fn get_discussions() {
             title: "The Discussion1".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -553,7 +553,7 @@ async fn try_add_chat_users_into_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -561,10 +561,10 @@ async fn try_add_chat_users_into_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post(&format!(
@@ -611,7 +611,7 @@ async fn add_chat_users() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -619,9 +619,9 @@ async fn add_chat_users() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 1);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 1);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post(&format!(
@@ -643,9 +643,9 @@ async fn add_chat_users() {
 
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
-    assert_eq!(result[0].chat_room_user_ids.as_ref().unwrap().len(), 2);
+    assert_eq!(result[0].private_discussion_user_ids.as_ref().unwrap().len(), 2);
     assert!(result[0]
-        .chat_room_user_ids
+        .private_discussion_user_ids
         .as_ref()
         .unwrap()
         .contains(&user2.id.as_ref().unwrap()),);
@@ -667,7 +667,7 @@ async fn try_add_chat_users_by_not_owner() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -675,10 +675,10 @@ async fn try_add_chat_users_by_not_owner() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post(&format!(
@@ -711,7 +711,7 @@ async fn try_remove_chat_users_into_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -719,10 +719,10 @@ async fn try_remove_chat_users_into_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .delete(&format!(
@@ -755,7 +755,7 @@ async fn remove_chat_users() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -763,10 +763,10 @@ async fn remove_chat_users() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .delete(&format!(
@@ -788,9 +788,9 @@ async fn remove_chat_users() {
 
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
-    assert_eq!(result[0].chat_room_user_ids.as_ref().unwrap().len(), 1);
+    assert_eq!(result[0].private_discussion_user_ids.as_ref().unwrap().len(), 1);
     assert!(result[0]
-        .chat_room_user_ids
+        .private_discussion_user_ids
         .as_ref()
         .unwrap()
         .contains(&user1.id.as_ref().unwrap()),);
@@ -812,7 +812,7 @@ async fn try_remove_owner_from_chat_users() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -820,9 +820,9 @@ async fn try_remove_owner_from_chat_users() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 1);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 1);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .delete(&format!(
@@ -848,9 +848,9 @@ async fn try_remove_owner_from_chat_users() {
 
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
-    assert_eq!(result[0].chat_room_user_ids.as_ref().unwrap().len(), 1);
+    assert_eq!(result[0].private_discussion_user_ids.as_ref().unwrap().len(), 1);
     assert!(result[0]
-        .chat_room_user_ids
+        .private_discussion_user_ids
         .as_ref()
         .unwrap()
         .contains(&user1.id.as_ref().unwrap()),);
@@ -872,7 +872,7 @@ async fn try_remove_chat_users_by_not_owner() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -880,10 +880,10 @@ async fn try_remove_chat_users_by_not_owner() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .post(&format!(
@@ -916,7 +916,7 @@ async fn try_update_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -924,10 +924,10 @@ async fn try_update_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .patch(&format!(
@@ -959,7 +959,7 @@ async fn try_update_by_not_owner() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -967,10 +967,10 @@ async fn try_update_by_not_owner() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let create_response = server
         .patch(&format!(
@@ -1002,7 +1002,7 @@ async fn update() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: false,
+            private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -1010,10 +1010,10 @@ async fn update() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let disc_id = result.id.as_ref().unwrap();
     let create_response = server
@@ -1058,7 +1058,7 @@ async fn delete_read_only() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -1066,10 +1066,10 @@ async fn delete_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let disc_id = result.id.as_ref().unwrap();
     let create_response = server
@@ -1109,7 +1109,7 @@ async fn try_delete_by_not_owner() {
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            is_chat_users_final: true,
+            private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
         .await;
@@ -1117,10 +1117,10 @@ async fn try_delete_by_not_owner() {
     create_response.assert_status_ok();
     let result = create_response.json::<Discussion>();
 
-    let chat_room_user_ids = result.chat_room_user_ids.unwrap();
-    assert_eq!(chat_room_user_ids.len(), 2);
-    assert!(chat_room_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(chat_room_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+    assert_eq!(private_discussion_user_ids.len(), 2);
+    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
     let disc_id = result.id.as_ref().unwrap();
     let create_response = server

@@ -27,7 +27,7 @@ pub struct CreateDiscussion {
     pub title: String,
     pub image_uri: Option<String>,
     pub chat_user_ids: Option<Vec<String>>,
-    pub is_chat_users_final: bool,
+    pub private_discussion_users_final: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -101,7 +101,7 @@ impl<'a> DiscussionService<'a> {
         
         let user_ids = record_exist_all(self.user_repository.db, new_user_ids).await?;
         
-        let mut chat_users = disc.chat_room_user_ids.unwrap_or(vec![]);
+        let mut chat_users = disc.private_discussion_user_ids.unwrap_or(vec![]);
 
         user_ids.into_iter().for_each(|id| {
             if !chat_users.contains(&id) {
@@ -109,8 +109,8 @@ impl<'a> DiscussionService<'a> {
             }
         });
 
-        disc.chat_room_user_ids = Some(chat_users);
-        let chat_users = self.discussion_repository.create_update(disc).await?.chat_room_user_ids.expect("users are set");
+        disc.private_discussion_user_ids = Some(chat_users);
+        let chat_users = self.discussion_repository.create_update(disc).await?.private_discussion_user_ids.expect("users are set");
 
         Ok(chat_users)
     }
@@ -130,14 +130,14 @@ impl<'a> DiscussionService<'a> {
 
         let mut disc = self.discussion_repository.get(IdentIdName::Id(disc_id)).await?;
 
-        if disc.is_chat_users_final {
+        if disc.private_discussion_users_final {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
             }
             .into());
         };
 
-        if disc.chat_room_user_ids.is_none() || disc.chat_room_user_ids.as_ref().unwrap().is_empty() {
+        if disc.private_discussion_user_ids.is_none() || disc.private_discussion_user_ids.as_ref().unwrap().is_empty() {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
             }
@@ -168,14 +168,14 @@ impl<'a> DiscussionService<'a> {
             return Ok(());
         }
 
-        let chat_room_user_ids = disc
-            .chat_room_user_ids
+        let private_discussion_user_ids = disc
+            .private_discussion_user_ids
             .unwrap()
             .into_iter()
             .filter(|id| !remove_things.contains(id))
             .collect::<Vec<Thing>>();
 
-        disc.chat_room_user_ids = Some(chat_room_user_ids);
+        disc.private_discussion_user_ids = Some(private_discussion_user_ids);
         self.discussion_repository.create_update(disc).await?;
 
         Ok(())
@@ -192,7 +192,7 @@ impl<'a> DiscussionService<'a> {
         let user_thing: Thing = get_str_thing(&user_id)?;
         let comm_id = self.access_right_repository.has_owner_access(&user_thing, &data.community_id).await?;
 
-        if data.is_chat_users_final && data.chat_user_ids.is_some() {
+        if data.private_discussion_users_final && data.chat_user_ids.is_some() {
             let mut ids = data
                 .chat_user_ids
                 .as_ref()
@@ -218,7 +218,7 @@ impl<'a> DiscussionService<'a> {
             }
         };
 
-        let chat_room_user_ids = match data.chat_user_ids {
+        let private_discussion_user_ids = match data.chat_user_ids {
             Some(ids) => {
                 let mut user_ids = record_exist_all(self.user_repository.db, ids).await?;
                 if !user_ids.contains(&user_thing) {
@@ -237,11 +237,11 @@ impl<'a> DiscussionService<'a> {
                 title: Some(data.title.clone()),
                 image_uri: None,
                 topics: None,
-                chat_room_user_ids,
+                private_discussion_user_ids,
                 latest_post_id: None,
                 r_created: None,
                 created_by: user_thing.clone(),
-                is_chat_users_final: data.is_chat_users_final,
+                private_discussion_users_final: data.private_discussion_users_final,
             })
             .await?;
 
