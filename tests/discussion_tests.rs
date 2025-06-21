@@ -172,20 +172,18 @@ async fn create_discussion() {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
-    let disc_name = "discName1".to_lowercase();
-    let _ = "discName2".to_lowercase();
+    let comm_name_uri = "CommName1".to_lowercase();
 
     let create_response = server
         .post("/api/community")
         .json(&CommunityInput {
             id: "".to_string(),
-            name_uri: disc_name.clone(),
+            name_uri: comm_name_uri.clone(),
             title: "The Community Test".to_string(),
         })
         .add_header("Accept", "application/json")
         .await;
     let created = &create_response.json::<CreatedResponse>();
-    // dbg!(&created);
 
     let comm_id = Thing::try_from(created.id.clone()).unwrap();
 
@@ -318,7 +316,8 @@ async fn create_chat_discussion() {
 
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    // user 2 creates discussion in its own community
+    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {
@@ -347,12 +346,30 @@ async fn try_to_create_the_same_read_only() {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    // registered user2 - logged in user2
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    // user 2 tries to create discussion for user's 1 community - should fail
+    let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap().clone());
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
+            community_id: comm_id.clone().to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            is_chat_users_final: true,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_forbidden();
+
+    // user 2 is logged in - this works
+    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap().clone());
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.clone().to_raw(),
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
@@ -372,7 +389,7 @@ async fn try_to_create_the_same_read_only() {
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
+            community_id: comm_id.clone().to_raw(),
             title: "The Discussion1".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
@@ -386,7 +403,7 @@ async fn try_to_create_the_same_read_only() {
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {
-            community_id: comm_id,
+            community_id: comm_id.to_raw(),
             title: "The Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
@@ -408,7 +425,7 @@ async fn try_to_create_the_same_not_read_only() {
 
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {
@@ -468,9 +485,9 @@ async fn try_to_create_the_same_not_read_only() {
 async fn get_discussions() {
     let (server, _) = create_test_server().await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, _, _, token2) = create_fake_login_test_user(&server).await;
+    let (server, user2,_, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
         .json(&CreateDiscussion {

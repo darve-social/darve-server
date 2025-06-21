@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
@@ -402,7 +403,7 @@ pub async fn exists_entity(
 }
 
 pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
-    let qry ="RETURN record::exists($rec_id);";
+    let qry ="RETURN record::exists(<record>$rec_id);";
     let mut res = db.query(qry).bind(("rec_id", record_id.to_raw())).await?;
     let res: Option<bool> = res.take(0)?;
     match res.unwrap_or(false) {
@@ -423,9 +424,9 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec
                 description: format!("Invalid record id = {}", rec_id),
             });
         }
-        record_things.push(thing.expect("error checked")); 
+        record_things.push(thing.expect("error checked"));
     }
-    
+
     // TODO -replace String with &str-
     let mut i = 0;
     let mut  qry_str = "RETURN ".to_string();
@@ -434,17 +435,18 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec
        if i > 0 {
            qry_str.push_str(" AND ");
        }
-       qry_str.push_str(&format!(" record::exists($rec_id_{i})"));
+       qry_str.push_str(&format!(" record::exists(<record>$rec_id_{i})"));
         if i == len -1 {
             qry_str.push_str(";");
         }
-       i += 1; 
+       i += 1;
     }
 
+    // we can use record_ids (so we don't clone record_things) which are strings and <record> in query because we check all are valid db Things 
     let qry = record_ids.into_iter()
         .enumerate()
         .fold(db.query(qry_str), |qry, (i, rec_id)|qry.bind((format!("rec_id_{i}"), rec_id)));
-    
+
     let mut res = qry.await?;
     let res: Option<bool> = res.take(0)?;
     match res.unwrap_or(false) {
