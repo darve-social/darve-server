@@ -46,9 +46,10 @@ async fn handle_webhook(
         Uuid::new_v4(),
         false,
     );
+
     match event.event_type {
         EventType::PaymentPayoutItemSucceeded => {
-            let batch_id: &str = &event.resource.sender_batch_id;
+            let batch_id: &str = &event.resource.sender_batch_id.unwrap();
             let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
             let db_service = GatewayTransactionDbService {
                 db: &state.db.client,
@@ -58,8 +59,20 @@ async fn handle_webhook(
                 .user_withdraw_tx_complete(batch_thing, "".to_string())
                 .await?;
         }
+        EventType::PaymentPayoutBatchDenied => {
+            let batch_header = event.resource.batch_header.unwrap();
+            let batch_id = batch_header.sender_batch_header.sender_batch_id;
+            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let db_service = GatewayTransactionDbService {
+                db: &state.db.client,
+                ctx: &ctx,
+            };
+            db_service
+                .user_withdraw_tx_revert(batch_thing, "".to_string())
+                .await?;
+        }
         _ => {
-            let batch_id: &str = &event.resource.sender_batch_id;
+            let batch_id: &str = &event.resource.sender_batch_id.unwrap();
             let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
             let db_service = GatewayTransactionDbService {
                 db: &state.db.client,

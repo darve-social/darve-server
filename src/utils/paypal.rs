@@ -24,12 +24,6 @@ struct VerifySignatureRequest<'a> {
     webhook_event: serde_json::Value,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PayoutResource {
-    pub sender_batch_id: String,
-    pub payout_item: PayoutItem,
-}
-
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub enum EventType {
     #[serde(rename = "PAYMENT.PAYOUTS-ITEM.SUCCEEDED")]
@@ -44,6 +38,17 @@ pub enum EventType {
     PaymentPayoutItemBlocked,
     #[serde(rename = "PAYMENT.PAYOUTS-ITEM.CANCELED")]
     PaymentPayoutItemCanceled,
+    #[serde(rename = "PAYMENT.PAYOUTSBATCH.DENIED")]
+    PaymentPayoutBatchDenied,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SenderBatchHeader {
+    pub sender_batch_id: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct BatchHeader {
+    pub sender_batch_header: SenderBatchHeader,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +62,13 @@ pub struct PayoutItem {
 pub struct PayoutAmount {
     pub currency: String,
     pub value: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PayoutResource {
+    pub sender_batch_id: Option<String>,
+    pub payout_item: Option<PayoutItem>,
+    pub batch_header: Option<BatchHeader>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +98,7 @@ impl<'a> Paypal<'a> {
     ) -> Result<WebhookEvent, String> {
         let event_json: serde_json::Value =
             serde_json::from_slice(&body).expect("Failed to parse body as JSON for verification");
+
         let event = serde_json::from_value(event_json.clone()).expect("Parse event error");
 
         let sig = headers
