@@ -5,19 +5,18 @@ use std::time::Duration;
 use surrealdb::sql::{Datetime as DatetimeSur, Id, Thing};
 use validator::Validate;
 
+use super::{
+    access_gain_action_entity, access_rule_entity, authorization_entity, local_user_entity,
+};
 use crate::database::client::Db;
 use crate::middleware;
+use crate::middleware::utils::string_utils::get_str_thing;
 use access_rule_entity::AccessRuleDbService;
 use authorization_entity::{get_parent_ids, Authorization, AUTH_ACTIVITY_OWNER};
 use middleware::utils::db_utils::{get_entity_list, IdentIdName};
-use middleware::utils::string_utils::get_string_thing;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
-};
-use crate::middleware::utils::string_utils::get_str_thing;
-use super::{
-    access_gain_action_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, Validate)]
@@ -296,8 +295,11 @@ impl<'a> AccessRightDbService<'a> {
         Ok(a_right)
     }
 
-    pub async fn has_owner_access(&self, user_id: &Thing, target_record_id: &str) -> CtxResult<Thing> {
-
+    pub async fn has_owner_access(
+        &self,
+        user_id: &Thing,
+        target_record_id: &str,
+    ) -> CtxResult<Thing> {
         let target_rec_thing = get_str_thing(target_record_id)?;
         let required_auth = Authorization {
             authorize_record_id: target_rec_thing.clone(),
