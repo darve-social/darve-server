@@ -2,7 +2,7 @@ use askama::Template;
 use core::fmt;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
@@ -414,49 +414,45 @@ pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
 }
 
 pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec<Thing>> {
-    let record_ids: HashSet<String> = record_ids.iter().cloned().collect();
-    let mut record_things: Vec<Thing> = vec![];
-    for rec_id in record_ids.iter() {
-        let thing = Thing::try_from(rec_id.as_str());
-        if thing.is_err() {
-            return Err(AppError::Generic {
+    if record_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let things = record_ids
+        .iter()
+        .map(|rec_id| {
+            Thing::try_from(rec_id.as_str()).map_err(|_| AppError::Generic {
                 description: format!("Invalid record id = {}", rec_id),
-            });
-        }
-        record_things.push(thing.expect("error checked"));
-    }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    // TODO -replace String with &str-
-    let mut i = 0;
-    let mut qry_str = "RETURN ".to_string();
-    let len = record_ids.len();
-    while i < len {
-        if i > 0 {
-            qry_str.push_str(" AND ");
-        }
-        qry_str.push_str(&format!(" record::exists(<record>$rec_id_{i})"));
-        if i == len - 1 {
-            qry_str.push_str(";");
-        }
-        i += 1;
-    }
+    let conditions = (0..things.len())
+        .map(|i| format!("record::exists(<record>$rec_id_{i})"))
+        .collect::<Vec<_>>()
+        .join(" AND ");
 
-    // we can use record_ids (so we don't clone record_things) which are strings and <record> in query because we check all are valid db Things
-    let qry = record_ids
-        .into_iter()
-        .enumerate()
-        .fold(db.query(qry_str), |qry, (i, rec_id)| {
-            qry.bind((format!("rec_id_{i}"), rec_id))
-        });
+    let query = {
+        let query_str = format!("RETURN {conditions};");
+        let mut query = db.query(query_str);
 
-    let mut res = qry.await?;
-    let res: Option<bool> = res.take(0)?;
-    match res.unwrap_or(false) {
-        true => Ok(record_things),
-        false => Err(AppError::EntityFailIdNotFound {
+        for (i, val) in things.iter().enumerate() {
+            query = query.bind((format!("rec_id_{i}"), val.clone()));
+        }
+
+        query
+    };
+
+    let mut res = query.await?;
+    let exists: Option<bool> = res.take(0)?;
+
+    if !exists.unwrap_or(false) {
+        return Err(AppError::EntityFailIdNotFound {
             ident: "Not all ids exist".to_string(),
-        }),
+        });
     }
+
+    Ok(things)
 }
 
 pub fn with_not_found_err<T>(opt: Option<T>, ctx: &Ctx, ident: &str) -> CtxResult<T> {
