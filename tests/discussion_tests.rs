@@ -365,7 +365,7 @@ async fn try_to_create_the_same_read_only() {
         .post("/api/discussions")
         .json(&CreateDiscussion {
             community_id: comm_id.clone().to_raw(),
-            title: "The Discussion".to_string(),
+            title: "The New Discussion".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
             private_discussion_users_final: true,
@@ -380,20 +380,6 @@ async fn try_to_create_the_same_read_only() {
     assert_eq!(private_discussion_user_ids.len(), 2);
     assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
     assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
-
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone().to_raw(),
-            title: "The Discussion1".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
-
-    create_response.assert_status_ok();
 
     let create_response = server
         .post("/api/discussions")
@@ -481,10 +467,12 @@ async fn get_discussions() {
     let (server, _) = create_test_server().await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
     let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", token2))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -499,9 +487,28 @@ async fn get_discussions() {
 
     let create_response = server
         .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", token2))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
-            title: "The Discussion1".to_string(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![
+                user1.id.as_ref().unwrap().to_raw(),
+                user3.id.as_ref().unwrap().to_raw(),
+            ]
+            .into(),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_ok();
+    let create_response = server
+        .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", token2))
+        .json(&CreateDiscussion {
+            community_id: comm_id.clone(),
+            title: "The Discussion 1".to_string(),
             image_uri: None,
             chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
             private_discussion_users_final: true,
@@ -529,7 +536,17 @@ async fn get_discussions() {
 
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
-    assert_eq!(result.len(), 2)
+    assert_eq!(result.len(), 2);
+
+    let create_response = server
+        .get("/api/discussions")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token3))
+        .await;
+
+    create_response.assert_status_ok();
+    let result = create_response.json::<Vec<Discussion>>();
+    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]

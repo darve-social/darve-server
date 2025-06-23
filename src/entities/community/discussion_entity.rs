@@ -156,13 +156,9 @@ impl<'a> DiscussionDbService<'a> {
         }
     }
 
-    pub async fn get_by_read_only(
-        &self,
-        user_ids: Vec<&str>,
-        title: Option<String>,
-    ) -> CtxResult<Discussion> {
-        let user_things = user_ids.into_iter().fold(vec![], |mut res, id| {
-            match Thing::try_from(id) {
+    pub async fn get_by_private_users(&self, user_ids: Vec<&str>) -> CtxResult<Discussion> {
+        let user_things = user_ids.iter().fold(vec![], |mut res, id| {
+            match Thing::try_from(*id) {
                 Ok(v) => res.push(v),
                 Err(_) => (),
             };
@@ -171,24 +167,18 @@ impl<'a> DiscussionDbService<'a> {
 
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
-                title = $title
-                AND private_discussion_users_final = true
+                private_discussion_users_final = true
                 AND private_discussion_user_ids != NONE
                 AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
         );
 
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("user_ids", user_things))
-            .bind(("title", title))
-            .await?;
+        let mut res = self.db.query(query).bind(("user_ids", user_things)).await?;
 
         let data = res.take::<Option<Discussion>>(0)?;
         match data {
             Some(v) => Ok(v),
             None => Err(AppError::EntityFailIdNotFound {
-                ident: "get_by_read_only".to_string(),
+                ident: user_ids.join(",").to_string(),
             }
             .into()),
         }
@@ -199,7 +189,8 @@ impl<'a> DiscussionDbService<'a> {
             description: "error parse into Thing".to_string(),
         })?;
 
-        let query = format!("SELECT * FROM {TABLE_NAME} WHERE private_discussion_user_ids CONTAINS $user");
+        let query =
+            format!("SELECT * FROM {TABLE_NAME} WHERE private_discussion_user_ids CONTAINS $user");
         let mut res = self.db.query(query).bind(("user", user_thing)).await?;
         let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
         Ok(data)

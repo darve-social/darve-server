@@ -237,10 +237,7 @@ impl<'a> DiscussionService<'a> {
                 ids.push(&user_id);
             };
 
-            let res = self
-                .discussion_repository
-                .get_by_read_only(ids, Some(data.title.clone()))
-                .await;
+            let res = self.discussion_repository.get_by_private_users(ids).await;
 
             match res {
                 Ok(value) => {
