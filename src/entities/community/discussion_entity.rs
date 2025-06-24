@@ -100,62 +100,6 @@ impl<'a> DiscussionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_chatroom_with_users(
-        &self,
-        discussions: Vec<Thing>,
-        user_ids: Vec<Thing>,
-    ) -> CtxResult<Option<Discussion>> {
-        if discussions.len() == 0 {
-            return Ok(None);
-        }
-        if user_ids.len() < 2 {
-            return Err(self.ctx.to_ctx_error(AppError::Generic {
-                description: "Need at least 2 users".to_string(),
-            }));
-        }
-
-        let mut bindings_map: HashMap<String, String> = HashMap::new();
-        let user_ids_str_val = user_ids.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
-        user_ids_str_val.into_iter().enumerate().for_each(|i_id| {
-            bindings_map.insert(format!("uid_{}", i_id.0), i_id.1);
-        });
-        let q_bind_uid_props_str = bindings_map
-            .iter()
-            .map(|k_v| format!("<record>${}", k_v.0.to_string()))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        let mut disc_bindings_map: HashMap<String, String> = HashMap::new();
-        let disc_ids_str_val = discussions
-            .iter()
-            .map(|t| t.to_raw())
-            .collect::<Vec<String>>();
-        disc_ids_str_val.into_iter().enumerate().for_each(|i_id| {
-            disc_bindings_map.insert(format!("d_id_{}", i_id.0), i_id.1);
-        });
-        let q_bind_discid_props_str = disc_bindings_map
-            .iter()
-            .map(|k_v| format!("<record>${}", k_v.0.to_string()))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        bindings_map.extend(disc_bindings_map);
-        // TODO add qry bindings
-        let qry = format!(
-            "SELECT * from {} WHERE private_discussion_user_ids CONTAINSALL [{}];",
-            q_bind_discid_props_str, q_bind_uid_props_str
-        );
-        let res =
-            get_list_qry::<Discussion>(self.db, QryBindingsVal::new(qry, bindings_map)).await?;
-        match res.len() {
-            0 => Ok(None),
-            1 => Ok(Some(res[0].clone())),
-            _ => Err(self.ctx.to_ctx_error(AppError::Generic {
-                description: format!("Expected 1 result, found {}", res.len()),
-            })),
-        }
-    }
-
     pub async fn get_by_private_users(&self, user_ids: Vec<&str>) -> CtxResult<Discussion> {
         let user_things = user_ids.iter().fold(vec![], |mut res, id| {
             match Thing::try_from(*id) {
