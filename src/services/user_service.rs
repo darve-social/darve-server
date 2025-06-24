@@ -16,33 +16,37 @@ use chrono::Duration;
 
 use super::verification_code::VerificationCodeService;
 
-pub struct UserService<'a> {
+pub struct UserService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
     user_repository: LocalUserDbService<'a>,
     auth_repository: AuthenticationDbService<'a>,
-    verification_code_service: VerificationCodeService<'a>,
+    verification_code_service: VerificationCodeService<'a, V, S>,
 }
 
-impl<'a> UserService<'a> {
+impl<'a, V, S> UserService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
     pub fn new(
         user_repository: LocalUserDbService<'a>,
-        email_sender: &'a (dyn SendEmailInterface + Send + Sync),
+        email_sender: &'a S,
         code_ttl: Duration,
         auth_repository: AuthenticationDbService<'a>,
-        verification_code_repository: &'a (dyn VerificationCodeRepositoryInterface + Send + Sync),
+        verification_code_repository: &'a V,
     ) -> Self {
+        let verification_code_service =
+            VerificationCodeService::new(verification_code_repository, email_sender, code_ttl);
+
         Self {
             user_repository,
             auth_repository,
-            verification_code_service: VerificationCodeService::new(
-                verification_code_repository,
-                email_sender,
-                code_ttl,
-            ),
+            verification_code_service,
         }
     }
-}
-
-impl<'a> UserService<'a> {
     pub async fn start_email_verification(
         &self,
         user_id: &str,

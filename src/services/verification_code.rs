@@ -15,19 +15,23 @@ use crate::{
     utils::generate,
 };
 
-pub struct VerificationCodeService<'a> {
-    repository: &'a (dyn VerificationCodeRepositoryInterface + Send + Sync),
-    email_sender: &'a (dyn SendEmailInterface + Send + Sync),
+pub struct VerificationCodeService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
+    repository: &'a V,
+    email_sender: &'a S,
     code_ttl: Duration,
 }
 
-impl<'a> VerificationCodeService<'a> {
-    pub fn new(
-        repository: &'a (dyn VerificationCodeRepositoryInterface + Send + Sync),
-        email_sender: &'a (dyn SendEmailInterface + Send + Sync),
-        code_ttl: Duration,
-    ) -> Self {
-        VerificationCodeService {
+impl<'a, V, S> VerificationCodeService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
+    pub fn new(repository: &'a V, email_sender: &'a S, code_ttl: Duration) -> Self {
+        Self {
             repository,
             email_sender,
             code_ttl,

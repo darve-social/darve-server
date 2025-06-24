@@ -75,24 +75,32 @@ pub struct ResetPasswordInput {
     pub email_or_username: String,
 }
 
-pub struct AuthService<'a> {
+pub struct AuthService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
     ctx: &'a Ctx,
     jwt: &'a JWT,
     user_repository: LocalUserDbService<'a>,
     auth_repository: AuthenticationDbService<'a>,
     community_repository: CommunityDbService<'a>,
-    verification_code_service: VerificationCodeService<'a>,
+    verification_code_service: VerificationCodeService<'a, V, S>,
 }
 
-impl<'a> AuthService<'a> {
+impl<'a, V, S> AuthService<'a, V, S>
+where
+    V: VerificationCodeRepositoryInterface + Send + Sync,
+    S: SendEmailInterface + Send + Sync,
+{
     pub fn new(
         db: &'a Db,
         ctx: &'a Ctx,
         jwt: &'a JWT,
-        email_sender: &'a (dyn SendEmailInterface + Send + Sync),
+        email_sender: &'a S,
         code_ttl: Duration,
-        verification_code_repository: &'a (dyn VerificationCodeRepositoryInterface + Send + Sync),
-    ) -> AuthService<'a> {
+        verification_code_repository: &'a V,
+    ) -> AuthService<'a, V, S> {
         AuthService {
             ctx,
             jwt,
