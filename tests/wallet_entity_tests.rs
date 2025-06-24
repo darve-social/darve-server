@@ -76,8 +76,8 @@ async fn lock_user_balance() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
 
-    let (server, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, ..) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
 
     // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
@@ -146,8 +146,8 @@ async fn lock_user_balance() {
 #[serial]
 async fn check_balance_too_low() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, ..) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
 
     // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
@@ -250,7 +250,7 @@ async fn check_balance_too_low() {
 async fn check_lock_user_wallet_parallel_1() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
     let endow_amt = 30;
     let endow_user_response = server
         .get(&format!(
@@ -332,7 +332,7 @@ async fn check_lock_user_wallet_parallel_1() {
 async fn check_lock_user_wallet_parallel_2() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
     let endow_amt = 32;
     let endow_user_response = server
         .get(&format!(

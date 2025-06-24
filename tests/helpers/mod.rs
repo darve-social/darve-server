@@ -115,7 +115,9 @@ pub async fn create_login_test_user(
 }
 
 #[allow(dead_code)]
-pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser, String) {
+pub async fn create_fake_login_test_user(
+    server: &TestServer,
+) -> (&TestServer, LocalUser, String, String) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
     let username = fake_username_min_len(6);
     let create_user = &server
@@ -131,7 +133,15 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
     create_user.assert_status_success();
     let auth_response = create_user.json::<Value>();
     let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
-    (server, user, pwd)
+    (
+        server,
+        user,
+        pwd,
+        auth_response["token"]
+            .to_string()
+            .trim_matches('"')
+            .to_string(),
+    )
 }
 
 #[allow(dead_code)]
