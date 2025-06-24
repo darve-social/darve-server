@@ -208,7 +208,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        let res: Option<Thing> = fund_res.take(24)?;
+        let res: Option<Thing> = fund_res.take(fund_res.num_statements() - 1)?;
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
         }))
