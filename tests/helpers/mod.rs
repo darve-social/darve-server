@@ -110,8 +110,8 @@ pub async fn create_login_test_user(
     println!("Creating user with username: {username} {:?}", create_user);
     create_user.assert_status_success();
     let auth_response = create_user.json::<Value>();
-    let registered = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
-    (server, registered.id.unwrap().to_raw())
+    let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
+    (server, user.id.unwrap().to_raw())
 }
 
 #[allow(dead_code)]
