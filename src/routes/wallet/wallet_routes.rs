@@ -136,12 +136,12 @@ async fn withdraw(
         .into());
     }
 
-    let transaction_service = GatewayTransactionDbService {
+    let gateway_tx_service = GatewayTransactionDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
 
-    let lock_id = transaction_service
+    let gateway_tx_id = gateway_tx_service
         .user_withdraw_tx_start(
             &user.id.as_ref().unwrap(),
             data.amount as i64,
@@ -157,7 +157,7 @@ async fn withdraw(
 
     let res = paypal
         .send_money(
-            &lock_id.to_raw(),
+            &gateway_tx_id.to_raw(),
             &user.email_verified.unwrap(),
             (data.amount as f64) / 100.00,
             &CurrencySymbol::USD.to_string(),
@@ -167,8 +167,8 @@ async fn withdraw(
     match res {
         Ok(_) => Ok(()),
         Err(e) => {
-            let _ = transaction_service
-                .user_withdraw_tx_revert(lock_id, "".to_string())
+            let _ = gateway_tx_service
+                .user_withdraw_tx_revert(gateway_tx_id, "".to_string())
                 .await;
             Err(AppError::Generic { description: e }.into())
         }
