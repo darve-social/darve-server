@@ -455,11 +455,11 @@ pub async fn finish_authentication(
         Ok(auth_result) => {
             // TODO get credential by localUserId:{type:PASSKEY(auth_result.cred_id())}
 
-            let user_db_service = &LocalUserDbService {
+            let user_db_service = LocalUserDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            let auth_db_service = &AuthenticationDbService {
+            let auth_db_service = AuthenticationDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             };
@@ -470,12 +470,19 @@ pub async fn finish_authentication(
                 return Err(WebauthnError::UserNotFound);
             }
 
-            let cred_id = STANDARD.encode(auth_result.cred_id().to_vec());
-
-            // TODO -passkey token should not be updated- check why are we updating instead of just comparing signature/public key
-            auth_db_service
-                .update_token(exists_id.clone().unwrap(), AuthType::PASSKEY, cred_id)
+            let auth_res = auth_db_service
+                .get_by_auth_type(exists_id.clone().unwrap(), AuthType::PASSKEY)
                 .await?;
+
+            let user_auth = match auth_res {
+                Some(v) => v,
+                None => return Err(WebauthnError::UserHasNoCredentials),
+            };
+
+            let cred_id = STANDARD.encode(auth_result.cred_id().to_vec());
+            if user_auth.token != cred_id {
+                return Err(WebauthnError::UserHasNoCredentials);
+            }
 
             let token = state
                 .jwt
