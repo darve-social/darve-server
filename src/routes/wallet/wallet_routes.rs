@@ -3,7 +3,7 @@ use std::sync::Arc;
 use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::Html;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use balance_transaction_entity::BalanceTransactionDbService;
 use local_user_entity::LocalUserDbService;
@@ -14,17 +14,23 @@ use middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+use validator::Validate;
 use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
 
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
+use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::QryOrder::DESC;
+use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
+use crate::utils::paypal::Paypal;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/user/wallet/history", get(get_wallet_history))
         .route("/api/user/wallet/balance", get(get_user_balance))
+        .route("/api/user/wallet/withdraw", post(withdraw))
 }
 
 #[derive(Template, Deserialize, Debug, Serialize)]
@@ -104,4 +110,67 @@ pub async fn get_wallet_history(
         wallet: user_wallet_id,
         transactions,
     })
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct WithdrawData {
+    #[validate(range(min = 1))]
+    amount: u64,
+}
+
+async fn withdraw(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    JsonOrFormValidated(data): JsonOrFormValidated<WithdrawData>,
+) -> CtxResult<()> {
+    let user_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+    let user = user_service.get_ctx_user().await?;
+
+    if user.email_verified.is_none() {
+        return Err(AppError::Generic {
+            description: "User email must be verified".to_string(),
+        }
+        .into());
+    }
+
+    let gateway_tx_service = GatewayTransactionDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+
+    let gateway_tx_id = gateway_tx_service
+        .user_withdraw_tx_start(
+            &user.id.as_ref().unwrap(),
+            data.amount as i64,
+            "".to_string(),
+        )
+        .await?;
+
+    let paypal = Paypal::new(
+        &state.paypal_client_id,
+        &state.paypal_client_key,
+        &state.paypal_webhook_id,
+    );
+
+    let res = paypal
+        .send_money(
+            &gateway_tx_id.to_raw(),
+            &user.email_verified.unwrap(),
+            (data.amount as f64) / 100.00,
+            &CurrencySymbol::USD.to_string(),
+        )
+        .await;
+
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let _ = gateway_tx_service
+                .user_withdraw_tx_revert(gateway_tx_id, "".to_string())
+                .await;
+            Err(AppError::Generic { description: e }.into())
+        }
+    }
 }
