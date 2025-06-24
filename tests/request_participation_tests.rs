@@ -1,4 +1,5 @@
 mod helpers;
+use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::task::task_request_entity;
@@ -14,7 +15,6 @@ use darve_server::{
 };
 use serial_test::serial;
 use std::i64;
-use axum::http::StatusCode;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -39,16 +39,16 @@ use wallet_routes::CurrencyTransactionHistoryView;
 #[serial]
 async fn create_task_request_participation() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user0, user0_pwd) = create_fake_login_test_user(&server).await;
+    let (server, user0, user0_pwd, _) = create_fake_login_test_user(&server).await;
     let user_ident0 = user0.id.as_ref().unwrap().to_raw();
     let username0 = user0.username.to_string();
 
-    let (server, user1, _) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
     let user_ident1 = user1.id.as_ref().unwrap().to_raw();
     let _ = user1.username.to_string();
     let _ = user1.id.unwrap();
 
-    let (server, user3, user3_pwd) = create_fake_login_test_user(&server).await;
+    let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
     let user_ident3 = user3.id.as_ref().unwrap().to_raw();
     let username3 = user3.username.to_string();
 

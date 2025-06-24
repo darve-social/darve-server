@@ -24,7 +24,7 @@ use crate::helpers::create_fake_login_test_user;
 #[serial]
 async fn get_community_view() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, _, _) = create_fake_login_test_user(&server).await;
+    let (server, _, _, _) = create_fake_login_test_user(&server).await;
     let disc_name = "discName1".to_lowercase();
 
     let create_response = server
@@ -72,7 +72,7 @@ async fn get_community_view() {
 #[serial]
 async fn create_community() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
     let comm_name = "discName1".to_lowercase();

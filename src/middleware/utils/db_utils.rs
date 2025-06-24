@@ -402,8 +402,8 @@ pub async fn exists_entity(
 }
 
 pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
-    let qry = format!("RETURN record::exists(r\"{}\");", record_id.to_raw());
-    let mut res = db.query(qry).await?;
+    let qry = "RETURN record::exists(<record>$rec_id);";
+    let mut res = db.query(qry).bind(("rec_id", record_id.to_raw())).await?;
     let res: Option<bool> = res.take(0)?;
     match res.unwrap_or(false) {
         true => Ok(()),
@@ -411,6 +411,48 @@ pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
             ident: record_id.to_raw(),
         }),
     }
+}
+
+pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec<Thing>> {
+    if record_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let things = record_ids
+        .iter()
+        .map(|rec_id| {
+            Thing::try_from(rec_id.as_str()).map_err(|_| AppError::Generic {
+                description: format!("Invalid record id = {}", rec_id),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let conditions = (0..things.len())
+        .map(|i| format!("record::exists(<record>$rec_id_{i})"))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+
+    let query = {
+        let query_str = format!("RETURN {conditions};");
+        let mut query = db.query(query_str);
+
+        for (i, val) in things.iter().enumerate() {
+            query = query.bind((format!("rec_id_{i}"), val.clone()));
+        }
+
+        query
+    };
+
+    let mut res = query.await?;
+    let exists: Option<bool> = res.take(0)?;
+
+    if !exists.unwrap_or(false) {
+        return Err(AppError::EntityFailIdNotFound {
+            ident: "Not all ids exist".to_string(),
+        });
+    }
+
+    Ok(things)
 }
 
 pub fn with_not_found_err<T>(opt: Option<T>, ctx: &Ctx, ident: &str) -> CtxResult<T> {
