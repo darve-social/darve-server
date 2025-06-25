@@ -89,9 +89,9 @@ impl AppConfig {
 
         let sentry_project_link = std::env::var("SENTRY_PROJECT_LINK").ok();
 
-        let paypal_webhook_id = std::env::var("PAYPAL_WEBHOOK_ID").expect("Set PAYPAL_WEBHOOK_ID");
-        let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").expect("Set PAYPAL_CLIENT_ID");
-        let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").expect("Set PAYPAL_CLIENT_KEY");
+        let paypal_webhook_id = std::env::var("PAYPAL_WEBHOOK_ID").unwrap_or("".to_string());
+        let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").unwrap_or("".to_string());
+        let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").unwrap_or("".to_string());
 
         Self {
             db_namespace,
