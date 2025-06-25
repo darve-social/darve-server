@@ -56,6 +56,9 @@ pub struct CtxState {
     pub jwt: JWT,
     pub email_sender: EmailSender,
     pub file_storage: Arc<GoogleCloudFileStorage>,
+    pub paypal_webhook_id: String,
+    pub paypal_client_id: String,
+    pub paypal_client_key: String,
 }
 
 impl Debug for CtxState {
@@ -94,6 +97,9 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
             &config.no_replay,
         ),
         verification_code_ttl: Duration::minutes(config.verification_code_ttl as i64),
+        paypal_webhook_id: config.paypal_webhook_id.clone(),
+        paypal_client_id: config.paypal_client_id.clone(),
+        paypal_client_key: config.paypal_client_key.clone(),
     };
     Arc::new(ctx_state)
 }

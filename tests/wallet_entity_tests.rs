@@ -1,12 +1,15 @@
 mod helpers;
 
 use axum::extract::State;
-use chrono::DateTime;
+use chrono::{DateTime, Duration, Utc};
 use darve_server::entities::wallet::lock_transaction_entity::{
-    LockTransactionDbService, UnlockTrigger,
+    LockTransaction, LockTransactionDbService, UnlockTrigger,
 };
-use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
+use darve_server::entities::wallet::wallet_entity::{
+    CurrencySymbol, WalletBalancesView, WalletDbService,
+};
 use darve_server::middleware::ctx::Ctx;
+use darve_server::middleware::utils::db_utils::IdentIdName;
 use darve_server::routes::wallet::wallet_routes::get_user_balance;
 use darve_server::{middleware, routes::wallet::wallet_routes};
 use futures::future::join_all;
@@ -67,13 +70,14 @@ async fn test_wallet_history() {
     );
 }
 
+#[tokio::test]
 #[serial]
 async fn lock_user_balance() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
 
-    let (server, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, ..) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
 
     // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
@@ -142,8 +146,8 @@ async fn lock_user_balance() {
 #[serial]
 async fn check_balance_too_low() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, ..) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
 
     // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
@@ -200,7 +204,7 @@ async fn check_balance_too_low() {
         res_2.as_ref().err().unwrap().error,
         middleware::error::AppError::BalanceTooLow
     );
-    
+
     let res_3 = transaction_service
         .lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
@@ -211,10 +215,8 @@ async fn check_balance_too_low() {
             }],
         )
         .await;
-    assert!(
-        res_3.as_ref().is_ok()
-    );
-    
+    assert!(res_3.as_ref().is_ok());
+
     let res_4 = transaction_service
         .lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
@@ -225,10 +227,7 @@ async fn check_balance_too_low() {
             }],
         )
         .await;
-    assert!(
-        res_4.as_ref().is_ok()
-    );
-
+    assert!(res_4.as_ref().is_ok());
 
     let res_5 = transaction_service
         .lock_user_asset_tx(
@@ -251,7 +250,7 @@ async fn check_balance_too_low() {
 async fn check_lock_user_wallet_parallel_1() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
     let endow_amt = 30;
     let endow_user_response = server
         .get(&format!(
@@ -333,7 +332,7 @@ async fn check_lock_user_wallet_parallel_1() {
 async fn check_lock_user_wallet_parallel_2() {
     println!("Creating test server");
     let (server, ctx_state) = create_test_server().await;
-    let (server, user2, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, ..) = create_fake_login_test_user(&server).await;
     let endow_amt = 32;
     let endow_user_response = server
         .get(&format!(
@@ -389,4 +388,17 @@ async fn check_lock_user_wallet_parallel_2() {
     assert!(res[0].is_ok());
     assert!(res[1].is_ok());
     assert!(res[2].is_ok());
+}
+#[tokio::test]
+#[serial]
+async fn prod_balance_0() {
+    let (server, _state) = create_test_server().await;
+    let (_, _user, _password) = create_fake_login_test_user(&server).await;
+    let response = server
+        .get("/api/user/wallet/balance")
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+    let balances = response.json::<WalletBalancesView>();
+    assert_eq!(balances.balance_locked.balance_usd, 0);
 }

@@ -31,7 +31,6 @@ use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use strum::Display;
 use template_utils::ProfileFormPage;
 
 use super::discussion_routes;

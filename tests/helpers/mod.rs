@@ -11,7 +11,7 @@ use darve_server::middleware;
 use darve_server::routes::user_auth::webauthn;
 use fake::{faker, Fake};
 use middleware::mw_ctx::{create_ctx_state, CtxState};
-use serde_json::json;
+use serde_json::{json, Value};
 use webauthn::webauthn_routes::create_webauth_config;
 
 #[allow(dead_code)]
@@ -109,12 +109,15 @@ pub async fn create_login_test_user(
 
     println!("Creating user with username: {username} {:?}", create_user);
     create_user.assert_status_success();
-    let registered = create_user.json::<LocalUser>();
-    (server, registered.id.unwrap().to_raw())
+    let auth_response = create_user.json::<Value>();
+    let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
+    (server, user.id.unwrap().to_raw())
 }
 
 #[allow(dead_code)]
-pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, LocalUser, String) {
+pub async fn create_fake_login_test_user(
+    server: &TestServer,
+) -> (&TestServer, LocalUser, String, String) {
     let pwd = faker::internet::en::Password(6..8).fake::<String>();
     let username = fake_username_min_len(6);
     let create_user = &server
@@ -128,9 +131,17 @@ pub async fn create_fake_login_test_user(server: &TestServer) -> (&TestServer, L
         .await;
 
     create_user.assert_status_success();
-    let user = create_user.json::<LocalUser>();
-
-    (server, user, pwd)
+    let auth_response = create_user.json::<Value>();
+    let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
+    (
+        server,
+        user,
+        pwd,
+        auth_response["token"]
+            .to_string()
+            .trim_matches('"')
+            .to_string(),
+    )
 }
 
 #[allow(dead_code)]

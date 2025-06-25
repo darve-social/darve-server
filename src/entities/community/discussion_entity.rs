@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName,
-    QryBindingsVal, ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
 use middleware::{
     ctx::Ctx,
@@ -34,12 +32,13 @@ pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chat_room_user_ids: Option<Vec<Thing>>,
+    pub private_discussion_user_ids: Option<Vec<Thing>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_post_id: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     pub created_by: Thing,
+    pub private_discussion_users_final: bool,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -63,13 +62,17 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS private_discussion_users_final ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
-    DEFINE FIELD IF NOT EXISTS chat_room_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
+    DEFINE FIELD IF NOT EXISTS private_discussion_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
         // ASSERT record::exists($value);
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
+    DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
+    DEFINE INDEX IF NOT EXISTS idx_private_discussion_users_final ON TABLE {TABLE_NAME} COLUMNS private_discussion_users_final;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -95,60 +98,59 @@ impl<'a> DiscussionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_chatroom_with_users(
-        &self,
-        discussions: Vec<Thing>,
-        user_ids: Vec<Thing>,
-    ) -> CtxResult<Option<Discussion>> {
-        if discussions.len() == 0 {
-            return Ok(None);
-        }
-        if user_ids.len() < 2 {
-            return Err(self.ctx.to_ctx_error(AppError::Generic {
-                description: "Need at least 2 users".to_string(),
-            }));
-        }
-
-        let mut bindings_map: HashMap<String, String> = HashMap::new();
-        let user_ids_str_val = user_ids.iter().map(|t| t.to_raw()).collect::<Vec<String>>();
-        user_ids_str_val.into_iter().enumerate().for_each(|i_id| {
-            bindings_map.insert(format!("uid_{}", i_id.0), i_id.1);
+    pub async fn get_by_private_users(&self, user_ids: Vec<&str>) -> CtxResult<Discussion> {
+        let user_things = user_ids.iter().fold(vec![], |mut res, id| {
+            match Thing::try_from(*id) {
+                Ok(v) => res.push(v),
+                Err(_) => (),
+            };
+            res
         });
-        let q_bind_uid_props_str = bindings_map
-            .iter()
-            .map(|k_v| format!("<record>${}", k_v.0.to_string()))
-            .collect::<Vec<String>>()
-            .join(",");
 
-        let mut disc_bindings_map: HashMap<String, String> = HashMap::new();
-        let disc_ids_str_val = discussions
-            .iter()
-            .map(|t| t.to_raw())
-            .collect::<Vec<String>>();
-        disc_ids_str_val.into_iter().enumerate().for_each(|i_id| {
-            disc_bindings_map.insert(format!("d_id_{}", i_id.0), i_id.1);
-        });
-        let q_bind_discid_props_str = disc_bindings_map
-            .iter()
-            .map(|k_v| format!("<record>${}", k_v.0.to_string()))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        bindings_map.extend(disc_bindings_map);
-        // TODO add qry bindings
-        let qry = format!(
-            "SELECT * from {} WHERE chat_room_user_ids CONTAINSALL [{}];",
-            q_bind_discid_props_str, q_bind_uid_props_str
+        let query = format!(
+            "SELECT * FROM {TABLE_NAME} WHERE 
+                private_discussion_users_final = true
+                AND private_discussion_user_ids != NONE
+                AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
         );
-        let res =
-            get_list_qry::<Discussion>(self.db, QryBindingsVal::new(qry, bindings_map)).await?;
-        match res.len() {
-            0 => Ok(None),
-            1 => Ok(Some(res[0].clone())),
-            _ => Err(self.ctx.to_ctx_error(AppError::Generic {
-                description: format!("Expected 1 result, found {}", res.len()),
-            })),
+
+        let mut res = self.db.query(query).bind(("user_ids", user_things)).await?;
+
+        let data = res.take::<Option<Discussion>>(0)?;
+        match data {
+            Some(v) => Ok(v),
+            None => Err(AppError::EntityFailIdNotFound {
+                ident: user_ids.join(",").to_string(),
+            }
+            .into()),
         }
+    }
+
+    pub async fn get_by_chat_room_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
+        let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
+            description: "error parse into Thing".to_string(),
+        })?;
+
+        let query =
+            format!("SELECT * FROM {TABLE_NAME} WHERE private_discussion_user_ids CONTAINS $user");
+        let mut res = self.db.query(query).bind(("user", user_thing)).await?;
+        let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
+        Ok(data)
+    }
+
+    pub async fn delete(&self, id: &str) -> CtxResult<()> {
+        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
+            description: "error into Thing".to_string(),
+        })?;
+        let _ = self
+            .db
+            .delete::<Option<Discussion>>((thing.tb, thing.id.to_raw()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            });
+
+        Ok(())
     }
 
     pub async fn create_update(&self, mut record: Discussion) -> CtxResult<Discussion> {

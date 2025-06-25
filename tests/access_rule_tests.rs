@@ -34,7 +34,7 @@ use crate::helpers::post_helpers::create_fake_post;
 #[serial]
 async fn display_access_rule_content() {
     let (server, ctx_state) = create_test_server().await;
-    let (server, user, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.unwrap().clone().to_raw();
 
     let fake_comm = create_fake_community(server, &ctx_state, user_ident.clone()).await;

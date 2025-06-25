@@ -4,6 +4,7 @@ pub mod file;
 pub mod generate;
 pub mod hash;
 pub mod jwt;
+pub mod paypal;
 pub mod template_utils;
 pub mod validate_utils;
 pub mod verification;
