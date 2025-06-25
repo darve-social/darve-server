@@ -42,8 +42,8 @@ async fn get_events_sse(
     let stream = BroadcastStream::new(rx).filter_map(move |msg| match msg {
         Err(_) => None,
         Ok(msg) => match msg.event {
-            AppEventType::UserNotificationEvent(..) if msg.receivers.contains(&user_id) => {
-                Some(Ok(Event::default().data(json!(msg).to_string())))
+            AppEventType::UserNotificationEvent(n) if msg.receivers.contains(&user_id) => {
+                Some(Ok(Event::default().data(json!(n).to_string())))
             }
             _ => None,
         },

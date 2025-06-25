@@ -1,8 +1,7 @@
 use crate::config::AppConfig;
 use crate::database::client::Database;
-use crate::entities::user_auth::user_notification_entity::UserNotificationEvent;
+use crate::entities::user_notification::UserNotification;
 use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
-use crate::routes::community::community_routes::DiscussionNotificationEvent;
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
@@ -15,19 +14,26 @@ use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use surrealdb::sql::Thing;
 use tokio::sync::broadcast;
 use tower_cookies::{Cookie, Cookies};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum AppEventType {
-    UserNotificationEvent(UserNotificationEvent),
-    DiscussionNotificationEvent(DiscussionNotificationEvent),
+    UserNotificationEvent(UserNotification),
+    DiscussionNotificationEvent(UserNotification),
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct AppEventMetadata {
+    pub discussion_id: Option<Thing>,
+    pub topic_id: Option<Thing>,
+    pub post_id: Option<Thing>,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEvent {
     pub user_id: String,
-    pub content: Option<String>,
+    pub metadata: Option<AppEventMetadata>,
     pub event: AppEventType,
     #[serde(skip_serializing)]
     pub receivers: Vec<String>,

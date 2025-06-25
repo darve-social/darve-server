@@ -160,7 +160,12 @@ async fn create_entity(
 
     let post = post_db_service.increase_replies_nr(post_id.clone()).await?;
 
-    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
+    let n_service = NotificationService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+    );
     n_service
         .on_discussion_post_reply(
             &created_by,

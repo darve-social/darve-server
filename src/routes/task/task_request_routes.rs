@@ -1,6 +1,8 @@
 use crate::entities::task::{task_request_entity, task_request_participation_entity};
 use crate::entities::user_auth::{local_user_entity, user_notification_entity};
+use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
+use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
@@ -29,9 +31,6 @@ use task_request_entity::{
     TABLE_NAME,
 };
 use task_request_participation_entity::{TaskParticipationDbService, TaskRequestParticipantion};
-use user_notification_entity::{
-    UserNotification, UserNotificationDbService, UserNotificationEvent,
-};
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
 
@@ -396,7 +395,12 @@ async fn create_entity(
     })
     .await?;
 
-    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
+    let n_service = NotificationService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+    );
 
     let _ = n_service
         .on_update_balance(&from_user.clone(), &vec![from_user.clone()])
@@ -541,7 +545,12 @@ async fn deliver_task_request(
     .map(|t| t.user)
     .collect();
 
-    let n_service = NotificationService::new(&state.db.client, &ctx, &state.event_sender);
+    let n_service = NotificationService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+    );
 
     match task.reward_type {
         RewardType::OnDelivery => {
@@ -628,18 +637,18 @@ async fn participate_task_request_offer(
         )
         .await?;
 
-    let _notif_res = UserNotificationDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
-    .create(UserNotification {
-        id: None,
-        user: from_user,
-        event: UserNotificationEvent::UserBalanceUpdate,
-        content: "".to_string(),
-        r_created: None,
-    })
-    .await;
+    state
+        .db
+        .user_notifications
+        .create(
+            &from_user.to_raw(),
+            "participate task",
+            UserNotificationEvent::UserBalanceUpdate.as_str(),
+            &vec![from_user.to_raw()],
+            None,
+            None,
+        )
+        .await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,

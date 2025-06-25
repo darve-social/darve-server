@@ -14,9 +14,10 @@ use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
-use user_notification_entity::{UserNotificationDbService, UserNotificationEvent};
 
-use crate::entities::user_auth::{local_user_entity, user_notification_entity};
+use crate::entities::user_auth::local_user_entity;
+use crate::entities::user_notification::UserNotificationEvent;
+use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::middleware::mw_ctx::CtxState;
 
@@ -142,12 +143,19 @@ async fn user_notification_history(
     }
     .get_ctx_user_thing()
     .await?;
-    let notifications = UserNotificationDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
-    .get_by_user_view::<UserNotificationView>(user, q_params)
-    .await?;
+
+    let notifications = state
+        .db
+        .user_notifications
+        .get_by_user(&user.id.to_raw())
+        .await?;
+
+    // let notifications = UserNotificationDbService {
+    //     db: &state.db.client,
+    //     ctx: &ctx,
+    // }
+    // .get_by_user_view::<UserNotificationView>(user, q_params)
+    // .await?;
     let json = serde_json::to_string(&notifications).map_err(|_| {
         ctx.to_ctx_error(AppError::Generic {
             description: "Render json error".to_string(),

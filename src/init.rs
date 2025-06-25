@@ -23,7 +23,6 @@ use axum::{
 };
 use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
-use entities::community::discussion_notification_entity::DiscussionNotificationDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
@@ -36,7 +35,6 @@ use entities::user_auth::access_right_entity::AccessRightDbService;
 use entities::user_auth::access_rule_entity::AccessRuleDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
-use entities::user_auth::user_notification_entity::UserNotificationDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
@@ -118,9 +116,9 @@ pub async fn run_migrations(db: &Db) -> AppResult<()> {
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionNotificationDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
+    // DiscussionNotificationDbService { db: &db, ctx: &c }
+    //     .mutate_db()
+    //     .await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }
@@ -147,9 +145,9 @@ pub async fn run_migrations(db: &Db) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
-    UserNotificationDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
+    // UserNotificationDbService { db: &db, ctx: &c }
+    //     .mutate_db()
+    //     .await?;
     GatewayTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;

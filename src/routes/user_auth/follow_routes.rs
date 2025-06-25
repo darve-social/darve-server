@@ -127,8 +127,12 @@ async fn follow_user(
             .await?;
         follower_ids.push(follow.clone());
 
-        let n_service =
-            NotificationService::new(&ctx_state.db.client, &ctx, &ctx_state.event_sender);
+        let n_service = NotificationService::new(
+            &ctx_state.db.client,
+            &ctx,
+            &ctx_state.event_sender,
+            &ctx_state.db.user_notifications,
+        );
         n_service
             .on_follow(&from_user, follows_username, follower_ids)
             .await?;

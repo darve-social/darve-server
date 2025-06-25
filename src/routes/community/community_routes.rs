@@ -284,39 +284,6 @@ pub async fn community_admin_access(
     Ok((comm_id, comm))
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Display, Clone)]
-pub enum DiscussionNotificationEvent {
-    DiscussionPostAdded {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-    DiscussionPostReplyAdded {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-    DiscussionPostReplyNrIncreased {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-}
-
-impl DiscussionNotificationEvent {
-    pub fn get_sse_event_ident(&self) -> String {
-        match self {
-            DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),
-            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id, .. } => {
-                format!("{}@{}", self.to_string(), post_id)
-            }
-            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id, .. } => {
-                format!("{}@{}", self.to_string(), post_id)
-            }
-        }
-    }
-}
-
 /*#[derive(Serialize, Deserialize, Clone)]
 pub struct DiscussionNotificationEventData {
     pub discussion_id: Thing,
