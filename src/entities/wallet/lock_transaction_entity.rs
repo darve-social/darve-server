@@ -87,7 +87,6 @@ impl<'a> LockTransactionDbService<'a> {
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in lock fn".to_string(),
         }))
-
     }
 
     pub(crate) fn lock_user_asset_qry(

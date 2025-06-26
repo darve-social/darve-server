@@ -34,6 +34,7 @@ pub struct AppEventMetadata {
 pub struct AppEvent {
     pub user_id: String,
     pub metadata: Option<AppEventMetadata>,
+    pub content: Option<String>,
     pub event: AppEventType,
     #[serde(skip_serializing)]
     pub receivers: Vec<String>,

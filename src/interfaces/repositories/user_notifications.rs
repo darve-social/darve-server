@@ -21,7 +21,6 @@ pub trait UserNotificationsInterface {
         title: &str,
         n_type: &str,
         receivers: &Vec<String>,
-        content: Option<String>,
         metadata: Option<Value>,
     ) -> Result<UserNotification, AppError>;
     async fn get_by_user(

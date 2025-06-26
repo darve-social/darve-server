@@ -646,7 +646,6 @@ async fn participate_task_request_offer(
             UserNotificationEvent::UserBalanceUpdate.as_str(),
             &vec![from_user.to_raw()],
             None,
-            None,
         )
         .await?;
 

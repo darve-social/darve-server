@@ -10,7 +10,7 @@ pub struct UserNotification {
     pub title: String,
     #[serde(default)]
     pub is_read: bool,
-    pub content: Option<String>,
+    // pub content: Option<String>,
     pub metadata: Option<Value>,
     pub created_at: Datetime,
 }

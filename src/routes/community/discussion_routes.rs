@@ -479,7 +479,7 @@ async fn discussion_sse(
                 Ok(msg) => match msg.event {
                     AppEventType::DiscussionNotificationEvent(n) => match n.event {
                         UserNotificationEvent::DiscussionPostAdded => {
-                            match serde_json::from_str::<DiscussionPostView>(&n.content.clone().unwrap()) {
+                            match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
                                 Ok(mut dpv) => {
                                     dpv.viewer_access_rights = user_auth.clone();
                                     dpv.has_view_access = match &dpv.access_rule {
@@ -522,7 +522,7 @@ async fn discussion_sse(
                                 let post_id = metadata.post_id.as_ref().unwrap().to_raw();
                                 let id = format!("{}_{}", n.event.as_str(),post_id);
                                     Event::default().event(&id)
-                                    .data(&n.content.unwrap())
+                                    .data(&msg.content.unwrap())
                             } else {
                                 Event::default()
                                 .data(&serde_json::to_string(&n).unwrap())
@@ -531,7 +531,7 @@ async fn discussion_sse(
                         UserNotificationEvent::DiscussionPostReplyAdded => Some(
                           if ctx.is_htmx {
                                 Event::default().event(n.event.as_str())
-                                .data(&n.content.unwrap())
+                                .data(&msg.content.unwrap())
                             } else {
                                 Event::default()
                                 .data(&serde_json::to_string(&n).unwrap())

@@ -28,8 +28,7 @@ impl UserNotificationsRepository {
         DEFINE FIELD IF NOT EXISTS event       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS title       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<local_user>;
-        DEFINE FIELD IF NOT EXISTS content     ON TABLE notifications TYPE option<string>;
-        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications;
+        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications FLEXIBLE TYPE option<object>;
         DEFINE FIELD IF NOT EXISTS created_at  ON TABLE notifications TYPE datetime DEFAULT time::now();
 
         DEFINE TABLE IF NOT EXISTS user_notifications TYPE RELATION IN local_user OUT notifications ENFORCED SCHEMAFULL PERMISSIONS NONE;
@@ -53,7 +52,6 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         title: &str,
         n_type: &str,
         receivers: &Vec<String>,
-        content: Option<String>,
         metadata: Option<Value>,
     ) -> Result<UserNotification, AppError> {
         let receiver_things = receivers
@@ -68,7 +66,6 @@ impl UserNotificationsInterface for UserNotificationsRepository {
                 event: $event,
                 title: $title,
                 created_by:$created_by,
-                content: $content,
                 metadata: $metadata,
             };
             LET $n_id = $notification.id;
@@ -83,7 +80,6 @@ impl UserNotificationsInterface for UserNotificationsRepository {
                 created_by: record::id($notification.created_by),
                 event: $notification.event,
                 title: $notification.title,
-                content: $notification.content,
                 metadata: $notification.metadata,
                 created_at: $notification.created_at
             };
@@ -96,7 +92,6 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .bind(("event", n_type.to_string()))
             .bind(("title", title.to_string()))
             .bind(("created_by", get_str_thing(creator)?))
-            .bind(("content", content))
             .bind(("metadata", metadata))
             .bind(("receivers", receiver_things))
             .await

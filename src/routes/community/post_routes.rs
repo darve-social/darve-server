@@ -283,7 +283,8 @@ pub async fn create_post_entity_route(
         .get(IdentIdName::Id(get_string_thing(discussion_id)?))
         .await?;
 
-    let is_user_chat = is_user_chat_discussion(&ctx, &disc.private_discussion_user_ids).unwrap_or(false);
+    let is_user_chat =
+        is_user_chat_discussion(&ctx, &disc.private_discussion_user_ids).unwrap_or(false);
 
     if !is_user_chat {
         let min_authorisation = Authorization {

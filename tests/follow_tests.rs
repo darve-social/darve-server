@@ -370,7 +370,7 @@ async fn get_user_followers() {
         .await;
     let created = &create_response.json::<FollowingStreamView>();
     assert_eq!(created.post_list.len(), 2);
-    
+
     let notifications_response = server
         .get("/api/notifications")
         .add_header("Accept", "application/json")

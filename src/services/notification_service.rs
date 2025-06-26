@@ -2,21 +2,17 @@ use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
 use crate::database::client::Db;
-use crate::entities::user_notification::{ UserNotificationEvent};
+use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
 use crate::{
-    entities::{
-        user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
-    },
+    entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
     middleware::{
         ctx::Ctx,
         error::{AppError, CtxResult},
         mw_ctx::{AppEvent, AppEventType},
     },
-    routes::community::{
-      discussion_routes::DiscussionPostView,
-    },
+    routes::community::discussion_routes::DiscussionPostView,
 };
 
 use surrealdb::sql::Thing;
@@ -56,7 +52,10 @@ where
         post_id: Thing,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
-        let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = participators
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
 
         let event = self
             .notification_repository
@@ -65,7 +64,6 @@ where
                 "like",
                 &UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
-                None,
                 Some(json!({ "user_id": user_id_str, "post_id": post_id })),
             )
             .await?;
@@ -74,6 +72,7 @@ where
             user_id: user_id_str,
             metadata: None,
             event: AppEventType::UserNotificationEvent(event),
+            content: None,
             receivers,
         });
 
@@ -87,8 +86,12 @@ where
         participators: Vec<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user.id.as_ref().unwrap().to_raw();
-        let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
-        let metadata = json!({ "username": user.username.clone(), "follows_username": follow_username });
+        let receivers = participators
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
+        let metadata =
+            json!({ "username": user.username.clone(), "follows_username": follow_username });
         let event = self
             .notification_repository
             .create(
@@ -96,7 +99,6 @@ where
                 "follow",
                 UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
-                None,
                 Some(metadata.clone()),
             )
             .await?;
@@ -104,6 +106,7 @@ where
             receivers,
             user_id: user_id_str,
             metadata: None,
+            content: None,
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -118,7 +121,10 @@ where
         participators: &Vec<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
-        let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = participators
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
         let event = self
             .notification_repository
             .create(
@@ -126,7 +132,6 @@ where
                 "deliver",
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
-                None,
                 Some({
                     json!({ "task_id": task_id.to_raw(), "deliverable": deliverable.to_raw(), "delivered_by": user_id.clone().to_raw()})
                 }),
@@ -136,7 +141,8 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
-             metadata: None,
+            metadata: None,
+            content: None,
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -149,7 +155,10 @@ where
         participators: &Vec<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
-        let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = participators
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
 
         let event = self
             .notification_repository
@@ -159,15 +168,14 @@ where
                 &UserNotificationEvent::UserBalanceUpdate.as_str(),
                 &receivers,
                 None,
-                None,
             )
             .await?;
-
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
-              metadata: None,
+            metadata: None,
+            content: None,
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -181,7 +189,10 @@ where
         content: &String,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
-        let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = participators
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
 
         let event = self
             .notification_repository
@@ -190,14 +201,14 @@ where
                 "chat",
                 UserNotificationEvent::UserChatMessage.as_str(),
                 &receivers,
-                Some(content.to_owned()),
                 None,
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
-           metadata: None,
+            metadata: None,
+            content: Some(content.to_owned()),
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -212,7 +223,10 @@ where
             .user_follower_ids(user_id.clone())
             .await?;
 
-        let receivers = follower_ids.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = follower_ids
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
 
         let event = self
             .notification_repository
@@ -221,7 +235,6 @@ where
                 "chat",
                 UserNotificationEvent::UserCommunityPost.as_str(),
                 &receivers,
-                Some(content.clone()),
                 None,
             )
             .await?;
@@ -229,7 +242,8 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
-               metadata: None,
+            metadata: None,
+            content: Some(content.clone()),
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -249,7 +263,10 @@ where
             .user_follower_ids(user_id.clone())
             .await?;
 
-        let receivers = follower_ids.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = follower_ids
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
 
         let event = self
             .notification_repository
@@ -258,18 +275,15 @@ where
                 "create a task",
                 UserNotificationEvent::UserTaskRequestCreated.as_str(),
                 &receivers,
-                None,
-                Some(
-                    json!({ 
-                        "task_id": task_id.clone(),  
+                Some(json!({                        "task_id": task_id.clone(),  
                         "from_user": user_id.clone(),
-                        "to_user": to_user.clone()}),
-                ),
+                        "to_user": to_user.clone()})),
             )
             .await?;
 
         let _ = self.event_sender.send(AppEvent {
-            receivers: receivers,
+            receivers,
+            content: None,
             user_id: user_id_str,
             metadata: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -291,7 +305,10 @@ where
             .user_follower_ids(to_user.clone())
             .await?;
 
-        let receivers = follower_ids.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = follower_ids
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
         let event = self
             .notification_repository
             .create(
@@ -299,18 +316,16 @@ where
                 "create a task",
                 UserNotificationEvent::UserTaskRequestReceived.as_str(),
                 &receivers,
-                None,
-                Some(
-                    json!({ 
+                Some(json!({
                         "task_id": task_id.clone(),  
                         "from_user": user_id.clone(),
-                        "to_user": to_user.clone()}),
-                ),
+                        "to_user": to_user.clone()})),
             )
             .await?;
 
         let _ = self.event_sender.send(AppEvent {
-            receivers: receivers,
+            receivers,
+            content: None,
             user_id: user_id_str,
             metadata: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -334,12 +349,15 @@ where
             .user_follower_ids(user_id.clone())
             .await?;
 
-        let metadata =  AppEventMetadata {
+        let metadata = AppEventMetadata {
             discussion_id: Some(discussion_id.clone()),
             topic_id: topic_id.clone(),
             post_id: Some(post_id.clone()),
         };
-        let receivers = follower_ids.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = follower_ids
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
         let event = self
             .notification_repository
             .create(
@@ -347,7 +365,6 @@ where
                 "create a task",
                 UserNotificationEvent::DiscussionPostReplyAdded.as_str(),
                 &receivers,
-                Some(content.clone()),
                 Some(json!(metadata)),
             )
             .await?;
@@ -355,6 +372,7 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers: follower_ids.iter().map(|id| id.to_raw()).collect(),
             user_id: user_id_str,
+            content: Some(content.clone()),
             metadata: Some(metadata.clone()),
             event: AppEventType::DiscussionNotificationEvent(event),
         });
@@ -377,13 +395,16 @@ where
             .user_follower_ids(user_id.clone())
             .await?;
 
-        let metadata =  AppEventMetadata {
+        let metadata = AppEventMetadata {
             discussion_id: Some(discussion_id.clone()),
             topic_id: topic_id.clone(),
             post_id: Some(post_id.clone()),
         };
 
-        let receivers = follower_ids.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
+        let receivers = follower_ids
+            .iter()
+            .map(|id| id.to_raw())
+            .collect::<Vec<String>>();
         let event = self
             .notification_repository
             .create(
@@ -391,16 +412,15 @@ where
                 "post ",
                 UserNotificationEvent::DiscussionPostReplyNrIncreased.as_str(),
                 &receivers,
-                 Some(content.clone()),
                 Some(json!(metadata)),
             )
             .await?;
-
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
             metadata: Some(metadata),
+            content: Some(content.clone()),
             event: AppEventType::DiscussionNotificationEvent(event),
         });
 
@@ -420,10 +440,10 @@ where
                 description: "Post to json error for notification event".to_string(),
             })
         })?;
-          let metadata =  AppEventMetadata {
-            discussion_id: Some(post_comm_view.belongs_to_id.clone(),),
+        let metadata = AppEventMetadata {
+            discussion_id: Some(post_comm_view.belongs_to_id.clone()),
             topic_id: post_comm_view.topic.clone().map(|t| t.id),
-            post_id:  Some(post_comm_view.id.clone()),
+            post_id: Some(post_comm_view.id.clone()),
         };
 
         let event = self
@@ -433,14 +453,14 @@ where
                 "post ",
                 UserNotificationEvent::DiscussionPostAdded.as_str(),
                 &receivers,
-                Some(post_json.clone()),
                 Some(json!(metadata)),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
             user_id: user_id.clone().to_raw(),
             event: AppEventType::DiscussionNotificationEvent(event),
-            receivers: receivers,
+            content: Some(post_json),
+            receivers,
             metadata: Some(metadata),
         });
 

@@ -136,7 +136,6 @@ async fn test_endowment_transaction(
             &UserNotificationEvent::UserBalanceUpdate.as_str(),
             &vec![another_user_thing.to_raw()],
             None,
-            None,
         )
         .await?;
 
@@ -338,7 +337,6 @@ async fn handle_webhook(
                     "update balance",
                     UserNotificationEvent::UserBalanceUpdate.as_str(),
                     &vec![user_id.to_raw()],
-                    None,
                     None,
                 )
                 .await?;
