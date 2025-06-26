@@ -1,26 +1,33 @@
-use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
-use axum::{Json, Router};
-use serde::Deserialize;
-use std::sync::Arc;
-
-use local_user_entity::LocalUserDbService;
-use middleware::ctx::Ctx;
-use middleware::error::CtxResult;
-
-use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotification;
 use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
 };
 use crate::middleware;
-use crate::middleware::mw_ctx::CtxState;
+use crate::middleware::mw_ctx::{AppEventType, CtxState};
 use crate::middleware::utils::db_utils::QryOrder;
+use axum::extract::{Path, Query, State};
+use axum::response::sse::{Event, KeepAlive};
+use axum::response::Sse;
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use futures::Stream;
+use middleware::ctx::Ctx;
+use serde::Deserialize;
+use serde_json::json;
+use std::convert::Infallible;
+use std::sync::Arc;
+use tokio_stream::wrappers::BroadcastStream;
+
+use crate::{
+    entities::user_auth::local_user_entity::LocalUserDbService, middleware::error::CtxResult,
+};
+use tokio_stream::StreamExt;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/notifications", get(get_notifications))
         .route("/api/notifications/read", post(read_all))
+        .route("/api/notifications/sse", get(sse))
         .route("/api/notifications/count", get(get_count))
         .route("/api/notifications/:notification_id/read", post(read))
 }
@@ -119,4 +126,31 @@ async fn get_count(
         .await?;
 
     Ok(Json(count))
+}
+
+async fn sse(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+
+    let user_id = user.to_raw();
+
+    let rx = state.event_sender.subscribe();
+    let stream = BroadcastStream::new(rx).filter_map(move |msg| match msg {
+        Err(_) => None,
+        Ok(msg) => match msg.event {
+            AppEventType::UserNotificationEvent(n) if msg.receivers.contains(&user_id) => {
+                Some(Ok(Event::default().data(json!(n).to_string())))
+            }
+            _ => None,
+        },
+    });
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

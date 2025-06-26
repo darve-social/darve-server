@@ -10,7 +10,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events, notifications, users,
+        self, auth, notifications, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -180,7 +180,6 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(notifications::routes())
         .merge(wallet_routes::routes())
         .merge(wallet_endowment_routes::routes(ctx_state.is_development))
-        .merge(events::routes())
         .merge(users::routes())
         .merge(paypal::routes())
         .with_state(ctx_state.clone())

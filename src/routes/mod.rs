@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod community;
-pub mod events;
 pub mod notifications;
 pub mod task;
 pub mod user_auth;
