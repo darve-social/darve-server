@@ -1,5 +1,5 @@
 use crate::entities::task::{task_request_entity, task_request_participation_entity};
-use crate::entities::user_auth::{local_user_entity, user_notification_entity};
+use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;

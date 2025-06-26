@@ -1,24 +1,21 @@
-use crate::utils::validate_utils::deserialize_thing_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use surrealdb::sql::Datetime;
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct UserNotification {
-    #[serde(deserialize_with = "deserialize_thing_id")]
     pub id: String,
-    #[serde(deserialize_with = "deserialize_thing_id")]
     pub created_by: String,
-    #[serde(rename(deserialize = "type"))]
     pub event: UserNotificationEvent,
     pub title: String,
     #[serde(default)]
     pub is_read: bool,
     pub content: Option<String>,
     pub metadata: Option<Value>,
-    pub created_at: Option<String>,
+    pub created_at: Datetime,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum UserNotificationEvent {
     DiscussionPostAdded,
     DiscussionPostReplyAdded,

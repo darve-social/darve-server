@@ -10,7 +10,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events, users,
+        self, auth, events, notifications, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -48,7 +48,7 @@ use routes::task::task_request_routes;
 use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
 use routes::user_auth::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
-    register_routes, user_notification_routes,
+    register_routes,
 };
 use std::{sync::Arc, time::Duration};
 use tower_cookies::CookieManagerLayer;
@@ -177,7 +177,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
         .merge(task_request_routes::routes())
         .merge(follow_routes::routes())
-        .merge(user_notification_routes::routes())
+        .merge(notifications::routes())
         .merge(wallet_routes::routes())
         .merge(wallet_endowment_routes::routes(ctx_state.is_development))
         .merge(events::routes())

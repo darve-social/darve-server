@@ -3,8 +3,8 @@ use crate::helpers::{create_fake_login_test_user, create_login_test_user, create
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
-        community::post_stream_entity::PostStreamDbService,
-        user_auth::{follow_entity, user_notification_entity},
+        community::post_stream_entity::PostStreamDbService, user_auth::follow_entity,
+        user_notification::UserNotification,
     },
     middleware,
     routes::{
@@ -21,7 +21,6 @@ use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
 use serial_test::serial;
-use user_notification_entity::UserNotification;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -371,14 +370,14 @@ async fn get_user_followers() {
         .await;
     let created = &create_response.json::<FollowingStreamView>();
     assert_eq!(created.post_list.len(), 2);
-
-    let notifications: surrealdb::Result<Vec<UserNotification>> = ctx_state
-        .db
-        .client
-        .select(user_notification_entity::TABLE_NAME)
+    
+    let notifications_response = server
+        .get("/api/notifications")
+        .add_header("Accept", "application/json")
         .await;
-    dbg!(&notifications);
-    assert_eq!(notifications.is_ok(), true);
+    notifications_response.assert_status_success();
+    let notifications = notifications_response.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 2)
 }
 
 #[tokio::test(flavor = "multi_thread")]

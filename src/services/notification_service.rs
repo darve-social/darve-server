@@ -119,7 +119,6 @@ where
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
         let receivers = participators.iter().map(|id| id.to_raw()).collect::<Vec<String>>();
-        let metadata= json!({ "task_id": task_id, "deliverable": deliverable.to_raw(),  "delivered_by": user_id.clone()});
         let event = self
             .notification_repository
             .create(
@@ -128,7 +127,9 @@ where
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
                 None,
-                Some(metadata.clone()),
+                Some({
+                    json!({ "task_id": task_id.to_raw(), "deliverable": deliverable.to_raw(), "delivered_by": user_id.clone().to_raw()})
+                }),
             )
             .await?;
 
