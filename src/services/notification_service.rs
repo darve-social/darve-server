@@ -64,7 +64,10 @@ where
                 "like",
                 &UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
-                Some(json!({ "user_id": user_id_str, "post_id": post_id })),
+                Some(json!({
+                    "user_id": user_id_str,
+                    "post_id": post_id.to_raw()
+                })),
             )
             .await?;
 
@@ -90,8 +93,6 @@ where
             .iter()
             .map(|id| id.to_raw())
             .collect::<Vec<String>>();
-        let metadata =
-            json!({ "username": user.username.clone(), "follows_username": follow_username });
         let event = self
             .notification_repository
             .create(
@@ -99,7 +100,10 @@ where
                 "follow",
                 UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
-                Some(metadata.clone()),
+                Some(json!({
+                    "username": user.username.clone(),
+                    "follows_username": follow_username
+                })),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
@@ -133,7 +137,10 @@ where
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
                 Some({
-                    json!({ "task_id": task_id.to_raw(), "deliverable": deliverable.to_raw(), "delivered_by": user_id.clone().to_raw()})
+                    json!({
+                    "task_id": task_id.to_raw(),
+                    "deliverable": deliverable.to_raw(),
+                    "delivered_by": user_id.to_raw()})
                 }),
             )
             .await?;
@@ -275,9 +282,10 @@ where
                 "create a task",
                 UserNotificationEvent::UserTaskRequestCreated.as_str(),
                 &receivers,
-                Some(json!({                        "task_id": task_id.clone(),  
-                        "from_user": user_id.clone(),
-                        "to_user": to_user.clone()})),
+                Some(json!({
+                        "task_id": task_id.to_raw(),  
+                        "from_user": user_id.to_raw(),
+                        "to_user": to_user.to_raw()})),
             )
             .await?;
 
@@ -317,9 +325,9 @@ where
                 UserNotificationEvent::UserTaskRequestReceived.as_str(),
                 &receivers,
                 Some(json!({
-                        "task_id": task_id.clone(),  
-                        "from_user": user_id.clone(),
-                        "to_user": to_user.clone()})),
+                        "task_id": task_id.to_raw(),  
+                        "from_user": user_id.to_raw(),
+                        "to_user": to_user.to_raw()})),
             )
             .await?;
 
@@ -365,7 +373,11 @@ where
                 "create a task",
                 UserNotificationEvent::DiscussionPostReplyAdded.as_str(),
                 &receivers,
-                Some(json!(metadata)),
+                Some(json!({
+                  "discussion_id": discussion_id.to_raw(),
+                  "topic_id": topic_id.to_owned(),
+                  "post_id": post_id.to_raw(),
+                })),
             )
             .await?;
 
@@ -412,7 +424,11 @@ where
                 "post ",
                 UserNotificationEvent::DiscussionPostReplyNrIncreased.as_str(),
                 &receivers,
-                Some(json!(metadata)),
+                Some(json!({
+                  "discussion_id": discussion_id.to_raw(),
+                  "topic_id": topic_id.to_owned(),
+                  "post_id": post_id.to_raw(),
+                })),
             )
             .await?;
 
@@ -453,7 +469,11 @@ where
                 "post ",
                 UserNotificationEvent::DiscussionPostAdded.as_str(),
                 &receivers,
-                Some(json!(metadata)),
+                Some(json!({
+                  "discussion_id":post_comm_view.belongs_to_id.to_raw(),
+                  "topic_id": post_comm_view.topic.clone().map(|t| t.id.to_raw()),
+                  "post_id": post_comm_view.id.to_raw(),
+                })),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
