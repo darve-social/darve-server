@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
-use validator::ValidateRequired;
 
 #[derive(Debug)]
 pub struct UserNotificationsRepository {
@@ -30,7 +29,7 @@ impl UserNotificationsRepository {
         DEFINE FIELD IF NOT EXISTS title       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<local_user>;
         DEFINE FIELD IF NOT EXISTS content     ON TABLE notifications TYPE option<string>;
-        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications TYPE option<object>;
+        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications;
         DEFINE FIELD IF NOT EXISTS created_at  ON TABLE notifications TYPE datetime DEFAULT time::now();
 
         DEFINE TABLE IF NOT EXISTS user_notifications TYPE RELATION IN local_user OUT notifications ENFORCED SCHEMAFULL PERMISSIONS NONE;
