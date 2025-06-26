@@ -8,7 +8,6 @@ use crate::entities::community::post_entity::PostDbService;
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
-use crate::entities::user_notification::UserNotificationEvent;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::{middleware, utils};
@@ -458,7 +457,7 @@ async fn discussion_sse(
             }
 
             let _ = match msg.as_ref().unwrap().clone().event {
-                AppEventType::DiscussionNotificationEvent(e) => e,
+                AppEventType::DiscussionPostAdded | AppEventType::DiscussionPostReplyAdded | AppEventType::DiscussionPostReplyNrIncreased => (),
                 _ => return false,
             };
 
@@ -477,8 +476,7 @@ async fn discussion_sse(
             let event_opt = match msg {
                 Err(_) => None,
                 Ok(msg) => match msg.event {
-                    AppEventType::DiscussionNotificationEvent(n) => match n.event {
-                        UserNotificationEvent::DiscussionPostAdded => {
+                        AppEventType::DiscussionPostAdded => {
                             match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
                                 Ok(mut dpv) => {
                                     dpv.viewer_access_rights = user_auth.clone();
@@ -496,14 +494,14 @@ async fn discussion_sse(
 
                                     match ctx.to_htmx_or_json(dpv) {
                                         Ok(post_html) => Some(
-                                            Event::default().event(n.event.as_str()).data(post_html.0),
+                                            Event::default().event("DiscussionPostAdded").data(post_html.0),
                                         ),
                                         Err(err) => {
                                             let msg = "ERROR rendering DiscussionPostView";
                                             println!("{} ERR={}", &msg, err.error);
                                             Some(
                                                 Event::default()
-                                                    .data(&serde_json::to_string(&n).unwrap())
+                                                    .data(&serde_json::to_string(&msg).unwrap())
                                             )
                                         }
                                     }
@@ -512,35 +510,33 @@ async fn discussion_sse(
                                     let msg =
                                     "ERROR converting NotificationEvent content to DiscussionPostView";
                                     println!("{} ERR={err}", &msg);
-                                    Some(Event::default().data(&serde_json::to_string(&n).unwrap()))
+                                    Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
                                 }
                             }
                         }
-                        UserNotificationEvent::DiscussionPostReplyNrIncreased => Some(
+                        AppEventType::DiscussionPostReplyNrIncreased => Some(
                             if ctx.is_htmx {
                                 let metadata = msg.metadata.as_ref().unwrap();
                                 let post_id = metadata.post_id.as_ref().unwrap().to_raw();
-                                let id = format!("{}_{}", n.event.as_str(),post_id);
-                                    Event::default().event(&id)
-                                    .data(&msg.content.unwrap())
+                                let id = format!("DiscussionPostReplyNrIncreased_{}",post_id);
+                                    Event::default().event(id).data(&msg.content.unwrap())
                             } else {
                                 Event::default()
-                                .data(&serde_json::to_string(&n).unwrap())
+                                .data(&serde_json::to_string(&msg).unwrap())
                             }
                         ),
-                        UserNotificationEvent::DiscussionPostReplyAdded => Some(
+                        AppEventType::DiscussionPostReplyAdded => Some(
                           if ctx.is_htmx {
-                                Event::default().event(n.event.as_str())
+                                Event::default().event("DiscussionPostReplyAdded") 
                                 .data(&msg.content.unwrap())
                             } else {
                                 Event::default()
-                                .data(&serde_json::to_string(&n).unwrap())
+                                .data(&serde_json::to_string(&msg).unwrap())
                             }
                         ),
                         _ => None,
                     },
-                    _ => None,
-                },
+                    
             };
             Ok(event_opt.unwrap_or_else(|| {
                 Event::default()

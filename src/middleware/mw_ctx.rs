@@ -22,7 +22,9 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize)]
 pub enum AppEventType {
     UserNotificationEvent(UserNotification),
-    DiscussionNotificationEvent(UserNotification),
+    DiscussionPostAdded,
+    DiscussionPostReplyAdded,
+    DiscussionPostReplyNrIncreased,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEventMetadata {

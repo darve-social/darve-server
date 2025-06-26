@@ -10,16 +10,12 @@ pub struct UserNotification {
     pub title: String,
     #[serde(default)]
     pub is_read: bool,
-    // pub content: Option<String>,
     pub metadata: Option<Value>,
     pub created_at: Datetime,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum UserNotificationEvent {
-    DiscussionPostAdded,
-    DiscussionPostReplyAdded,
-    DiscussionPostReplyNrIncreased,
     UserBalanceUpdate,
     UserChatMessage,
     UserCommunityPost,
@@ -41,11 +37,6 @@ impl UserNotificationEvent {
             UserNotificationEvent::UserCommunityPost => "UserCommunityPost",
             UserNotificationEvent::UserBalanceUpdate => "UserBalanceUpdate",
             UserNotificationEvent::UserLikePost => "UserLikePost",
-            UserNotificationEvent::DiscussionPostReplyAdded => "DiscussionPostReplyAdded",
-            UserNotificationEvent::DiscussionPostReplyNrIncreased => {
-                "DiscussionPostReplyNrIncreased"
-            }
-            UserNotificationEvent::DiscussionPostAdded => "DiscussionPostAdded",
         }
     }
 }
