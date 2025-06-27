@@ -46,7 +46,6 @@ struct SocialSignInput {
 }
 async fn sign_by_fb(
     State(state): State<Arc<CtxState>>,
-    cookies: Cookies,
     ctx: Ctx,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
@@ -61,20 +60,12 @@ async fn sign_by_fb(
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
 
-    cookies.add(
-        Cookie::build((JWT_KEY, token))
-            .path("/")
-            .http_only(true)
-            .into(),
-    );
-
-    Ok((StatusCode::OK, Json(json!(user))).into_response())
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 
 async fn sign_by_apple(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    cookies: Cookies,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
@@ -89,20 +80,11 @@ async fn sign_by_apple(
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
         .await?;
 
-    cookies.add(
-        Cookie::build((JWT_KEY, token))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
-            .path("/")
-            .http_only(true)
-            .into(), //.finish(),
-    );
-
-    Ok((StatusCode::OK, Json(json!(user))).into_response())
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 
 async fn sign_by_google(
     State(state): State<Arc<CtxState>>,
-    cookies: Cookies,
     ctx: Ctx,
     body: Json<SocialSignInput>,
 ) -> CtxResult<Response> {
@@ -119,20 +101,11 @@ async fn sign_by_google(
         .sign_by_google(&body.token, &state.google_client_id)
         .await?;
 
-    cookies.add(
-        Cookie::build((JWT_KEY, token))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
-            .path("/")
-            .http_only(true)
-            .into(), //.finish(),
-    );
-
-    Ok((StatusCode::OK, Json(json!(user))).into_response())
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 
 async fn signin(
     State(state): State<Arc<CtxState>>,
-    cookies: Cookies,
     ctx: Ctx,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
@@ -146,15 +119,6 @@ async fn signin(
     );
 
     let (token, user) = auth_service.login_password(body).await?;
-
-    cookies.add(
-        Cookie::build((JWT_KEY, token.clone()))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
-            .path("/")
-            .http_only(true)
-            .into(), //.finish(),
-    );
-
     Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 

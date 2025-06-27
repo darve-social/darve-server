@@ -299,6 +299,7 @@ where
 
         match res_user_id {
             Ok(user_id) => {
+                println!("{:?}", user_id);
                 let user = self
                     .user_repository
                     .get(IdentIdName::Id(get_string_thing(user_id)?))
@@ -414,7 +415,7 @@ where
         let auth = self.auth_repository.get_by_token(auth, token).await?;
 
         if auth.is_some() {
-            return Ok(auth.unwrap().local_user.id.to_raw());
+            return Ok(auth.unwrap().local_user.to_raw());
         }
 
         match email {
