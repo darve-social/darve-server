@@ -386,6 +386,7 @@ async fn check_lock_user_wallet_parallel_2() {
     assert!(res[1].is_ok());
     assert!(res[2].is_ok());
 }
+
 #[tokio::test]
 #[serial]
 async fn prod_balance_0() {

@@ -1,4 +1,6 @@
 mod helpers;
+use askama::filters::format;
+use axum::http::response;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
@@ -118,8 +120,6 @@ async fn search_users() {
     assert_eq!(res.items.len(), 5);
 }
 
-// #[tokio::test]
-
 #[tokio::test]
 #[serial]
 async fn email_verification_and_confirmation() {
@@ -176,6 +176,66 @@ async fn email_verification_and_confirmation() {
         .await;
 
     assert!(code.is_err());
+}
+#[tokio::test]
+#[serial]
+async fn try_verification_email_with_already_verified_email() {
+    let (server, ctx_state) = create_test_server().await;
+
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let username = user.username;
+    let user_id = user.id.clone().unwrap();
+    let new_email = "asdasdasd@asdasd.com";
+
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": "asasdasdas@asd.com"}))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let db = &ctx_state.db.client;
+    let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+    let user_db = LocalUserDbService { db, ctx: &ctx };
+
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": new_email}))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let code = ctx_state
+        .db
+        .verification_code
+        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+        .await
+        .unwrap()
+        .code;
+
+    let response = server
+        .post("/api/users/current/email/verification/confirm")
+        .json(&json!({"code": code.clone(), "email": new_email }))
+        .add_header("Accept", "application/json")
+        .await;
+
+    response.assert_status_success();
+
+    let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
+    assert_eq!(user.email_verified, Some(new_email.to_string()));
+
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let response = server
+        .post("/api/users/current/email/verification/start")
+        .json(&json!({ "email": new_email}))
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    response.assert_status_failure();
+    assert!(response.text().contains("The email is already used"))
 }
 
 #[tokio::test]

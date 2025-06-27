@@ -53,7 +53,8 @@ pub struct CtxState {
     pub platform_fee_rel: f64,
     pub upload_max_size_mb: u64,
     pub apple_mobile_client_id: String,
-    pub google_client_id: String,
+    pub google_ios_client_id: String,
+    pub google_android_client_id: String,
     pub event_sender: broadcast::Sender<AppEvent>,
     pub verification_code_ttl: Duration,
     pub jwt: JWT,
@@ -84,7 +85,8 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         upload_max_size_mb: config.upload_file_size_max_mb,
         jwt: JWT::new(config.jwt_secret.clone(), Duration::days(7)),
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
-        google_client_id: config.google_client_id.clone(),
+        google_ios_client_id: config.google_ios_client_id.clone(),
+        google_android_client_id: config.google_android_client_id.clone(),
         file_storage: Arc::new(
             GoogleCloudFileStorage::new(
                 &config.gcs_bucket,
