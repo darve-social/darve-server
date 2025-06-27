@@ -283,7 +283,8 @@ pub async fn create_post_entity_route(
         .get(IdentIdName::Id(get_string_thing(discussion_id)?))
         .await?;
 
-    let is_user_chat = is_user_chat_discussion(&ctx, &disc.private_discussion_user_ids).unwrap_or(false);
+    let is_user_chat =
+        is_user_chat_discussion(&ctx, &disc.private_discussion_user_ids).unwrap_or(false);
 
     if !is_user_chat {
         let min_authorisation = Authorization {
@@ -400,7 +401,12 @@ pub async fn create_post_entity_route(
         r_created: post.r_created,
     };
 
-    let n_service = NotificationService::new(&ctx_state.db.client, &ctx, &ctx_state.event_sender);
+    let n_service = NotificationService::new(
+        &ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+    );
     let content = serde_json::to_string(&latest_post).unwrap();
     if is_user_chat {
         n_service
@@ -487,7 +493,12 @@ async fn like(
 
     let user_id = user.id.unwrap();
 
-    let n_service = NotificationService::new(&&ctx_state.db.client, &ctx, &ctx_state.event_sender);
+    let n_service = NotificationService::new(
+        &&ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+    );
     n_service
         .on_like(&user_id, vec![user_id.clone()], post_thing)
         .await?;

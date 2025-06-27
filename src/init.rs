@@ -10,7 +10,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, events, users,
+        self, auth, notifications, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -24,7 +24,6 @@ use axum::{
 };
 use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
-use entities::community::discussion_notification_entity::DiscussionNotificationDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
@@ -37,7 +36,6 @@ use entities::user_auth::access_right_entity::AccessRightDbService;
 use entities::user_auth::access_rule_entity::AccessRuleDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
-use entities::user_auth::user_notification_entity::UserNotificationDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
@@ -50,7 +48,7 @@ use routes::task::task_request_routes;
 use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
 use routes::user_auth::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
-    register_routes, user_notification_routes,
+    register_routes,
 };
 use std::{sync::Arc, time::Duration};
 use tower_cookies::CookieManagerLayer;
@@ -119,9 +117,9 @@ pub async fn run_migrations(db: &Db) -> AppResult<()> {
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionNotificationDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
+    // DiscussionNotificationDbService { db: &db, ctx: &c }
+    //     .mutate_db()
+    //     .await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }
@@ -148,9 +146,9 @@ pub async fn run_migrations(db: &Db) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
-    UserNotificationDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
+    // UserNotificationDbService { db: &db, ctx: &c }
+    //     .mutate_db()
+    //     .await?;
     GatewayTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
@@ -179,10 +177,9 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
         .merge(task_request_routes::routes())
         .merge(follow_routes::routes())
-        .merge(user_notification_routes::routes())
+        .merge(notifications::routes())
         .merge(wallet_routes::routes())
         .merge(wallet_endowment_routes::routes(ctx_state.is_development))
-        .merge(events::routes())
         .merge(users::routes())
         .merge(paypal::routes())
         .with_state(ctx_state.clone())

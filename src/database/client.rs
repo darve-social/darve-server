@@ -5,6 +5,7 @@ use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
 
+use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
 use crate::middleware::error::AppError;
 
@@ -23,6 +24,7 @@ pub struct DbConfig<'a> {
 pub struct Database {
     pub client: Arc<Surreal<Any>>,
     pub verification_code: VerificationCodeRepository,
+    pub user_notifications: UserNotificationsRepository,
 }
 
 impl Database {
@@ -58,11 +60,13 @@ impl Database {
         Self {
             client: client.clone(),
             verification_code: VerificationCodeRepository::new(client.clone()),
+            user_notifications: UserNotificationsRepository::new(client.clone()),
         }
     }
 
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         self.verification_code.mutate_db().await?;
+        self.user_notifications.mutate_db().await?;
 
         Ok(())
     }

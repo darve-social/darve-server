@@ -15,7 +15,7 @@ use validator::Validate;
 
 use community::post_entity;
 use community_entity::{Community, CommunityDbService};
-use discussion_routes::{DiscussionPostView, DiscussionView, SseEventName};
+use discussion_routes::{DiscussionPostView, DiscussionView};
 use follow_entity::FollowDbService;
 use follow_routes::{UserItemView, UserListView};
 use local_user_entity::LocalUserDbService;

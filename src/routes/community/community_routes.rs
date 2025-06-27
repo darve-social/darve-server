@@ -31,7 +31,6 @@ use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use strum::Display;
 use template_utils::ProfileFormPage;
 
 use super::discussion_routes;
@@ -282,39 +281,6 @@ pub async fn community_admin_access(
     .is_authorized(&user_id, &required_comm_auth)
     .await?;
     Ok((comm_id, comm))
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Display, Clone)]
-pub enum DiscussionNotificationEvent {
-    DiscussionPostAdded {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-    DiscussionPostReplyAdded {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-    DiscussionPostReplyNrIncreased {
-        discussion_id: Thing,
-        topic_id: Option<Thing>,
-        post_id: Thing,
-    },
-}
-
-impl DiscussionNotificationEvent {
-    pub fn get_sse_event_ident(&self) -> String {
-        match self {
-            DiscussionNotificationEvent::DiscussionPostAdded { .. } => self.to_string(),
-            DiscussionNotificationEvent::DiscussionPostReplyAdded { post_id, .. } => {
-                format!("{}@{}", self.to_string(), post_id)
-            }
-            DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { post_id, .. } => {
-                format!("{}@{}", self.to_string(), post_id)
-            }
-        }
-    }
 }
 
 /*#[derive(Serialize, Deserialize, Clone)]

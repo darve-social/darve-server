@@ -1,7 +1,5 @@
-<div class="flex flex-col gap-10 flex-grow p-3 sm:p-12 md:30 lg:px-32 lg:max-w-s"
-     hx-ext="sse, debug" sse-connect="/api/discussion/{{id|display_some}}/sse"
-     sse-swap="{{SseEventName::get_discussion_post_added_event_name()}}"
-     hx-swap="afterbegin">
+<div class="flex flex-col gap-10 flex-grow p-3 sm:p-12 md:30 lg:px-32 lg:max-w-s" hx-ext="sse, debug"
+    sse-connect="/api/discussion/{{id|display_some}}/sse" sse-swap="DiscussionPostAdded" hx-swap="afterbegin">
     {% for p in posts %}
     {{ p|safe }}
     {% endfor %}

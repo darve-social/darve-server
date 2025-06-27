@@ -2,17 +2,15 @@ mod helpers;
 use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
-use darve_server::entities::task::task_request_entity;
-use darve_server::entities::user_auth::user_notification_entity;
+use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
 use darve_server::entities::wallet::wallet_entity;
+use darve_server::entities::{community::community_entity, task::task_request_entity};
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
 use darve_server::routes::task::task_request_routes;
 use darve_server::routes::user_auth::login_routes;
 use darve_server::routes::wallet::wallet_routes;
-use darve_server::{
-    entities::community::community_entity, routes::user_auth::user_notification_routes,
-};
+use helpers::post_helpers::create_fake_post;
 use serial_test::serial;
 use std::i64;
 use surrealdb::sql::Thing;
@@ -23,15 +21,12 @@ use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
-use middleware::utils::db_utils::NO_SUCH_THING;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use task_request_entity::TaskStatus;
 use task_request_routes::{
     AcceptTaskRequestInput, TaskRequestInput, TaskRequestOfferInput, TaskRequestView,
 };
-use user_notification_entity::UserNotificationEvent;
-use user_notification_routes::UserNotificationView;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 use wallet_routes::CurrencyTransactionHistoryView;
 
@@ -448,30 +443,23 @@ async fn create_task_request_participation() {
 
     // check user notifications
     let notif_history_req = server
-        .get("/api/notification/user/history")
+        .get("/api/notifications")
         .add_header("Accept", "application/json")
         .await;
 
     notif_history_req.assert_status_success();
-    let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
-    assert_eq!(received_notifications.len(), 5);
+    let received_notifications = notif_history_req.json::<Vec<UserNotification>>();
+
+    assert_eq!(received_notifications.len(), 6);
 
     let balance_updates: Vec<_> = received_notifications
         .iter()
-        .filter(|v| v.event.to_string() == UserNotificationEvent::UserBalanceUpdate.to_string())
+        .filter(|v| v.event == UserNotificationEvent::UserBalanceUpdate)
         .collect();
     assert_eq!(balance_updates.len(), 4);
     let balance_updates: Vec<_> = received_notifications
         .iter()
-        .filter(|v| {
-            v.event.to_string()
-                == UserNotificationEvent::UserTaskRequestDelivered {
-                    task_id: NO_SUCH_THING.clone(),
-                    deliverable: NO_SUCH_THING.clone(),
-                    delivered_by: NO_SUCH_THING.clone(),
-                }
-                .to_string()
-        })
+        .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
         .collect();
     assert_eq!(balance_updates.len(), 1);
 
@@ -522,4 +510,178 @@ async fn create_task_request_participation() {
             assert_eq!(ts <= prev_val, true);
             ts
         });
+}
+
+#[tokio::test]
+#[serial]
+async fn get_notifications() {
+    let (server, _state) = create_test_server().await;
+    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let discussion_id = Thing::from((
+        "discussion".to_string(),
+        user1.id.as_ref().unwrap().id.to_raw(),
+    ));
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 4);
+    let req = server
+        .get("/api/notifications?count=1")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 1);
+    let req = server
+        .get("/api/notifications?is_read=true")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 0);
+
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 0);
+}
+
+#[tokio::test]
+#[serial]
+async fn set_read_notification() {
+    let (server, _) = create_test_server().await;
+    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let discussion_id = Thing::from((
+        "discussion".to_string(),
+        user1.id.as_ref().unwrap().id.to_raw(),
+    ));
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 1);
+
+    let id = &notifications.first().as_ref().unwrap().id;
+    let req = server
+        .post(&format!("/api/notifications/{id}/read"))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    req.assert_status_success();
+
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 1);
+    let first = notifications.first().unwrap();
+    assert_eq!(first.is_read, true);
+}
+
+#[tokio::test]
+#[serial]
+async fn set_read_all_notifications() {
+    let (server, _) = create_test_server().await;
+    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let discussion_id = Thing::from((
+        "discussion".to_string(),
+        user1.id.as_ref().unwrap().id.to_raw(),
+    ));
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 5);
+
+    let req = server
+        .post(&format!("/api/notifications/read"))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    req.assert_status_success();
+
+    let req = server
+        .get("/api/notifications?is_read=true")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 5);
+}
+#[tokio::test]
+#[serial]
+async fn get_count_of_notifications() {
+    let (server, _) = create_test_server().await;
+    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let discussion_id = Thing::from((
+        "discussion".to_string(),
+        user1.id.as_ref().unwrap().id.to_raw(),
+    ));
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let req = server
+        .get("/api/notifications/count")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let count = req.json::<u64>();
+    assert_eq!(count, 5);
+
+    let req = server
+        .get("/api/notifications/count?is_read=true")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    req.assert_status_success();
+
+    req.assert_status_success();
+    let count = req.json::<u64>();
+    assert_eq!(count, 0);
 }

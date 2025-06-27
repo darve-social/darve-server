@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use surrealdb::sql::{Id, Thing};
 use validator::Validate;
 
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, get_list_qry, with_not_found_err, IdentIdName,
-    QryBindingsVal, ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
 use middleware::{
     ctx::Ctx,

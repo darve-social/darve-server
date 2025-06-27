@@ -20,7 +20,6 @@ use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
-use community_routes::DiscussionNotificationEvent;
 use discussion_entity::{Discussion, DiscussionDbService};
 use discussion_topic_routes::{
     DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView,
@@ -31,7 +30,7 @@ use middleware::ctx::Ctx;
 
 use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector, NO_SUCH_THING};
+use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
@@ -41,7 +40,7 @@ use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 use validator::Validate;
 
-use super::{community_routes, discussion_topic_routes};
+use super::discussion_topic_routes;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     let view_routes = Router::new()
@@ -70,38 +69,6 @@ pub fn routes() -> Router<Arc<CtxState>> {
             "/api/discussion/:discussion_id/sse/htmx",
             get(discussion_sse_htmx),
         )
-}
-
-// used in templates
-pub struct SseEventName {}
-impl SseEventName {
-    pub fn get_discussion_post_added_event_name() -> String {
-        DiscussionNotificationEvent::DiscussionPostAdded {
-            discussion_id: NO_SUCH_THING.clone(),
-            topic_id: None,
-            post_id: NO_SUCH_THING.clone(),
-        }
-        .to_string()
-    }
-    pub fn get_discussion_post_reply_added(reply_ident: &Thing) -> String {
-        DiscussionNotificationEvent::DiscussionPostReplyAdded {
-            discussion_id: NO_SUCH_THING.clone(),
-            topic_id: None,
-            post_id: reply_ident.clone(),
-        }
-        .get_sse_event_ident()
-    }
-    pub fn get_discussion_post_reply_nr_increased(post_ident: &Thing) -> String {
-        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-            discussion_id: NO_SUCH_THING.clone(),
-            topic_id: None,
-            post_id: post_ident.clone(),
-        }
-        .get_sse_event_ident()
-    }
-    pub fn get_error() -> String {
-        "Error".to_string()
-    }
 }
 
 #[derive(Template, Serialize)]
@@ -368,7 +335,7 @@ async fn create_update_form(
         Some(id) => {
             let id = get_string_thing(id.clone())?;
             // auth discussion
-           
+
             AccessRightDbService {
                 db: &state.db.client,
                 ctx: &ctx,
@@ -462,10 +429,10 @@ async fn discussion_sse_htmx(
 async fn discussion_sse(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    Path(discussion_id): Path<String>,
+    Path(disc_id): Path<String>,
     Query(q_params): Query<DiscussionParams>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
-    let discussion_id = get_string_thing(discussion_id)?;
+    let discussion_id = get_string_thing(disc_id.clone())?;
     let discussion = DiscussionDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -485,49 +452,32 @@ async fn discussion_sse(
     let rx = ctx_state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx)
         .filter(move|msg| {
-            if msg.is_err() {
+            if msg.is_err()  {
                 return false;
             }
 
-            let event = match msg.as_ref().unwrap().clone().event {
-                AppEventType::DiscussionNotificationEvent(e) => e,
+            let _ = match msg.as_ref().unwrap().clone().event {
+                AppEventType::DiscussionPostAdded | AppEventType::DiscussionPostReplyAdded | AppEventType::DiscussionPostReplyNrIncreased => (),
                 _ => return false,
             };
 
-            let (event_discussion_id, event_topic_id) = match event {
-                DiscussionNotificationEvent::DiscussionPostAdded {
-                    discussion_id,
-                    topic_id,
-                    ..
-                } => (discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyAdded {
-                    discussion_id,
-                    topic_id,
-                    ..
-                } => (discussion_id, topic_id),
-                DiscussionNotificationEvent::DiscussionPostReplyNrIncreased {
-                    discussion_id,
-                    topic_id,
-                    ..
-                } => (discussion_id, topic_id),
-            };
+            let metadata = msg.as_ref().unwrap().metadata.as_ref().unwrap();
 
-            if event_discussion_id.ne(&discussion_id) {
+            if *metadata.discussion_id.as_ref().unwrap() != discussion_id {
                 return false;
             }
 
-            if q_params.topic_id.is_some() && q_params.topic_id.ne(&event_topic_id) {
+            if q_params.topic_id.is_some() && q_params.topic_id.ne(&metadata.topic_id) {
                 return false;
             }
-            event_discussion_id.eq(&discussion_id)
+            true
         })
         .map(move |msg| {
             let event_opt = match msg {
                 Err(_) => None,
                 Ok(msg) => match msg.event {
-                    AppEventType::DiscussionNotificationEvent(n) => match n {
-                        DiscussionNotificationEvent::DiscussionPostAdded { .. } => {
-                            match serde_json::from_str::<DiscussionPostView>(&msg.content.unwrap()) {
+                        AppEventType::DiscussionPostAdded => {
+                            match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
                                 Ok(mut dpv) => {
                                     dpv.viewer_access_rights = user_auth.clone();
                                     dpv.has_view_access = match &dpv.access_rule {
@@ -544,15 +494,14 @@ async fn discussion_sse(
 
                                     match ctx.to_htmx_or_json(dpv) {
                                         Ok(post_html) => Some(
-                                            Event::default().data(post_html.0).event(n.to_string()),
+                                            Event::default().event("DiscussionPostAdded").data(post_html.0),
                                         ),
                                         Err(err) => {
                                             let msg = "ERROR rendering DiscussionPostView";
                                             println!("{} ERR={}", &msg, err.error);
                                             Some(
                                                 Event::default()
-                                                    .data(msg)
-                                                    .event(SseEventName::get_error()),
+                                                    .data(&serde_json::to_string(&msg).unwrap())
                                             )
                                         }
                                     }
@@ -561,28 +510,37 @@ async fn discussion_sse(
                                     let msg =
                                     "ERROR converting NotificationEvent content to DiscussionPostView";
                                     println!("{} ERR={err}", &msg);
-                                    Some(Event::default().data(msg).event(SseEventName::get_error()))
+                                    Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
                                 }
                             }
                         }
-                        DiscussionNotificationEvent::DiscussionPostReplyNrIncreased { .. } => Some(
-                            Event::default()
-                                .data(msg.content.unwrap())
-                                .event(n.get_sse_event_ident()),
+                        AppEventType::DiscussionPostReplyNrIncreased => Some(
+                            if ctx.is_htmx {
+                                let metadata = msg.metadata.as_ref().unwrap();
+                                let post_id = metadata.post_id.as_ref().unwrap().to_raw();
+                                let id = format!("DiscussionPostReplyNrIncreased_{}",post_id);
+                                    Event::default().event(id).data(&msg.content.unwrap())
+                            } else {
+                                Event::default()
+                                .data(&serde_json::to_string(&msg).unwrap())
+                            }
                         ),
-                        DiscussionNotificationEvent::DiscussionPostReplyAdded { .. } => Some(
-                            Event::default()
-                                .data(msg.content.unwrap())
-                                .event(n.get_sse_event_ident()),
+                        AppEventType::DiscussionPostReplyAdded => Some(
+                          if ctx.is_htmx {
+                                Event::default().event("DiscussionPostReplyAdded") 
+                                .data(&msg.content.unwrap())
+                            } else {
+                                Event::default()
+                                .data(&serde_json::to_string(&msg).unwrap())
+                            }
                         ),
+                        _ => None,
                     },
-                    _ => None,
-                },
+                    
             };
             Ok(event_opt.unwrap_or_else(|| {
                 Event::default()
                     .data("No event".to_string())
-                    .event(SseEventName::get_error())
             }))
         });
 
@@ -594,9 +552,8 @@ async fn create_discussion(
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
-
     let disc_service = DiscussionService::new(&state, &ctx);
-    let disc = disc_service.create( data).await?;
+    let disc = disc_service.create(data).await?;
     Ok(Json(disc))
 }
 
@@ -651,9 +608,7 @@ async fn delete_discussion(
     Path(discussion_id): Path<String>,
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service
-        .delete( &discussion_id)
-        .await?;
+    disc_service.delete(&discussion_id).await?;
     Ok(())
 }
 
@@ -664,9 +619,7 @@ async fn update_discussion(
     Json(data): Json<UpdateDiscussion>,
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service
-        .update(&discussion_id, data)
-        .await?;
+    disc_service.update(&discussion_id, data).await?;
 
     Ok(())
 }

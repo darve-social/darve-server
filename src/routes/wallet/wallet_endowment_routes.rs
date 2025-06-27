@@ -15,18 +15,15 @@ use stripe::{AccountId, Client, CreatePaymentIntent, Currency, Event};
 use surrealdb::sql::Thing;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
-use middleware::ctx::Ctx;
-use middleware::error::{AppError, CtxResult};
-use middleware::utils::string_utils::get_string_thing;
-use user_auth::user_notification_entity::{
-    UserNotification, UserNotificationDbService, UserNotificationEvent,
-};
-
-use crate::entities::user_auth;
+use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
+use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::extractor_utils::extract_stripe_event;
+use middleware::ctx::Ctx;
+use middleware::error::{AppError, CtxResult};
+use middleware::utils::string_utils::get_string_thing;
 
 const PRODUCT_ID_KEY: &str = "product_id";
 
@@ -130,18 +127,17 @@ async fn test_endowment_transaction(
 
     let user1_bal = wallet_service.get_user_balance(&another_user_thing).await?;
 
-    let _unhandeled_res = UserNotificationDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .create(UserNotification {
-        id: None,
-        user: another_user_thing,
-        event: UserNotificationEvent::UserBalanceUpdate,
-        content: "".to_string(),
-        r_created: None,
-    })
-    .await;
+    let _ = ctx_state
+        .db
+        .user_notifications
+        .create(
+            &another_user_thing.to_raw(),
+            "update balance",
+            &UserNotificationEvent::UserBalanceUpdate.as_str(),
+            &vec![another_user_thing.to_raw()],
+            None,
+        )
+        .await?;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
 }
@@ -333,18 +329,17 @@ async fn handle_webhook(
                 );
             }
 
-            let _unhandeled_res = UserNotificationDbService {
-                db: &state.db.client,
-                ctx: &ctx,
-            }
-            .create(UserNotification {
-                id: None,
-                user: user_id,
-                event: UserNotificationEvent::UserBalanceUpdate,
-                content: "".to_string(),
-                r_created: None,
-            })
-            .await;
+            let _ = state
+                .db
+                .user_notifications
+                .create(
+                    &user_id.to_raw(),
+                    "update balance",
+                    UserNotificationEvent::UserBalanceUpdate.as_str(),
+                    &vec![user_id.to_raw()],
+                    None,
+                )
+                .await?;
 
             Ok("Full payment processed".into_response())
         }
