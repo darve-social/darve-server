@@ -98,7 +98,13 @@ async fn sign_by_google(
     );
 
     let (token, user) = auth_service
-        .sign_by_google(&body.token, &state.google_client_id)
+        .sign_by_google(
+            &body.token,
+            &vec![
+                state.google_ios_client_id.as_str(),
+                state.google_android_client_id.as_str(),
+            ],
+        )
         .await?;
 
     Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())

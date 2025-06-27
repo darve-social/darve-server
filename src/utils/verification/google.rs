@@ -11,7 +11,7 @@ pub struct GoogleUser {
     email_verified: Option<String>,
 }
 
-pub async fn verify_token(token: &str, client_id: &str) -> Result<GoogleUser, String> {
+pub async fn verify_token(token: &str, client_ids: &Vec<&str>) -> Result<GoogleUser, String> {
     let url = format!("https://oauth2.googleapis.com/tokeninfo?id_token={}", token);
     let client = Client::new();
     let mut user = client
@@ -23,7 +23,7 @@ pub async fn verify_token(token: &str, client_id: &str) -> Result<GoogleUser, St
         .await
         .map_err(|err| err.to_string())?;
 
-    if user.aud != client_id {
+    if !client_ids.contains(&user.aud.as_str()) {
         return Err("Invalid token for this client ID".to_string());
     }
 

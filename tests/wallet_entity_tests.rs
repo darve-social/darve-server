@@ -389,11 +389,12 @@ async fn check_lock_user_wallet_parallel_2() {
     assert!(res[1].is_ok());
     assert!(res[2].is_ok());
 }
+
 #[tokio::test]
 #[serial]
 async fn prod_balance_0() {
     let (server, _state) = create_test_server().await;
-    let (_, _user, _password) = create_fake_login_test_user(&server).await;
+    let (_, _user, _password, _) = create_fake_login_test_user(&server).await;
     let response = server
         .get("/api/user/wallet/balance")
         .add_header("Accept", "application/json")

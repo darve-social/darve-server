@@ -283,11 +283,11 @@ where
     pub async fn sign_by_google(
         &self,
         token: &str,
-        google_client_id: &str,
+        google_client_ids: &Vec<&str>,
     ) -> CtxResult<(String, LocalUser)> {
-        let google_user = google::verify_token(token, google_client_id)
+        let google_user = google::verify_token(token, google_client_ids)
             .await
-            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
+            .map_err(|e| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
         let res_user_id = self
             .get_user_id_by_social_auth(
@@ -299,7 +299,6 @@ where
 
         match res_user_id {
             Ok(user_id) => {
-                println!("{:?}", user_id);
                 let user = self
                     .user_repository
                     .get(IdentIdName::Id(get_string_thing(user_id)?))

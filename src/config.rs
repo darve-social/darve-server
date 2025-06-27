@@ -14,7 +14,8 @@ pub struct AppConfig {
     pub upload_file_size_max_mb: u64,
     pub apple_mobile_client_id: String,
     pub verification_code_ttl: u8,
-    pub google_client_id: String,
+    pub google_ios_client_id: String,
+    pub google_android_client_id: String,
     pub init_server_password: String,
     pub is_development: bool,
     pub sendgrid_api_key: String,
@@ -59,8 +60,10 @@ impl AppConfig {
             .parse::<u8>()
             .expect("EMAIL_CODE_TIME_TO_LIVE must be number");
 
-        let google_client_id =
-            std::env::var("GOOGLE_CLIENT_ID").expect("Missing GOOGLE_CLIENT_ID in env");
+        let google_ios_client_id =
+            std::env::var("GOOGLE_IOS_CLIENT_ID").expect("Missing GOOGLE_IOS_CLIENT_ID in env");
+        let google_android_client_id = std::env::var("GOOGLE_ANDROID_CLIENT_ID")
+            .expect("Missing GOOGLE_ANDROID_CLIENT_ID in env");
         let gcs_bucket =
             std::env::var("GOOGLE_CLOUD_STORAGE_BUCKET").unwrap_or("darve_storage".to_string());
         let gcs_endpoint = std::env::var("GOOGLE_CLOUD_STORAGE_ENDPOINT")
@@ -106,7 +109,8 @@ impl AppConfig {
             upload_file_size_max_mb,
             apple_mobile_client_id,
             verification_code_ttl,
-            google_client_id,
+            google_ios_client_id,
+            google_android_client_id,
             init_server_password,
             is_development,
             sendgrid_api_key,
