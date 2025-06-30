@@ -33,7 +33,6 @@ impl UserNotificationsRepository {
 
         DEFINE TABLE IF NOT EXISTS user_notifications TYPE RELATION IN local_user OUT notifications ENFORCED SCHEMAFULL PERMISSIONS NONE;
         DEFINE FIELD IF NOT EXISTS is_read    ON TABLE user_notifications TYPE bool DEFAULT false;
-        DEFINE INDEX IF NOT EXISTS in_out_idx ON user_notifications FIELDS in, out;
     "
         );
         let mutation = self.client.query(sql).await?;
