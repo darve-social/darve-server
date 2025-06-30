@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
+use crate::database::repository::{Repository, RepositoryCore};
 use task_deliverable_entity::{TaskDeliverable, TaskDeliverableDbService};
 use task_request_participation_entity::{TaskParticipationDbService, TaskRequestParticipantion};
 use wallet_entity::CurrencySymbol;
@@ -85,6 +86,7 @@ pub enum UserTaskRole {
 pub struct TaskRequestDbService<'a> {
     pub db: &'a Db,
     pub ctx: &'a Ctx,
+    pub task_deliverable_repo: &'a Repository<TaskDeliverable>,
 }
 
 impl<'a> TaskRequestDbService<'a> {}
@@ -265,12 +267,10 @@ impl<'a> TaskRequestDbService<'a> {
                             description: "Deliverable empty".to_string(),
                         }));
                     }
-                    let deliverables_service = TaskDeliverableDbService {
-                        db: self.db,
-                        ctx: self.ctx,
-                    };
-                    let deliverable_id = deliverables_service
-                        .create(TaskDeliverable {
+                    
+                    let deliverable_id = self.task_deliverable_repo
+                        .create(
+                            TaskDeliverable {
                             id: None,
                             user,
                             task_request: task_ident.clone(),

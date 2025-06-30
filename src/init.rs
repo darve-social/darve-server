@@ -55,6 +55,7 @@ use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 
+use crate::database::client::Database;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use axum::http;
 use http::Request;
@@ -102,7 +103,8 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         .await;
 }
 
-pub async fn run_migrations(db: &Db) -> AppResult<()> {
+pub async fn run_migrations(database: &Database) -> AppResult<()> {
+    let db = database.client.clone();
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
     // let ts= TicketDbService {db: &db, ctx: &c };
     // ts.mutate_db().await?;
@@ -129,15 +131,15 @@ pub async fn run_migrations(db: &Db) -> AppResult<()> {
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestDbService { db: &db, ctx: &c }
+    TaskRequestDbService { db: &db, ctx: &c,  task_deliverable_repo: &database.task_deliverable}
         .mutate_db()
         .await?;
     TaskParticipationDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
-    TaskDeliverableDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
+    // TaskDeliverableDbService { db: &db, ctx: &c }
+    //     .mutate_db()
+    //     .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()

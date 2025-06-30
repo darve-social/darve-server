@@ -197,6 +197,7 @@ async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) ->
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
     .await?;
@@ -236,6 +237,7 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
     .await?;
@@ -250,6 +252,7 @@ async fn post_task_requests(
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
@@ -376,6 +379,7 @@ async fn create_entity(
     let t_request = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     }
     .create(TaskRequest {
         id: Some(t_req_id.clone()),
@@ -438,9 +442,11 @@ async fn accept_task_request(
         true => TaskStatus::Accepted,
         false => TaskStatus::Rejected,
     };
+    
     TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     }
     .update_status_received_by_user(to_user, task_id.clone(), status, None, None)
     .await?;
@@ -469,6 +475,7 @@ async fn deliver_task_request(
     let task_req_ser = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     };
 
     let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
@@ -627,6 +634,7 @@ async fn participate_task_request_offer(
     let task_request_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
     };
 
     let task_offer = task_request_db_service
