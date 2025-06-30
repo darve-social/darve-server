@@ -4,6 +4,7 @@ use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
+use crate::entities::task::task_request_participation_entity::{TaskRequestParticipation, TABLE_NAME as TASK_REQUEST_PARTICIPATION_TABLE_NAME};
 use crate::entities::task::task_deliverable_entity::{TaskDeliverable, TABLE_NAME as TASK_DELIVERABLE_TABLE_NAME};
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
@@ -27,6 +28,7 @@ pub struct Database {
     pub verification_code: VerificationCodeRepository,
     pub user_notifications: UserNotificationsRepository,
     pub task_deliverable: Repository<TaskDeliverable>,
+    pub task_request_participation: Repository<TaskRequestParticipation>,
 }
 
 impl Database {
@@ -64,6 +66,7 @@ impl Database {
             verification_code: VerificationCodeRepository::new(client.clone()),
             user_notifications: UserNotificationsRepository::new(client.clone()),
             task_deliverable: Repository::<TaskDeliverable>::new(client.clone(), TASK_DELIVERABLE_TABLE_NAME.to_string()),
+            task_request_participation: Repository::<TaskRequestParticipation>::new(client.clone(), TASK_REQUEST_PARTICIPATION_TABLE_NAME.to_string()),
         }
     }
 
@@ -71,6 +74,7 @@ impl Database {
         self.verification_code.mutate_db().await?;
         self.user_notifications.mutate_db().await?;
         self.task_deliverable.mutate_db().await?;
+        self.task_request_participation.mutate_db().await?;
         Ok(())
     }
 }

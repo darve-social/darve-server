@@ -28,9 +28,7 @@ use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
 use entities::community::reply_entity::ReplyDbService;
-use entities::task::task_deliverable_entity::TaskDeliverableDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
-use entities::task::task_request_participation_entity::TaskParticipationDbService;
 use entities::user_auth::access_gain_action_entity::AccessGainActionDbService;
 use entities::user_auth::access_right_entity::AccessRightDbService;
 use entities::user_auth::access_rule_entity::AccessRuleDbService;
@@ -106,8 +104,6 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
 pub async fn run_migrations(database: &Database) -> AppResult<()> {
     let db = database.client.clone();
     let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
-    // let ts= TicketDbService {db: &db, ctx: &c };
-    // ts.mutate_db().await?;
 
     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
     AuthenticationDbService { db: &db, ctx: &c }
@@ -119,9 +115,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
-    // DiscussionNotificationDbService { db: &db, ctx: &c }
-    //     .mutate_db()
-    //     .await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }
@@ -131,15 +124,9 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestDbService { db: &db, ctx: &c,  task_deliverable_repo: &database.task_deliverable}
+    TaskRequestDbService { db: &db, ctx: &c,  task_deliverable_repo: &database.task_deliverable, task_participation_repo: &database.task_request_participation }
         .mutate_db()
         .await?;
-    TaskParticipationDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
-    // TaskDeliverableDbService { db: &db, ctx: &c }
-    //     .mutate_db()
-    //     .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
@@ -148,9 +135,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostStreamDbService { db: &db, ctx: &c }.mutate_db().await?;
-    // UserNotificationDbService { db: &db, ctx: &c }
-    //     .mutate_db()
-    //     .await?;
     GatewayTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;

@@ -52,6 +52,7 @@ async fn init_test_db(config: &mut AppConfig) -> Database {
                 task_request_participation,
                 post,
                 like,
+                discussion,
                 discussion_topic,
                 verification_code,
                 notification;",
@@ -61,7 +62,7 @@ async fn init_test_db(config: &mut AppConfig) -> Database {
 
     db.run_migrations().await.unwrap();
 
-    darve_server::init::run_migrations(&db.client)
+    darve_server::init::run_migrations(&db)
         .await
         .expect("migrations run");
 

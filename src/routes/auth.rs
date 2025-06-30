@@ -113,6 +113,7 @@ async fn sign_by_google(
 async fn signin(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
+    cookies: Cookies,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
@@ -125,6 +126,14 @@ async fn signin(
     );
 
     let (token, user) = auth_service.login_password(body).await?;
+
+    cookies.add(
+        Cookie::build((JWT_KEY, token.clone()))
+            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
+            .path("/")
+            .http_only(true)
+            .into(), //.finish(),
+    );
     Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }
 

@@ -34,32 +34,29 @@ use wallet_routes::CurrencyTransactionHistoryView;
 #[serial]
 async fn create_task_request_participation() {
     let (server, ctx_state) = create_test_server().await;
+   
+    // let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
+    // let user_ident3 = user3.id.as_ref().unwrap().to_raw();
+    // let username3 = user3.username.to_string();
+
+    let username2 = "usnnnn2".to_string();
+    let username3 = "usnnnn3".to_string();
+    let username4 = "usnnnn4".to_string();
+    
+    // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+
     let (server, user0, user0_pwd, _) = create_fake_login_test_user(&server).await;
     let user_ident0 = user0.id.as_ref().unwrap().to_raw();
     let username0 = user0.username.to_string();
-
-    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident1 = user1.id.as_ref().unwrap().to_raw();
-    let _ = user1.username.to_string();
-    let _ = user1.id.unwrap();
-
-    let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
-    let user_ident3 = user3.id.as_ref().unwrap().to_raw();
-    let username3 = user3.username.to_string();
-
-    let username2 = "usnnnn2".to_string();
-    let username4 = "usnnnn4".to_string();
-
-    let comm_name = "comm-naMMe1".to_lowercase();
-
-    ////////// user 1 creates post (user 2 creates task and user3 participates on this post for user 0 who delivers it, user4 tries to participates without enough funds)
+    
+    ////////// user 0 creates post (user 2 creates task and user3 participates on this post for user 0 who delivers it, user4 tries to participates without enough funds)
 
     // create community
     let create_response = server
         .post("/api/community")
         .json(&CommunityInput {
             id: "".to_string(),
-            name_uri: comm_name.clone(),
+            name_uri:  "comm-naMMe1".to_lowercase(),
             title: "The Community Test".to_string(),
         })
         .add_header("Accept", "application/json")
@@ -70,7 +67,7 @@ async fn create_task_request_participation() {
     let comm_name = created.uri.clone().unwrap();
     create_response.assert_status_success();
 
-    let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident0.clone()), Uuid::new_v4(), false);
     let community_db_service = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -98,8 +95,6 @@ async fn create_task_request_participation() {
     let created_post = create_post.json::<CreatedResponse>();
     create_post.assert_status_success();
     assert_eq!(created_post.id.len() > 0, true);
-
-    let _ = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
 
     ////////// user 2 creates offer for user 0
 
@@ -165,20 +160,10 @@ async fn create_task_request_participation() {
     assert_eq!(given_post_tasks.len(), 1);
 
     ////////// login user 3 and participate
-
-    server.get("/logout").await;
-    let login_response = server
-        .post("/api/login")
-        .json(&LoginInput {
-            username: username3.clone(),
-            password: user3_pwd.clone(),
-            next: None,
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    login_response.assert_status_success();
-
-    let user3_thing = get_string_thing(user_ident3).unwrap();
+    
+    let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
+    let user3_thing = user3.id.unwrap();
+    let username3 = user3.username.to_string();
 
     // endow user 3
     let user3_endow_amt = 100;
@@ -427,7 +412,7 @@ async fn create_task_request_participation() {
     let task = received_post_tasks.get(0).unwrap();
     assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
 
-    // TODO check notifications for other users
+    // TODO -check notifications for other users-
     // login user3 to check notifications
     server.get("/logout").await;
     let login_response = server
@@ -450,18 +435,18 @@ async fn create_task_request_participation() {
     notif_history_req.assert_status_success();
     let received_notifications = notif_history_req.json::<Vec<UserNotification>>();
 
-    assert_eq!(received_notifications.len(), 6);
+    assert_eq!(received_notifications.len(), 5);
 
     let balance_updates: Vec<_> = received_notifications
         .iter()
         .filter(|v| v.event == UserNotificationEvent::UserBalanceUpdate)
         .collect();
     assert_eq!(balance_updates.len(), 4);
-    let balance_updates: Vec<_> = received_notifications
+    let task_delivered_evt: Vec<_> = received_notifications
         .iter()
         .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
         .collect();
-    assert_eq!(balance_updates.len(), 1);
+    assert_eq!(task_delivered_evt.len(), 1);
 
     // check transaction history /api/user/wallet/history
     let transaction_history_response = server
@@ -526,6 +511,9 @@ async fn get_notifications() {
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    
+    // TODO -need to follow to get post notifications-
+    
     let req = server
         .get("/api/notifications")
         .add_header("Cookie", format!("jwt={}", token1))
