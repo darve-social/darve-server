@@ -56,7 +56,7 @@ async fn async_main(config: AppConfig) {
 
     let ctx_state = mw_ctx::create_ctx_state(db, &config).await;
 
-    init::run_migrations(&ctx_state.db.client).await.unwrap();
+    init::run_migrations(&ctx_state.db).await.unwrap();
     init::create_default_profiles(&ctx_state, &config.init_server_password.as_str()).await;
 
     let wa_config = webauthn_routes::create_webauth_config();

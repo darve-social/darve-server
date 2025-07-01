@@ -1,4 +1,5 @@
 use crate::database::client::Db;
+use crate::database::repository::{Repository, RepositoryCore};
 use crate::entities::community::post_entity;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
@@ -17,8 +18,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
-use task_deliverable_entity::{TaskDeliverable, TaskDeliverableDbService};
-use task_request_participation_entity::{TaskParticipationDbService, TaskRequestParticipantion};
+use task_deliverable_entity::TaskDeliverable;
+use task_request_participation_entity::TaskRequestParticipation;
 use wallet_entity::CurrencySymbol;
 
 use super::{task_deliverable_entity, task_request_participation_entity};
@@ -85,6 +86,8 @@ pub enum UserTaskRole {
 pub struct TaskRequestDbService<'a> {
     pub db: &'a Db,
     pub ctx: &'a Ctx,
+    pub task_deliverable_repo: &'a Repository<TaskDeliverable>,
+    pub task_participation_repo: &'a Repository<TaskRequestParticipation>,
 }
 
 impl<'a> TaskRequestDbService<'a> {}
@@ -265,12 +268,10 @@ impl<'a> TaskRequestDbService<'a> {
                             description: "Deliverable empty".to_string(),
                         }));
                     }
-                    let deliverables_service = TaskDeliverableDbService {
-                        db: self.db,
-                        ctx: self.ctx,
-                    };
-                    let deliverable_id = deliverables_service
-                        .create(TaskDeliverable {
+                    
+                    let deliverable_id = self.task_deliverable_repo
+                        .create(
+                            TaskDeliverable {
                             id: None,
                             user,
                             task_request: task_ident.clone(),
@@ -328,12 +329,8 @@ impl<'a> TaskRequestDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         };
-        let partic_service = TaskParticipationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-
-        let mut participants = partic_service.get_ids(&offer.participants).await?;
+       
+        let mut participants = self.task_participation_repo.get_ids(&offer.participants).await?;
         match participants.iter().position(|op| op.user == user_id) {
             None => {
                 let lock = lock_service
@@ -346,8 +343,8 @@ impl<'a> TaskRequestDbService<'a> {
                         }],
                     )
                     .await?;
-                let partic_new = partic_service
-                    .create_update(TaskRequestParticipantion {
+                let partic_new = self.task_participation_repo
+                    .create_update(TaskRequestParticipation {
                         id: None,
                         amount,
                         lock: Some(lock),
@@ -378,7 +375,7 @@ impl<'a> TaskRequestDbService<'a> {
                     .await?;
                 partic.lock = Some(lock);
                 partic.amount = amount;
-                partic_service.create_update(partic.to_owned()).await?;
+                self.task_participation_repo.create_update(partic.to_owned()).await?;
             }
         }
         let partic_ids: Vec<Thing> = participants
@@ -405,11 +402,8 @@ impl<'a> TaskRequestDbService<'a> {
     ) -> CtxResult<Option<TaskRequest>> {
         // if last user remove task request else update participants
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
-        let partic_service = TaskParticipationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-        let mut participants = partic_service.get_ids(&offer.participants).await?;
+       
+        let mut participants = self.task_participation_repo.get_ids(&offer.participants).await?;
 
         if let Some(i) = participants
             .iter()
@@ -460,25 +454,21 @@ impl<'a> TaskRequestDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         };
-        let partic_service = TaskParticipationDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-
+       
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
         if offer.participants.len() > 1 {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "Can not delete with other participants".to_string(),
             }));
         }
-        let participants = partic_service.get_ids(&offer.participants).await?;
+        let participants = self.task_participation_repo.get_ids(&offer.participants).await?;
 
         for partic in participants {
             let existing_lock_id = partic.lock.clone();
             if let Some(lock) = existing_lock_id {
                 lock_service.unlock_user_asset_tx(&lock).await?;
             }
-            partic_service.delete(partic.id.unwrap()).await?;
+            self.task_participation_repo.delete(partic.id.unwrap()).await?;
         }
         let _: Option<TaskRequest> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
         Ok(true)

@@ -1,3 +1,4 @@
+use crate::database::repository::RepositoryCore;
 use crate::entities::task::{task_request_entity, task_request_participation_entity};
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotificationEvent;
@@ -30,7 +31,7 @@ use task_request_entity::{
     DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole,
     TABLE_NAME,
 };
-use task_request_participation_entity::{TaskParticipationDbService, TaskRequestParticipantion};
+use task_request_participation_entity::TaskRequestParticipation;
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
 
@@ -197,6 +198,8 @@ async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) ->
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: &state.db.task_request_participation,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
     .await?;
@@ -236,6 +239,8 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: &state.db.task_request_participation,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
     .await?;
@@ -250,6 +255,8 @@ async fn post_task_requests(
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: &state.db.task_request_participation,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
@@ -360,11 +367,10 @@ async fn create_entity(
         None
     };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
-    let participant = TaskParticipationDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
-    .create_update(TaskRequestParticipantion {
+    let task_partic_repo = &state.db.task_request_participation;
+    
+    let participant = task_partic_repo
+    .create_update(TaskRequestParticipation {
         id: None,
         amount: offer_amount,
         user: from_user.clone(),
@@ -376,6 +382,8 @@ async fn create_entity(
     let t_request = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: task_partic_repo,
     }
     .create(TaskRequest {
         id: Some(t_req_id.clone()),
@@ -438,9 +446,12 @@ async fn accept_task_request(
         true => TaskStatus::Accepted,
         false => TaskStatus::Rejected,
     };
+    
     TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: &state.db.task_request_participation,
     }
     .update_status_received_by_user(to_user, task_id.clone(), status, None, None)
     .await?;
@@ -469,6 +480,8 @@ async fn deliver_task_request(
     let task_req_ser = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,  
+        task_participation_repo: &state.db.task_request_participation,
     };
 
     let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
@@ -530,15 +543,9 @@ async fn deliver_task_request(
         ident: "deliverable_id not created".to_string(),
     })?;
 
-    let participations_service = TaskParticipationDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-
-    let notify_task_participant_ids: Vec<Thing> = TaskParticipationDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
+    let task_partic_repo = &state.db.task_request_participation;
+    
+    let notify_task_participant_ids: Vec<Thing> = task_partic_repo
     .get_ids(&task.participants)
     .await?
     .into_iter()
@@ -554,8 +561,8 @@ async fn deliver_task_request(
 
     match task.reward_type {
         RewardType::OnDelivery => {
-            participations_service
-                .process_payments(task.to_user.as_ref().unwrap(), task.participants.clone())
+            task_partic_repo
+                .process_payments(&ctx, task.to_user.as_ref().unwrap(), task.participants.clone())
                 .await?;
             n_service
                 .on_update_balance(&delivered_by, &notify_task_participant_ids)
@@ -627,6 +634,8 @@ async fn participate_task_request_offer(
     let task_request_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
+        task_deliverable_repo: &state.db.task_deliverable,
+        task_participation_repo: &state.db.task_request_participation,
     };
 
     let task_offer = task_request_db_service
