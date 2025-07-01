@@ -625,14 +625,12 @@ async fn participate_task_request_offer(
     Path(task_offer_id): Path<String>,
     JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Html<String>> {
-    println!("USSSS={:?}",ctx.user_id());
     let from_user = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
-    println!("UUU={:?}", from_user);
     let task_request_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
