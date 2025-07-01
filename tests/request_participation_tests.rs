@@ -34,7 +34,7 @@ use wallet_routes::CurrencyTransactionHistoryView;
 #[serial]
 async fn create_task_request_participation() {
     let (server, ctx_state) = create_test_server().await;
-   
+
     // let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
     // let user_ident3 = user3.id.as_ref().unwrap().to_raw();
     // let username3 = user3.username.to_string();
@@ -42,13 +42,13 @@ async fn create_task_request_participation() {
     let username2 = "usnnnn2".to_string();
     let username3 = "usnnnn3".to_string();
     let username4 = "usnnnn4".to_string();
-    
+
     // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
     let (server, user0, user0_pwd, _) = create_fake_login_test_user(&server).await;
     let user_ident0 = user0.id.as_ref().unwrap().to_raw();
     let username0 = user0.username.to_string();
-    
+
     ////////// user 0 creates post (user 2 creates task and user3 participates on this post for user 0 who delivers it, user4 tries to participates without enough funds)
 
     // create community
@@ -56,7 +56,7 @@ async fn create_task_request_participation() {
         .post("/api/community")
         .json(&CommunityInput {
             id: "".to_string(),
-            name_uri:  "comm-naMMe1".to_lowercase(),
+            name_uri: "comm-naMMe1".to_lowercase(),
             title: "The Community Test".to_string(),
         })
         .add_header("Accept", "application/json")
@@ -160,7 +160,7 @@ async fn create_task_request_participation() {
     assert_eq!(given_post_tasks.len(), 1);
 
     ////////// login user 3 and participate
-    
+
     let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
     let user3_thing = user3.id.unwrap();
     let username3 = user3.username.to_string();
@@ -507,40 +507,25 @@ async fn get_notifications() {
         "discussion".to_string(),
         user1.id.as_ref().unwrap().id.to_raw(),
     ));
+
+    let create_response = server
+        .post(&format!(
+            "/api/follow/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    let created = &create_response.json::<CreatedResponse>();
+    assert_eq!(created.success, true);
+
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    
+
     // TODO -need to follow to get post notifications-
-    
-    let req = server
-        .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-
-    req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
-    assert_eq!(notifications.len(), 4);
-    let req = server
-        .get("/api/notifications?count=1")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-
-    req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
-    assert_eq!(notifications.len(), 1);
-    let req = server
-        .get("/api/notifications?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-
-    req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
-    assert_eq!(notifications.len(), 0);
 
     let req = server
         .get("/api/notifications")
@@ -550,23 +535,62 @@ async fn get_notifications() {
 
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 4);
+    let req = server
+        .get("/api/notifications?count=1")
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 1);
+    let req = server
+        .get("/api/notifications?is_read=true")
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
     assert_eq!(notifications.len(), 0);
+
+    let req = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    req.assert_status_success();
+    let notifications = req.json::<Vec<UserNotification>>();
+    assert_eq!(notifications.len(), 1);
 }
 
 #[tokio::test]
 #[serial]
 async fn set_read_notification() {
     let (server, _) = create_test_server().await;
-    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
     let discussion_id = Thing::from((
         "discussion".to_string(),
         user1.id.as_ref().unwrap().id.to_raw(),
     ));
+    let create_response = server
+        .post(&format!(
+            "/api/follow/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    let created = &create_response.json::<CreatedResponse>();
+    assert_eq!(created.success, true);
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -577,14 +601,14 @@ async fn set_read_notification() {
     let id = &notifications.first().as_ref().unwrap().id;
     let req = server
         .post(&format!("/api/notifications/{id}/read"))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();
 
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -599,12 +623,24 @@ async fn set_read_notification() {
 #[serial]
 async fn set_read_all_notifications() {
     let (server, _) = create_test_server().await;
-    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
+    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
     let discussion_id = Thing::from((
         "discussion".to_string(),
         user1.id.as_ref().unwrap().id.to_raw(),
     ));
+
+    let create_response = server
+        .post(&format!(
+            "/api/follow/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    let created = &create_response.json::<CreatedResponse>();
+    assert_eq!(created.success, true);
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
@@ -612,7 +648,7 @@ async fn set_read_all_notifications() {
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -622,14 +658,14 @@ async fn set_read_all_notifications() {
 
     let req = server
         .post(&format!("/api/notifications/read"))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();
 
     let req = server
         .get("/api/notifications?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -641,12 +677,23 @@ async fn set_read_all_notifications() {
 #[serial]
 async fn get_count_of_notifications() {
     let (server, _) = create_test_server().await;
-    let (_, _user, _password, _token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
     let discussion_id = Thing::from((
         "discussion".to_string(),
         user1.id.as_ref().unwrap().id.to_raw(),
     ));
+    let create_response = server
+        .post(&format!(
+            "/api/follow/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    let created = &create_response.json::<CreatedResponse>();
+    assert_eq!(created.success, true);
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
@@ -654,7 +701,7 @@ async fn get_count_of_notifications() {
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let req = server
         .get("/api/notifications/count")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -664,7 +711,7 @@ async fn get_count_of_notifications() {
 
     let req = server
         .get("/api/notifications/count?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();
