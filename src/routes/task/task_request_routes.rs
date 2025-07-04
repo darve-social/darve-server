@@ -1,16 +1,23 @@
 use crate::database::repository::RepositoryCore;
+use crate::entities::community::post_entity::PostDbService;
+use crate::entities::task::task_request_entity::TaskRequestType;
 use crate::entities::task::{task_request_entity, task_request_participation_entity};
+use crate::entities::task_request_user::{
+    TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus, TaskRequestUserTimeline,
+};
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
+use crate::interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
+use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
 use axum::extract::{Path, State};
 use axum::response::Html;
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::Router;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
 use chrono::{DateTime, Duration, Utc};
 use local_user_entity::LocalUserDbService;
@@ -18,7 +25,7 @@ use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{record_exists, IdentIdName, ViewFieldSelector};
+use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
@@ -28,8 +35,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use surrealdb::sql::{Id, Thing};
 use task_request_entity::{
-    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TaskStatus, UserTaskRole,
-    TABLE_NAME,
+    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, UserTaskRole, TABLE_NAME,
 };
 use task_request_participation_entity::TaskRequestParticipation;
 use validator::Validate;
@@ -57,6 +63,10 @@ pub fn routes() -> Router<Arc<CtxState>> {
             post(accept_task_request),
         )
         .route(
+            "/api/task_request/:task_id/reject",
+            post(reject_task_request),
+        )
+        .route(
             "/api/task_request/:task_id/deliver",
             post(deliver_task_request),
         )
@@ -76,8 +86,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 pub struct TaskRequestInput {
     #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
-    #[validate(length(min = 5, message = "Min 5 characters for to_user"))]
-    pub to_user: String,
+    pub to_user: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
     pub offer_amount: Option<i64>,
@@ -101,24 +110,25 @@ pub struct DeliverTaskRequestInput {
     // pub file_1: Option<FieldData<NamedTempFile>>,
     pub post_id: Option<String>,
 }
-
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TaskRequestViewToUsers {
+    pub user: UserView,
+    pub timelines: Vec<TaskRequestUserTimeline>,
+}
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub from_user: UserView,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to_user: Option<UserView>,
+    pub to_users: Option<Vec<TaskRequestViewToUsers>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
     pub participants: Vec<TaskRequestParticipationView>,
-    pub status: String,
     pub reward_type: RewardType,
     pub valid_until: DateTime<Utc>,
     pub currency: CurrencySymbol,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables: Option<Vec<DeliverableView>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -127,7 +137,17 @@ pub struct TaskRequestView {
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
-        "id, from_user.{id, username, full_name} as from_user, to_user.{id, username, full_name} as to_user, on_post, request_txt, reward_type, valid_until, currency, participants.*.{id, user.{id, username, full_name}, amount, currency} as participants, status, deliverables.*.{id, urls, post, user.{id, username, full_name}}, r_created, r_updated".to_string()
+        "id, 
+        from_user.{id, username, full_name} as from_user,
+        on_post, request_txt, reward_type, 
+        valid_until, 
+        currency, 
+        ->task_request_user.{
+            user: out.{id, username, full_name},        
+            timelines,
+        } as to_users,
+        participants.*.{id, user.{id, username, full_name}, amount, currency} as participants"
+            .to_string()
     }
 }
 
@@ -152,17 +172,6 @@ pub struct UserView {
     pub id: Thing,
     pub username: String,
     pub full_name: Option<String>,
-}
-
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
-#[template(path = "nera2/default-content.html")]
-pub struct DeliverableView {
-    pub id: Thing,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub urls: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub post: Option<Thing>,
-    pub user: UserView,
 }
 
 /*async fn post_requests_received(
@@ -198,10 +207,9 @@ async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) ->
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: &state.db.task_request_participation,
     }
-    .user_post_list_view::<TaskRequestView>(UserTaskRole::ToUser, to_user, None, None)
+    .get_by_user::<TaskRequestView>(&to_user)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -239,7 +247,6 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: &state.db.task_request_participation,
     }
     .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
@@ -255,12 +262,10 @@ async fn post_task_requests(
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: &state.db.task_request_participation,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
-
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -311,27 +316,20 @@ async fn create_entity(
     ctx: Ctx,
     JsonOrFormValidated(t_request_input): JsonOrFormValidated<TaskRequestInput>,
 ) -> CtxResult<Html<String>> {
-    let from_user = LocalUserDbService {
+    let user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
-    }
-    .get_ctx_user_thing()
-    .await?;
-
-    let to_user = if t_request_input.to_user.len() > 0 {
-        get_string_thing(t_request_input.to_user)?
-    } else {
-        return Err(ctx.to_ctx_error(AppError::Generic {
-            description: "to_user must have value".to_string(),
-        }));
     };
+    let from_user = user_db_service.get_ctx_user_thing().await?;
 
-    let content = if t_request_input.content.len() > 0 {
-        t_request_input.content
+    let (to_user, task_type) = if let Some(to_user) = t_request_input.to_user {
+        let to_user_thing = get_str_thing(&to_user)?;
+        (
+            Some(user_db_service.get(IdentIdName::Id(to_user_thing)).await?),
+            TaskRequestType::Close,
+        )
     } else {
-        return Err(ctx.to_ctx_error(AppError::Generic {
-            description: "content must have value".to_string(),
-        }));
+        (None, TaskRequestType::Open)
     };
 
     let offer_amount = t_request_input.offer_amount.unwrap_or(0);
@@ -368,32 +366,31 @@ async fn create_entity(
     };
     let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
     let task_partic_repo = &state.db.task_request_participation;
-    
+
     let participant = task_partic_repo
-    .create_update(TaskRequestParticipation {
-        id: None,
-        amount: offer_amount,
-        user: from_user.clone(),
-        lock,
-        currency: offer_currency.clone(),
-        votes: None,
-    })
-    .await?;
+        .create_update(TaskRequestParticipation {
+            id: None,
+            amount: offer_amount,
+            user: from_user.clone(),
+            lock,
+            currency: offer_currency.clone(),
+            votes: None,
+        })
+        .await?;
+
     let t_request = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: task_partic_repo,
     }
     .create(TaskRequest {
         id: Some(t_req_id.clone()),
         from_user: from_user.clone(),
-        to_user: Some(to_user.clone()),
         on_post: post,
-        request_txt: content,
+        r#type: task_type,
+        request_txt: t_request_input.content,
         deliverable_type: DeliverableType::PublicPost,
         participants: vec![participant.id.unwrap()],
-        status: TaskStatus::Requested.to_string(),
         reward_type: RewardType::OnDelivery,
         valid_until,
         currency: offer_currency,
@@ -402,6 +399,21 @@ async fn create_entity(
         r_updated: None,
     })
     .await?;
+
+    if let Some(ref user) = to_user {
+        let _ = state
+            .db
+            .task_request_users
+            .create(
+                &t_request.id.as_ref().unwrap().id.to_raw(),
+                &user.id.as_ref().unwrap().id.to_raw(),
+                None,
+            )
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
+    };
 
     let n_service = NotificationService::new(
         &state.db.client,
@@ -414,16 +426,101 @@ async fn create_entity(
         .on_update_balance(&from_user.clone(), &vec![from_user.clone()])
         .await;
 
-    let _ = n_service
-        .on_created_task(&from_user, &t_req_id, &to_user)
-        .await?;
+    if let Some(ref user) = to_user {
+        let _ = n_service
+            .on_created_task(&from_user, &t_req_id, &user.id.as_ref().unwrap())
+            .await?;
 
-    let _ = n_service
-        .on_received_task(&from_user, &t_req_id, &to_user)
-        .await?;
+        let _ = n_service
+            .on_received_task(&from_user, &t_req_id, &user.id.as_ref().unwrap())
+            .await?;
+    };
 
     ctx.to_htmx_or_json(CreatedResponse {
         id: t_request.id.unwrap().to_raw(),
+        uri: None,
+        success: true,
+    })
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TaskRequestForToUsers {
+    pub id: Thing,
+    pub reward_type: RewardType,
+    pub r#type: TaskRequestType,
+    pub participants: Vec<Thing>,
+    pub participant_ids: Vec<Thing>,
+    pub to_users: Vec<TaskRequestUser>,
+}
+
+impl ViewFieldSelector for TaskRequestForToUsers {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, 
+        participants, 
+        reward_type,
+        participators,
+        participants.*.user.id as participant_ids,
+        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out), timelines, result, created_at } as to_users,
+        type"
+            .to_string()
+    }
+}
+
+async fn reject_task_request(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(task_id): Path<String>,
+) -> CtxResult<Html<String>> {
+    let user_id = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+
+    let task_db_service = TaskRequestDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+        task_participation_repo: &state.db.task_request_participation,
+    };
+    let task_thing = get_str_thing(&task_id)?;
+    let task = task_db_service
+        .get_by_id::<TaskRequestForToUsers>(&task_thing)
+        .await?;
+    let user_id_id = user_id.id.to_raw();
+    let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
+
+    let deny_reject = task_user.is_none()
+        || task_user
+            .as_ref()
+            .unwrap()
+            .equal(TaskRequestUserStatus::Delivered);
+
+    if deny_reject {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
+    }
+
+    state
+        .db
+        .task_request_users
+        .update(
+            &task_user.as_ref().unwrap().id,
+            TaskRequestUserTimeline {
+                status: TaskRequestUserStatus::Rejected,
+                date: Utc::now(),
+            },
+            None,
+        )
+        .await
+        .map_err(|_| AppError::SurrealDb {
+            source: format!("reject_task"),
+        })?;
+
+    ctx.to_htmx_or_json(CreatedResponse {
+        id: task_id,
         uri: None,
         success: true,
     })
@@ -433,31 +530,87 @@ async fn accept_task_request(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_id): Path<String>,
-    Json(t_request_input): Json<AcceptTaskRequestInput>,
 ) -> CtxResult<Html<String>> {
-    let to_user = LocalUserDbService {
+    let user_id = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
-    let task_id = get_string_thing(task_id)?;
-    let status = match t_request_input.accept {
-        true => TaskStatus::Accepted,
-        false => TaskStatus::Rejected,
-    };
-    
-    TaskRequestDbService {
+
+    let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: &state.db.task_request_participation,
+    };
+
+    let task_thing = get_str_thing(&task_id)?;
+    let task = task_db_service
+        .get_by_id::<TaskRequestForToUsers>(&task_thing)
+        .await?;
+
+    if task.participant_ids.contains(&user_id) {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
     }
-    .update_status_received_by_user(to_user, task_id.clone(), status, None, None)
-    .await?;
+
+    let user_id_id = user_id.id.to_raw();
+    let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
+    match task.r#type {
+        TaskRequestType::Open => {
+            if task_user.is_some() {
+                return Err(AppError::Generic {
+                    description: "Forbidden".to_string(),
+                }
+                .into());
+            };
+
+            let _ = state
+                .db
+                .task_request_users
+                .create(
+                    &task.id.id.to_raw(),
+                    &user_id_id,
+                    Some(TaskRequestUserTimeline {
+                        status: TaskRequestUserStatus::Accepted,
+                        date: Utc::now(),
+                    }),
+                )
+                .await
+                .map_err(|_| AppError::SurrealDb {
+                    source: task_id.clone(),
+                })?;
+        }
+        TaskRequestType::Close => {
+            if task_user.is_none() || !task_user.unwrap().timelines.is_empty() {
+                return Err(AppError::Generic {
+                    description: "Forbidden".to_string(),
+                }
+                .into());
+            }
+
+            let _ = state
+                .db
+                .task_request_users
+                .update(
+                    &task_user.as_ref().unwrap().id,
+                    TaskRequestUserTimeline {
+                        status: TaskRequestUserStatus::Accepted,
+                        date: Utc::now(),
+                    },
+                    None,
+                )
+                .await
+                .map_err(|_| AppError::SurrealDb {
+                    source: task_id.clone(),
+                })?;
+        }
+    }
 
     ctx.to_htmx_or_json(CreatedResponse {
-        id: task_id.to_raw(),
+        id: task_id,
         uri: None,
         success: true,
     })
@@ -476,81 +629,59 @@ async fn deliver_task_request(
     .get_ctx_user_thing()
     .await?;
 
-    let task_id = get_string_thing(task_id)?;
-    let task_req_ser = TaskRequestDbService {
+    let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,  
         task_participation_repo: &state.db.task_request_participation,
     };
 
-    let task = task_req_ser.get(IdentIdName::Id(task_id.clone())).await?;
+    let task_thing = get_str_thing(&task_id)?;
+    let task = task_db_service
+        .get_by_id::<TaskRequestForToUsers>(&task_thing)
+        .await?;
 
-    if task.to_user.is_some() && task.to_user != Some(delivered_by.clone()) {
-        return Err(ctx.to_ctx_error(AppError::AuthorizationFail {
-            required: "This user was not requested to deliver".to_string(),
-        }));
+    let user_id_id = delivered_by.id.to_raw();
+    let task_user = task
+        .to_users
+        .iter()
+        .find(|v| v.user == user_id_id && v.equal(TaskRequestUserStatus::Accepted));
+
+    if task_user.is_none() {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
     }
 
-    let (deliverables, post) = match task.deliverable_type {
-        DeliverableType::PublicPost => {
-            let post_id = get_string_thing(t_request_input.post_id.ok_or(AppError::Generic {
-                description: "Missing post_id".to_string(),
-            })?)?;
-            record_exists(&state.db.client, &post_id)
-                .await
-                .map_err(|e| ctx.to_ctx_error(e))?;
-            (None, Some(post_id))
-        } /*DeliverableType::Participants => {
-              let file_data = t_request_input.file_1.unwrap();
-              let file_name = file_data.metadata.file_name.unwrap();
-              let ext = file_name.split(".").last().ok_or(AppError::Generic {
-                  description: "File has no extension".to_string(),
-              })?;
+    if let Some(ref post_id) = t_request_input.post_id {
+        let post_db_service = PostDbService {
+            db: &state.db.client,
+            ctx: &ctx,
+        };
+        let post_thing = get_str_thing(post_id)?;
+        post_db_service
+            .must_exist(IdentIdName::Id(post_thing))
+            .await?;
+    }
 
-              let file_name: String = TaskDeliverableFileName {
-                  task_id: task_id.clone(),
-                  file_nr: 1,
-                  ext: ext.to_string(),
-              }
-                  .to_string();
-              let path = FPath::new(&uploads_dir).join(file_name.clone());
-              file_data
-                  .contents
-                  .persist(path.clone())
-                  .map_err(|e| {
-                      ctx.to_ctx_error(AppError::Generic {
-                          description: "Upload failed".to_string(),
-                      })
-                  })?;
-              let file_uri = format!("{DELIVERIES_URL_BASE}/{file_name}");
-
-              let deliverables = vec![file_uri];
-              (deliverables, None)
-          }*/
-    };
-
-    let (task, deliverable_id) = task_req_ser
-        .update_status_received_by_user(
-            delivered_by.clone(),
-            task_id.clone(),
-            TaskStatus::Delivered,
-            deliverables.clone(),
-            post,
+    state
+        .db
+        .task_request_users
+        .update(
+            &task_user.unwrap().id,
+            TaskRequestUserTimeline {
+                status: TaskRequestUserStatus::Delivered,
+                date: Utc::now(),
+            },
+            Some(TaskRequestUserResult {
+                urls: None,
+                post: t_request_input.post_id,
+            }),
         )
-        .await?;
-    let deliverable_id = deliverable_id.ok_or(AppError::EntityFailIdNotFound {
-        ident: "deliverable_id not created".to_string(),
-    })?;
-
-    let task_partic_repo = &state.db.task_request_participation;
-    
-    let notify_task_participant_ids: Vec<Thing> = task_partic_repo
-    .get_ids(&task.participants)
-    .await?
-    .into_iter()
-    .map(|t| t.user)
-    .collect();
+        .await
+        .map_err(|_| AppError::SurrealDb {
+            source: "deliver_task".to_string(),
+        })?;
 
     let n_service = NotificationService::new(
         &state.db.client,
@@ -558,31 +689,28 @@ async fn deliver_task_request(
         &state.event_sender,
         &state.db.user_notifications,
     );
-
-    match task.reward_type {
-        RewardType::OnDelivery => {
-            task_partic_repo
-                .process_payments(&ctx, task.to_user.as_ref().unwrap(), task.participants.clone())
-                .await?;
-            n_service
-                .on_update_balance(&delivered_by, &notify_task_participant_ids)
-                .await?;
-        } /*RewardType::VoteWinner{..} => {
-              // add action for this reward type
-          }*/
+    if task.r#type == TaskRequestType::Close {
+        match task.reward_type {
+            RewardType::OnDelivery => {
+                let task_partic_repo = &state.db.task_request_participation;
+                task_partic_repo
+                    .process_payments(&ctx, &delivered_by, task.participants.clone())
+                    .await?;
+                n_service
+                    .on_update_balance(&delivered_by, &task.participant_ids)
+                    .await?;
+            } /*RewardType::VoteWinner{..} => {
+                  // add action for this reward type
+              }*/
+        }
     }
 
     n_service
-        .on_deliver_task(
-            &delivered_by,
-            task.id.unwrap(),
-            deliverable_id,
-            &notify_task_participant_ids,
-        )
+        .on_deliver_task(&delivered_by, task_thing.clone(), &task.participant_ids)
         .await?;
 
     ctx.to_htmx_or_json(CreatedResponse {
-        id: task_id.to_raw(),
+        id: task_id,
         uri: None,
         success: true,
     })
@@ -634,7 +762,6 @@ async fn participate_task_request_offer(
     let task_request_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_deliverable_repo: &state.db.task_deliverable,
         task_participation_repo: &state.db.task_request_participation,
     };
 

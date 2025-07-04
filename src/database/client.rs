@@ -1,15 +1,17 @@
 use std::sync::Arc;
 
+use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
+use crate::database::repositories::user_notifications::UserNotificationsRepository;
+use crate::database::repositories::verification_code::VerificationCodeRepository;
+use crate::database::repository::{Repository, RepositoryCore};
+use crate::entities::task::task_request_participation_entity::{
+    TaskRequestParticipation, TABLE_NAME as TASK_REQUEST_PARTICIPATION_TABLE_NAME,
+};
+use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
-use crate::entities::task::task_request_participation_entity::{TaskRequestParticipation, TABLE_NAME as TASK_REQUEST_PARTICIPATION_TABLE_NAME};
-use crate::entities::task::task_deliverable_entity::{TaskDeliverable, TABLE_NAME as TASK_DELIVERABLE_TABLE_NAME};
-use crate::database::repositories::user_notifications::UserNotificationsRepository;
-use crate::database::repositories::verification_code::VerificationCodeRepository;
-use crate::database::repository::{Repository, RepositoryCore};
-use crate::middleware::error::AppError;
 
 pub type Db = Surreal<Any>;
 
@@ -27,8 +29,8 @@ pub struct Database {
     pub client: Arc<Surreal<Any>>,
     pub verification_code: VerificationCodeRepository,
     pub user_notifications: UserNotificationsRepository,
-    pub task_deliverable: Repository<TaskDeliverable>,
     pub task_request_participation: Repository<TaskRequestParticipation>,
+    pub task_request_users: TaskRequestUsesRepository,
 }
 
 impl Database {
@@ -65,16 +67,19 @@ impl Database {
             client: client.clone(),
             verification_code: VerificationCodeRepository::new(client.clone()),
             user_notifications: UserNotificationsRepository::new(client.clone()),
-            task_deliverable: Repository::<TaskDeliverable>::new(client.clone(), TASK_DELIVERABLE_TABLE_NAME.to_string()),
-            task_request_participation: Repository::<TaskRequestParticipation>::new(client.clone(), TASK_REQUEST_PARTICIPATION_TABLE_NAME.to_string()),
+            task_request_participation: Repository::<TaskRequestParticipation>::new(
+                client.clone(),
+                TASK_REQUEST_PARTICIPATION_TABLE_NAME.to_string(),
+            ),
+            task_request_users: TaskRequestUsesRepository::new(client.clone()),
         }
     }
 
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         self.verification_code.mutate_db().await?;
         self.user_notifications.mutate_db().await?;
-        self.task_deliverable.mutate_db().await?;
         self.task_request_participation.mutate_db().await?;
+        self.task_request_users.mutate_db().await?;
         Ok(())
     }
 }

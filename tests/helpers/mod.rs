@@ -32,7 +32,8 @@ async fn init_test_db(config: &mut AppConfig) -> Database {
 
     db.client
         .query(
-            "DELETE FROM 
+            "DELETE FROM
+                task_request_user,
                 access_right,
                 access_rule,
                 authentication,
