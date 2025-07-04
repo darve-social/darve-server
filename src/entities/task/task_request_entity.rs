@@ -1,13 +1,11 @@
 use crate::database::client::Db;
-use crate::database::repository::{Repository, RepositoryCore};
+use crate::database::repository::Repository;
 use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
+use crate::entities::wallet::wallet_entity;
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
-use chrono::{DateTime, Utc};
-use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
@@ -18,7 +16,6 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
 use task_request_participation_entity::TaskRequestParticipation;
 use wallet_entity::CurrencySymbol;
@@ -38,8 +35,6 @@ pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deliverables: Option<Vec<Thing>>,
     pub reward_type: RewardType,
-    pub participants: Vec<Thing>,
-    pub valid_until: DateTime<Utc>,
     pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
@@ -73,7 +68,6 @@ pub enum DeliverableType {
 pub struct TaskRequestDbService<'a> {
     pub db: &'a Db,
     pub ctx: &'a Ctx,
-    pub task_participation_repo: &'a Repository<TaskRequestParticipation>,
 }
 
 impl<'a> TaskRequestDbService<'a> {}
@@ -81,7 +75,6 @@ impl<'a> TaskRequestDbService<'a> {}
 pub const TABLE_NAME: &str = "task_request";
 const TABLE_COL_POST: &str = post_entity::TABLE_NAME;
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
-const TABLE_PARTICIPANT_REWARD: &str = task_request_participation_entity::TABLE_NAME;
 
 impl<'a> TaskRequestDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -98,9 +91,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
-    DEFINE FIELD IF NOT EXISTS participants ON TABLE {TABLE_NAME} TYPE array<record<{TABLE_PARTICIPANT_REWARD}>>;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD IF NOT EXISTS valid_until ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
@@ -211,177 +202,177 @@ impl<'a> TaskRequestDbService<'a> {
         .await
     }
 
-    pub async fn add_participation(
-        &self,
-        offer_id: Thing,
-        user_id: Thing,
-        amount: i64,
-    ) -> CtxResult<TaskRequest> {
-        // update existing item from user or push new one
-        //TODO convert to db transactions
-        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
-        let lock_service = LockTransactionDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
+    // pub async fn add_participation(
+    //     &self,
+    //     offer_id: Thing,
+    //     user_id: Thing,
+    //     amount: i64,
+    // ) -> CtxResult<TaskRequest> {
+    //     // update existing item from user or push new one
+    //     //TODO convert to db transactions
+    //     let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+    //     let lock_service = LockTransactionDbService {
+    //         db: self.db,
+    //         ctx: self.ctx,
+    //     };
 
-        let mut participants = self
-            .task_participation_repo
-            .get_ids(&offer.participants)
-            .await?;
-        match participants.iter().position(|op| op.user == user_id) {
-            None => {
-                let lock = lock_service
-                    .lock_user_asset_tx(
-                        &user_id,
-                        amount,
-                        offer.currency.clone(),
-                        vec![UnlockTrigger::Timestamp {
-                            at: offer.valid_until,
-                        }],
-                    )
-                    .await?;
-                let partic_new = self
-                    .task_participation_repo
-                    .create_update(TaskRequestParticipation {
-                        id: None,
-                        amount,
-                        lock: Some(lock),
-                        user: user_id,
-                        votes: None,
-                        currency: offer.currency,
-                    })
-                    .await?;
-                participants.push(partic_new);
-            }
-            Some(i) => {
-                let partic = &mut participants[i];
-                // unlock and lock different amt
-                let existing_lock_id = partic.lock.clone();
-                if let Some(lock) = existing_lock_id {
-                    lock_service.unlock_user_asset_tx(&lock).await?;
-                }
+    //     let mut participants = self
+    //         .task_participation_repo
+    //         .get_ids(&offer.participants)
+    //         .await?;
+    //     match participants.iter().position(|op| op.user == user_id) {
+    //         None => {
+    //             let lock = lock_service
+    //                 .lock_user_asset_tx(
+    //                     &user_id,
+    //                     amount,
+    //                     offer.currency.clone(),
+    //                     vec![UnlockTrigger::Timestamp {
+    //                         at: offer.valid_until,
+    //                     }],
+    //                 )
+    //                 .await?;
+    //             let partic_new = self
+    //                 .task_participation_repo
+    //                 .create_update(TaskRequestParticipation {
+    //                     id: None,
+    //                     amount,
+    //                     lock: Some(lock),
+    //                     user: user_id,
+    //                     votes: None,
+    //                     currency: offer.currency,
+    //                 })
+    //                 .await?;
+    //             participants.push(partic_new);
+    //         }
+    //         Some(i) => {
+    //             let partic = &mut participants[i];
+    //             // unlock and lock different amt
+    //             let existing_lock_id = partic.lock.clone();
+    //             if let Some(lock) = existing_lock_id {
+    //                 lock_service.unlock_user_asset_tx(&lock).await?;
+    //             }
 
-                let lock = lock_service
-                    .lock_user_asset_tx(
-                        &user_id,
-                        amount,
-                        offer.currency.clone(),
-                        vec![UnlockTrigger::Timestamp {
-                            at: offer.valid_until,
-                        }],
-                    )
-                    .await?;
-                partic.lock = Some(lock);
-                partic.amount = amount;
-                self.task_participation_repo
-                    .create_update(partic.to_owned())
-                    .await?;
-            }
-        }
-        let partic_ids: Vec<Thing> = participants
-            .iter()
-            .map(|p| p.id.clone().expect("Saved participants with existing id"))
-            .collect();
-        let res: Option<TaskRequest> = self
-            .db
-            .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
-            .patch(PatchOp::replace("/participants", partic_ids))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| {
-            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                ident: offer_id.to_raw(),
-            })
-        })
-    }
+    //             let lock = lock_service
+    //                 .lock_user_asset_tx(
+    //                     &user_id,
+    //                     amount,
+    //                     offer.currency.clone(),
+    //                     vec![UnlockTrigger::Timestamp {
+    //                         at: offer.valid_until,
+    //                     }],
+    //                 )
+    //                 .await?;
+    //             partic.lock = Some(lock);
+    //             partic.amount = amount;
+    //             self.task_participation_repo
+    //                 .create_update(partic.to_owned())
+    //                 .await?;
+    //         }
+    //     }
+    //     let partic_ids: Vec<Thing> = participants
+    //         .iter()
+    //         .map(|p| p.id.clone().expect("Saved participants with existing id"))
+    //         .collect();
+    //     let res: Option<TaskRequest> = self
+    //         .db
+    //         .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+    //         .patch(PatchOp::replace("/participants", partic_ids))
+    //         .await
+    //         .map_err(CtxError::from(self.ctx))?;
+    //     res.ok_or_else(|| {
+    //         self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+    //             ident: offer_id.to_raw(),
+    //         })
+    //     })
+    // }
 
-    pub async fn remove_participation(
-        &self,
-        offer_id: Thing,
-        user_id: Thing,
-    ) -> CtxResult<Option<TaskRequest>> {
-        // if last user remove task request else update participants
-        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+    // pub async fn remove_participation(
+    //     &self,
+    //     offer_id: Thing,
+    //     user_id: Thing,
+    // ) -> CtxResult<Option<TaskRequest>> {
+    //     // if last user remove task request else update participants
+    //     let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
 
-        let mut participants = self
-            .task_participation_repo
-            .get_ids(&offer.participants)
-            .await?;
+    //     let mut participants = self
+    //         .task_participation_repo
+    //         .get_ids(&offer.participants)
+    //         .await?;
 
-        if let Some(i) = participants
-            .iter()
-            .position(|partic| partic.user == user_id)
-        {
-            let lock_service = LockTransactionDbService {
-                db: self.db,
-                ctx: self.ctx,
-            };
-            let existing_lock_id = participants[i].lock.clone();
-            if let Some(lock) = existing_lock_id {
-                lock_service.unlock_user_asset_tx(&lock).await?;
-            }
-            if participants.len() == 1 {
-                self.delete(offer.id.expect("existing offer has id"))
-                    .await?;
-                return Ok(None);
-            }
-            participants.remove(i);
-            let partic_ids: Vec<Thing> = participants
-                .iter()
-                .map(|p| p.id.clone().expect("Saved participants with existing id"))
-                .collect();
-            let res: Option<TaskRequest> = self
-                .db
-                .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
-                .patch(PatchOp::replace("/participants", partic_ids))
-                .await
-                .map_err(CtxError::from(self.ctx))?;
+    //     if let Some(i) = participants
+    //         .iter()
+    //         .position(|partic| partic.user == user_id)
+    //     {
+    //         let lock_service = LockTransactionDbService {
+    //             db: self.db,
+    //             ctx: self.ctx,
+    //         };
+    //         let existing_lock_id = participants[i].lock.clone();
+    //         if let Some(lock) = existing_lock_id {
+    //             lock_service.unlock_user_asset_tx(&lock).await?;
+    //         }
+    //         if participants.len() == 1 {
+    //             self.delete(offer.id.expect("existing offer has id"))
+    //                 .await?;
+    //             return Ok(None);
+    //         }
+    //         participants.remove(i);
+    //         let partic_ids: Vec<Thing> = participants
+    //             .iter()
+    //             .map(|p| p.id.clone().expect("Saved participants with existing id"))
+    //             .collect();
+    //         let res: Option<TaskRequest> = self
+    //             .db
+    //             .update((offer_id.tb.clone(), offer_id.id.clone().to_string()))
+    //             .patch(PatchOp::replace("/participants", partic_ids))
+    //             .await
+    //             .map_err(CtxError::from(self.ctx))?;
 
-            if res.is_some() {
-                Ok(res)
-            } else {
-                Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                    ident: offer_id.to_raw(),
-                }))
-            }
-        } else {
-            Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                ident: "User participation not found".to_string(),
-            }))
-        }
-    }
+    //         if res.is_some() {
+    //             Ok(res)
+    //         } else {
+    //             Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+    //                 ident: offer_id.to_raw(),
+    //             }))
+    //         }
+    //     } else {
+    //         Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+    //             ident: "User participation not found".to_string(),
+    //         }))
+    //     }
+    // }
 
     // not public - can only be deleted by removing participants
-    async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
-        let lock_service = LockTransactionDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
+    // async fn delete(&self, offer_id: Thing) -> CtxResult<bool> {
+    //     let lock_service = LockTransactionDbService {
+    //         db: self.db,
+    //         ctx: self.ctx,
+    //     };
 
-        let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
-        if offer.participants.len() > 1 {
-            return Err(self.ctx.to_ctx_error(AppError::Generic {
-                description: "Can not delete with other participants".to_string(),
-            }));
-        }
-        let participants = self
-            .task_participation_repo
-            .get_ids(&offer.participants)
-            .await?;
+    //     let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
+    //     if offer.participants.len() > 1 {
+    //         return Err(self.ctx.to_ctx_error(AppError::Generic {
+    //             description: "Can not delete with other participants".to_string(),
+    //         }));
+    //     }
+    //     let participants = self
+    //         .task_participation_repo
+    //         .get_ids(&offer.participants)
+    //         .await?;
 
-        for partic in participants {
-            let existing_lock_id = partic.lock.clone();
-            if let Some(lock) = existing_lock_id {
-                lock_service.unlock_user_asset_tx(&lock).await?;
-            }
-            self.task_participation_repo
-                .delete(partic.id.unwrap())
-                .await?;
-        }
-        let _: Option<TaskRequest> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
-        Ok(true)
-    }
+    //     for partic in participants {
+    //         let existing_lock_id = partic.lock.clone();
+    //         if let Some(lock) = existing_lock_id {
+    //             lock_service.unlock_user_asset_tx(&lock).await?;
+    //         }
+    //         self.task_participation_repo
+    //             .delete(partic.id.unwrap())
+    //             .await?;
+    //     }
+    //     let _: Option<TaskRequest> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
+    //     Ok(true)
+    // }
 
     /*    pub async fn get_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<TaskRequest>> {
             let mut bindings: HashMap<String, String> = HashMap::new();

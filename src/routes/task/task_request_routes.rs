@@ -1,13 +1,14 @@
-use crate::database::repository::RepositoryCore;
 use crate::entities::community::post_entity::PostDbService;
+use crate::entities::task::task_request_entity;
 use crate::entities::task::task_request_entity::TaskRequestType;
-use crate::entities::task::{task_request_entity, task_request_participation_entity};
+use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
 use crate::entities::task_request_user::{
-    TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus, TaskRequestUserTimeline,
+    TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus,
 };
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
+use crate::interfaces::repositories::task_participators::TaskParticipatorsRepositoryInterface;
 use crate::interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
@@ -19,7 +20,8 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
+use google_cloud_storage::http::objects::patch;
 use local_user_entity::LocalUserDbService;
 use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::ctx::Ctx;
@@ -37,7 +39,6 @@ use surrealdb::sql::{Id, Thing};
 use task_request_entity::{
     DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TABLE_NAME,
 };
-use task_request_participation_entity::TaskRequestParticipation;
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
 
@@ -113,7 +114,6 @@ pub struct DeliverTaskRequestInput {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestViewToUsers {
     pub user: UserView,
-    pub timelines: Vec<TaskRequestUserTimeline>,
     pub status: TaskRequestUserStatus,
 }
 #[derive(Deserialize, Serialize, Debug)]
@@ -128,7 +128,6 @@ pub struct TaskRequestView {
     pub request_txt: String,
     pub participants: Vec<TaskRequestParticipationView>,
     pub reward_type: RewardType,
-    pub valid_until: DateTime<Utc>,
     pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
@@ -141,14 +140,12 @@ impl ViewFieldSelector for TaskRequestView {
         "id, 
         from_user.{id, username, full_name} as from_user,
         on_post, request_txt, reward_type, 
-        valid_until, 
         currency, 
         ->task_request_user.{
             user: out.{id, username, full_name},        
-            timelines,
             status
         } as to_users,
-        participants.*.{id, user.{id, username, full_name}, amount, currency} as participants"
+        ->task_request_participation.{user:out.{id, username, full_name}, amount, currency} as participants"
             .to_string()
     }
 }
@@ -217,7 +214,6 @@ async fn user_requests_received(
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     }
     .get_by_user::<TaskRequestView>(&to_user, query.status)
     .await?;
@@ -257,7 +253,6 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     }
     .get_by_creator::<TaskRequestView>(from_user, None, None)
     .await?;
@@ -272,7 +267,6 @@ async fn post_task_requests(
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
     .await?;
@@ -289,8 +283,7 @@ async fn post_task_requests(
 //         ctx: &ctx,
 //     }
 //     .get_ctx_user_thing()
-//     .await?;
-
+//    .await?;
 //     let list = TaskRequestDbService {
 //         db: &_db,
 //         ctx: &ctx,
@@ -346,52 +339,25 @@ async fn create_entity(
     let offer_currency = CurrencySymbol::USD;
     let valid_until = Utc::now().checked_add_signed(Duration::days(5)).unwrap();
 
-    let post_id = t_request_input.post_id.unwrap_or("".to_string());
-    let post = if post_id.len() > 0 {
-        Some(get_string_thing(post_id)?)
-    } else {
-        None
-    };
-
-    // TODO in db transaction
-    let lock = if offer_amount > 0 {
-        let lock_service = LockTransactionDbService {
+    let post = if let Some(ref post_id) = t_request_input.post_id {
+        let post_thing = get_string_thing(post_id.clone())?;
+        let post_db_service = PostDbService {
             db: &state.db.client,
             ctx: &ctx,
         };
-        Some(
-            lock_service
-                .lock_user_asset_tx(
-                    &from_user,
-                    offer_amount,
-                    offer_currency.clone(),
-                    vec![UnlockTrigger::Timestamp {
-                        at: valid_until.clone(),
-                    }],
-                )
-                .await?,
-        )
+        post_db_service
+            .must_exist(IdentIdName::Id(post_thing.clone()))
+            .await?;
+        Some(post_thing)
     } else {
         None
     };
-    let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
-    let task_partic_repo = &state.db.task_request_participation;
 
-    let participant = task_partic_repo
-        .create_update(TaskRequestParticipation {
-            id: None,
-            amount: offer_amount,
-            user: from_user.clone(),
-            lock,
-            currency: offer_currency.clone(),
-            votes: None,
-        })
-        .await?;
+    let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
 
     let t_request = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: task_partic_repo,
     }
     .create(TaskRequest {
         id: Some(t_req_id.clone()),
@@ -400,15 +366,44 @@ async fn create_entity(
         r#type: task_type,
         request_txt: t_request_input.content,
         deliverable_type: DeliverableType::PublicPost,
-        participants: vec![participant.id.unwrap()],
         reward_type: RewardType::OnDelivery,
-        valid_until,
-        currency: offer_currency,
+        currency: offer_currency.clone(),
         deliverables: None,
         r_created: None,
         r_updated: None,
     })
     .await?;
+
+    if offer_amount > 0 {
+        let tx_db_service = LockTransactionDbService {
+            db: &state.db.client,
+            ctx: &ctx,
+        };
+        let tx_id = tx_db_service
+            .lock_user_asset_tx(
+                &from_user,
+                offer_amount,
+                offer_currency.clone(),
+                vec![UnlockTrigger::Timestamp {
+                    at: valid_until.clone(),
+                }],
+            )
+            .await?;
+        let _ = state
+            .db
+            .task_participators
+            .create(
+                &t_request.id.as_ref().unwrap().id.to_raw(),
+                &from_user.id.to_raw(),
+                &tx_id.id.to_raw(),
+                offer_amount as u64,
+                &offer_currency.to_string(),
+            )
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
+    }
 
     if let Some(ref user) = to_user {
         let _ = state
@@ -458,7 +453,6 @@ pub struct TaskRequestForToUsers {
     pub id: Thing,
     pub reward_type: RewardType,
     pub r#type: TaskRequestType,
-    pub participants: Vec<Thing>,
     pub participant_ids: Vec<Thing>,
     pub to_users: Vec<TaskRequestUser>,
 }
@@ -466,11 +460,9 @@ pub struct TaskRequestForToUsers {
 impl ViewFieldSelector for TaskRequestForToUsers {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, 
-        participants, 
         reward_type,
-        participators,
-        participants.*.user.id as participant_ids,
-        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines, result} as to_users,
+        ->task_request_participation.*.out as participant_ids,
+        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, result} as to_users,
         type"
             .to_string()
     }
@@ -491,7 +483,6 @@ async fn reject_task_request(
     let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     };
     let task_thing = get_str_thing(&task_id)?;
     let task = task_db_service
@@ -500,14 +491,9 @@ async fn reject_task_request(
     let user_id_id = user_id.id.to_raw();
     let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
 
-    let allow = match task_user {
-        Some(v) => {
-            v.status == TaskRequestUserStatus::Requested
-                || v.status == TaskRequestUserStatus::Accepted
-        }
-        None => false,
-    };
-
+    let allow = task_user.map_or(false, |v| {
+        v.status == TaskRequestUserStatus::Requested || v.status == TaskRequestUserStatus::Accepted
+    });
     if !allow {
         return Err(AppError::Generic {
             description: "Forbidden".to_string(),
@@ -550,7 +536,6 @@ async fn accept_task_request(
     let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     };
 
     let task_thing = get_str_thing(&task_id)?;
@@ -636,7 +621,6 @@ async fn deliver_task_request(
     let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     };
 
     let task_thing = get_str_thing(&task_id)?;
@@ -691,10 +675,10 @@ async fn deliver_task_request(
     if task.r#type == TaskRequestType::Close {
         match task.reward_type {
             RewardType::OnDelivery => {
-                let task_partic_repo = &state.db.task_request_participation;
-                task_partic_repo
-                    .process_payments(&ctx, &delivered_by, task.participants.clone())
-                    .await?;
+                // let task_partic_repo = &state.db.task_request_participation;
+                // task_partic_repo
+                //     .process_payments(&ctx, &delivered_by, task.participants.clone())
+                //     .await?;
                 n_service
                     .on_update_balance(&delivered_by, &task.participant_ids)
                     .await?;
@@ -746,11 +730,30 @@ async fn deliver_task_request(
 }
 */
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TaskRequestAddParticipators {
+    pub id: Thing,
+    pub reward_type: RewardType,
+    pub r#type: TaskRequestType,
+    pub participants: Vec<TaskRequestParticipation>,
+    pub to_users: Vec<TaskRequestUser>,
+}
+
+impl ViewFieldSelector for TaskRequestAddParticipators {
+    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+        "id, 
+        reward_type,
+        ->task_request_participation.*.{id, amount, currency, lock, user: out} as participants,
+        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status} as to_users,
+        type"
+            .to_string()
+    }
+}
 async fn participate_task_request_offer(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    Path(task_offer_id): Path<String>,
-    JsonOrFormValidated(t_request_offer_input): JsonOrFormValidated<TaskRequestOfferInput>,
+    Path(task_id): Path<String>,
+    JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Html<String>> {
     let from_user = LocalUserDbService {
         db: &state.db.client,
@@ -758,19 +761,87 @@ async fn participate_task_request_offer(
     }
     .get_ctx_user_thing()
     .await?;
-    let task_request_db_service = TaskRequestDbService {
+
+    let task_db_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
-        task_participation_repo: &state.db.task_request_participation,
     };
 
-    let task_offer = task_request_db_service
-        .add_participation(
-            get_string_thing(task_offer_id)?,
-            from_user.clone(),
-            t_request_offer_input.amount,
-        )
+    if data.amount <= 0 {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
+    }
+
+    let task_thing = get_str_thing(&task_id)?;
+    let task = task_db_service
+        .get_by_id::<TaskRequestAddParticipators>(&task_thing)
         .await?;
+
+    let is_some_accepted_or_delivered = task.to_users.iter().any(|v| {
+        v.status == TaskRequestUserStatus::Accepted || v.status == TaskRequestUserStatus::Delivered
+    });
+    let offer_currency = data.currency.unwrap_or(CurrencySymbol::USD);
+
+    if is_some_accepted_or_delivered {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
+    }
+
+    let participant = task.participants.iter().find(|p| p.user == from_user);
+
+    let tx_db_service = LockTransactionDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+
+    let offer_id = match participant {
+        Some(p) => {
+            if let Some(ref lock) = p.lock {
+                tx_db_service.unlock_user_asset_tx(lock).await?;
+            }
+            let tx_id = tx_db_service
+                .lock_user_asset_tx(&from_user, data.amount, offer_currency.clone(), vec![])
+                .await?;
+            let _ = state
+                .db
+                .task_participators
+                .update(
+                    &p.id.as_ref().unwrap().id.to_raw(),
+                    &tx_id.id.to_raw(),
+                    data.amount as u64,
+                    &offer_currency.to_string(),
+                )
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?;
+            p.id.as_ref().unwrap().to_raw()
+        }
+        None => {
+            let tx_id = tx_db_service
+                .lock_user_asset_tx(&from_user, data.amount, offer_currency.clone(), vec![])
+                .await?;
+            let id = state
+                .db
+                .task_participators
+                .create(
+                    &task_thing.id.to_raw(),
+                    &from_user.id.to_raw(),
+                    &tx_id.id.to_raw(),
+                    data.amount as u64,
+                    &offer_currency.to_string(),
+                )
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?;
+            id
+        }
+    };
 
     state
         .db
@@ -786,7 +857,7 @@ async fn participate_task_request_offer(
 
     ctx.to_htmx_or_json(CreatedResponse {
         success: true,
-        id: task_offer.id.unwrap().to_raw(),
+        id: offer_id,
         uri: None,
     })
 }
