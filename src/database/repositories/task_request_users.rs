@@ -1,6 +1,10 @@
 use crate::{
     database::client::Db,
-    entities::task_request_user::{TaskRequestUserResult, TaskRequestUserTimeline},
+    entities::{
+        task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
+        task_request_user::TaskRequestUserResult,
+        user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
+    },
     interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface,
     middleware::error::AppError,
 };
@@ -11,21 +15,27 @@ use surrealdb::sql::Thing;
 #[derive(Debug)]
 pub struct TaskRequestUsesRepository {
     client: Arc<Db>,
+    table_name: &'static str,
 }
 
 impl TaskRequestUsesRepository {
     pub fn new(client: Arc<Db>) -> Self {
-        Self { client }
+        Self {
+            client,
+            table_name: "task_request_user",
+        }
     }
 
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let sql = "
-        DEFINE TABLE IF NOT EXISTS task_request_user TYPE RELATION IN task_request OUT local_user ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE FIELD IF NOT EXISTS timelines    ON task_request_user FLEXIBLE TYPE array<object>;
-        DEFINE FIELD IF NOT EXISTS result       ON task_request_user FLEXIBLE TYPE option<object>;
-        DEFINE FIELD IF NOT EXISTS created_at   ON task_request_user TYPE datetime DEFAULT time::now();
-        DEFINE INDEX IF NOT EXISTS in_out_idx   ON task_request_user FIELDS in, out;
-    ";
+        let table = self.table_name;
+        let sql = format!("
+        DEFINE TABLE IF NOT EXISTS {table} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+        DEFINE FIELD IF NOT EXISTS timelines    ON {table} FLEXIBLE TYPE array<object>;
+        DEFINE FIELD IF NOT EXISTS status       ON {table} TYPE string;
+        DEFINE FIELD IF NOT EXISTS result       ON {table} FLEXIBLE TYPE option<object>;
+        DEFINE INDEX IF NOT EXISTS in_out_idx   ON {table} FIELDS in, out;
+        DEFINE INDEX IF NOT EXISTS status_idx   ON {table} FIELDS status;
+    ");
         let mutation = self.client.query(sql).await?;
 
         mutation
@@ -38,26 +48,17 @@ impl TaskRequestUsesRepository {
 
 #[async_trait]
 impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
-    async fn create(
-        &self,
-        task_id: &str,
-        user_id: &str,
-        timeline: Option<TaskRequestUserTimeline>,
-    ) -> Result<String, String> {
-        let timelines = match timeline {
-            Some(t) => vec![t],
-            _ => Vec::new(),
-        };
+    async fn create(&self, task_id: &str, user_id: &str, status: &str) -> Result<String, String> {
         let sql = "
-            RELATE $task->task_request_user->$user SET timelines=$timelines 
+            RELATE $task->task_request_user->$user SET timelines=[{ status: $status, date: time::now()}], status=$status
             RETURN record::id(id) as id;";
 
         let mut res = self
             .client
             .query(sql)
-            .bind(("user", Thing::from(("local_user", user_id))))
-            .bind(("task", Thing::from(("task_request", task_id))))
-            .bind(("timelines", timelines))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("status", status.to_string()))
             .await
             .map_err(|e| e.to_string())?;
 
@@ -71,20 +72,22 @@ impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
     async fn update(
         &self,
         id: &str,
-        timeline: TaskRequestUserTimeline,
+        status: &str,
         result: Option<TaskRequestUserResult>,
     ) -> Result<(), String> {
-        let res = if result.is_some() {
-            ",result=$result"
-        } else {
-            ""
-        };
-        let query = format!("UPDATE $id SET timelines+=[$timeline] {};", res);
+        let query = format!(
+            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status {};",
+            if result.is_some() {
+                ",result=$result"
+            } else {
+                ""
+            }
+        );
         let res = self
             .client
             .query(query)
-            .bind(("id", Thing::from(("task_request_user", id))))
-            .bind(("timeline", timeline))
+            .bind(("id", Thing::from((self.table_name, id))))
+            .bind(("status", status.to_string()))
             .bind(("result", result))
             .await
             .map_err(|e| e.to_string())?;

@@ -14,7 +14,7 @@ use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
@@ -35,7 +35,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use surrealdb::sql::{Id, Thing};
 use task_request_entity::{
-    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, UserTaskRole, TABLE_NAME,
+    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TABLE_NAME,
 };
 use task_request_participation_entity::TaskRequestParticipation;
 use validator::Validate;
@@ -108,12 +108,13 @@ pub struct DeliverTaskRequestInput {
     // currently only use post_id
     // #[form_data(limit = "30MiB")]
     // pub file_1: Option<FieldData<NamedTempFile>>,
-    pub post_id: Option<String>,
+    pub post_id: String,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestViewToUsers {
     pub user: UserView,
     pub timelines: Vec<TaskRequestUserTimeline>,
+    pub status: TaskRequestUserStatus,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
@@ -145,6 +146,7 @@ impl ViewFieldSelector for TaskRequestView {
         ->task_request_user.{
             user: out.{id, username, full_name},        
             timelines,
+            status
         } as to_users,
         participants.*.{id, user.{id, username, full_name}, amount, currency} as participants"
             .to_string()
@@ -196,7 +198,15 @@ pub struct UserView {
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 */
-async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<String> {
+#[derive(Debug, Deserialize)]
+struct GetTaskByToUserQuery {
+    status: Option<TaskRequestUserStatus>,
+}
+async fn user_requests_received(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Query(query): Query<GetTaskByToUserQuery>,
+) -> CtxResult<String> {
     let to_user = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
@@ -209,7 +219,7 @@ async fn user_requests_received(State(state): State<Arc<CtxState>>, ctx: Ctx) ->
         ctx: &ctx,
         task_participation_repo: &state.db.task_request_participation,
     }
-    .get_by_user::<TaskRequestView>(&to_user)
+    .get_by_user::<TaskRequestView>(&to_user, query.status)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -249,7 +259,7 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
         ctx: &ctx,
         task_participation_repo: &state.db.task_request_participation,
     }
-    .user_post_list_view::<TaskRequestView>(UserTaskRole::FromUser, from_user, None, None)
+    .get_by_creator::<TaskRequestView>(from_user, None, None)
     .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
@@ -407,7 +417,7 @@ async fn create_entity(
             .create(
                 &t_request.id.as_ref().unwrap().id.to_raw(),
                 &user.id.as_ref().unwrap().id.to_raw(),
-                None,
+                TaskRequestUserStatus::Requested.as_str(),
             )
             .await
             .map_err(|e| AppError::SurrealDb {
@@ -460,7 +470,7 @@ impl ViewFieldSelector for TaskRequestForToUsers {
         reward_type,
         participators,
         participants.*.user.id as participant_ids,
-        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out), timelines, result, created_at } as to_users,
+        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines, result} as to_users,
         type"
             .to_string()
     }
@@ -490,13 +500,15 @@ async fn reject_task_request(
     let user_id_id = user_id.id.to_raw();
     let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
 
-    let deny_reject = task_user.is_none()
-        || task_user
-            .as_ref()
-            .unwrap()
-            .equal(TaskRequestUserStatus::Delivered);
+    let allow = match task_user {
+        Some(v) => {
+            v.status == TaskRequestUserStatus::Requested
+                || v.status == TaskRequestUserStatus::Accepted
+        }
+        None => false,
+    };
 
-    if deny_reject {
+    if !allow {
         return Err(AppError::Generic {
             description: "Forbidden".to_string(),
         }
@@ -508,10 +520,7 @@ async fn reject_task_request(
         .task_request_users
         .update(
             &task_user.as_ref().unwrap().id,
-            TaskRequestUserTimeline {
-                status: TaskRequestUserStatus::Rejected,
-                date: Utc::now(),
-            },
+            TaskRequestUserStatus::Rejected.as_str(),
             None,
         )
         .await
@@ -558,6 +567,7 @@ async fn accept_task_request(
 
     let user_id_id = user_id.id.to_raw();
     let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
+
     match task.r#type {
         TaskRequestType::Open => {
             if task_user.is_some() {
@@ -573,18 +583,15 @@ async fn accept_task_request(
                 .create(
                     &task.id.id.to_raw(),
                     &user_id_id,
-                    Some(TaskRequestUserTimeline {
-                        status: TaskRequestUserStatus::Accepted,
-                        date: Utc::now(),
-                    }),
+                    TaskRequestUserStatus::Accepted.as_str(),
                 )
                 .await
-                .map_err(|_| AppError::SurrealDb {
-                    source: task_id.clone(),
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
                 })?;
         }
         TaskRequestType::Close => {
-            if task_user.is_none() || !task_user.unwrap().timelines.is_empty() {
+            if task_user.map_or(true, |v| v.status != TaskRequestUserStatus::Requested) {
                 return Err(AppError::Generic {
                     description: "Forbidden".to_string(),
                 }
@@ -596,15 +603,12 @@ async fn accept_task_request(
                 .task_request_users
                 .update(
                     &task_user.as_ref().unwrap().id,
-                    TaskRequestUserTimeline {
-                        status: TaskRequestUserStatus::Accepted,
-                        date: Utc::now(),
-                    },
+                    TaskRequestUserStatus::Accepted.as_str(),
                     None,
                 )
                 .await
-                .map_err(|_| AppError::SurrealDb {
-                    source: task_id.clone(),
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
                 })?;
         }
     }
@@ -644,7 +648,7 @@ async fn deliver_task_request(
     let task_user = task
         .to_users
         .iter()
-        .find(|v| v.user == user_id_id && v.equal(TaskRequestUserStatus::Accepted));
+        .find(|v| v.user == user_id_id && v.status == TaskRequestUserStatus::Accepted);
 
     if task_user.is_none() {
         return Err(AppError::Generic {
@@ -653,29 +657,24 @@ async fn deliver_task_request(
         .into());
     }
 
-    if let Some(ref post_id) = t_request_input.post_id {
-        let post_db_service = PostDbService {
-            db: &state.db.client,
-            ctx: &ctx,
-        };
-        let post_thing = get_str_thing(post_id)?;
-        post_db_service
-            .must_exist(IdentIdName::Id(post_thing))
-            .await?;
-    }
+    let post_db_service = PostDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+    let post_thing = get_str_thing(&t_request_input.post_id)?;
+    post_db_service
+        .must_exist(IdentIdName::Id(post_thing))
+        .await?;
 
     state
         .db
         .task_request_users
         .update(
             &task_user.unwrap().id,
-            TaskRequestUserTimeline {
-                status: TaskRequestUserStatus::Delivered,
-                date: Utc::now(),
-            },
+            TaskRequestUserStatus::Delivered.as_str(),
             Some(TaskRequestUserResult {
                 urls: None,
-                post: t_request_input.post_id,
+                post: Some(t_request_input.post_id),
             }),
         )
         .await

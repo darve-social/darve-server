@@ -1,6 +1,7 @@
 use crate::database::client::Db;
 use crate::database::repository::{Repository, RepositoryCore};
 use crate::entities::community::post_entity;
+use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
 use crate::middleware;
@@ -29,13 +30,10 @@ pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub from_user: Thing,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub to_user: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_post: Option<Thing>,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
-    // pub status: String,
     pub r#type: TaskRequestType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deliverables: Option<Vec<Thing>>,
@@ -70,15 +68,6 @@ pub enum RewardType {
 pub enum DeliverableType {
     PublicPost,
     // Participants,
-}
-
-#[derive(Display)]
-pub enum UserTaskRole {
-    // needs to be same as col name
-    #[strum(to_string = "from_user")]
-    FromUser, // created task
-    #[strum(to_string = "to_user")]
-    ToUser, // received task
 }
 
 pub struct TaskRequestDbService<'a> {
@@ -158,23 +147,34 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user: &Thing,
+        status: Option<TaskRequestUserStatus>,
     ) -> CtxResult<Vec<T>> {
+        let status_query = match &status {
+            Some(_) => "AND $status IN ->task_request_user.status",
+            None => "",
+        };
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_request_user.out;",
-            &T::get_select_query_fields(&IdentIdName::Id(user.clone()))
+            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_request_user.out {};",
+            &T::get_select_query_fields(&IdentIdName::Id(user.clone())),
+            status_query
         );
-        let mut res = self.db.query(query).bind(("user", user.clone())).await?;
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", user.clone()))
+            .bind(("status", status))
+            .await?;
         Ok(res.take::<Vec<T>>(0)?)
     }
-    pub async fn user_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+
+    pub async fn get_by_creator<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
-        user_task_role: UserTaskRole,
         user: Thing,
         post_id: Option<Thing>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<T>> {
         let mut filter_by = vec![IdentIdName::ColumnIdent {
-            column: user_task_role.to_string(),
+            column: "from_user".to_string(),
             val: user.to_raw(),
             rec: true,
         }];

@@ -3,9 +3,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskRequestUserStatus {
+    Requested,
     Rejected,
     Accepted,
     Delivered,
+}
+
+impl TaskRequestUserStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TaskRequestUserStatus::Requested => "Requested",
+            TaskRequestUserStatus::Rejected => "Rejected",
+            TaskRequestUserStatus::Accepted => "Accepted",
+            TaskRequestUserStatus::Delivered => "Delivered",
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,19 +25,10 @@ pub struct TaskRequestUser {
     pub id: String,
     pub task: String,
     pub user: String,
+    pub status: TaskRequestUserStatus,
     #[serde(default)]
     pub timelines: Vec<TaskRequestUserTimeline>,
     pub result: Option<TaskRequestUserResult>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl TaskRequestUser {
-    pub fn equal(&self, status: TaskRequestUserStatus) -> bool {
-        match self.timelines.last() {
-            Some(v) => v.status == status,
-            None => false,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

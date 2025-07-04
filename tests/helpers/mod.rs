@@ -48,7 +48,6 @@ async fn init_test_db(config: &mut AppConfig) -> Database {
                 post_stream,
                 join_action,
                 community,
-                task_deliverable,
                 task_request,
                 task_request_participation,
                 post,
