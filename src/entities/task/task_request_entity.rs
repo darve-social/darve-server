@@ -1,13 +1,15 @@
 use crate::database::client::Db;
 use crate::database::repository::{Repository, RepositoryCore};
 use crate::entities::community::post_entity;
+use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
 use crate::middleware;
+use crate::middleware::utils::db_utils::get_entity_view;
 use chrono::{DateTime, Utc};
 use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::utils::db_utils::{
-    get_entity, get_entity_list, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
+    get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
 };
 use middleware::{
@@ -18,11 +20,10 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::Thing;
-use task_deliverable_entity::TaskDeliverable;
 use task_request_participation_entity::TaskRequestParticipation;
 use wallet_entity::CurrencySymbol;
 
-use super::{task_deliverable_entity, task_request_participation_entity};
+use super::task_request_participation_entity;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
@@ -30,12 +31,10 @@ pub struct TaskRequest {
     pub id: Option<Thing>,
     pub from_user: Thing,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to_user: Option<Thing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub on_post: Option<Thing>,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
-    pub status: String,
+    pub r#type: TaskRequestType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deliverables: Option<Vec<Thing>>,
     pub reward_type: RewardType,
@@ -48,13 +47,10 @@ pub struct TaskRequest {
     pub r_updated: Option<String>,
 }
 
-#[derive(EnumString, Display)]
-pub enum TaskStatus {
-    Requested,
-    Accepted,
-    Rejected,
-    Delivered,
-    Complete,
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub enum TaskRequestType {
+    Open,
+    Close,
 }
 
 #[derive(Display, Clone, Debug, Serialize, Deserialize)]
@@ -74,19 +70,9 @@ pub enum DeliverableType {
     // Participants,
 }
 
-#[derive(Display)]
-pub enum UserTaskRole {
-    // needs to be same as col name
-    #[strum(to_string = "from_user")]
-    FromUser, // created task
-    #[strum(to_string = "to_user")]
-    ToUser, // received task
-}
-
 pub struct TaskRequestDbService<'a> {
     pub db: &'a Db,
     pub ctx: &'a Ctx,
-    pub task_deliverable_repo: &'a Repository<TaskDeliverable>,
     pub task_participation_repo: &'a Repository<TaskRequestParticipation>,
 }
 
@@ -95,17 +81,10 @@ impl<'a> TaskRequestDbService<'a> {}
 pub const TABLE_NAME: &str = "task_request";
 const TABLE_COL_POST: &str = post_entity::TABLE_NAME;
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
-const TABLE_COL_DELIVERABLE: &str = task_deliverable_entity::TABLE_NAME;
 const TABLE_PARTICIPANT_REWARD: &str = task_request_participation_entity::TABLE_NAME;
 
 impl<'a> TaskRequestDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let t_stat_req = TaskStatus::Requested.to_string();
-        let t_stat_acc = TaskStatus::Accepted.to_string();
-        let t_stat_rej = TaskStatus::Rejected.to_string();
-        let t_stat_del = TaskStatus::Delivered.to_string();
-        let t_stat_com = TaskStatus::Complete.to_string();
-
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
@@ -116,20 +95,14 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE INDEX IF NOT EXISTS on_post_idx ON TABLE {TABLE_NAME} COLUMNS on_post;
     DEFINE FIELD IF NOT EXISTS from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE INDEX IF NOT EXISTS from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
-    DEFINE FIELD IF NOT EXISTS to_user ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_USER}>>;
-    DEFINE INDEX IF NOT EXISTS to_user_idx ON TABLE {TABLE_NAME} COLUMNS to_user;
     DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0
-        ASSERT $value INSIDE ['{t_stat_req}','{t_stat_acc}','{t_stat_rej}','{t_stat_del}','{t_stat_com}'];
-    DEFINE INDEX IF NOT EXISTS status_idx ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
     DEFINE FIELD IF NOT EXISTS participants ON TABLE {TABLE_NAME} TYPE array<record<{TABLE_PARTICIPANT_REWARD}>>;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS valid_until ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD IF NOT EXISTS deliverables ON TABLE {TABLE_NAME} TYPE option<set<record<{TABLE_COL_DELIVERABLE}>>>;
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    //DEFINE INDEX IF NOT EXISTS r_created_idx ON TABLE {TABLE_NAME} COLUMNS r_created;
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
@@ -158,33 +131,50 @@ impl<'a> TaskRequestDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    /*pub(crate) async fn add_offer(
+    pub async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
         &self,
-        task_id: Thing,
-        offer_id: Thing,
-    ) -> CtxResult<TaskRequest> {
-        let res: Option<TaskRequest> = self
-            .db
-            .update((task_id.tb.clone(), task_id.id.clone().to_string()))
-            .patch(PatchOp::add("/offers", [offer_id.clone()]))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| {
-            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                ident: offer_id.to_raw(),
-            })
-        })
-    }*/
+        id: &Thing,
+    ) -> CtxResult<T> {
+        let opt = get_entity_view::<T>(
+            &self.db,
+            TABLE_NAME.to_string(),
+            &IdentIdName::Id(id.clone()),
+        )
+        .await?;
+        with_not_found_err(opt, self.ctx, &id.to_raw())
+    }
 
-    pub async fn user_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
-        user_task_role: UserTaskRole,
+        user: &Thing,
+        status: Option<TaskRequestUserStatus>,
+    ) -> CtxResult<Vec<T>> {
+        let status_query = match &status {
+            Some(_) => "AND $status IN ->task_request_user.status",
+            None => "",
+        };
+        let query = format!(
+            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_request_user.out {};",
+            &T::get_select_query_fields(&IdentIdName::Id(user.clone())),
+            status_query
+        );
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", user.clone()))
+            .bind(("status", status))
+            .await?;
+        Ok(res.take::<Vec<T>>(0)?)
+    }
+
+    pub async fn get_by_creator<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
         user: Thing,
         post_id: Option<Thing>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<T>> {
         let mut filter_by = vec![IdentIdName::ColumnIdent {
-            column: user_task_role.to_string(),
+            column: "from_user".to_string(),
             val: user.to_raw(),
             rec: true,
         }];
@@ -221,101 +211,6 @@ impl<'a> TaskRequestDbService<'a> {
         .await
     }
 
-    pub async fn user_status_list(
-        &self,
-        user_task_role: UserTaskRole,
-        user: Thing,
-        status: TaskStatus,
-    ) -> CtxResult<Vec<TaskRequest>> {
-        get_entity_list::<TaskRequest>(
-            self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::ColumnIdentAnd(vec![
-                IdentIdName::ColumnIdent {
-                    column: user_task_role.to_string(),
-                    val: user.to_raw(),
-                    rec: true,
-                },
-                IdentIdName::ColumnIdent {
-                    column: "status".to_string(),
-                    val: status.to_string(),
-                    rec: false,
-                },
-            ]),
-            None,
-        )
-        .await
-    }
-
-    pub async fn update_status_received_by_user(
-        &self,
-        user: Thing,
-        task_ident: Thing,
-        status: TaskStatus,
-        delivered_urls: Option<Vec<String>>,
-        delivered_post: Option<Thing>,
-    ) -> CtxResult<(TaskRequest, Option<Thing>)> {
-        let task = self.get(IdentIdName::Id(task_ident.clone())).await?;
-        if task.to_user.is_none() || task.to_user.clone().expect("is some") == user {
-            let update_op = self
-                .db
-                .update((task_ident.tb.clone(), task_ident.id.clone().to_raw()));
-
-            let (update_op, deliverable_id) = match status {
-                TaskStatus::Delivered => {
-                    if delivered_urls.is_none() && delivered_post.is_none() {
-                        return Err(self.ctx.to_ctx_error(AppError::Generic {
-                            description: "Deliverable empty".to_string(),
-                        }));
-                    }
-                    
-                    let deliverable_id = self.task_deliverable_repo
-                        .create(
-                            TaskDeliverable {
-                            id: None,
-                            user,
-                            task_request: task_ident.clone(),
-                            urls: delivered_urls,
-                            post: delivered_post,
-                            r_created: None,
-                            r_updated: None,
-                        })
-                        .await?
-                        .id
-                        .expect("is saved");
-                    let update_op = update_op
-                        .patch(PatchOp::replace("/status", status.to_string()))
-                        .patch(PatchOp::add("/deliverables/-", [deliverable_id.clone()]));
-                    (update_op, Some(deliverable_id))
-                }
-                _ => {
-                    if task.to_user.is_some() {
-                        (
-                            update_op.patch(PatchOp::replace("/status", status.to_string())),
-                            None,
-                        )
-                    } else {
-                        return Err(self.ctx.to_ctx_error(AppError::AuthorizationFail {
-                            required: "User needs task privileges to update status".to_string(),
-                        }));
-                    }
-                }
-            };
-
-            let res: Option<TaskRequest> = update_op.await.map_err(CtxError::from(self.ctx))?;
-            let task = res.ok_or_else(|| {
-                self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                    ident: task_ident.to_raw(),
-                })
-            })?;
-            Ok((task, deliverable_id))
-        } else {
-            Err(self.ctx.to_ctx_error(AppError::AuthorizationFail {
-                required: "Task set to user".to_string(),
-            }))
-        }
-    }
-
     pub async fn add_participation(
         &self,
         offer_id: Thing,
@@ -329,8 +224,11 @@ impl<'a> TaskRequestDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         };
-       
-        let mut participants = self.task_participation_repo.get_ids(&offer.participants).await?;
+
+        let mut participants = self
+            .task_participation_repo
+            .get_ids(&offer.participants)
+            .await?;
         match participants.iter().position(|op| op.user == user_id) {
             None => {
                 let lock = lock_service
@@ -343,7 +241,8 @@ impl<'a> TaskRequestDbService<'a> {
                         }],
                     )
                     .await?;
-                let partic_new = self.task_participation_repo
+                let partic_new = self
+                    .task_participation_repo
                     .create_update(TaskRequestParticipation {
                         id: None,
                         amount,
@@ -375,7 +274,9 @@ impl<'a> TaskRequestDbService<'a> {
                     .await?;
                 partic.lock = Some(lock);
                 partic.amount = amount;
-                self.task_participation_repo.create_update(partic.to_owned()).await?;
+                self.task_participation_repo
+                    .create_update(partic.to_owned())
+                    .await?;
             }
         }
         let partic_ids: Vec<Thing> = participants
@@ -402,8 +303,11 @@ impl<'a> TaskRequestDbService<'a> {
     ) -> CtxResult<Option<TaskRequest>> {
         // if last user remove task request else update participants
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
-       
-        let mut participants = self.task_participation_repo.get_ids(&offer.participants).await?;
+
+        let mut participants = self
+            .task_participation_repo
+            .get_ids(&offer.participants)
+            .await?;
 
         if let Some(i) = participants
             .iter()
@@ -454,21 +358,26 @@ impl<'a> TaskRequestDbService<'a> {
             db: self.db,
             ctx: self.ctx,
         };
-       
+
         let offer = self.get(IdentIdName::Id(offer_id.clone())).await?;
         if offer.participants.len() > 1 {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "Can not delete with other participants".to_string(),
             }));
         }
-        let participants = self.task_participation_repo.get_ids(&offer.participants).await?;
+        let participants = self
+            .task_participation_repo
+            .get_ids(&offer.participants)
+            .await?;
 
         for partic in participants {
             let existing_lock_id = partic.lock.clone();
             if let Some(lock) = existing_lock_id {
                 lock_service.unlock_user_asset_tx(&lock).await?;
             }
-            self.task_participation_repo.delete(partic.id.unwrap()).await?;
+            self.task_participation_repo
+                .delete(partic.id.unwrap())
+                .await?;
         }
         let _: Option<TaskRequest> = self.db.delete((offer_id.tb, offer_id.id.to_raw())).await?;
         Ok(true)
