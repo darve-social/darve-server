@@ -1,0 +1,12 @@
+name: API Tests
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  api-test:
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mv .env.test .env
+      - run: just test
