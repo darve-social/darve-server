@@ -13,12 +13,12 @@ use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
-pub struct TaskRequestUsersRepository {
+pub struct TaskRequestUsesRepository {
     client: Arc<Db>,
     table_name: &'static str,
 }
 
-impl TaskRequestUsersRepository {
+impl TaskRequestUsesRepository {
     pub fn new(client: Arc<Db>) -> Self {
         Self {
             client,
@@ -30,9 +30,10 @@ impl TaskRequestUsersRepository {
         let table = self.table_name;
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {table} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE FIELD IF NOT EXISTS timelines    ON {table} FLEXIBLE TYPE array<object>;
+        DEFINE FIELD IF NOT EXISTS timelines    ON {table} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {table} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {table} FLEXIBLE TYPE option<object>;
+        DEFINE INDEX IF NOT EXISTS in_out_idx   ON {table} FIELDS in, out;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {table} FIELDS status;
     ");
         let mutation = self.client.query(sql).await?;
@@ -46,11 +47,11 @@ impl TaskRequestUsersRepository {
 }
 
 #[async_trait]
-impl TaskRequestUsersRepositoryInterface for TaskRequestUsersRepository {
+impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
     async fn create(&self, task_id: &str, user_id: &str, status: &str) -> Result<String, String> {
-        let sql = "
-            RELATE $task->task_request_user->$user SET timelines=[{ status: $status, date: time::now()}], status=$status
-            RETURN record::id(id) as id;";
+        let sql = format!("
+            RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status
+            RETURN record::id(id) as id;", self.table_name);
 
         let mut res = self
             .client
