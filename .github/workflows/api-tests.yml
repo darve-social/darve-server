@@ -7,6 +7,7 @@ on:
 jobs:
   api-test:
     runs-on: ubuntu-latest
+
     env:
       DEVELOPMENT: true
       STRIPE_SECRET_KEY: dummy_id
@@ -36,19 +37,14 @@ jobs:
     services:
       surrealdb:
         image: surrealdb/surrealdb:latest
-        container_name: surrealdb
         ports:
           - "8000:8000"
-        command: start --user ${{ env.DB_USERNAME }} --pass ${{ env.DB_PASSWORD }} --log trace --bind 0.0.0.0:8000 rocksdb:///data/database
-        environment:
-          - SURREAL_USER=${{ env.DB_USERNAME }}
-          - SURREAL_PASS=${{ env.DB_PASSWORD }}
-        options: >-
-          --health-timeout 2s
-    
-    steps:
+        env:
+          SURREAL_USER: test
+          SURREAL_PASS: test
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: sleep 5
       - run: cargo test
