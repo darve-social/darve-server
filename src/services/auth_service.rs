@@ -287,7 +287,7 @@ where
     ) -> CtxResult<(String, LocalUser)> {
         let google_user = google::verify_token(token, google_client_ids)
             .await
-            .map_err(|e| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
+            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
         let res_user_id = self
             .get_user_id_by_social_auth(

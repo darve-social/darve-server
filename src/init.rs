@@ -1,5 +1,4 @@
 use crate::{
-    database::client::Db,
     entities::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
@@ -124,9 +123,14 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestDbService { db: &db, ctx: &c,  task_deliverable_repo: &database.task_deliverable, task_participation_repo: &database.task_request_participation }
-        .mutate_db()
-        .await?;
+    TaskRequestDbService {
+        db: &db,
+        ctx: &c,
+        task_deliverable_repo: &database.task_deliverable,
+        task_participation_repo: &database.task_request_participation,
+    }
+    .mutate_db()
+    .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()

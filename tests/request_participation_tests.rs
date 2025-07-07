@@ -40,7 +40,6 @@ async fn create_task_request_participation() {
     // let username3 = user3.username.to_string();
 
     let username2 = "usnnnn2".to_string();
-    let username3 = "usnnnn3".to_string();
     let username4 = "usnnnn4".to_string();
 
     // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
@@ -624,7 +623,7 @@ async fn set_read_notification() {
 async fn set_read_all_notifications() {
     let (server, _) = create_test_server().await;
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
     let discussion_id = Thing::from((
         "discussion".to_string(),
         user1.id.as_ref().unwrap().id.to_raw(),

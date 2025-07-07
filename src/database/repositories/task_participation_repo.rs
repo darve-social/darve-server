@@ -1,4 +1,3 @@
-use crate::entities::task::task_deliverable_entity::TaskDeliverable;
 use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::lock_transaction_entity;
@@ -6,10 +5,7 @@ use crate::entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
 use crate::middleware::ctx::Ctx;
 use crate::middleware::error::{AppResult, CtxResult};
-use crate::{
-    database::repository::Repository,
-    middleware::error::AppError,
-};
+use crate::{database::repository::Repository, middleware::error::AppError};
 use std::collections::HashMap;
 use surrealdb::sql::Thing;
 
@@ -19,7 +15,7 @@ const LOCK_TABLE_NAME: &str = lock_transaction_entity::TABLE_NAME;
 impl Repository<TaskRequestParticipation> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let table_name = self.table_name.as_str();
-   let curr_usd = CurrencySymbol::USD.to_string();
+        let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
@@ -80,8 +76,8 @@ impl Repository<TaskRequestParticipation> {
                     db: self.client.as_ref(),
                     ctx,
                 }
-                    .process_locked_payment(&locked, &to_user)
-                    .await;
+                .process_locked_payment(&locked, &to_user)
+                .await;
                 if let Err(err) = pay_locked {
                     // TODO - how to save errors to recover funds later
                     println!("ERR paying task delivery err={:?}", err);

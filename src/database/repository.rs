@@ -1,11 +1,10 @@
+use crate::database::client::Db;
+use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
 use std::{marker::PhantomData, string::String};
 use surrealdb::sql::{Id, Thing};
-use crate::database::client::Db;
-use crate::entities::task::task_request_participation_entity::{TaskRequestParticipation, TABLE_NAME};
-use crate::middleware::error::{CtxError, CtxResult};
 
 #[async_trait]
 pub trait RepositoryCore {
@@ -25,7 +24,7 @@ pub trait RepositoryCore {
     ) -> Result<Self::QueryResultItem, Self::Error>;
 
     async fn delete(&self, participation_id: Thing) -> Result<bool, Self::Error>;
-    
+
     async fn create_update(
         &self,
         record: Self::QueryResultItem,
@@ -45,8 +44,9 @@ pub struct Repository<E> {
 }
 
 #[async_trait]
-impl<E: OptionalIdentifier + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryCore
-for Repository<E>
+impl<
+        E: OptionalIdentifier + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static,
+    > RepositoryCore for Repository<E>
 {
     type Connection = Arc<Db>;
     type Error = surrealdb::Error;
@@ -90,15 +90,18 @@ for Repository<E>
     ) -> Result<Self::QueryResultItem, surrealdb::Error> {
         let id: String = if let Some(thing) = record.ident_ref() {
             thing.id.clone().to_raw()
-        } else { Id::rand().to_raw() };
+        } else {
+            Id::rand().to_raw()
+        };
 
-        let res: Option<Self::QueryResultItem> = self.client
+        let res: Option<Self::QueryResultItem> = self
+            .client
             .upsert((self.table_name.as_str(), id))
             .content(record)
             .await?;
         Ok(res.unwrap())
     }
-    
+
     async fn count(&self) -> Result<u64, surrealdb::Error> {
         let query = format!(
             "(SELECT count() as count FROM ONLY {} GROUP ALL).count;",
@@ -110,7 +113,7 @@ for Repository<E>
             surrealdb::error::Db::TbNotFound {
                 name: format!("table {}", self.table_name),
             }
-                .into(),
+            .into(),
         )
     }
 }

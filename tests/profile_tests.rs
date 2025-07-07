@@ -1,6 +1,4 @@
 mod helpers;
-use askama::filters::format;
-use axum::http::response;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
@@ -226,7 +224,7 @@ async fn try_verification_email_with_already_verified_email() {
     let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
     assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let (server, _user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
         .post("/api/users/current/email/verification/start")
         .json(&json!({ "email": new_email}))
