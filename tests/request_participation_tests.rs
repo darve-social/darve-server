@@ -230,8 +230,6 @@ async fn create_task_request_participation() {
         .add_header("Accept", "application/json")
         .await;
 
-    println!(">>>>.{:?}", participate_response);
-
     participate_response.assert_status_success();
     let _res = participate_response.json::<CreatedResponse>();
 
