@@ -452,7 +452,6 @@ pub struct TaskRequestForToUsers {
     pub id: Thing,
     pub reward_type: RewardType,
     pub r#type: TaskRequestType,
-    // pub participant_ids: Vec<Thing>,
     pub participants: Vec<TaskRequestParticipation>,
     pub to_users: Vec<TaskRequestUser>,
 }
