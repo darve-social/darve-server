@@ -30,6 +30,7 @@ pub trait RepositoryCore {
         record: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error>;
     async fn count(&self) -> Result<u64, surrealdb::Error>;
+    async fn get_thing(&self, id: &str) -> Thing;
 }
 
 pub trait OptionalIdentifier {
@@ -115,5 +116,8 @@ impl<
             }
             .into(),
         )
+    }
+    async fn get_thing(&self, id: &str) -> Thing {
+        Thing::from((self.table_name.as_ref(), id))
     }
 }

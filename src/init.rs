@@ -126,7 +126,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
     TaskRequestDbService {
         db: &db,
         ctx: &c,
-        task_deliverable_repo: &database.task_deliverable,
         task_participation_repo: &database.task_request_participation,
     }
     .mutate_db()
