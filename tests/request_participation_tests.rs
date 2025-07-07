@@ -230,6 +230,8 @@ async fn create_task_request_participation() {
         .add_header("Accept", "application/json")
         .await;
 
+    println!(">>>>.{:?}", participate_response);
+
     participate_response.assert_status_success();
     let _res = participate_response.json::<CreatedResponse>();
 
@@ -718,55 +720,3 @@ async fn get_count_of_notifications() {
     let count = req.json::<u64>();
     assert_eq!(count, 0);
 }
-
-#[tokio::test]
-#[serial]
-async fn accepted_closed_task_request() {}
-
-#[tokio::test]
-#[serial]
-async fn accepted_opened_task_request() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_after_rejected() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_after_delivered() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_participator() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_closed_task_request() {}
-
-#[tokio::test]
-#[serial]
-async fn rejected_task_request() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_reject_task_request_after_delivered() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_reject_task_request_some_user() {}
-
-#[tokio::test]
-#[serial]
-async fn delivered_task_request() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_after_rejected() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_after_reguested() {}
-
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_some_user() {}

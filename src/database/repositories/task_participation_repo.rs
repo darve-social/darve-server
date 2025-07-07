@@ -86,7 +86,7 @@ impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository
         amount: u64,
         currency: &str,
     ) -> Result<(), String> {
-        let query = "UPDATE $id SET amount=$amount,lock=$tx_id,currency=$currency'";
+        let query = "UPDATE $id SET amount=$amount,lock=$tx_id,currency=$currency;";
         let res = self
             .client
             .query(query)
