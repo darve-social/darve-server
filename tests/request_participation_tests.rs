@@ -404,7 +404,7 @@ async fn create_task_request_participation() {
 
     received_post_tasks_req.assert_status_success();
     let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
-    let task = received_post_tasks.get(0).unwrap();
+    let _task = received_post_tasks.get(0).unwrap();
     // assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
 
     // TODO -check notifications for other users-
