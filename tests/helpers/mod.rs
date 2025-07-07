@@ -17,10 +17,6 @@ use webauthn::webauthn_routes::create_webauth_config;
 #[allow(dead_code)]
 async fn init_test_db(config: &mut AppConfig) -> Database {
     println!("remote db config={:?}", &config);
-    config.db_database = "darve_test".to_string();
-    // config.db_url = "mem://".to_string();
-    // config.db_password = None;
-    // config.db_username = None;
     let db = Database::connect(DbConfig {
         url: &config.db_url,
         database: &config.db_database,
