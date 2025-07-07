@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      START_PASSWORD: 12334
       DEVELOPMENT: true
       STRIPE_SECRET_KEY: dummy_id
       STRIPE_PLATFORM_ACCOUNT: dummy_id
@@ -40,8 +41,9 @@ jobs:
         ports:
           - "8000:8000"
         env:
-          SURREAL_USER: test
-          SURREAL_PASS: test
+          SURREAL_USER: ${{ env.DB_USERNAME }}
+          SURREAL_PASS: ${{ env.DB_PASSWORD }}
+        options: --entrypoint "surreal start --user ${{ env.DB_USERNAME }} --pass ${{ env.DB_PASSWORD }} --log trace --bind 0.0.0.0:8000 rocksdb:///data/database"
 
     steps:
       - uses: actions/checkout@v4
