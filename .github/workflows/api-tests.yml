@@ -43,7 +43,6 @@ jobs:
         env:
           SURREAL_USER: test
           SURREAL_PASS: test
-        command: surreal start  --user test --pass test --bind 0.0.0.0:8000 rocksdb:///data/database
 
     steps:
       - uses: actions/checkout@v4
