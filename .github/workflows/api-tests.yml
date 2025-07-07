@@ -21,9 +21,6 @@ jobs:
       UPLOAD_MAX_SIZE_MB: 15
       DB_NAMESPACE: test
       DB_DATABASE: test
-      DB_USERNAME: test
-      DB_PASSWORD: test
-      DB_URL: ws://localhost:8000
       GOOGLE_CLOUD_STORAGE_BUCKET: media
       GOOGLE_CLOUD_STORAGE_ENDPOINT: http://localhost:4443
       SENDGRID_API_KEY: some_key
@@ -34,15 +31,6 @@ jobs:
       PAYPAL_CLIENT_ID: dummy_id
       PAYPAL_CLIENT_KEY: dummy_key
       PAYPAL_WEBHOOK_ID: dummy_id
-
-    services:
-      surrealdb:
-        image: surrealdb/surrealdb:latest
-        ports:
-          - "8000:8000"
-        env:
-          SURREAL_USER: test
-          SURREAL_PASS: test
 
     steps:
       - uses: actions/checkout@v4
