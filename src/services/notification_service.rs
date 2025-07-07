@@ -121,7 +121,6 @@ where
         &self,
         user_id: &Thing,
         task_id: Thing,
-        deliverable: Thing,
         participators: &Vec<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
@@ -139,7 +138,6 @@ where
                 Some({
                     json!({
                     "task_id": task_id.to_raw(),
-                    "deliverable": deliverable.to_raw(),
                     "delivered_by": user_id.to_raw()})
                 }),
             )
