@@ -9,18 +9,14 @@ use darve_server::{
     routes::community::profile_routes::{self},
 };
 use helpers::{
-    create_fake_login_test_user, create_login_test_user, create_test_server,
+    create_fake_login_test_user, create_login_test_user,
     user_helpers::{self, get_user, update_current_user},
 };
 use middleware::ctx::Ctx;
 use profile_routes::SearchInput;
 use serde_json::json;
-use serial_test::serial;
 
-#[tokio::test]
-#[serial]
-async fn search_users() {
-    let (server, _) = create_test_server().await;
+test_with_server!(search_users, |server, ctx_state, config| {
     let username1 = "its_user_one".to_string();
     let username2 = "its_user_two".to_string();
     let username3 = "herodus".to_string();
@@ -116,180 +112,174 @@ async fn search_users() {
     )
     .await;
     assert_eq!(res.items.len(), 5);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn email_verification_and_confirmation() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(
+    email_verification_and_confirmation,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let username = user.username;
+        let user_id = user.id.clone().unwrap();
+        let new_email = "asdasdasd@asdasd.com";
 
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let username = user.username;
-    let user_id = user.id.clone().unwrap();
-    let new_email = "asdasdasd@asdasd.com";
+        let response = server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": "asasdasdas@asd.com"}))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": "asasdasdas@asd.com"}))
-        .add_header("Accept", "application/json")
-        .await;
+        response.assert_status_success();
 
-    response.assert_status_success();
+        let db = &ctx_state.db.client;
+        let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+        let user_db = LocalUserDbService { db, ctx: &ctx };
 
-    let db = &ctx_state.db.client;
-    let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
-    let user_db = LocalUserDbService { db, ctx: &ctx };
+        let response = server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": new_email}))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": new_email}))
-        .add_header("Accept", "application/json")
-        .await;
+        response.assert_status_success();
 
-    response.assert_status_success();
+        let code = ctx_state
+            .db
+            .verification_code
+            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .await
+            .unwrap()
+            .code;
 
-    let code = ctx_state
-        .db
-        .verification_code
-        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
-        .await
-        .unwrap()
-        .code;
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": code.clone(), "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": code.clone(), "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
+        response.assert_status_success();
 
-    response.assert_status_success();
+        let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
+        assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
-    assert_eq!(user.email_verified, Some(new_email.to_string()));
+        let code = ctx_state
+            .db
+            .verification_code
+            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .await;
 
-    let code = ctx_state
-        .db
-        .verification_code
-        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
-        .await;
+        assert!(code.is_err());
+    }
+);
+test_with_server!(
+    try_verification_email_with_already_verified_email,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let username = user.username;
+        let user_id = user.id.clone().unwrap();
+        let new_email = "asdasdasd@asdasd.com";
 
-    assert!(code.is_err());
-}
-#[tokio::test]
-#[serial]
-async fn try_verification_email_with_already_verified_email() {
-    let (server, ctx_state) = create_test_server().await;
+        let response = server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": "asasdasdas@asd.com"}))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let username = user.username;
-    let user_id = user.id.clone().unwrap();
-    let new_email = "asdasdasd@asdasd.com";
+        response.assert_status_success();
 
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": "asasdasdas@asd.com"}))
-        .add_header("Accept", "application/json")
-        .await;
+        let db = &ctx_state.db.client;
+        let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+        let user_db = LocalUserDbService { db, ctx: &ctx };
 
-    response.assert_status_success();
+        let response = server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": new_email}))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let db = &ctx_state.db.client;
-    let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
-    let user_db = LocalUserDbService { db, ctx: &ctx };
+        response.assert_status_success();
 
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": new_email}))
-        .add_header("Accept", "application/json")
-        .await;
+        let code = ctx_state
+            .db
+            .verification_code
+            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .await
+            .unwrap()
+            .code;
 
-    response.assert_status_success();
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": code.clone(), "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
 
-    let code = ctx_state
-        .db
-        .verification_code
-        .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
-        .await
-        .unwrap()
-        .code;
+        response.assert_status_success();
 
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": code.clone(), "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
+        let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
+        assert_eq!(user.email_verified, Some(new_email.to_string()));
 
-    response.assert_status_success();
+        let (server, _user1, _, token1) = create_fake_login_test_user(&server).await;
+        let response = server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": new_email}))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .await;
 
-    let user = user_db.get(UsernameIdent(username).into()).await.unwrap();
-    assert_eq!(user.email_verified, Some(new_email.to_string()));
+        response.assert_status_failure();
+        assert!(response.text().contains("The email is already used"))
+    }
+);
 
-    let (server, _user1, _, token1) = create_fake_login_test_user(&server).await;
-    let response = server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": new_email}))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .await;
+test_with_server!(
+    email_confirmation_with_invalid_code,
+    |server, ctx_state, config| {
+        let (server, _, _pwd, _) = create_fake_login_test_user(&server).await;
+        let new_email = "asdasdasd@asdasd.com";
 
-    response.assert_status_failure();
-    assert!(response.text().contains("The email is already used"))
-}
+        server
+            .post("/api/users/current/email/verification/start")
+            .json(&json!({ "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await
+            .assert_status_success();
 
-#[tokio::test]
-#[serial]
-async fn email_confirmation_with_invalid_code() {
-    let (server, _) = create_test_server().await;
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_failure();
+        response.text().contains("Start new verification");
 
-    let (server, _, _pwd, _) = create_fake_login_test_user(&server).await;
-    let new_email = "asdasdasd@asdasd.com";
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_failure();
+        response.text().contains("Start new verification");
 
-    server
-        .post("/api/users/current/email/verification/start")
-        .json(&json!({ "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await
-        .assert_status_success();
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_failure();
+        response.text().contains("Start new verification");
 
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": "123456", "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_failure();
-    response.text().contains("Start new verification");
+        let response = server
+            .post("/api/users/current/email/verification/confirm")
+            .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_failure();
+        assert!(response
+            .text()
+            .contains("Too many attempts. Wait and start new verification"));
+    }
+);
 
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": "123456", "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_failure();
-    response.text().contains("Start new verification");
-
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": "123456", "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_failure();
-    response.text().contains("Start new verification");
-
-    let response = server
-        .post("/api/users/current/email/verification/confirm")
-        .json(&json!({"code": "123456", "email": new_email }))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_failure();
-    assert!(response
-        .text()
-        .contains("Too many attempts. Wait and start new verification"));
-}
-
-#[tokio::test]
-#[serial]
-async fn update_user_avatar() {
-    let (server, _) = create_test_server().await;
+test_with_server!(update_user_avatar, |server, ctx_state, config| {
     let (_, local_user, _pwd, _) = create_fake_login_test_user(&server).await;
 
     let create_response = update_current_user(&server).await;
@@ -306,12 +296,9 @@ async fn update_user_avatar() {
         .as_ref()
         .unwrap()
         .contains("profile_image.jpg"));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn set_user_password() {
-    let (server, state) = create_test_server().await;
+test_with_server!(set_user_password, |server, ctx_state, config| {
     let new_password = "setPassword123";
 
     // Create and login user
@@ -328,7 +315,7 @@ async fn set_user_password() {
     response.assert_status_failure();
     assert!(response.text().contains("User has already set a password"));
 
-    let _ = state
+    let _ = ctx_state
         .db
         .client
         .query("DELETE authentication WHERE local_user=$user")
@@ -367,12 +354,9 @@ async fn set_user_password() {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn update_user_password() {
-    let (server, _) = create_test_server().await;
+test_with_server!(update_user_password, |server, ctx_state, config| {
     let new_password = "newPassword456";
 
     // Create and login user
@@ -424,4 +408,4 @@ async fn update_user_password() {
         .add_header("Accept", "application/json")
         .await;
     login_response.assert_status_success();
-}
+});

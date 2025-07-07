@@ -1,5 +1,4 @@
 mod helpers;
-use crate::helpers::{create_fake_login_test_user, create_test_server};
 use axum::extract::{Path, Query, State};
 use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
@@ -14,14 +13,12 @@ use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-#[tokio::test]
-#[serial]
-async fn create_discussion() {
-    let (server, ctx_state) = create_test_server().await;
+use crate::helpers::create_fake_login_test_user;
+
+test_with_server!(create_discussion, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
@@ -179,4 +176,4 @@ async fn create_discussion() {
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 1);
-}
+});
