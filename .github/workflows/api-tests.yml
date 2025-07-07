@@ -19,7 +19,7 @@ jobs:
       GOOGLE_ANDROID_CLIENT_ID: dummy_id
       GOOGLE_IOS_CLIENT_ID: dummy_id
       UPLOAD_MAX_SIZE_MB: 15
-      DB_NAMESPACE: test
+      DB_NAMESPACE: ${{ secrets.DB_NAMESPACE }}
       DB_DATABASE: test
       DB_USERNAME: ${{ secrets.DB_USERNAME }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
