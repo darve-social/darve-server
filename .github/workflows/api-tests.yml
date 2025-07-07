@@ -41,9 +41,9 @@ jobs:
         ports:
           - "8000:8000"
         env:
-          SURREAL_USER: ${{ env.DB_USERNAME }}
-          SURREAL_PASS: ${{ env.DB_PASSWORD }}
-        options: --entrypoint "surreal start --user ${{ env.DB_USERNAME }} --pass ${{ env.DB_PASSWORD }} --log trace --bind 0.0.0.0:8000 rocksdb:///data/database"
+          SURREAL_USER: test
+          SURREAL_PASS: test
+        options: --entrypoint "surreal start --user test --pass test --log trace --bind 0.0.0.0:8000 rocksdb:///data/database"
 
     steps:
       - uses: actions/checkout@v4
