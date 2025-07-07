@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
+use crate::database::repositories::task_request_users::TaskRequestUsersRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
 use crate::database::repository::{Repository, RepositoryCore};
@@ -30,7 +30,7 @@ pub struct Database {
     pub verification_code: VerificationCodeRepository,
     pub user_notifications: UserNotificationsRepository,
     pub task_request_participation: Repository<TaskRequestParticipation>,
-    pub task_request_users: TaskRequestUsesRepository,
+    pub task_request_users: TaskRequestUsersRepository,
 }
 
 impl Database {
@@ -71,7 +71,7 @@ impl Database {
                 client.clone(),
                 TASK_REQUEST_PARTICIPATION_TABLE_NAME.to_string(),
             ),
-            task_request_users: TaskRequestUsesRepository::new(client.clone()),
+            task_request_users: TaskRequestUsersRepository::new(client.clone()),
         }
     }
 

@@ -468,7 +468,6 @@ impl ViewFieldSelector for TaskRequestForToUsers {
         "id, 
         participants, 
         reward_type,
-        participators,
         participants.*.user.id as participant_ids,
         ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines, result} as to_users,
         type"
@@ -498,8 +497,8 @@ async fn reject_task_request(
         .get_by_id::<TaskRequestForToUsers>(&task_thing)
         .await?;
     let user_id_id = user_id.id.to_raw();
+    // TODO we can probably do this with SELECT $task_id->task_users(WHERE status=$req||status=$acc)->$user_id
     let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
-
     let allow = match task_user {
         Some(v) => {
             v.status == TaskRequestUserStatus::Requested
@@ -566,6 +565,7 @@ async fn accept_task_request(
     }
 
     let user_id_id = user_id.id.to_raw();
+    // TODO we can probably do this with SELECT for open or closed task
     let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
 
     match task.r#type {

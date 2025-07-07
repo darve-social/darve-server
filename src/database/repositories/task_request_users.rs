@@ -13,12 +13,12 @@ use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
-pub struct TaskRequestUsesRepository {
+pub struct TaskRequestUsersRepository {
     client: Arc<Db>,
     table_name: &'static str,
 }
 
-impl TaskRequestUsesRepository {
+impl TaskRequestUsersRepository {
     pub fn new(client: Arc<Db>) -> Self {
         Self {
             client,
@@ -33,7 +33,6 @@ impl TaskRequestUsesRepository {
         DEFINE FIELD IF NOT EXISTS timelines    ON {table} FLEXIBLE TYPE array<object>;
         DEFINE FIELD IF NOT EXISTS status       ON {table} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {table} FLEXIBLE TYPE option<object>;
-        DEFINE INDEX IF NOT EXISTS in_out_idx   ON {table} FIELDS in, out;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {table} FIELDS status;
     ");
         let mutation = self.client.query(sql).await?;
@@ -47,7 +46,7 @@ impl TaskRequestUsesRepository {
 }
 
 #[async_trait]
-impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
+impl TaskRequestUsersRepositoryInterface for TaskRequestUsersRepository {
     async fn create(&self, task_id: &str, user_id: &str, status: &str) -> Result<String, String> {
         let sql = "
             RELATE $task->task_request_user->$user SET timelines=[{ status: $status, date: time::now()}], status=$status
