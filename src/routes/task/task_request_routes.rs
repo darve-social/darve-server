@@ -704,30 +704,6 @@ async fn deliver_task_request(
         .map(|t| t.user.clone())
         .collect::<Vec<Thing>>();
 
-    // TODO payment should be when task is over by the time
-    match task.reward_type {
-        RewardType::OnDelivery => {
-            let lock_service = LockTransactionDbService {
-                db: &state.db.client,
-                ctx: &ctx,
-            };
-
-            for participant in &task.participants {
-                if let Some(ref lock) = participant.lock {
-                    let _ = lock_service
-                        .process_locked_payment(lock, &delivered_by)
-                        .await;
-                }
-            }
-
-            n_service
-                .on_update_balance(&delivered_by, &participant_ids)
-                .await?;
-        } /*RewardType::VoteWinner{..} => {
-              // add action for this reward type
-          }*/
-    }
-
     n_service
         .on_deliver_task(&delivered_by, task_thing.clone(), &participant_ids)
         .await?;
