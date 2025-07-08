@@ -1,5 +1,4 @@
 use crate::database::client::Db;
-use crate::database::repository::Repository;
 use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
@@ -17,10 +16,7 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::sql::Thing;
-use task_request_participation_entity::TaskRequestParticipation;
 use wallet_entity::CurrencySymbol;
-
-use super::task_request_participation_entity;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {

@@ -4,7 +4,6 @@ use crate::database::repositories::task_participation_repo::TaskRequestParticipa
 use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
-use crate::database::repository::RepositoryCore;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;

@@ -35,11 +35,11 @@ pub struct GatewayTransaction {
     pub r_updated: Option<String>,
 }
 
-enum WithdrawStatus {
-    Locked,
-    ExternalProcess,
-    Complete,
-}
+// enum WithdrawStatus {
+//     Locked,
+//     ExternalProcess,
+//     Complete,
+// }
 
 pub struct GatewayTransactionDbService<'a> {
     pub db: &'a Db,
@@ -214,11 +214,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         }))
     }
 
-    pub(crate) async fn user_withdraw_tx_revert(
-        &self,
-        withdraw_tx_id: Thing,
-        external_tx_id: String,
-    ) -> CtxResult<()> {
+    pub(crate) async fn user_withdraw_tx_revert(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
 
         // TODO check if external tx matches, amount matches
@@ -237,11 +233,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(())
     }
 
-    pub(crate) async fn user_withdraw_tx_complete(
-        &self,
-        withdraw_tx_id: Thing,
-        external_tx_id: String,
-    ) -> CtxResult<()> {
+    pub(crate) async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
 
         // TODO check if external tx matches, amount matches
@@ -262,14 +254,14 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(())
     }
 
-    pub(crate) async fn user_withdraw_tx_status_update(
-        &self,
-        withdraw_tx_id: Thing,
-        external_tx_id: String,
-        new_status: String,
-    ) -> CtxResult<()> {
-        todo!()
-    }
+    // pub(crate) async fn user_withdraw_tx_status_update(
+    //     &self,
+    //     withdraw_tx_id: Thing,
+    //     external_tx_id: String,
+    //     new_status: String,
+    // ) -> CtxResult<()> {
+    //     todo!()
+    // }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =

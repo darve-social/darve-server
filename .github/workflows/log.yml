@@ -1,0 +1,13 @@
+on:
+  workflow_dispatch:
+
+jobs:
+  log-variables:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log repository variables
+        run: |
+          echo "Repository variable: $REPOSITORY_VAR and env: $REPOSITORY_ENV"
+        env:
+          REPOSITORY_VAR: ${{ vars.DB_NAMESPACE }}
+          REPOSITORY_ENV: ${{ env.DB_NAMESPACE }}

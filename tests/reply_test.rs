@@ -1,7 +1,7 @@
 mod helpers;
 use crate::helpers::community_helpers::create_fake_community;
+use crate::helpers::create_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
-use crate::helpers::{create_login_test_user, create_test_server};
 use authorization_entity::{get_parent_ids, get_same_level_record_ids, is_child_record};
 use community_entity::{Community, CommunityDbService};
 use darve_server::middleware::utils::string_utils::get_string_thing;
@@ -13,14 +13,10 @@ use darve_server::{
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use reply_routes::PostReplyInput;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-#[tokio::test]
-#[serial]
-async fn create_reply() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(create_reply, |server, ctx_state, config| {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 
     let comm_id = get_string_thing(
@@ -135,4 +131,4 @@ async fn create_reply() {
     assert_eq!(parents.last().unwrap().eq(&comm_id), true);
     assert_eq!(parents1.first().unwrap().eq(&id2), true);
     assert_eq!(parents1.last().unwrap().eq(&comm_id), true);
-}
+});

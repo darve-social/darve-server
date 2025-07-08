@@ -11,14 +11,10 @@ use darve_server::entities::user_auth::access_right_entity::AccessRightDbService
 use darve_server::entities::user_auth::authorization_entity;
 use darve_server::entities::user_auth::authorization_entity::AUTH_ACTIVITY_VISITOR;
 use darve_server::middleware::ctx::Ctx;
-use helpers::create_test_server;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-#[tokio::test]
-#[serial]
-async fn authorization_compare() {
+test_with_server!(authorization_compare, |_server, ctx_state, config| {
     let root_rec = "community";
 
     let a1 = Authorization {
@@ -258,12 +254,9 @@ async fn authorization_compare() {
         .into_iter()
         .position(|a| compare.ge_equal_ident(&a).unwrap());
     assert_eq!(pos, Some(1));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn authorize_save() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(authorize_save, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
@@ -351,4 +344,4 @@ async fn authorize_save() {
     assert_eq!(a_right.authorization.authorize_activity.clone(), AUTH_ACTIVITY_OWNER.to_string());
     assert_eq!(a_right.authorization.authorize_record_id.tb, auth_rec2.tb);*/
     // TODO test auth on posts etc...
-}
+});
