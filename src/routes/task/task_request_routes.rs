@@ -1,6 +1,6 @@
 use crate::entities::community::post_entity::PostDbService;
-use crate::entities::task::task_request_entity;
 use crate::entities::task::task_request_entity::TaskRequestType;
+use crate::entities::task::task_request_entity::{self, TaskRequestCreate};
 use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
 use crate::entities::task_request_user::{
     TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus,
@@ -89,9 +89,12 @@ pub struct TaskRequestInput {
     pub to_user: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
-
     #[validate(range(min = 1))]
     pub offer_amount: Option<i64>,
+    #[validate(range(min = 1))]
+    pub acceptance_period: Option<u16>,
+    #[validate(range(min = 1))]
+    pub delivery_period: Option<u16>,
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -360,8 +363,8 @@ async fn create_entity(
         db: &state.db.client,
         ctx: &ctx,
     }
-    .create(TaskRequest {
-        id: Some(t_req_id.clone()),
+    .create(TaskRequestCreate {
+        id: t_req_id.clone(),
         from_user: from_user.clone(),
         on_post: post,
         r#type: task_type,
@@ -369,11 +372,8 @@ async fn create_entity(
         deliverable_type: DeliverableType::PublicPost,
         reward_type: RewardType::OnDelivery,
         currency: offer_currency.clone(),
-        deliverables: None,
-        created_at: Utc::now(),
-        r_updated: None,
-        acceptance_period: None,
-        delivery_period: None,
+        acceptance_period: t_request_input.acceptance_period,
+        delivery_period: t_request_input.delivery_period,
     })
     .await?;
 
@@ -470,7 +470,7 @@ impl ViewFieldSelector for TaskRequestForToUsers {
         acceptance_period,
         delivery_period,
         created_at,
-        type
+        type,
         ->task_request_participation.*.{id, amount, currency, lock, user: out} as participants,
         ->task_request_participation.*.out as participant_ids,
         ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, result} as to_users"

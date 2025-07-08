@@ -116,11 +116,12 @@ test_with_server!(
                 offer_amount: Some(user2_offer_amt),
                 to_user: Some(user_ident0.clone()),
                 content: offer_content.clone(),
+                acceptance_period: None,
+                delivery_period: None,
             })
             .add_header("Accept", "application/json")
             .await;
 
-        println!(">{:?}", task_request);
         task_request.assert_status_success();
         let created_task = task_request.json::<CreatedResponse>();
 

@@ -29,8 +29,6 @@ pub struct TaskRequest {
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
     pub r#type: TaskRequestType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deliverables: Option<Vec<Thing>>,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub created_at: DateTime<Utc>,
@@ -52,6 +50,19 @@ impl TaskRequest {
             _ => true,
         }
     }
+}
+#[derive(Debug, Serialize)]
+pub struct TaskRequestCreate {
+    pub id: Thing,
+    pub from_user: Thing,
+    pub on_post: Option<Thing>,
+    pub request_txt: String,
+    pub deliverable_type: DeliverableType,
+    pub r#type: TaskRequestType,
+    pub reward_type: RewardType,
+    pub currency: CurrencySymbol,
+    pub acceptance_period: Option<u16>,
+    pub delivery_period: Option<u16>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -107,7 +118,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
@@ -117,7 +128,7 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(())
     }
 
-    pub async fn create(&self, record: TaskRequest) -> CtxResult<TaskRequest> {
+    pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
         let res = self
             .db
             .create(TABLE_NAME)
