@@ -58,7 +58,7 @@ pub const THROW_BALANCE_TOO_LOW: &str = "Not enough balance";
 
 impl<'a> BalanceTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let gateway_wallet = APP_GATEWAY_WALLET.clone();
+        let _gateway_wallet = APP_GATEWAY_WALLET.clone();
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();

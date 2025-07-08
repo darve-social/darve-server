@@ -1,15 +1,11 @@
 mod helpers;
 
-use crate::helpers::{create_fake_login_test_user, create_test_server};
+use crate::helpers::create_fake_login_test_user;
 use darve_server::routes::community::post_routes::PostLikeResponse;
 use helpers::community_helpers::create_fake_community;
 use helpers::post_helpers::{self, create_fake_post};
-use serial_test::serial;
 
-#[tokio::test]
-#[serial]
-async fn create_post_like() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(create_post_like, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
@@ -35,4 +31,4 @@ async fn create_post_like() {
     // throw if like post that does not exist
     let response = post_helpers::create_post_like(&server, "post:that_does_not_exist").await;
     response.assert_status_failure();
-}
+});

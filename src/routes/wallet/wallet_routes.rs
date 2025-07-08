@@ -168,7 +168,7 @@ async fn withdraw(
         Ok(_) => Ok(()),
         Err(e) => {
             let _ = gateway_tx_service
-                .user_withdraw_tx_revert(gateway_tx_id, "".to_string())
+                .user_withdraw_tx_revert(gateway_tx_id)
                 .await;
             Err(AppError::Generic { description: e }.into())
         }

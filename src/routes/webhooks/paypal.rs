@@ -55,9 +55,7 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service
-                .user_withdraw_tx_complete(batch_thing, "".to_string())
-                .await?;
+            db_service.user_withdraw_tx_complete(batch_thing).await?;
         }
         EventType::PaymentPayoutBatchDenied => {
             let batch_header = event.resource.batch_header.unwrap();
@@ -67,9 +65,7 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service
-                .user_withdraw_tx_revert(batch_thing, "".to_string())
-                .await?;
+            db_service.user_withdraw_tx_revert(batch_thing).await?;
         }
         _ => {
             let batch_id: &str = &event.resource.sender_batch_id.unwrap();
@@ -78,9 +74,7 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service
-                .user_withdraw_tx_revert(batch_thing, "".to_string())
-                .await?;
+            db_service.user_withdraw_tx_revert(batch_thing).await?;
         }
     }
     Ok(())

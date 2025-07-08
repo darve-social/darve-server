@@ -1,4 +1,6 @@
 mod helpers;
+use crate::helpers::community_helpers::create_fake_community;
+use crate::helpers::post_helpers::create_fake_post;
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::AccessRuleDbService;
 use access_rule_routes::{AccessRuleForm, AccessRuleInput};
@@ -22,18 +24,10 @@ use middleware::ctx::Ctx;
 use middleware::error::AppError;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-use crate::helpers::community_helpers::create_fake_community;
-use crate::helpers::create_test_server;
-use crate::helpers::post_helpers::create_fake_post;
-
-#[tokio::test]
-#[serial]
-async fn display_access_rule_content() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.unwrap().clone().to_raw();
 
@@ -298,4 +292,4 @@ async fn display_access_rule_content() {
         post_access_rule.authorization_required,
         ar.authorization_required
     );
-}
+});

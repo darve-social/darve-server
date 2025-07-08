@@ -10,20 +10,15 @@ use darve_server::entities::community::community_entity;
 use darve_server::entities::user_auth::{access_right_entity, authorization_entity};
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
-use helpers::create_test_server;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::request_utils::CreatedResponse;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::helpers::create_fake_login_test_user;
 
-#[tokio::test]
-#[serial]
-async fn get_community_view() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(get_community_view, |server, ctx_state, config| {
     let (server, _, _, _) = create_fake_login_test_user(&server).await;
     let disc_name = "discName1".to_lowercase();
 
@@ -66,12 +61,9 @@ async fn get_community_view() {
         .await;
     get_response.assert_status_success();
     dbg!(get_response);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn create_community() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(create_community, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
@@ -232,4 +224,4 @@ async fn create_community() {
 
     // dbg!(&community_resp);
     community_resp.assert_status_success();
-}
+});

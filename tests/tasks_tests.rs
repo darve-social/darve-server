@@ -1,5 +1,5 @@
 mod helpers;
-use crate::helpers::{create_fake_login_test_user, create_test_server};
+use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::{
         community::discussion_entity::DiscussionDbService, task_request_user::TaskRequestUserStatus,
@@ -11,13 +11,9 @@ use darve_server::{
 use fake::{faker, Fake};
 use helpers::post_helpers::{build_fake_post, create_fake_post};
 use serde_json::json;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 
-#[tokio::test]
-#[serial]
-async fn created_closed_task_request() {
-    let (server, _) = create_test_server().await;
+test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
@@ -79,12 +75,9 @@ async fn created_closed_task_request() {
         user1.id.as_ref().unwrap().clone()
     );
     assert_eq!(participator.amount, 1)
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn accepted_closed_task_request() {
-    let (server, _) = create_test_server().await;
+test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
@@ -137,12 +130,9 @@ async fn accepted_closed_task_request() {
     let task_user = first.to_users.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskRequestUserStatus::Accepted);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn accepted_opened_task_request() {
-    let (server, _) = create_test_server().await;
+test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
@@ -220,12 +210,221 @@ async fn accepted_opened_task_request() {
         .unwrap();
     assert_eq!(task_user.user.id, user.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskRequestUserStatus::Accepted);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_after_rejected() {
-    let (server, _) = create_test_server().await;
+test_with_server!(
+    try_to_accept_task_request_after_rejected,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/reject", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
+
+test_with_server!(
+    try_to_accept_task_request_after_delivered,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let deliver_post = server
+            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .multipart(build_fake_post(None, None))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await
+            .json::<CreatedResponse>();
+
+        let mut multipart_data = axum_test::multipart::MultipartForm::new();
+        multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+
+        let delivered_response = server
+            .post(&format!("/api/task_request/{}/deliver", task_id))
+            .multipart(multipart_data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_success();
+
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
+
+test_with_server!(
+    try_to_accept_task_request_participator,
+    |server, ctx_state, config| {
+        let (server, _user, _, _token) = create_fake_login_test_user(&server).await;
+        let (server, _user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
+
+test_with_server!(
+    try_to_accept_closed_task_request,
+    |server, ctx_state, config| {
+        let (server, _user, _, token) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
+
+test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
@@ -263,224 +462,9 @@ async fn try_to_accept_task_request_after_rejected() {
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_after_delivered() {
-    let (server, _) = create_test_server().await;
-    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
-
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_success();
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token0))
-        .await
-        .json::<CreatedResponse>();
-
-    let mut multipart_data = axum_test::multipart::MultipartForm::new();
-    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
-
-    let delivered_response = server
-        .post(&format!("/api/task_request/{}/deliver", task_id))
-        .multipart(multipart_data)
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_success();
-
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_task_request_participator() {
-    let (server, _) = create_test_server().await;
-    let (server, _user, _, _token) = create_fake_login_test_user(&server).await;
-    let (server, _user0, _, _token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
-
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
-
-#[tokio::test]
-#[serial]
-async fn try_to_accept_closed_task_request() {
-    let (server, _) = create_test_server().await;
-    let (server, _user, _, token) = create_fake_login_test_user(&server).await;
-    let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
-
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
-
-#[tokio::test]
-#[serial]
-async fn rejected_closed_task_request() {
-    let (server, _) = create_test_server().await;
-    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
-
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_success();
-}
-
-#[tokio::test]
-#[serial]
-async fn rejected_opened_task_request() {
-    let (server, _) = create_test_server().await;
+test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let endow_user_response = server
@@ -525,130 +509,127 @@ async fn rejected_opened_task_request() {
     let task_user = first.to_users.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskRequestUserStatus::Rejected);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_to_reject_task_request_after_delivered() {
-    let (server, _) = create_test_server().await;
-    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+test_with_server!(
+    try_to_reject_task_request_after_delivered,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
 
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_success();
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token0))
-        .await
-        .json::<CreatedResponse>();
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let deliver_post = server
+            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .multipart(build_fake_post(None, None))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await
+            .json::<CreatedResponse>();
 
-    let mut multipart_data = axum_test::multipart::MultipartForm::new();
-    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+        let mut multipart_data = axum_test::multipart::MultipartForm::new();
+        multipart_data = multipart_data.add_text("post_id", deliver_post.id);
 
-    let delivered_response = server
-        .post(&format!("/api/task_request/{}/deliver", task_id))
-        .multipart(multipart_data)
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_success();
+        let delivered_response = server
+            .post(&format!("/api/task_request/{}/deliver", task_id))
+            .multipart(multipart_data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_success();
 
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/reject", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_to_reject_closed_ask_request_some_user() {
-    let (server, _) = create_test_server().await;
-    let (server, _user, _, token) = create_fake_login_test_user(&server).await;
-    let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+test_with_server!(
+    try_to_reject_closed_ask_request_some_user,
+    |server, ctx_state, config| {
+        let (server, _user, _, token) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
 
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let accept_response = server
-        .post(&format!("/api/task_request/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
-        .add_header("Accept", "application/json")
-        .await;
-    accept_response.assert_status_failure();
-    assert!(accept_response.text().contains("Forbidden"));
-}
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let accept_response = server
+            .post(&format!("/api/task_request/{}/reject", task_id))
+            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_failure();
+        assert!(accept_response.text().contains("Forbidden"));
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn delivered_task_request() {
-    let (server, _) = create_test_server().await;
+test_with_server!(delivered_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
@@ -722,199 +703,196 @@ async fn delivered_task_request() {
     let task_user = first.to_users.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskRequestUserStatus::Delivered);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_after_rejected() {
-    let (server, _) = create_test_server().await;
-    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+test_with_server!(
+    try_to_deliver_task_request_after_rejected,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
 
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let response = server
-        .post(&format!("/api/task_request/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_success();
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token0))
-        .await
-        .json::<CreatedResponse>();
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let response = server
+            .post(&format!("/api/task_request/{}/reject", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_success();
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let deliver_post = server
+            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .multipart(build_fake_post(None, None))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await
+            .json::<CreatedResponse>();
 
-    let mut multipart_data = axum_test::multipart::MultipartForm::new();
-    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+        let mut multipart_data = axum_test::multipart::MultipartForm::new();
+        multipart_data = multipart_data.add_text("post_id", deliver_post.id);
 
-    let delivered_response = server
-        .post(&format!("/api/task_request/{}/deliver", task_id))
-        .multipart(multipart_data)
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_failure();
-    assert!(delivered_response.text().contains("Forbidden"))
-}
+        let delivered_response = server
+            .post(&format!("/api/task_request/{}/deliver", task_id))
+            .multipart(multipart_data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_failure();
+        assert!(delivered_response.text().contains("Forbidden"))
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_after_requested() {
-    let (server, _) = create_test_server().await;
-    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+test_with_server!(
+    try_to_deliver_task_request_after_requested,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
 
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token0))
-        .await
-        .json::<CreatedResponse>();
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let deliver_post = server
+            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .multipart(build_fake_post(None, None))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await
+            .json::<CreatedResponse>();
 
-    let mut multipart_data = axum_test::multipart::MultipartForm::new();
-    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+        let mut multipart_data = axum_test::multipart::MultipartForm::new();
+        multipart_data = multipart_data.add_text("post_id", deliver_post.id);
 
-    let delivered_response = server
-        .post(&format!("/api/task_request/{}/deliver", task_id))
-        .multipart(multipart_data)
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_failure();
-    assert!(delivered_response.text().contains("Forbidden"))
-}
+        let delivered_response = server
+            .post(&format!("/api/task_request/{}/deliver", task_id))
+            .multipart(multipart_data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_failure();
+        assert!(delivered_response.text().contains("Forbidden"))
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_to_deliver_task_request_some_user() {
-    let (server, _) = create_test_server().await;
-    let (server, user, _, token) = create_fake_login_test_user(&server).await;
-    let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+test_with_server!(
+    try_to_deliver_task_request_some_user,
+    |server, ctx_state, config| {
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc_id, None, None).await;
 
-    let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    endow_user_response.assert_status_success();
-    let task_request = server
-        .post("/api/task_request")
-        .json(&json!({
-            "post_id": Some(post.id),
-            "offer_amount": Some(1),
-            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
-        .await
-        .json::<CreatedResponse>();
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let deliver_post = server
+            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .multipart(build_fake_post(None, None))
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token))
+            .await
+            .json::<CreatedResponse>();
 
-    let mut multipart_data = axum_test::multipart::MultipartForm::new();
-    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+        let mut multipart_data = axum_test::multipart::MultipartForm::new();
+        multipart_data = multipart_data.add_text("post_id", deliver_post.id);
 
-    let delivered_response = server
-        .post(&format!("/api/task_request/{}/deliver", task_id))
-        .multipart(multipart_data)
-        .add_header("Cookie", format!("jwt={}", token))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_failure();
-    assert!(delivered_response.text().contains("Forbidden"))
-}
+        let delivered_response = server
+            .post(&format!("/api/task_request/{}/deliver", task_id))
+            .multipart(multipart_data)
+            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_failure();
+        assert!(delivered_response.text().contains("Forbidden"))
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn get_tasks() {
-    let (server, _) = create_test_server().await;
+test_with_server!(get_tasks, |server, ctx_state, config| {
     let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
@@ -1074,4 +1052,4 @@ async fn get_tasks() {
     response.assert_status_success();
     let tasks = response.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
-}
+});

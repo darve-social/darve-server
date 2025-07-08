@@ -2,20 +2,16 @@ mod helpers;
 
 use darve_server::entities::user_auth::local_user_entity;
 use darve_server::middleware;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
-use crate::helpers::{create_login_test_user, create_test_server};
+use crate::helpers::create_login_test_user;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::{IdentIdName, UsernameIdent};
 use middleware::utils::string_utils::get_string_thing;
 
-#[tokio::test]
-#[serial]
-async fn user_query() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(user_query, |server, ctx_state, config| {
     let username = "usn1ame".to_string();
     let (_, uid) = create_login_test_user(&server, username.clone()).await;
 
@@ -39,12 +35,9 @@ async fn user_query() {
         .get(IdentIdName::Id(Thing::from(("local_user", "not_existing"))))
         .await;
     assert_eq!(user.is_err(), true);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn test_exists() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(test_exists, |server, ctx_state, config| {
     let username = "usn1ame".to_string();
     let (_, uid) = create_login_test_user(&server, username.clone()).await;
 
@@ -63,4 +56,4 @@ async fn test_exists() {
         .await;
     let user = user.unwrap();
     assert_eq!(user.is_some(), false);
-}
+});

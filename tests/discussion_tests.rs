@@ -11,7 +11,6 @@ use darve_server::routes::community::{
 };
 use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
-use serial_test::serial;
 use surrealdb::sql::Thing;
 use uuid::Uuid;
 
@@ -22,7 +21,6 @@ use community_routes::CommunityInput;
 use discussion_entity::{Discussion, DiscussionDbService};
 use discussion_routes::DiscussionPostView;
 use discussion_topic_routes::TopicInput;
-use helpers::create_test_server;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
@@ -34,10 +32,7 @@ use post_entity::PostDbService;
 
 use crate::helpers::create_fake_login_test_user;
 
-#[tokio::test]
-#[serial]
-async fn get_discussion_view() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(get_discussion_view, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let disc_name = "discName1".to_lowercase();
@@ -163,12 +158,9 @@ async fn get_discussion_view() {
     assert_eq!(disc_posts.unwrap().len(), 2);
     assert_eq!(disc_posts_top1.is_ok(), true);
     assert_eq!(disc_posts_top1.unwrap().len(), 1);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn create_discussion() {
-    let (server, ctx_state) = create_test_server().await;
+test_with_server!(create_discussion, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
@@ -306,12 +298,9 @@ async fn create_discussion() {
 
     // dbg!(&discussion_resp);
     // &discussion_resp.assert_status_success();
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn create_chat_discussion() {
-    let (server, _) = create_test_server().await;
+test_with_server!(create_chat_discussion, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
@@ -336,135 +325,134 @@ async fn create_chat_discussion() {
     assert_eq!(private_discussion_user_ids.len(), 2);
     assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
     assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_to_create_the_same_read_only() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_to_create_the_same_read_only,
+    |server, ctx_state, config| {
+        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
-    let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap().clone());
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone().to_raw(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+        let comm_id =
+            CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap().clone());
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone().to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_forbidden();
+        create_response.assert_status_forbidden();
 
-    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap().clone());
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone().to_raw(),
-            title: "The New Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id =
+            CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap().clone());
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone().to_raw(),
+                title: "The New Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.to_raw(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result_1 = create_response.json::<Discussion>();
-    assert_eq!(result.id, result_1.id)
-}
+        create_response.assert_status_ok();
+        let result_1 = create_response.json::<Discussion>();
+        assert_eq!(result.id, result_1.id)
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_to_create_the_same_not_read_only() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_to_create_the_same_not_read_only,
+    |server, ctx_state, config| {
+        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion1".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .await;
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion1".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
+        create_response.assert_status_ok();
 
-    let create_response = server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id,
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: false,
-        })
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .await;
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id,
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: false,
+            })
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result_1 = create_response.json::<Discussion>();
-    assert_ne!(result.id, result_1.id)
-}
+        create_response.assert_status_ok();
+        let result_1 = create_response.json::<Discussion>();
+        assert_ne!(result.id, result_1.id)
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn get_discussions() {
-    let (server, _) = create_test_server().await;
+test_with_server!(get_discussions, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
     let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
@@ -547,70 +535,66 @@ async fn get_discussions() {
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
     assert_eq!(result.len(), 1);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_add_chat_users_into_read_only() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_add_chat_users_into_read_only,
+    |server, ctx_state, config| {
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .post(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [] }))
-        .await;
+        let create_response = server
+            .post(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [] }))
+            .await;
 
-    create_response.assert_status_failure();
+        create_response.assert_status_failure();
 
-    assert!(create_response.text().contains("no users present"));
+        assert!(create_response.text().contains("no users present"));
 
-    let create_response = server
-        .post(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [] }))
-        .await;
+        let create_response = server
+            .post(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [] }))
+            .await;
 
-    create_response.assert_status_failure();
+        create_response.assert_status_failure();
 
-    assert!(create_response.text().contains("no users present"))
-}
-
-#[tokio::test]
-#[serial]
-async fn add_chat_users() {
-    let (server, _) = create_test_server().await;
+        assert!(create_response.text().contains("no users present"))
+    }
+);
+test_with_server!(add_chat_users, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
@@ -668,100 +652,97 @@ async fn add_chat_users() {
         .as_ref()
         .unwrap()
         .contains(&user2.id.as_ref().unwrap()),);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_add_chat_users_by_not_owner() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_add_chat_users_by_not_owner,
+    |server, ctx_state, config| {
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .post(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [] }))
-        .await;
+        let create_response = server
+            .post(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [] }))
+            .await;
 
-    create_response.assert_status_failure();
+        create_response.assert_status_failure();
 
-    assert!(create_response.text().contains("no users present"));
-}
+        assert!(create_response.text().contains("no users present"));
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_remove_chat_users_into_read_only() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_remove_chat_users_into_read_only,
+    |server, ctx_state, config| {
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .delete(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
-        .await;
+        let create_response = server
+            .delete(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
+            .await;
 
-    create_response.assert_status_failure();
+        create_response.assert_status_failure();
 
-    assert!(create_response.text().contains("Forbidden"));
-}
+        assert!(create_response.text().contains("Forbidden"));
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn remove_chat_users() {
-    let (server, _) = create_test_server().await;
+test_with_server!(remove_chat_users, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
@@ -820,122 +801,119 @@ async fn remove_chat_users() {
         .as_ref()
         .unwrap()
         .contains(&user1.id.as_ref().unwrap()),);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_remove_owner_from_chat_users() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, _, _, _token2) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_remove_owner_from_chat_users,
+    |server, ctx_state, config| {
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let (server, _, _, _token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: false,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 1);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 1);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .delete(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [user1.id.as_ref().unwrap().to_raw()] }))
-        .await;
+        let create_response = server
+            .delete(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [user1.id.as_ref().unwrap().to_raw()] }))
+            .await;
 
-    create_response.assert_status_failure();
+        create_response.assert_status_failure();
 
-    assert!(create_response
-        .text()
-        .contains("Owner of the discussion can not remove yourself"));
+        assert!(create_response
+            .text()
+            .contains("Owner of the discussion can not remove yourself"));
 
-    let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .await;
+        let create_response: axum_test::TestResponse = server
+            .get("/api/discussions")
+            .add_header("Accept", "application/json")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Vec<Discussion>>();
-    assert_eq!(
-        result[0]
+        create_response.assert_status_ok();
+        let result = create_response.json::<Vec<Discussion>>();
+        assert_eq!(
+            result[0]
+                .private_discussion_user_ids
+                .as_ref()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(result[0]
             .private_discussion_user_ids
             .as_ref()
             .unwrap()
-            .len(),
-        1
-    );
-    assert!(result[0]
-        .private_discussion_user_ids
-        .as_ref()
-        .unwrap()
-        .contains(&user1.id.as_ref().unwrap()),);
-}
+            .contains(&user1.id.as_ref().unwrap()),);
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_remove_chat_users_by_not_owner() {
-    let (server, _) = create_test_server().await;
-    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+test_with_server!(
+    try_remove_chat_users_by_not_owner,
+    |server, ctx_state, config| {
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
-    let create_response = server
-        .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
-        .json(&CreateDiscussion {
-            community_id: comm_id.clone(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
-            private_discussion_users_final: true,
-        })
-        .add_header("Accept", "application/json")
-        .await;
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: true,
+            })
+            .add_header("Accept", "application/json")
+            .await;
 
-    create_response.assert_status_ok();
-    let result = create_response.json::<Discussion>();
+        create_response.assert_status_ok();
+        let result = create_response.json::<Discussion>();
 
-    let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
-    assert_eq!(private_discussion_user_ids.len(), 2);
-    assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
-    assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
+        let private_discussion_user_ids = result.private_discussion_user_ids.unwrap();
+        assert_eq!(private_discussion_user_ids.len(), 2);
+        assert!(private_discussion_user_ids.contains(&user1.id.as_ref().unwrap().clone()));
+        assert!(private_discussion_user_ids.contains(&user2.id.as_ref().unwrap().clone()));
 
-    let create_response = server
-        .post(&format!(
-            "/api/discussions/{}/chat_users",
-            result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
-        ))
-        .add_header("Cookie", format!("jwt={}", token2))
-        .add_header("Accept", "application/json")
-        .json(&json!({ "user_ids": [] }))
-        .await;
+        let create_response = server
+            .post(&format!(
+                "/api/discussions/{}/chat_users",
+                result.id.as_ref().unwrap().to_raw().replace(":", "%3A")
+            ))
+            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Accept", "application/json")
+            .json(&json!({ "user_ids": [] }))
+            .await;
 
-    create_response.assert_status_failure();
-    assert!(create_response.text().contains("no users present"));
-}
+        create_response.assert_status_failure();
+        assert!(create_response.text().contains("no users present"));
+    }
+);
 
-#[tokio::test]
-#[serial]
-async fn try_update_by_not_owner() {
-    let (server, _) = create_test_server().await;
+test_with_server!(try_update_by_not_owner, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
@@ -973,12 +951,9 @@ async fn try_update_by_not_owner() {
 
     create_response.assert_status_failure();
     assert!(create_response.text().contains("not authorized"));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn update() {
-    let (server, _) = create_test_server().await;
+test_with_server!(update, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
@@ -1029,12 +1004,9 @@ async fn update() {
     let disc = result.into_iter().find(|item| item.id == id).unwrap();
 
     assert_eq!(disc.title, Some("Hello".to_string()));
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn delete_read_only() {
-    let (server, _) = create_test_server().await;
+test_with_server!(delete_read_only, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
@@ -1080,12 +1052,9 @@ async fn delete_read_only() {
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
     assert_eq!(result.len(), 0);
-}
+});
 
-#[tokio::test]
-#[serial]
-async fn try_delete_by_not_owner() {
-    let (server, _) = create_test_server().await;
+test_with_server!(try_delete_by_not_owner, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
@@ -1131,4 +1100,4 @@ async fn try_delete_by_not_owner() {
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<Discussion>>();
     assert_eq!(result.len(), 1);
-}
+});
