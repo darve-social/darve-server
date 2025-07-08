@@ -1,11 +1,11 @@
 use crate::database::client::Db;
-use crate::database::repository::Repository;
 use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity;
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
+use chrono::{DateTime, TimeDelta, Utc};
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
@@ -17,10 +17,7 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use surrealdb::sql::Thing;
-use task_request_participation_entity::TaskRequestParticipation;
 use wallet_entity::CurrencySymbol;
-
-use super::task_request_participation_entity;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
@@ -36,10 +33,25 @@ pub struct TaskRequest {
     pub deliverables: Option<Vec<Thing>>,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
+    pub created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
+    pub acceptance_period: Option<u16>,
+    pub delivery_period: Option<u16>,
+}
+
+impl TaskRequest {
+    pub fn can_still_use(start: DateTime<Utc>, period: Option<u16>) -> bool {
+        match period {
+            Some(value) => {
+                start
+                    .checked_add_signed(TimeDelta::hours(value.into()))
+                    .unwrap()
+                    > Utc::now()
+            }
+            _ => true,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -93,7 +105,9 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;

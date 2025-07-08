@@ -20,7 +20,7 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use local_user_entity::LocalUserDbService;
 use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::ctx::Ctx;
@@ -89,6 +89,8 @@ pub struct TaskRequestInput {
     pub to_user: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<String>,
+
+    #[validate(range(min = 1))]
     pub offer_amount: Option<i64>,
 }
 
@@ -368,8 +370,10 @@ async fn create_entity(
         reward_type: RewardType::OnDelivery,
         currency: offer_currency.clone(),
         deliverables: None,
-        r_created: None,
+        created_at: Utc::now(),
         r_updated: None,
+        acceptance_period: None,
+        delivery_period: None,
     })
     .await?;
 
@@ -454,16 +458,22 @@ pub struct TaskRequestForToUsers {
     pub r#type: TaskRequestType,
     pub participants: Vec<TaskRequestParticipation>,
     pub to_users: Vec<TaskRequestUser>,
+    pub acceptance_period: Option<u16>,
+    pub delivery_period: Option<u16>,
+    pub created_at: DateTime<Utc>,
 }
 
 impl ViewFieldSelector for TaskRequestForToUsers {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, 
         reward_type,
+        acceptance_period,
+        delivery_period,
+        created_at,
+        type
         ->task_request_participation.*.{id, amount, currency, lock, user: out} as participants,
         ->task_request_participation.*.out as participant_ids,
-        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, result} as to_users,
-        type"
+        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, result} as to_users"
             .to_string()
     }
 }
@@ -543,6 +553,13 @@ async fn accept_task_request(
     let task = task_db_service
         .get_by_id::<TaskRequestForToUsers>(&task_thing)
         .await?;
+
+    if !TaskRequest::can_still_use(task.created_at, task.acceptance_period) {
+        return Err(AppError::Generic {
+            description: "The acceptance period has expired".to_string(),
+        }
+        .into());
+    }
 
     if task.participants.iter().any(|t| t.user == user_id) {
         return Err(AppError::Generic {
@@ -628,6 +645,13 @@ async fn deliver_task_request(
     let task = task_db_service
         .get_by_id::<TaskRequestForToUsers>(&task_thing)
         .await?;
+
+    if !TaskRequest::can_still_use(task.created_at, task.delivery_period) {
+        return Err(AppError::Generic {
+            description: "The delivery period has expired".to_string(),
+        }
+        .into());
+    }
 
     let user_id_id = delivered_by.id.to_raw();
     let task_user = task
