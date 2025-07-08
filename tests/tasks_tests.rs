@@ -1081,6 +1081,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
             "offer_amount": Some(1),
             "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
             "acceptance_period": 1,
         }))
         .add_header("Cookie", format!("jwt={}", token1))

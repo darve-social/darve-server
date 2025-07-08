@@ -35,7 +35,7 @@ pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
     pub acceptance_period: Option<u16>,
-    pub delivery_period: Option<u16>,
+    pub delivery_period: u16,
 }
 
 impl TaskRequest {
@@ -62,7 +62,7 @@ pub struct TaskRequestCreate {
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub acceptance_period: Option<u16>,
-    pub delivery_period: Option<u16>,
+    pub delivery_period: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -117,7 +117,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");

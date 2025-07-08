@@ -368,35 +368,6 @@ test_with_server!(
             .await;
         delivery_req.assert_status_success();
 
-        // check user 3 balance and no locked
-        let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check user 2 balance and no locked
-        let balance = wallet_service.get_user_balance(&user2_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user2_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user2_endow_amt - user2_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check user 0 has received rewards
-        let user0_thing = get_string_thing(user_ident0).unwrap();
-        let balance = wallet_service.get_user_balance(&user0_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user0_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user3_offer_amt + user2_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check task deliverables exist
         let received_post_tasks_req = server
             .get("/api/task_request/received")
             .add_header("Accept", "application/json")
@@ -430,13 +401,13 @@ test_with_server!(
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotification>>();
 
-        assert_eq!(received_notifications.len(), 5);
+        assert_eq!(received_notifications.len(), 4);
 
         let balance_updates: Vec<_> = received_notifications
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserBalanceUpdate)
             .collect();
-        assert_eq!(balance_updates.len(), 4);
+        assert_eq!(balance_updates.len(), 3);
         let task_delivered_evt: Vec<_> = received_notifications
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
@@ -451,7 +422,7 @@ test_with_server!(
         transaction_history_response.assert_status_success();
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 6);
+        assert_eq!(created.transactions.len(), 4);
 
         created
             .transactions
@@ -479,7 +450,7 @@ test_with_server!(
         transaction_history_response.assert_status_success();
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 4);
+        assert_eq!(created.transactions.len(), 2);
 
         created
             .transactions

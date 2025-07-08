@@ -373,7 +373,7 @@ async fn create_entity(
         reward_type: RewardType::OnDelivery,
         currency: offer_currency.clone(),
         acceptance_period: t_request_input.acceptance_period,
-        delivery_period: t_request_input.delivery_period,
+        delivery_period: t_request_input.delivery_period.unwrap_or(10),
     })
     .await?;
 
@@ -459,7 +459,7 @@ pub struct TaskRequestForToUsers {
     pub participants: Vec<TaskRequestParticipation>,
     pub to_users: Vec<TaskRequestUser>,
     pub acceptance_period: Option<u16>,
-    pub delivery_period: Option<u16>,
+    pub delivery_period: u16,
     pub created_at: DateTime<Utc>,
 }
 
@@ -646,7 +646,7 @@ async fn deliver_task_request(
         .get_by_id::<TaskRequestForToUsers>(&task_thing)
         .await?;
 
-    if !TaskRequest::can_still_use(task.created_at, task.delivery_period) {
+    if !TaskRequest::can_still_use(task.created_at, Some(task.delivery_period)) {
         return Err(AppError::Generic {
             description: "The delivery period has expired".to_string(),
         }

@@ -28,8 +28,7 @@ pub async fn run(state: Arc<CtxState>) -> JoinHandle<()> {
                 ->task_request_user.{ status, id: out } as users,
                 ->task_request_participation.{id:out, lock, amount, currency} as participants
             FROM task_request
-            WHERE delivery_period != None AND
-                created_at + <duration>string::concat(delivery_period, 'h') <= time::now() AND
+            WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now() AND
                 array::any(->task_request_participant.out.lock) != None AND 
                 $status IN ->task_request_user.*.status";
 
