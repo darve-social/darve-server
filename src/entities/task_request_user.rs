@@ -29,6 +29,7 @@ pub struct TaskRequestUser {
     #[serde(default)]
     pub timelines: Vec<TaskRequestUserTimeline>,
     pub result: Option<TaskRequestUserResult>,
+    pub reward_tx: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

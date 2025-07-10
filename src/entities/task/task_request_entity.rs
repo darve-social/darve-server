@@ -2,7 +2,8 @@ use crate::database::client::Db;
 use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity;
+use crate::entities::wallet::wallet_entity::TABLE_NAME as WALLET_TABLE_NAME;
+use crate::entities::wallet::wallet_entity::{self};
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
 use chrono::{DateTime, TimeDelta, Utc};
@@ -36,6 +37,7 @@ pub struct TaskRequest {
     pub r_updated: Option<String>,
     pub acceptance_period: Option<u16>,
     pub delivery_period: u16,
+    pub wallet_id: Thing,
 }
 
 impl TaskRequest {
@@ -53,7 +55,6 @@ impl TaskRequest {
 }
 #[derive(Debug, Serialize)]
 pub struct TaskRequestCreate {
-    pub id: Thing,
     pub from_user: Thing,
     pub on_post: Option<Thing>,
     pub request_txt: String,
@@ -118,6 +119,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     ");
@@ -129,17 +131,38 @@ impl<'a> TaskRequestDbService<'a> {
     }
 
     pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
-        let res = self
+        let mut res = self
             .db
-            .create(TABLE_NAME)
-            .content(record)
+            .query("BEGIN TRANSACTION")
+            .query("LET $wallet_id=(CREATE wallet SET transaction_head = {{}} RETURN id)[0].id;")
+            .query(
+                "CREATE task_request SET
+                delivery_period=$delivery_period,
+                wallet_id=$wallet_id,
+                on_post=$on_post,
+                from_user=$from_user,
+                deliverable_type=$deliverable_type,
+                request_txt=$request_txt,
+                reward_type=$reward_type,
+                currency=$currency,
+                type=$type,
+                acceptance_period=$acceptance_period;",
+            )
+            .query("COMMIT TRANSACTION")
+            .bind(("delivery_period", record.delivery_period))
+            .bind(("on_post", record.on_post.clone()))
+            .bind(("from_user", record.from_user.clone()))
+            .bind(("deliverable_type", record.deliverable_type.clone()))
+            .bind(("request_txt", record.request_txt.clone()))
+            .bind(("reward_type", record.reward_type.clone()))
+            .bind(("currency", record.currency.clone()))
+            .bind(("type", record.r#type.clone()))
+            .bind(("acceptance_period", record.acceptance_period))
             .await
-            .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<TaskRequest>| v.unwrap());
+            .map_err(CtxError::from(self.ctx))?;
 
-        // let things: Vec<Domain> = self.db.select(TABLE_NAME).await.ok().unwrap();
-        // dbg!(things);
-        res
+        let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;
+        Ok(data.unwrap())
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<TaskRequest> {

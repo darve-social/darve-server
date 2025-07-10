@@ -3,7 +3,7 @@
 macro_rules! test_with_server {
     ($name:ident, |$server:ident, $ctx_state:ident, $config:ident| $body:block) => {
 
-        #[tokio::test]
+        #[tokio::test(flavor="multi_thread")]
         #[serial_test::serial]
         async fn $name() {
             use axum_test::{TestServer, TestServerConfig};
@@ -59,7 +59,7 @@ macro_rules! test_with_server {
             $ctx_state.clone().db.client
                 .query(format!("REMOVE DATABASE {};",$config.db_database))
                 .await
-                .expect("failed to remove test namespace");
+                .expect("failed to remove database");
 
             if let Err(panic) = test_result {
                 resume_unwind(panic);

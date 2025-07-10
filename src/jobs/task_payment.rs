@@ -1,67 +1,119 @@
 use std::{sync::Arc, time::Duration};
 
-use serde::Deserialize;
-use tokio::task::JoinHandle;
-
 use crate::{
     entities::{
-        task::task_request_participation_entity::TaskRequestParticipation,
-        task_request_user::{TaskRequestUser, TaskRequestUserStatus},
+        task_request_user::TaskRequestUserStatus,
+        wallet::{
+            balance_transaction_entity::BalanceTransactionDbService,
+            wallet_entity::{CurrencySymbol, Wallet, WalletDbService},
+        },
     },
-    middleware::mw_ctx::CtxState,
+    middleware::{ctx::Ctx, mw_ctx::CtxState},
 };
+use serde::Deserialize;
+use surrealdb::sql::Thing;
+use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
-pub struct TaskReadyForPayment {
-    pub participants: Vec<TaskRequestParticipation>,
-    pub users: Vec<TaskRequestUser>,
+pub struct TaskDonor {
+    amount: i64,
+    id: Thing,
 }
 
-pub async fn run(state: Arc<CtxState>) -> JoinHandle<()> {
+#[derive(Debug, Deserialize)]
+pub struct TaskUser {
+    id: Thing,
+    user_id: Thing,
+    status: TaskRequestUserStatus,
+    reward_tx: Option<Thing>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Task {
+    pub currency: CurrencySymbol,
+    pub participants: Vec<TaskDonor>,
+    pub users: Vec<TaskUser>,
+    pub wallet: Wallet,
+    pub balance: i64,
+}
+
+pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
     let state = state.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(60)).await;
+            tokio::time::sleep(delay).await;
 
-            let query = "
-            SELECT id,
-                ->task_request_user.{ status, id: out } as users,
-                ->task_request_participation.{id:out, lock, amount, currency} as participants
-            FROM task_request
-            WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now() AND
-                array::any(->task_request_participant.out.lock) != None AND 
-                $status IN ->task_request_user.*.status";
+            let query = "SELECT *, transaction_head[currency].balance as balance FROM (
+                     SELECT
+                        wallet_id.* AS wallet,
+                        currency,
+                        wallet_id.transaction_head AS transaction_head,
+                        ->task_request_user.{ status, id, user_id: out } AS users,
+                        ->task_request_participation.{ id: out, amount: transaction.amount_out } AS participants
+                    FROM task_request
+                    WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now()
+                ) WHERE transaction_head[currency].balance > 2;";
 
-            let res = state
-                .db
-                .client
-                .query(query)
-                .bind(("status", TaskRequestUserStatus::Delivered))
-                .await;
+            let res = state.db.client.query(query).await;
 
             if res.is_err() {
                 continue;
             }
 
-            let data = res
-                .unwrap()
-                .take::<Vec<TaskReadyForPayment>>(0)
-                .unwrap_or(vec![]);
+            let tasks = res.unwrap().take::<Vec<Task>>(0).unwrap_or(vec![]);
 
-            data.iter().for_each(|task| {
-                let _delivered_users = task
-                    .users
-                    .iter()
-                    .filter(|u| u.status == TaskRequestUserStatus::Delivered)
-                    .collect::<Vec<&TaskRequestUser>>();
+            for task in tasks {
+                let state = Arc::clone(&state);
+                tokio::spawn(async move {
+                    let ctx = Ctx::new(Ok("".to_string()), Uuid::new_v4(), false);
 
-                let _amount = task
-                    .participants
-                    .iter()
-                    .fold(0, |res, item| res + item.amount);
+                    let wallet_db_service = BalanceTransactionDbService {
+                        db: &state.db.client,
+                        ctx: &ctx,
+                    };
 
-                // payment process
-            });
+                    let delivered_users = task
+                        .users
+                        .iter()
+                        .filter(|user| user.status == TaskRequestUserStatus::Delivered)
+                        .collect::<Vec<&TaskUser>>();
+                    if delivered_users.is_empty() {
+                        for user in task.participants {
+                            let user_wallet = WalletDbService::get_user_wallet_id(&user.id);
+                            let _ = wallet_db_service
+                                .transfer_currency(
+                                    task.wallet.id.as_ref().unwrap(),
+                                    &user_wallet,
+                                    user.amount,
+                                    &task.currency,
+                                )
+                                .await;
+                        }
+                    } else {
+                        let task_users = delivered_users
+                            .into_iter()
+                            .filter(|u| u.reward_tx.is_none())
+                            .collect::<Vec<&TaskUser>>();
+
+                        let amount: u64 = task.balance as u64 / task_users.len() as u64;
+
+                        for task_user in task_users {
+                            let user_wallet =
+                                WalletDbService::get_user_wallet_id(&task_user.user_id);
+                            let _ = wallet_db_service
+                                .transfer_task_reward(
+                                    task.wallet.id.as_ref().unwrap(),
+                                    &user_wallet,
+                                    amount as i64,
+                                    &task.currency,
+                                    &task_user.id,
+                                )
+                                .await;
+                        }
+                    }
+                });
+            }
         }
     })
 }

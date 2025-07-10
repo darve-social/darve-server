@@ -37,6 +37,7 @@ pub async fn create_fake_community(
         })
         .add_header("Accept", "application/json")
         .await;
+
     let created = &create_response.json::<CreatedResponse>();
 
     let comm_id = Thing::try_from(created.id.clone()).unwrap();

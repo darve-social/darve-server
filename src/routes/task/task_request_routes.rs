@@ -7,7 +7,9 @@ use crate::entities::task_request_user::{
 };
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::user_notification::UserNotificationEvent;
-use crate::entities::wallet::{lock_transaction_entity, wallet_entity};
+use crate::entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
+use crate::entities::wallet::wallet_entity;
+use crate::entities::wallet::wallet_entity::WalletDbService;
 use crate::interfaces::repositories::task_participators::TaskParticipatorsRepositoryInterface;
 use crate::interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
@@ -20,9 +22,8 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use local_user_entity::LocalUserDbService;
-use lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
@@ -34,10 +35,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-use surrealdb::sql::{Id, Thing};
-use task_request_entity::{
-    DeliverableType, RewardType, TaskRequest, TaskRequestDbService, TABLE_NAME,
-};
+use surrealdb::sql::Thing;
+use task_request_entity::{DeliverableType, RewardType, TaskRequest, TaskRequestDbService};
 use validator::Validate;
 use wallet_entity::CurrencySymbol;
 
@@ -137,6 +136,7 @@ pub struct TaskRequestView {
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_updated: Option<String>,
+    pub wallet_id: Thing,
 }
 
 impl ViewFieldSelector for TaskRequestView {
@@ -144,7 +144,8 @@ impl ViewFieldSelector for TaskRequestView {
         "id, 
         from_user.{id, username, full_name} as from_user,
         on_post, request_txt, reward_type, 
-        currency, 
+        currency,
+        wallet_id,
         ->task_request_user.{
             user: out.{id, username, full_name},        
             status
@@ -341,7 +342,6 @@ async fn create_entity(
 
     let offer_amount = t_request_input.offer_amount.unwrap_or(0);
     let offer_currency = CurrencySymbol::USD;
-    let valid_until = Utc::now().checked_add_signed(Duration::days(5)).unwrap();
 
     let post = if let Some(ref post_id) = t_request_input.post_id {
         let post_thing = get_string_thing(post_id.clone())?;
@@ -357,14 +357,11 @@ async fn create_entity(
         None
     };
 
-    let t_req_id = Thing::from((TABLE_NAME, Id::ulid()));
-
-    let t_request = TaskRequestDbService {
+    let task = TaskRequestDbService {
         db: &state.db.client,
         ctx: &ctx,
     }
     .create(TaskRequestCreate {
-        id: t_req_id.clone(),
         from_user: from_user.clone(),
         on_post: post,
         r#type: task_type,
@@ -378,27 +375,24 @@ async fn create_entity(
     .await?;
 
     if offer_amount > 0 {
-        let tx_db_service = LockTransactionDbService {
+        let balance_db_service = BalanceTransactionDbService {
             db: &state.db.client,
             ctx: &ctx,
         };
-        let tx_id = tx_db_service
-            .lock_user_asset_tx(
-                &from_user,
-                offer_amount,
-                offer_currency.clone(),
-                vec![UnlockTrigger::Timestamp {
-                    at: valid_until.clone(),
-                }],
-            )
+
+        let wallet_from = WalletDbService::get_user_wallet_id(&from_user);
+
+        let response = balance_db_service
+            .transfer_currency(&wallet_from, &task.wallet_id, offer_amount, &offer_currency)
             .await?;
+
         let _ = state
             .db
             .task_participators
             .create(
-                &t_request.id.as_ref().unwrap().id.to_raw(),
+                &task.id.as_ref().unwrap().id.to_raw(),
                 &from_user.id.to_raw(),
-                &tx_id.id.to_raw(),
+                &response.tx_out_id.id.to_raw(),
                 offer_amount as u64,
                 &offer_currency.to_string(),
             )
@@ -413,7 +407,7 @@ async fn create_entity(
             .db
             .task_request_users
             .create(
-                &t_request.id.as_ref().unwrap().id.to_raw(),
+                &task.id.as_ref().unwrap().id.to_raw(),
                 &user.id.as_ref().unwrap().id.to_raw(),
                 TaskRequestUserStatus::Requested.as_str(),
             )
@@ -436,16 +430,24 @@ async fn create_entity(
 
     if let Some(ref user) = to_user {
         let _ = n_service
-            .on_created_task(&from_user, &t_req_id, &user.id.as_ref().unwrap())
+            .on_created_task(
+                &from_user,
+                &task.id.as_ref().unwrap(),
+                &user.id.as_ref().unwrap(),
+            )
             .await?;
 
         let _ = n_service
-            .on_received_task(&from_user, &t_req_id, &user.id.as_ref().unwrap())
+            .on_received_task(
+                &from_user,
+                &task.id.as_ref().unwrap(),
+                &user.id.as_ref().unwrap(),
+            )
             .await?;
     };
 
     ctx.to_htmx_or_json(CreatedResponse {
-        id: t_request.id.unwrap().to_raw(),
+        id: task.id.as_ref().unwrap().to_raw(),
         uri: None,
         success: true,
     })
@@ -471,7 +473,7 @@ impl ViewFieldSelector for TaskRequestForToUsers {
         delivery_period,
         created_at,
         type,
-        ->task_request_participation.*.{id, amount, currency, lock, user: out} as participants,
+        ->task_request_participation.*.{id, transaction, user: out} as participants,
         ->task_request_participation.*.out as participant_ids,
         ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status, result} as to_users"
             .to_string()
@@ -749,7 +751,9 @@ async fn deliver_task_request(
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestAddParticipators {
     pub id: Thing,
+    pub wallet_id: Thing,
     pub reward_type: RewardType,
+    pub currency: CurrencySymbol,
     pub r#type: TaskRequestType,
     pub participants: Vec<TaskRequestParticipation>,
     pub to_users: Vec<TaskRequestUser>,
@@ -759,7 +763,9 @@ impl ViewFieldSelector for TaskRequestAddParticipators {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, 
         reward_type,
-        ->task_request_participation.*.{id, amount, currency, lock, user: out} as participants,
+        currency,
+        wallet_id,
+        ->task_request_participation.*.{id, amount, currency, transaction, user: out} as participants,
         ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status} as to_users,
         type"
             .to_string()
@@ -797,7 +803,6 @@ async fn participate_task_request_offer(
     let is_some_accepted_or_delivered = task.to_users.iter().any(|v| {
         v.status == TaskRequestUserStatus::Accepted || v.status == TaskRequestUserStatus::Delivered
     });
-    let offer_currency = data.currency.unwrap_or(CurrencySymbol::USD);
 
     if is_some_accepted_or_delivered {
         return Err(AppError::Generic {
@@ -807,27 +812,39 @@ async fn participate_task_request_offer(
     }
 
     let participant = task.participants.iter().find(|p| p.user == current_user);
-    let tx_db_service = LockTransactionDbService {
+
+    let user_wallet = WalletDbService::get_user_wallet_id(&current_user);
+    let balance_db_service = BalanceTransactionDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
-
     let offer_id = match participant {
         Some(p) => {
-            if let Some(ref lock) = p.lock {
-                tx_db_service.unlock_user_asset_tx(lock).await?;
+            if let Some(ref tx) = p.transaction {
+                let tx = balance_db_service.get(IdentIdName::Id(tx.clone())).await?;
+
+                let _ = balance_db_service
+                    .transfer_currency(
+                        &task.wallet_id,
+                        &user_wallet,
+                        tx.amount_out.unwrap(),
+                        &tx.currency,
+                    )
+                    .await?;
             }
-            let tx_id = tx_db_service
-                .lock_user_asset_tx(&current_user, data.amount, offer_currency.clone(), vec![])
+
+            let response = balance_db_service
+                .transfer_currency(&user_wallet, &task.wallet_id, data.amount, &task.currency)
                 .await?;
+
             let _ = state
                 .db
                 .task_participators
                 .update(
                     &p.id.as_ref().unwrap().id.to_raw(),
-                    &tx_id.id.to_raw(),
+                    &response.tx_out_id.id.to_raw(),
                     data.amount as u64,
-                    &offer_currency.to_string(),
+                    &task.currency.to_string(),
                 )
                 .await
                 .map_err(|e| AppError::SurrealDb {
@@ -836,23 +853,25 @@ async fn participate_task_request_offer(
             p.id.as_ref().unwrap().to_raw()
         }
         None => {
-            let tx_id = tx_db_service
-                .lock_user_asset_tx(&current_user, data.amount, offer_currency.clone(), vec![])
+            let response = balance_db_service
+                .transfer_currency(&user_wallet, &task.wallet_id, data.amount, &task.currency)
                 .await?;
+
             let id = state
                 .db
                 .task_participators
                 .create(
                     &task_thing.id.to_raw(),
                     &current_user.id.to_raw(),
-                    &tx_id.id.to_raw(),
+                    &response.tx_out_id.id.to_raw(),
                     data.amount as u64,
-                    &offer_currency.to_string(),
+                    &task.currency.to_string(),
                 )
                 .await
                 .map_err(|e| AppError::SurrealDb {
                     source: e.to_string(),
                 })?;
+
             id
         }
     };
