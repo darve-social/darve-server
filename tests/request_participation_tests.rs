@@ -192,12 +192,7 @@ test_with_server!(
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
@@ -209,12 +204,8 @@ test_with_server!(
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let participant = task
-            .participants
-            .iter()
-            .find(|p| p.user.clone().unwrap().username == username3)
-            .unwrap();
-        assert_eq!(participant.amount, user3_offer_amt);
+        let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
+        assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // change amount to 33 by sending another participation req
         let user3_offer_amt = 33;
@@ -235,12 +226,7 @@ test_with_server!(
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
@@ -252,14 +238,11 @@ test_with_server!(
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let total_task_payment_amt = task.participants.iter().fold(0, |tot, a| tot + a.amount);
-        assert_eq!(total_task_payment_amt, user3_offer_amt + user2_offer_amt);
-        let participant = task
-            .participants
-            .iter()
-            .find(|p| p.user.clone().unwrap().username == username3)
-            .unwrap();
-        assert_eq!(participant.amount, user3_offer_amt);
+
+        let task = post_tasks.get(0).unwrap();
+        assert_eq!(task.participants.len(), 2);
+        let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
+        assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // user4 tries to participate without balance and gets error
 
@@ -271,7 +254,7 @@ test_with_server!(
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: 33,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
@@ -639,6 +622,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
     let notifications = req.json::<Vec<UserNotification>>();
     assert_eq!(notifications.len(), 5);
 });
+
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
