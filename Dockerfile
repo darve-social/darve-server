@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-
 WORKDIR /app
-COPY .env .env.production
-COPY ./templates ./templates
+COPY .env.production .env
+COPY templates templates
+COPY assets assets
 COPY --from=builder /app/target/release/darve_server /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/darve_server"]
