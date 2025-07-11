@@ -7,9 +7,10 @@ use darve_server::entities::user_notification::{UserNotification, UserNotificati
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
-use darve_server::routes::task::task_request_routes;
+use darve_server::routes::task::task_request_routes::{TaskRequestOfferInput, TaskRequestView};
 use darve_server::routes::user_auth::login_routes;
 use darve_server::routes::wallet::wallet_routes;
+use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use std::i64;
 use surrealdb::sql::Thing;
@@ -22,7 +23,6 @@ use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use task_request_routes::{TaskRequestInput, TaskRequestOfferInput, TaskRequestView};
 use wallet_entity::{CurrencySymbol, WalletDbService};
 use wallet_routes::CurrencyTransactionHistoryView;
 
@@ -116,11 +116,12 @@ test_with_server!(
                 offer_amount: Some(user2_offer_amt),
                 to_user: Some(user_ident0.clone()),
                 content: offer_content.clone(),
+                acceptance_period: None,
+                delivery_period: None,
             })
             .add_header("Accept", "application/json")
             .await;
 
-        println!(">{:?}", task_request);
         task_request.assert_status_success();
         let created_task = task_request.json::<CreatedResponse>();
 
@@ -161,8 +162,8 @@ test_with_server!(
         let username3 = user3.username.to_string();
 
         // endow user 3
-        let user3_endow_amt = 100;
-        let user3_offer_amt = 3;
+        let user3_endow_amt: i64 = 100;
+        let user3_offer_amt: i64 = 3;
         let endow_user_response = server
             .get(&format!(
                 "/test/api/endow/{}/{}",
@@ -177,12 +178,11 @@ test_with_server!(
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: user3_offer_amt as u64,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
-
         participate_response.assert_status_success();
         let _res = participate_response.json::<CreatedResponse>();
 
@@ -191,12 +191,7 @@ test_with_server!(
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
@@ -208,19 +203,15 @@ test_with_server!(
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let participant = task
-            .participants
-            .iter()
-            .find(|p| p.user.clone().unwrap().username == username3)
-            .unwrap();
-        assert_eq!(participant.amount, user3_offer_amt);
+        let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
+        assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // change amount to 33 by sending another participation req
-        let user3_offer_amt = 33;
+        let user3_offer_amt: i64 = 33;
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: user3_offer_amt as u64,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
@@ -234,12 +225,7 @@ test_with_server!(
             ctx: &ctx,
         };
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, user3_offer_amt);
 
         let post_tasks_req = server
             .get(format!("/api/task_request/list/post/{}", created_post.id.clone()).as_str())
@@ -251,14 +237,11 @@ test_with_server!(
 
         let task = post_tasks.get(0).unwrap();
         assert_eq!(task.participants.len(), 2);
-        let total_task_payment_amt = task.participants.iter().fold(0, |tot, a| tot + a.amount);
-        assert_eq!(total_task_payment_amt, user3_offer_amt + user2_offer_amt);
-        let participant = task
-            .participants
-            .iter()
-            .find(|p| p.user.clone().unwrap().username == username3)
-            .unwrap();
-        assert_eq!(participant.amount, user3_offer_amt);
+
+        let task = post_tasks.get(0).unwrap();
+        assert_eq!(task.participants.len(), 2);
+        let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
+        assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // user4 tries to participate without balance and gets error
 
@@ -270,7 +253,7 @@ test_with_server!(
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: 33,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
@@ -367,35 +350,6 @@ test_with_server!(
             .await;
         delivery_req.assert_status_success();
 
-        // check user 3 balance and no locked
-        let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user3_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check user 2 balance and no locked
-        let balance = wallet_service.get_user_balance(&user2_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user2_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user2_endow_amt - user2_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check user 0 has received rewards
-        let user0_thing = get_string_thing(user_ident0).unwrap();
-        let balance = wallet_service.get_user_balance(&user0_thing).await.unwrap();
-        let balance_locked = wallet_service
-            .get_user_balance_locked(&user0_thing)
-            .await
-            .unwrap();
-        assert_eq!(balance.balance_usd, user3_offer_amt + user2_offer_amt);
-        assert_eq!(balance_locked.balance_usd, 0);
-
-        // check task deliverables exist
         let received_post_tasks_req = server
             .get("/api/task_request/received")
             .add_header("Accept", "application/json")
@@ -429,13 +383,13 @@ test_with_server!(
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotification>>();
 
-        assert_eq!(received_notifications.len(), 5);
+        assert_eq!(received_notifications.len(), 4);
 
         let balance_updates: Vec<_> = received_notifications
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserBalanceUpdate)
             .collect();
-        assert_eq!(balance_updates.len(), 4);
+        assert_eq!(balance_updates.len(), 3);
         let task_delivered_evt: Vec<_> = received_notifications
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
@@ -450,7 +404,7 @@ test_with_server!(
         transaction_history_response.assert_status_success();
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 6);
+        assert_eq!(created.transactions.len(), 4);
 
         created
             .transactions
@@ -478,7 +432,7 @@ test_with_server!(
         transaction_history_response.assert_status_success();
 
         let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 4);
+        assert_eq!(created.transactions.len(), 2);
 
         created
             .transactions
@@ -667,6 +621,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
     let notifications = req.json::<Vec<UserNotification>>();
     assert_eq!(notifications.len(), 5);
 });
+
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;

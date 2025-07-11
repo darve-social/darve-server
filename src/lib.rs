@@ -3,6 +3,7 @@ pub mod database;
 pub mod entities;
 pub mod init;
 pub mod interfaces;
+pub mod jobs;
 pub mod middleware;
 pub mod models;
 pub mod routes;

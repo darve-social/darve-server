@@ -2,13 +2,14 @@ use crate::database::client::Db;
 use crate::entities::task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME;
 use crate::entities::task::task_request_participation_entity::TABLE_NAME;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
-use crate::entities::wallet::lock_transaction_entity::TABLE_NAME as LOCK_TABLE_NAME;
+use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
 use crate::interfaces::repositories::task_participators::TaskParticipatorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
+
 #[derive(Debug)]
 pub struct TaskRequestParticipatorsRepository {
     client: Arc<Db>,
@@ -30,7 +31,7 @@ impl TaskRequestParticipatorsRepository {
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {table_name} TYPE number;
-    DEFINE FIELD IF NOT EXISTS lock ON TABLE {table_name} TYPE record<{LOCK_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS transaction ON TABLE {table_name} TYPE record<{TRANSACTION_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS votes ON TABLE {table_name} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {table_name} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
@@ -57,7 +58,7 @@ impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository
         currency: &str,
     ) -> Result<String, String> {
         let sql = format!(
-            "RELATE $task->{}->$user SET amount=$amount,lock=$tx_id,currency=$currency RETURN record::id(id) as id;",
+            "RELATE $task->{}->$user SET amount=$amount,transaction=$tx_id,currency=$currency RETURN record::id(id) as id;",
             self.table_name
         );
 
@@ -67,7 +68,7 @@ impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
             .bind(("amount", amount))
-            .bind(("tx_id", Thing::from((LOCK_TABLE_NAME, tx_id))))
+            .bind(("tx_id", Thing::from((TRANSACTION_TABLE_NAME, tx_id))))
             .bind(("currency", currency.to_string()))
             .await
             .map_err(|e| e.to_string())?;
@@ -86,13 +87,13 @@ impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository
         amount: u64,
         currency: &str,
     ) -> Result<(), String> {
-        let query = "UPDATE $id SET amount=$amount,lock=$tx_id,currency=$currency;";
+        let query = "UPDATE $id SET amount=$amount,transaction=$tx_id,currency=$currency;";
         let res = self
             .client
             .query(query)
             .bind(("id", Thing::from((self.table_name.as_ref(), id))))
             .bind(("amount", amount))
-            .bind(("tx_id", Thing::from((LOCK_TABLE_NAME, tx_id))))
+            .bind(("tx_id", Thing::from((TRANSACTION_TABLE_NAME, tx_id))))
             .bind(("currency", currency.to_string()))
             .await
             .map_err(|e| e.to_string())?;

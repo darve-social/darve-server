@@ -4,6 +4,7 @@ use crate::{
         task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
         task_request_user::TaskRequestUserResult,
         user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
+        wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME,
     },
     interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface,
     middleware::error::AppError,
@@ -33,6 +34,7 @@ impl TaskRequestUsesRepository {
         DEFINE FIELD IF NOT EXISTS timelines    ON {table} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {table} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {table} FLEXIBLE TYPE option<object>;
+        DEFINE FIELD IF NOT EXISTS reward_tx    ON {table} FLEXIBLE TYPE option<record<{TRANSACTION_TABLE_NAME}>>;
         DEFINE INDEX IF NOT EXISTS in_out_idx   ON {table} FIELDS in, out;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {table} FIELDS status;
     ");
@@ -81,7 +83,7 @@ impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
                 ",result=$result"
             } else {
                 ""
-            }
+            },
         );
         let res = self
             .client

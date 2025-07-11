@@ -1,15 +1,22 @@
 mod helpers;
+
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::{
-        community::discussion_entity::DiscussionDbService, task_request_user::TaskRequestUserStatus,
+        community::discussion_entity::DiscussionDbService,
+        task_request_user::TaskRequestUserStatus,
+        wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
-    middleware::utils::request_utils::CreatedResponse,
+    middleware::{
+        ctx::Ctx,
+        utils::{request_utils::CreatedResponse, string_utils::get_str_thing},
+    },
     routes::task::task_request_routes::TaskRequestView,
 };
 
 use fake::{faker, Fake};
 use helpers::post_helpers::{build_fake_post, create_fake_post};
+use reqwest::StatusCode;
 use serde_json::json;
 use surrealdb::sql::Thing;
 
@@ -1053,3 +1060,184 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let tasks = response.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
 });
+
+test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let disc_id = Thing::from((
+        DiscussionDbService::get_table_name().as_ref(),
+        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+    ));
+    let post = create_fake_post(server, &disc_id, None, None).await;
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user1.id.as_ref().unwrap().to_raw(),
+            1000
+        ))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let task_request = server
+        .post("/api/task_request")
+        .json(&json!({
+            "post_id": Some(post.id),
+            "offer_amount": Some(1),
+            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+            "acceptance_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+    let task_id = task_request.json::<CreatedResponse>().id;
+
+    let _ = state
+        .db
+        .client
+        .query("UPDATE $id SET acceptance_period=0;")
+        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .await;
+
+    let response = server
+        .post(&format!("/api/task_request/{}/accept", task_id))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    assert!(response
+        .text()
+        .contains("The acceptance period has expired"));
+});
+
+test_with_server!(try_to_delivery_task_expired, |server, state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let disc = Thing::from((
+        DiscussionDbService::get_table_name().as_ref(),
+        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+    ));
+    let deliver_post = create_fake_post(server, &disc, None, None).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let disc_id = Thing::from((
+        DiscussionDbService::get_table_name().as_ref(),
+        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+    ));
+    let post = create_fake_post(server, &disc_id, None, None).await;
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user1.id.as_ref().unwrap().to_raw(),
+            1000
+        ))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let task_request = server
+        .post("/api/task_request")
+        .json(&json!({
+            "post_id": Some(post.id),
+            "offer_amount": Some(1),
+            "to_user": Some(user0.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+    let task_id = task_request.json::<CreatedResponse>().id;
+
+    let response = server
+        .post(&format!("/api/task_request/{}/accept", task_id))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    let _ = state
+        .db
+        .client
+        .query("UPDATE $id SET delivery_period=0;")
+        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .await;
+    let mut multipart_data = axum_test::multipart::MultipartForm::new();
+    multipart_data = multipart_data.add_text("post_id", deliver_post.id);
+
+    let response = server
+        .post(&format!("/api/task_request/{}/deliver", task_id))
+        .multipart(multipart_data)
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    assert!(response.text().contains("The delivery period has expired"));
+});
+
+test_with_server!(
+    try_to_add_task_donor_without_balance,
+    |server, state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let disc = Thing::from((
+            DiscussionDbService::get_table_name().as_ref(),
+            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
+        ));
+        let post = create_fake_post(server, &disc, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user0.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+
+        let task_request = server
+            .post("/api/task_request")
+            .json(&json!({
+                "post_id": Some(post.id),
+                "offer_amount": Some(1),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "delivery_period": 1,
+            }))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<CreatedResponse>().id;
+
+        let wallet_service = WalletDbService {
+            db: &state.db.client,
+            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+        };
+
+        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+        let balance = wallet_service
+            .get_user_balance(&user1.id.as_ref().unwrap())
+            .await
+            .unwrap();
+        assert_eq!(balance.balance_usd, 0);
+
+        let participate_response = server
+            .post(&format!("/api/task_offer/{}/participate", task_id))
+            .json(&json!({
+                "amount": 33,
+                "currency": CurrencySymbol::USD.to_string(),
+            }))
+            .add_header("Accept", "application/json")
+            .await;
+
+        participate_response.assert_status_failure();
+        participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
+    }
+);
