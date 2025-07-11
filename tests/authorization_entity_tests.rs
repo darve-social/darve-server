@@ -12,7 +12,7 @@ use darve_server::entities::user_auth::authorization_entity;
 use darve_server::entities::user_auth::authorization_entity::AUTH_ACTIVITY_VISITOR;
 use darve_server::middleware::ctx::Ctx;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 test_with_server!(authorization_compare, |_server, ctx_state, config| {
     let root_rec = "community";
@@ -259,7 +259,7 @@ test_with_server!(authorization_compare, |_server, ctx_state, config| {
 test_with_server!(authorize_save, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
-    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
     let comm_id = Thing::try_from(
         create_fake_community(server, &ctx_state, user_ident.clone())
@@ -283,7 +283,7 @@ test_with_server!(authorize_save, |server, ctx_state, config| {
 
     let acc_right_service = AccessRightDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok(user_ident.clone()), false),
     };
 
     // let root_auth_rec = get_root_auth_rec_name();
@@ -339,7 +339,7 @@ test_with_server!(authorize_save, |server, ctx_state, config| {
     assert_eq!(is_authorized.is_ok(), true);
 
     /*let auth_1 = auth_iter.next().unwrap();
-    let a_right = AccessRightDbService { db: &ctx_state.db.client, ctx: &Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false) }
+    let a_right = AccessRightDbService { db: &ctx_state.db.client, ctx: &Ctx::new(Ok(user_ident.clone()),  false) }
         .get(IdentIdName::ColumnIdent{rec:false, column:"authorization".to_string(), val: auth_1.to}).await.unwrap();
     assert_eq!(a_right.authorization.authorize_activity.clone(), AUTH_ACTIVITY_OWNER.to_string());
     assert_eq!(a_right.authorization.authorize_record_id.tb, auth_rec2.tb);*/

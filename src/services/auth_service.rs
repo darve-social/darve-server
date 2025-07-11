@@ -1,6 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
 

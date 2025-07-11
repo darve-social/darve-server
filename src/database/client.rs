@@ -8,7 +8,6 @@ use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
-use tracing::info;
 
 pub type Db = Surreal<Any>;
 
@@ -32,7 +31,6 @@ pub struct Database {
 
 impl Database {
     pub async fn connect(config: DbConfig<'_>) -> Self {
-        info!("->> connecting DB config = {:?}", config);
         let conn = connect(config.url)
             .await
             .expect("Failed to connect to SurrealDB");
@@ -50,13 +48,6 @@ impl Database {
             .use_db(config.database)
             .await
             .expect("Failed to select namespace and database");
-
-        let version = conn
-            .version()
-            .await
-            .expect("Failed to get SurrealDB version");
-
-        info!("->> connected DB version: {version}");
 
         let client = Arc::new(conn);
 

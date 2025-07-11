@@ -26,7 +26,6 @@ use helpers::post_helpers::{
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde_json::{from_value, Value};
-use uuid::Uuid;
 
 test_with_server!(create_post, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
@@ -34,7 +33,7 @@ test_with_server!(create_post, |server, ctx_state, config| {
 
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
 
-    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident), false);
 
     let _ = create_fake_post(server, &result.default_discussion, None, None).await;
     let _ = create_fake_post(server, &result.default_discussion, None, None).await;
@@ -112,7 +111,7 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
 test_with_server!(get_latest, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
-    let ctx = Ctx::new(Ok(user_ident.clone()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident.clone()), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
     let default_discussion =

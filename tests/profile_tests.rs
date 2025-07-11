@@ -131,7 +131,7 @@ test_with_server!(
         response.assert_status_success();
 
         let db = &ctx_state.db.client;
-        let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_id.to_raw()), false);
         let user_db = LocalUserDbService { db, ctx: &ctx };
 
         let response = server
@@ -187,7 +187,7 @@ test_with_server!(
         response.assert_status_success();
 
         let db = &ctx_state.db.client;
-        let ctx = Ctx::new(Ok(user_id.to_raw()), uuid::Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_id.to_raw()), false);
         let user_db = LocalUserDbService { db, ctx: &ctx };
 
         let response = server

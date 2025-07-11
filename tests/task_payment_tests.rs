@@ -133,7 +133,7 @@ test_with_server!(
         tokio::time::sleep(Duration::from_secs(10)).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+            ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
         let balance = wallet_service
@@ -262,7 +262,7 @@ test_with_server!(
         tokio::time::sleep(Duration::from_secs(10)).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+            ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
         let balance = wallet_service
@@ -345,7 +345,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("".to_string()), false),
     };
 
     let balance = wallet_service
@@ -441,7 +441,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("".to_string()), false),
     };
 
     let balance = wallet_service
@@ -612,7 +612,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("".to_string()), false),
     };
 
     let balance = wallet_service
@@ -763,7 +763,7 @@ test_with_server!(
 
         let wallet_service = WalletDbService {
             db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+            ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
         let balance = wallet_service
