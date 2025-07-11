@@ -14,7 +14,7 @@ use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use reply_routes::PostReplyInput;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 test_with_server!(create_reply, |server, ctx_state, config| {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
@@ -25,7 +25,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
             .id,
     )
     .unwrap();
-    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident), false);
     let community_db_service = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: &ctx.clone(),

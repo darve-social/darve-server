@@ -1218,7 +1218,7 @@ test_with_server!(
 
         let wallet_service = WalletDbService {
             db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+            ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;

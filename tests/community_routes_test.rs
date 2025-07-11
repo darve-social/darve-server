@@ -14,7 +14,7 @@ use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::request_utils::CreatedResponse;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -41,7 +41,7 @@ test_with_server!(get_community_view, |server, ctx_state, config| {
 
     let comm_db = CommunityDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
     };
     let comm_rec = comm_db.get(IdentIdName::Id(comm_id)).await;
     assert_eq!(comm_rec.clone().unwrap().default_discussion.is_some(), true);
@@ -115,7 +115,7 @@ test_with_server!(create_community, |server, ctx_state, config| {
     let created_comm2 = create_response2.json::<CreatedResponse>();
     let comm2_id = Thing::try_from(created_comm2.id).unwrap();
 
-    let ctx1 = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx1 = &Ctx::new(Ok("user_ident".parse().unwrap()), false);
     let comm_db = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: ctx1,

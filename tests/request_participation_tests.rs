@@ -14,7 +14,7 @@ use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use std::i64;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use community_entity::{Community, CommunityDbService};
@@ -60,7 +60,7 @@ test_with_server!(
         let comm_name = created.uri.clone().unwrap();
         create_response.assert_status_success();
 
-        let ctx = Ctx::new(Ok(user_ident0.clone()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_ident0.clone()), false);
         let community_db_service = CommunityDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,

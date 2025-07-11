@@ -22,7 +22,6 @@ pub mod services;
 pub mod utils;
 
 fn main() {
-    tracing_subscriber::fmt::init();
     let config = AppConfig::from_env();
 
     let _guard: Option<ClientInitGuard> = if let Some(ref link) = config.sentry_project_link {

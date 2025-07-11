@@ -1,23 +1,15 @@
 use crate::config::AppConfig;
 use crate::database::client::Database;
 use crate::entities::user_notification::UserNotification;
-use crate::middleware::{ctx::Ctx, error::AppError, error::AppResult};
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
-use axum::body::Body;
-use axum::http::header::ACCEPT;
-use axum::http::HeaderMap;
-use axum::{extract::State, http::Request, middleware::Next, response::Response};
-use axum_htmx::HxRequest;
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use surrealdb::sql::Thing;
 use tokio::sync::broadcast;
-use tower_cookies::{Cookie, Cookies};
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum AppEventType {
@@ -115,57 +107,6 @@ pub const JWT_KEY: &str = "jwt";
 pub struct Claims {
     pub exp: usize,
     pub auth: String,
-}
-
-pub async fn mw_ctx_constructor(
-    State(state): State<Arc<CtxState>>,
-    cookies: Cookies,
-    HxRequest(is_htmx): HxRequest,
-    headers: HeaderMap,
-    mut req: Request<Body>,
-    next: Next,
-) -> Response {
-    let is_htmx = if !is_htmx {
-        match headers.get(ACCEPT).map(|x| x.as_bytes()) {
-            Some(b"application/json") => false,
-            Some(b"text/plain") => true,
-            Some(b"text/html") => true,
-            // leave as it is for sse
-            Some(b"text/event-stream") => false,
-            _ => true,
-        }
-    } else {
-        true
-    };
-
-    let uuid = Uuid::new_v4();
-    let jwt_user_id: AppResult<String> = match cookies.get(JWT_KEY) {
-        Some(cookie) => match state.jwt.decode(cookie.value()) {
-            Ok(claims) => Ok(claims.auth),
-            Err(_) => {
-                cookies.remove(Cookie::from(JWT_KEY));
-                Err(AppError::AuthFailNoJwtCookie)
-            }
-        },
-        None => Err(AppError::AuthFailNoJwtCookie),
-    };
-
-    // Store Ctx in the request extension, for extracting in rest handlers
-    let ctx = Ctx::new(jwt_user_id.clone(), uuid, is_htmx);
-    /* removed dep to LocalUserDbService and moved to each handler
-    let user_id: Option<String> = jwt_user_id.ok();
-    if let Some(uid) = user_id {
-        // TODO create check against cache first or remove for each request - maybe add to login request or save local_user to ctx
-        let exists = LocalUserDbService { db: &_db, ctx: &ctx }.exists(IdentIdName::Id(uid)).await;
-        // dbg!(&exists);
-        if !exists.is_ok() || exists.unwrap_or(None).is_none() {
-            cookies.remove(Cookie::from(JWT_KEY));
-            return (StatusCode::NOT_FOUND, "User not found").into_response();
-        }
-    }*/
-    req.extensions_mut().insert(ctx);
-
-    next.run(req).await
 }
 
 #[cfg(test)]

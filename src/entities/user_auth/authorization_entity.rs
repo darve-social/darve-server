@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
 
 use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::utils::db_utils::RecordWithId;
@@ -288,7 +287,6 @@ impl Authorization {
         if get_auth_record_index(&id.tb).is_none() {
             return Err(CtxError {
                 error: AppError::AuthenticationFail,
-                req_id: Uuid::new_v4(),
                 is_htmx: false,
             });
         }
@@ -320,7 +318,6 @@ impl Authorization {
                 error: AppError::Generic {
                     description: "Authorization record name must be in range".to_string(),
                 },
-                req_id: Uuid::new_v4(),
                 is_htmx: false,
             });
         }
@@ -394,7 +391,6 @@ impl Authorization {
                             id, id_c
                         ),
                     },
-                    req_id: Uuid::new_v4(),
                     is_htmx: false,
                 }),
                 (None, Some(_)) => Err(CtxError {
@@ -404,7 +400,6 @@ impl Authorization {
                             id, id_c
                         ),
                     },
-                    req_id: Uuid::new_v4(),
                     is_htmx: false,
                 }),
                 // should not come here - we check if they are ne()
@@ -414,7 +409,6 @@ impl Authorization {
                             "Err in authorization neq logic - should not come to this location"
                                 .to_string(),
                     },
-                    req_id: Uuid::new_v4(),
                     is_htmx: false,
                 }),
             };
@@ -442,7 +436,6 @@ impl Authorization {
                 error: AppError::Generic {
                     description: "Authorization record name must be in range".to_string(),
                 },
-                req_id: Uuid::new_v4(),
                 is_htmx: false,
             });
         }
@@ -465,7 +458,6 @@ impl Authorization {
                 error: AppError::Generic {
                     description: "This method must compare equal record ids".to_string(),
                 },
-                req_id: Uuid::new_v4(),
                 is_htmx: false,
             });
         }
@@ -500,7 +492,6 @@ impl Authorization {
                             "Authorization ident not equal and out of known scale - can't compare."
                                 .to_string(),
                     },
-                    req_id: Uuid::new_v4(),
                     is_htmx: false,
                 }),
             };

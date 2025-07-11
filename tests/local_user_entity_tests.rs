@@ -3,7 +3,7 @@ mod helpers;
 use darve_server::entities::user_auth::local_user_entity;
 use darve_server::middleware;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 use crate::helpers::create_login_test_user;
 use local_user_entity::LocalUserDbService;
@@ -17,7 +17,7 @@ test_with_server!(user_query, |server, ctx_state, config| {
 
     let db_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
     };
     let user = db_service.get(UsernameIdent(username.clone()).into()).await;
     let user = user.unwrap();
@@ -43,7 +43,7 @@ test_with_server!(test_exists, |server, ctx_state, config| {
 
     let db_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
     };
     let user = db_service
         .exists(UsernameIdent(username.clone()).into())

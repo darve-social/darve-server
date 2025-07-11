@@ -14,7 +14,7 @@ use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -39,7 +39,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
 
     create_response.assert_status_success();
 
-    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident), false);
     let comm_db = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,

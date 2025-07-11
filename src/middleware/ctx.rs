@@ -1,23 +1,28 @@
-use askama::Template;
-use axum::extract::FromRequestParts;
-use axum::response::Html;
-use serde::Serialize;
-use uuid::Uuid;
+use std::sync::Arc;
 
 use super::error::{AppError, AppResult, CtxError, CtxResult};
+use crate::middleware::mw_ctx::{CtxState, JWT_KEY};
+use askama::Template;
+use async_trait::async_trait;
+use axum::{
+    extract::{FromRequestParts, State},
+    http::request::Parts,
+    response::Html,
+};
+use axum_extra::extract::cookie::CookieJar;
+use reqwest::StatusCode;
+use serde::Serialize;
 
 #[derive(Clone, Debug)]
 pub struct Ctx {
     result_user_id: AppResult<String>,
-    req_id: Uuid,
     pub is_htmx: bool,
 }
 
 impl Ctx {
-    pub fn new(result_user_id: AppResult<String>, uuid: Uuid, is_htmx: bool) -> Self {
+    pub fn new(result_user_id: AppResult<String>, is_htmx: bool) -> Self {
         Self {
             result_user_id,
-            req_id: uuid,
             is_htmx,
         }
     }
@@ -25,13 +30,8 @@ impl Ctx {
     pub fn user_id(&self) -> CtxResult<String> {
         self.result_user_id.clone().map_err(|error| CtxError {
             error,
-            req_id: self.req_id,
             is_htmx: self.is_htmx,
         })
-    }
-
-    pub fn req_id(&self) -> Uuid {
-        self.req_id
     }
 
     pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
@@ -53,37 +53,49 @@ impl Ctx {
     pub fn to_ctx_error(&self, error: AppError) -> CtxError {
         CtxError {
             is_htmx: self.is_htmx,
-            req_id: self.req_id,
             error,
         }
     }
 }
 
-// ugly but direct implementation from axum, until "async trait fn" are in stable rust, instead of importing some 3rd party macro
-// Extractor - makes it possible to specify Ctx as a param - fetches the result from the header parts extension
-impl<S: Send + Sync> FromRequestParts<S> for Ctx {
-    type Rejection = CtxError;
-    fn from_request_parts<'life0, 'life1, 'async_trait>(
-        parts: &'life0 mut axum::http::request::Parts,
-        _state: &'life1 S,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = CtxResult<Self>> + core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async {
-            // println!(
-            //     "->> {:<12} - Ctx::from_request_parts - extract Ctx from extension",
-            //     "EXTRACTOR"
-            // );
-            parts.extensions.get::<Ctx>().cloned().ok_or(CtxError {
-                req_id: Uuid::new_v4(),
-                error: AppError::AuthFailCtxNotInRequestExt,
-                is_htmx: false,
-            })
-        })
+#[async_trait]
+impl FromRequestParts<Arc<CtxState>> for Ctx {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &Arc<CtxState>,
+    ) -> Result<Self, Self::Rejection> {
+        let State(app_state): State<Arc<CtxState>> = State::from_request_parts(parts, state)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let cookies = CookieJar::from_request_parts(parts, state)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+        let is_htmx = parts.headers.get("hx-request").is_some();
+
+        let prefers_html = if !is_htmx {
+            match parts.headers.get("accept").and_then(|v| v.to_str().ok()) {
+                Some(accept) if accept.contains("application/json") => false,
+                Some(accept) if accept.contains("text/plain") => true,
+                Some(accept) if accept.contains("text/html") => true,
+                Some(accept) if accept.contains("text/event-stream") => false,
+                _ => true,
+            }
+        } else {
+            true
+        };
+
+        let jwt_user_id: Result<String, AppError> = match cookies.get(JWT_KEY) {
+            Some(cookie) => match app_state.jwt.decode(cookie.value()) {
+                Ok(claims) => Ok(claims.auth),
+                Err(_) => Err(AppError::AuthFailNoJwtCookie),
+            },
+            None => Err(AppError::AuthFailNoJwtCookie),
+        };
+
+        Ok(Ctx::new(jwt_user_id, prefers_html))
     }
 }

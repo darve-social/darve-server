@@ -11,7 +11,6 @@ use base64::Engine as _;
 use surrealdb::sql::Thing;
 use tower_cookies::{Cookie, Cookies};
 use tower_sessions::Session;
-use tracing::info;
 // 1. Import the prelude - this contains everything needed for the server to function.
 use webauthn_rs::prelude::*;
 
@@ -175,11 +174,10 @@ pub async fn start_register(
                 )
                 .await
                 .expect("Failed to insert");
-            info!("Registration Successful!");
             Json(ccr)
         }
-        Err(e) => {
-            info!("challenge_register -> {:?}", e);
+        Err(_) => {
+            // info!("challenge_register -> {:?}", e);
             return Err(WebauthnError::Unknown);
         }
     };
@@ -209,7 +207,6 @@ pub async fn finish_register(
             (register_user_ident, registration_uuid, reg_state)
         }
         None => {
-            tracing::error!("Failed to get session");
             return Err(WebauthnError::CorruptSession);
         }
     };
@@ -353,7 +350,7 @@ pub async fn start_authentication(
     session: Session,
     Path(username): Path<String>,
 ) -> Result<impl IntoResponse, WebauthnError> {
-    info!("Start Authentication");
+    // info!("Start Authentication");
     // We get the username from the URL, but you could get this via form submission or
     // some other process.
 
@@ -418,8 +415,8 @@ pub async fn start_authentication(
                 .expect("Failed to insert");
             Json(rcr)
         }
-        Err(e) => {
-            info!("challenge_authenticate -> {:?}", e);
+        Err(_) => {
+            // info!("challenge_authenticate -> {:?}", e);
             return Err(WebauthnError::Unknown);
         }
     };
@@ -518,6 +515,6 @@ pub async fn finish_authentication(
             StatusCode::BAD_REQUEST
         }
     };
-    info!("Authentication Successful!");
+    // info!("Authentication Successful!");
     Ok(res)
 }
