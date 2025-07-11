@@ -6,7 +6,7 @@ use crate::entities::wallet::wallet_entity::{self};
 use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
@@ -40,19 +40,6 @@ pub struct TaskRequest {
     pub wallet_id: Thing,
 }
 
-impl TaskRequest {
-    pub fn can_still_use(start: DateTime<Utc>, period: Option<u16>) -> bool {
-        match period {
-            Some(value) => {
-                start
-                    .checked_add_signed(TimeDelta::hours(value.into()))
-                    .unwrap()
-                    > Utc::now()
-            }
-            _ => true,
-        }
-    }
-}
 #[derive(Debug, Serialize)]
 pub struct TaskRequestCreate {
     pub from_user: Thing,

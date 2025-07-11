@@ -33,7 +33,6 @@ use crate::{
     services::notification_service::NotificationService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
-use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tokio::sync::broadcast::Sender;
@@ -564,21 +563,19 @@ where
 
             let wallet_id = task.wallet.id.as_ref().unwrap();
             if delivered_users.is_empty() {
-                join_all(task.participants.iter().map(|p| async {
+                for p in task.participants {
                     let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
                     let res = self
                         .transactions_repository
                         .transfer_currency(wallet_id, &user_wallet, p.amount as i64, &task.currency)
                         .await;
-                    if res.is_err() {
-                        return;
+                    if res.is_ok() {
+                        let _ = self
+                            .notification_service
+                            .on_update_balance(&p.id, &vec![p.id.clone()])
+                            .await;
                     }
-                    let _ = self
-                        .notification_service
-                        .on_update_balance(&p.id, &vec![p.id.clone()])
-                        .await;
-                }))
-                .await;
+                }
             } else {
                 let task_users: Vec<&TaskUserForReward> = delivered_users
                     .into_iter()
@@ -586,7 +583,7 @@ where
                     .collect();
 
                 let amount: u64 = task.balance as u64 / task_users.len() as u64;
-                join_all(task_users.iter().map(|task_user| async {
+                for task_user in task_users {
                     let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user_id);
                     let res = self
                         .transactions_repository
@@ -604,13 +601,13 @@ where
                             .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
                             .await;
                     }
-                }))
-                .await;
+                }
             }
         }
 
         Ok(())
     }
+
     fn can_still_use(&self, start: DateTime<Utc>, period: Option<u16>) -> bool {
         match period {
             Some(value) => {
