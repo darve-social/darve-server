@@ -7,9 +7,10 @@ use darve_server::entities::user_notification::{UserNotification, UserNotificati
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::routes::community::community_routes;
-use darve_server::routes::task::task_request_routes;
+use darve_server::routes::task::task_request_routes::{TaskRequestOfferInput, TaskRequestView};
 use darve_server::routes::user_auth::login_routes;
 use darve_server::routes::wallet::wallet_routes;
+use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use std::i64;
 use surrealdb::sql::Thing;
@@ -22,7 +23,6 @@ use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use task_request_routes::{TaskRequestInput, TaskRequestOfferInput, TaskRequestView};
 use wallet_entity::{CurrencySymbol, WalletDbService};
 use wallet_routes::CurrencyTransactionHistoryView;
 
@@ -162,8 +162,8 @@ test_with_server!(
         let username3 = user3.username.to_string();
 
         // endow user 3
-        let user3_endow_amt = 100;
-        let user3_offer_amt = 3;
+        let user3_endow_amt: i64 = 100;
+        let user3_offer_amt: i64 = 3;
         let endow_user_response = server
             .get(&format!(
                 "/test/api/endow/{}/{}",
@@ -178,12 +178,11 @@ test_with_server!(
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: user3_offer_amt as u64,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
-
         participate_response.assert_status_success();
         let _res = participate_response.json::<CreatedResponse>();
 
@@ -208,11 +207,11 @@ test_with_server!(
         assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // change amount to 33 by sending another participation req
-        let user3_offer_amt = 33;
+        let user3_offer_amt: i64 = 33;
         let participate_response = server
             .post(format!("/api/task_offer/{}/participate", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
-                amount: user3_offer_amt,
+                amount: user3_offer_amt as u64,
                 currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")

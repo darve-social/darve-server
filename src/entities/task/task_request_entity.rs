@@ -2,8 +2,8 @@ use crate::database::client::Db;
 use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskRequestUserStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity::TABLE_NAME as WALLET_TABLE_NAME;
 use crate::entities::wallet::wallet_entity::{self};
+use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
 use chrono::{DateTime, TimeDelta, Utc};
@@ -64,6 +64,28 @@ pub struct TaskRequestCreate {
     pub currency: CurrencySymbol,
     pub acceptance_period: Option<u16>,
     pub delivery_period: u16,
+}
+#[derive(Debug, Deserialize)]
+pub struct TaskDonorForReward {
+    pub amount: i64,
+    pub id: Thing,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskUserForReward {
+    pub id: Thing,
+    pub user_id: Thing,
+    pub status: TaskRequestUserStatus,
+    pub reward_tx: Option<Thing>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskForReward {
+    pub currency: CurrencySymbol,
+    pub participants: Vec<TaskDonorForReward>,
+    pub users: Vec<TaskUserForReward>,
+    pub wallet: Wallet,
+    pub balance: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -248,5 +270,22 @@ impl<'a> TaskRequestDbService<'a> {
             None,
         )
         .await
+    }
+
+    pub async fn get_ready_for_payment(&self) -> CtxResult<Vec<TaskForReward>> {
+        let query = "SELECT *, transaction_head[currency].balance as balance FROM (
+                     SELECT
+                        wallet_id.* AS wallet,
+                        currency,
+                        wallet_id.transaction_head AS transaction_head,
+                        ->task_request_user.{ status, id, user_id: out } AS users,
+                        ->task_request_participation.{ id: out, amount: transaction.amount_out } AS participants
+                    FROM task_request
+                    WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now()
+                ) WHERE transaction_head[currency].balance > 2;";
+
+        let mut res = self.db.query(query).await?;
+        let data = res.take::<Vec<TaskForReward>>(0)?;
+        Ok(data)
     }
 }
