@@ -1,25 +1,17 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use surrealdb::sql::Thing;
 
 use crate::{
-    database::client::Db,
-    entities::verification_code::{VerificationCode, VerificationCodeFor},
-    interfaces::repositories::verification_code::VerificationCodeRepositoryInterface,
+    entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
+    interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
     middleware::error::AppError,
 };
+use crate::database::repository::Repository;
+
 pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 
-#[derive(Debug)]
-pub struct VerificationCodeRepository {
-    client: Arc<Db>,
-}
 
-impl VerificationCodeRepository {
-    pub fn new(client: Arc<Db>) -> Self {
-        Self { client }
-    }
+impl Repository<VerificationCodeEntity> {
 
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
@@ -43,12 +35,12 @@ impl VerificationCodeRepository {
 }
 
 #[async_trait]
-impl VerificationCodeRepositoryInterface for VerificationCodeRepository {
+impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> {
     async fn get_by_user(
         &self,
         user_id: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCode, String> {
+    ) -> Result<VerificationCodeEntity, String> {
         let id = Thing::try_from(user_id).map_err(|_| "User Id is invalid".to_string())?;
 
         let qry = format!(
@@ -61,7 +53,7 @@ impl VerificationCodeRepositoryInterface for VerificationCodeRepository {
             .bind(("use_for", use_for))
             .await
             .map_err(|e| e.to_string())?;
-        let data: Option<VerificationCode> = res.take(0).map_err(|e| e.to_string())?;
+        let data: Option<VerificationCodeEntity> = res.take(0).map_err(|e| e.to_string())?;
         match data {
             Some(v) => Ok(v),
             None => Err("Not Found".to_string()),
@@ -78,23 +70,13 @@ impl VerificationCodeRepositoryInterface for VerificationCodeRepository {
         res.check().map_err(|e| e.to_string())?;
         Ok(())
     }
-    async fn delete(&self, code_id: &str) -> Result<(), String> {
-        let id = Thing::try_from(code_id).map_err(|_| "Id is invalid".to_string())?;
-        let _: Option<VerificationCode> = self
-            .client
-            .delete((id.tb, id.id.to_raw()))
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
     async fn create(
         &self,
         user_id: &str,
         code: &str,
         email: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCode, String> {
+    ) -> Result<VerificationCodeEntity, String> {
         let user_thing = Thing::try_from(user_id).map_err(|_| "User Id is invalid".to_string())?;
         let qry = format!("
             BEGIN TRANSACTION;
@@ -112,11 +94,21 @@ impl VerificationCodeRepositoryInterface for VerificationCodeRepository {
             .await
             .map_err(|e| e.to_string())?;
 
-        let data: VerificationCode = res
-            .take::<Option<VerificationCode>>(1)
+        let data: VerificationCodeEntity = res
+            .take::<Option<VerificationCodeEntity>>(1)
             .map_err(|e| e.to_string())?
             .unwrap();
 
         Ok(data)
+    }
+
+    async fn delete(&self, code_id: &str) -> Result<(), String> {
+        let id = Thing::try_from(code_id).map_err(|_| "Id is invalid".to_string())?;
+        let _: Option<VerificationCodeEntity> = self
+            .client
+            .delete((id.tb, id.id.to_raw()))
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }

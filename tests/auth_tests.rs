@@ -1,6 +1,6 @@
 mod helpers;
 
-use darve_server::interfaces::repositories::verification_code::VerificationCodeRepositoryInterface;
+use darve_server::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use darve_server::{
     entities::{
         user_auth::{authentication_entity::AuthType, local_user_entity::LocalUserDbService},
@@ -49,6 +49,7 @@ test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
         .await
         .unwrap();
 
+    println!("user code= {:?}", &user_code);
     assert_eq!(user_code.user, user.id.as_ref().unwrap().to_raw());
     assert_eq!(user_code.email, email);
     assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)

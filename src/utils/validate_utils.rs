@@ -1,5 +1,5 @@
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
@@ -27,7 +27,17 @@ where
     D: Deserializer<'de>,
 {
     let thing = Thing::deserialize(deserializer)?;
-    Ok(thing.to_raw())
+    Ok(thing.id.to_raw())
+}
+
+pub fn serialize_string_id<S>(x: &String, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match x.is_empty() {
+        true => s.serialize_none(),
+        false => s.serialize_str(x.as_str()),
+    }
 }
 
 pub fn deserialize_option_string_id<'de, D>(deserializer: D) -> Result<Option<Thing>, D::Error>

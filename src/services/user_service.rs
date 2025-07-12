@@ -1,4 +1,4 @@
-use crate::interfaces::repositories::verification_code::VerificationCodeRepositoryInterface;
+use crate::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use crate::{
     entities::user_auth::{
         authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
@@ -14,7 +14,7 @@ use crate::{
 
 use chrono::Duration;
 
-use super::verification_code::VerificationCodeService;
+use super::verification_code_service::VerificationCodeService;
 
 pub struct UserService<'a, V, S>
 where

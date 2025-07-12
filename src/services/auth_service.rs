@@ -14,7 +14,7 @@ use crate::{
         },
     },
     interfaces::{
-        repositories::verification_code::VerificationCodeRepositoryInterface,
+        repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
         send_email::SendEmailInterface,
     },
     middleware::{
@@ -33,7 +33,7 @@ use crate::{
     },
 };
 
-use super::verification_code::VerificationCodeService;
+use super::verification_code_service::VerificationCodeService;
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {

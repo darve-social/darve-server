@@ -4,7 +4,7 @@ use surrealdb::sql::Thing;
 
 use super::{access_right_entity, authorization_entity};
 use crate::database::client::Db;
-use crate::database::repositories::verification_code::VERIFICATION_CODE_TABLE_NAME;
+use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
 use access_right_entity::AccessRightDbService;

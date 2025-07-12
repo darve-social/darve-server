@@ -1,14 +1,14 @@
 use async_trait::async_trait;
-
-use crate::entities::verification_code::{VerificationCode, VerificationCodeFor};
+use crate::database::repository::RepositoryCore;
+use crate::entities::verification_code::{VerificationCodeEntity, VerificationCodeFor};
 
 #[async_trait]
-pub trait VerificationCodeRepositoryInterface {
+pub trait VerificationCodeRepositoryInterface: RepositoryCore {
     async fn get_by_user(
         &self,
         user_id: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCode, String>;
+    ) -> Result<VerificationCodeEntity, String>;
     async fn increase_attempt(&self, code_id: &str) -> Result<(), String>;
     async fn create(
         &self,
@@ -16,6 +16,6 @@ pub trait VerificationCodeRepositoryInterface {
         code: &str,
         email: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCode, String>;
+    ) -> Result<VerificationCodeEntity, String>;
     async fn delete(&self, code_id: &str) -> Result<(), String>;
 }

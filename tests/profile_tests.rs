@@ -4,7 +4,7 @@ use darve_server::{
     entities::{
         user_auth::local_user_entity::LocalUserDbService, verification_code::VerificationCodeFor,
     },
-    interfaces::repositories::verification_code::VerificationCodeRepositoryInterface,
+    interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
     middleware::{self, utils::db_utils::UsernameIdent},
     routes::community::profile_routes::{self},
 };

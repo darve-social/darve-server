@@ -4,10 +4,10 @@ use chrono::{Duration, Utc};
 use crate::{
     entities::{
         user_auth::local_user_entity::LocalUser,
-        verification_code::{VerificationCode, VerificationCodeFor},
+        verification_code::{VerificationCodeEntity, VerificationCodeFor},
     },
     interfaces::{
-        repositories::verification_code::VerificationCodeRepositoryInterface,
+        repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
         send_email::SendEmailInterface,
     },
     middleware::error::{AppError, AppResult},
@@ -39,25 +39,17 @@ where
     }
 
     pub async fn delete(&self, code_id: &str) -> AppResult<()> {
-        self.repository
-            .delete(code_id)
+        VerificationCodeRepositoryInterface::delete(self.repository, code_id)
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })
     }
 
-    pub async fn create_for_password(&self, user: &LocalUser) -> AppResult<VerificationCode> {
+    pub async fn create_for_password(&self, user: &LocalUser) -> AppResult<VerificationCodeEntity> {
         let code = generate::generate_number_code(6);
 
-        let data = self
-            .repository
-            .create(
-                &user.id.as_ref().unwrap().to_raw(),
-                &code,
-                &user.email_verified.as_ref().unwrap(),
-                VerificationCodeFor::ResetPassword,
-            )
+        let data = VerificationCodeRepositoryInterface::create(self.repository, &user.id.as_ref().unwrap().to_raw(), &code, &user.email_verified.as_ref().unwrap(), VerificationCodeFor::ResetPassword)
             .await
             .map_err(|e| AppError::SurrealDb { source: e })?;
 
@@ -82,17 +74,10 @@ where
         &self,
         user_id: &str,
         email: &str,
-    ) -> AppResult<VerificationCode> {
+    ) -> AppResult<VerificationCodeEntity> {
         let code = generate::generate_number_code(6);
 
-        let data = self
-            .repository
-            .create(
-                user_id,
-                &code,
-                email,
-                VerificationCodeFor::EmailVerification,
-            )
+        let data = VerificationCodeRepositoryInterface::create(self.repository, user_id, &code, email, VerificationCodeFor::EmailVerification)
             .await
             .map_err(|e| AppError::SurrealDb { source: e })?;
 
@@ -117,7 +102,7 @@ where
         &self,
         user_id: &str,
         code: &str,
-    ) -> AppResult<VerificationCode> {
+    ) -> AppResult<VerificationCodeEntity> {
         let res = self
             .get_verified_code(
                 user_id,
@@ -134,7 +119,7 @@ where
         &self,
         user_id: &str,
         code: &str,
-    ) -> AppResult<VerificationCode> {
+    ) -> AppResult<VerificationCodeEntity> {
         let res = self
             .get_verified_code(
                 user_id,
@@ -154,7 +139,7 @@ where
         code_ttl: Duration,
         use_for: VerificationCodeFor,
         code: &str,
-    ) -> AppResult<VerificationCode> {
+    ) -> AppResult<VerificationCodeEntity> {
         let data = self
             .repository
             .get_by_user(user_id, use_for)

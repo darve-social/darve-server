@@ -34,7 +34,7 @@ pub trait RepositoryCore {
 }
 
 pub trait OptionalIdentifier {
-    fn ident_ref(&self) -> Option<&Thing>;
+    fn ident_ref(&self) -> Option<Thing>;
 }
 
 #[derive(Debug)]

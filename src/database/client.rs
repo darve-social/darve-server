@@ -3,7 +3,9 @@ use std::sync::Arc;
 use crate::database::repositories::task_participation_repo::TaskRequestParticipatorsRepository;
 use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
-use crate::database::repositories::verification_code::VerificationCodeRepository;
+use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
+use crate::database::repository::{Repository, RepositoryCore};
+use crate::entities::verification_code::VerificationCodeEntity;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
@@ -24,7 +26,7 @@ pub struct DbConfig<'a> {
 #[derive(Debug)]
 pub struct Database {
     pub client: Arc<Surreal<Any>>,
-    pub verification_code: VerificationCodeRepository,
+    pub verification_code: Repository<VerificationCodeEntity>,
     pub user_notifications: UserNotificationsRepository,
     pub task_participators: TaskRequestParticipatorsRepository,
     pub task_request_users: TaskRequestUsesRepository,
@@ -62,7 +64,7 @@ impl Database {
 
         Self {
             client: client.clone(),
-            verification_code: VerificationCodeRepository::new(client.clone()),
+            verification_code: Repository::<VerificationCodeEntity>::new(client.clone(), VERIFICATION_CODE_TABLE_NAME.to_string()),
             user_notifications: UserNotificationsRepository::new(client.clone()),
             task_participators: TaskRequestParticipatorsRepository::new(client.clone()),
             task_request_users: TaskRequestUsesRepository::new(client.clone()),
