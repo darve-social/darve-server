@@ -1,13 +1,16 @@
 use crate::database::client::Db;
 use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
+use crate::middleware::error::{AppError, AppResult, CtxResult};
+use crate::middleware::utils::db_utils;
+use crate::middleware::utils::db_utils::{
+    get_entity_query_str, get_list_qry, record_exists, IdentIdName, Pagination, RecordWithId,
+    ViewFieldSelector,
+};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::{marker::PhantomData, string::String};
 use surrealdb::sql::{Id, Thing};
-use crate::middleware::error::{AppError, AppResult, CtxResult};
-use crate::middleware::utils::db_utils;
-use crate::middleware::utils::db_utils::{get_entity_query_str, get_list_qry, record_exists, IdentIdName, Pagination, RecordWithId, ViewFieldSelector};
 
 #[async_trait]
 pub trait RepositoryCore {
@@ -25,25 +28,25 @@ pub trait RepositoryCore {
         &self,
         entity: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error>;
-    async fn update(
-        &self,
-        entity: Self::QueryResultItem,
-    ) -> Result<Self::QueryResultItem, Self::Error>;
-    async fn select_by_id(
-        &self,
-        record_id: &str,
-    ) -> Result<Self::QueryResultItem, Self::Error>;
+
+    async fn select_by_id(&self, record_id: &str) -> Result<Self::QueryResultItem, Self::Error>;
 
     async fn delete(&self, record_id: &str) -> Result<bool, Self::Error>;
-
-    async fn create_update(
-        &self,
-        record: Self::QueryResultItem,
-    ) -> Result<Self::QueryResultItem, Self::Error>;
+    // async fn update(
+    //     &self,
+    //     entity: Self::QueryResultItem,
+    // ) -> Result<Self::QueryResultItem, Self::Error>;
+    // async fn create_update(
+    //     &self,
+    //     record: Self::QueryResultItem,
+    // ) -> Result<Self::QueryResultItem, Self::Error>;
     async fn count(&self) -> Result<u64, surrealdb::Error>;
     async fn get_thing(&self, id: &str) -> Thing;
 
-    async fn get_entity_view< T: for<'a> Deserialize<'a> + ViewFieldSelector>(&self, ident: &IdentIdName) -> CtxResult<Option<T>>;
+    async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+        &self,
+        ident: &IdentIdName,
+    ) -> CtxResult<Option<T>>;
     async fn get_entity_list<T: for<'a> Deserialize<'a>>(
         &self,
         ident: &IdentIdName,
@@ -54,12 +57,21 @@ pub trait RepositoryCore {
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<T>>;
-    async fn exists_entity(
-        &self,
-        ident: &IdentIdName,
-    ) -> CtxResult<Option<Thing>>;
+    async fn exists_entity(&self, ident: &IdentIdName) -> CtxResult<Option<Thing>>;
     async fn record_exists(&self, record_id: &Thing) -> AppResult<()>;
     async fn record_exist_all(&self, record_ids: Vec<String>) -> AppResult<Vec<Thing>>;
+}
+
+#[async_trait]
+pub trait RepositoryEntityId: RepositoryCore {
+    async fn update(
+        &self,
+        entity: Self::QueryResultItem,
+    ) -> Result<Self::QueryResultItem, Self::Error>;
+    async fn create_update(
+        &self,
+        record: Self::QueryResultItem,
+    ) -> Result<Self::QueryResultItem, Self::Error>;
 }
 
 pub trait EntityWithId {
@@ -74,9 +86,8 @@ pub struct Repository<E> {
 }
 
 #[async_trait]
-impl<
-        E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static,
-    > RepositoryCore for Repository<E>
+impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryCore
+    for Repository<E>
 {
     type Connection = Arc<Db>;
     type Error = surrealdb::Error;
@@ -105,52 +116,18 @@ impl<
             self.client.create(&self.table_name).content(entity).await?;
         Ok(res.unwrap())
     }
-    
-    async fn update(
-        &self,
-        entity: Self::QueryResultItem,
-    ) -> Result<Self::QueryResultItem, Self::Error> {
-        let id_str = entity.id_str().ok_or(Self::Error::from(surrealdb::error::Db::IdInvalid {value:"no id set".to_string()}))?;
-        let res: Option<Self::QueryResultItem> =
-            self.client.update((&self.table_name, id_str)).content(entity).await?;  
-        Ok(res.unwrap())
-    }
 
-    async fn select_by_id(
-        &self,
-        record_id: &str,
-    ) -> Result<Self::QueryResultItem, Self::Error> {
+    async fn select_by_id(&self, record_id: &str) -> Result<Self::QueryResultItem, Self::Error> {
         let res: Option<Self::QueryResultItem> =
             self.client.select((&self.table_name, record_id)).await?;
         Ok(res.unwrap())
     }
 
     async fn delete(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
-        let _res: Option<TaskRequestParticipation> = self
-            .client
-            .delete((&self.table_name, record_id))
-            .await?;
+        let _res: Option<TaskRequestParticipation> =
+            self.client.delete((&self.table_name, record_id)).await?;
         Ok(true)
     }
-
-    async fn create_update(
-        &self,
-        record: Self::QueryResultItem,
-    ) -> Result<Self::QueryResultItem, surrealdb::Error> {
-        let id = if let Some(id) = record.id_str() {
-            Id::from(id)
-        } else {
-            Id::rand()
-        };
-
-        let res: Option<Self::QueryResultItem> = self
-            .client
-            .upsert((self.table_name.clone(), id.to_raw()))
-            .content(record)
-            .await?;
-        Ok(res.unwrap())
-    }
-
     async fn count(&self) -> Result<u64, surrealdb::Error> {
         let query = format!(
             "(SELECT count() as count FROM ONLY {} GROUP ALL).count;",
@@ -165,11 +142,10 @@ impl<
             .into(),
         )
     }
-    
+
     async fn get_thing(&self, id: &str) -> Thing {
         Thing::from((self.table_name.as_ref(), id))
     }
-
 
     async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
         &self,
@@ -184,13 +160,13 @@ impl<
         db_utils::get_query(self.client.as_ref(), query_string).await
     }
 
-
     async fn get_entity_list<T: for<'a> Deserialize<'a>>(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<T>> {
-        let query_string = get_entity_query_str(ident, Some("*"), pagination, self.table_name.clone())?;
+        let query_string =
+            get_entity_query_str(ident, Some("*"), pagination, self.table_name.clone())?;
 
         get_list_qry(self.client.as_ref(), query_string).await
     }
@@ -209,17 +185,15 @@ impl<
         get_list_qry(self.client.as_ref(), query_string).await
     }
 
-    async fn exists_entity(
-        &self,
-        ident: &IdentIdName,
-    ) -> CtxResult<Option<Thing>> {
+    async fn exists_entity(&self, ident: &IdentIdName) -> CtxResult<Option<Thing>> {
         match ident {
             IdentIdName::Id(id) => {
                 record_exists(self.client.as_ref(), id).await?;
                 Ok(Some(id.clone()))
             }
             _ => {
-                let query_string = get_entity_query_str(ident, None, None, self.table_name.clone())?;
+                let query_string =
+                    get_entity_query_str(ident, None, None, self.table_name.clone())?;
                 let qry = db_utils::create_db_qry(self.client.as_ref(), query_string);
 
                 let mut res = qry.await?;
@@ -234,7 +208,12 @@ impl<
 
     async fn record_exists(&self, record_id: &Thing) -> AppResult<()> {
         let qry = "RETURN record::exists(<record>$rec_id);";
-        let mut res = self.client.as_ref().query(qry).bind(("rec_id", record_id.to_raw())).await?;
+        let mut res = self
+            .client
+            .as_ref()
+            .query(qry)
+            .bind(("rec_id", record_id.to_raw()))
+            .await?;
         let res: Option<bool> = res.take(0)?;
         match res.unwrap_or(false) {
             true => Ok(()),
@@ -284,5 +263,45 @@ impl<
         }
 
         Ok(things)
+    }
+}
+
+#[async_trait]
+impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static>
+    RepositoryEntityId for Repository<E>
+{
+    async fn update(
+        &self,
+        entity: Self::QueryResultItem,
+    ) -> Result<Self::QueryResultItem, Self::Error> {
+        let id_str = entity
+            .id_str()
+            .ok_or(Self::Error::from(surrealdb::error::Db::IdInvalid {
+                value: "no id set".to_string(),
+            }))?;
+        let res: Option<Self::QueryResultItem> = self
+            .client
+            .update((&self.table_name, id_str))
+            .content(entity)
+            .await?;
+        Ok(res.unwrap())
+    }
+
+    async fn create_update(
+        &self,
+        record: Self::QueryResultItem,
+    ) -> Result<Self::QueryResultItem, surrealdb::Error> {
+        let id = if let Some(id) = record.id_str() {
+            Id::from(id)
+        } else {
+            Id::rand()
+        };
+
+        let res: Option<Self::QueryResultItem> = self
+            .client
+            .upsert((self.table_name.clone(), id.to_raw()))
+            .content(record)
+            .await?;
+        Ok(res.unwrap())
     }
 }
