@@ -1,5 +1,5 @@
 use crate::database::repository::EntityWithId;
-use crate::utils::validate_utils::{deserialize_thing_id, serialize_string_id};
+use crate::utils::validate_utils::{deserialize_thing_id, serialize_string_id, serialize_to_user_thing};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +12,7 @@ pub struct VerificationCodeEntity {
     pub code: String,
     pub failed_code_attempts: u8,
     #[serde(deserialize_with = "deserialize_thing_id")]
+    #[serde(serialize_with = "serialize_to_user_thing")]
     pub user: String,
     pub email: String,
     pub use_for: VerificationCodeFor,

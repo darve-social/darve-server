@@ -1,8 +1,9 @@
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
+use crate::entities::community::discussion_entity::USER_TABLE_NAME;
 
 pub fn validate_username(u: &String) -> Result<(), ValidationError> {
     if Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap().is_match(u) {
@@ -37,6 +38,16 @@ where
     match x.is_empty() {
         true => s.serialize_none(),
         false => s.serialize_str(x.as_str()),
+    }
+}
+
+pub fn serialize_to_user_thing<S>(x: &String, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match x.is_empty() {
+        true => s.serialize_none(),
+        false => Thing::from((USER_TABLE_NAME, x.as_str())).serialize(s),
     }
 }
 
