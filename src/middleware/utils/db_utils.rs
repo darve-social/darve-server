@@ -14,6 +14,8 @@ use crate::middleware::error::{AppError, AppResult, CtxError, CtxResult};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
 
+// TODO -move db specific things to /database-
+
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
 pub struct RecordWithId {
@@ -168,7 +170,7 @@ pub trait ViewFieldSelector {
     fn get_select_query_fields(ident: &IdentIdName) -> String;
 }
 
-fn get_entity_query_str(
+pub fn get_entity_query_str(
     ident: &IdentIdName,
     select_fields_or_id: Option<&str>,
     pagination: Option<Pagination>,
@@ -308,7 +310,7 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
     get_query(db, query_string).await
 }
 
-async fn get_query<T: for<'a> Deserialize<'a>>(
+pub async fn get_query<T: for<'a> Deserialize<'a>>(
     db: &Db,
     query_string: QryBindingsVal<String>,
 ) -> Result<Option<T>, CtxError> {
@@ -365,7 +367,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     Ok(res)
 }
 
-fn create_db_qry(
+pub fn create_db_qry(
     db: &Db,
     query_string: QryBindingsVal<String>,
 ) -> Query<surrealdb::engine::any::Any> {

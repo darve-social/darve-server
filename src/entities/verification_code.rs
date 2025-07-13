@@ -1,9 +1,7 @@
-use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
-use crate::database::repository::OptionalIdentifier;
+use crate::database::repository::EntityWithId;
 use crate::utils::validate_utils::{deserialize_thing_id, serialize_string_id};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
 
 // TODO this id macros are db dependant so maybe can use some surrealdb build flag that adds id macros so we don't need separate struct definition for db and service,route
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,11 +18,11 @@ pub struct VerificationCodeEntity {
     pub r_created: DateTime<Utc>,
 }
 
-impl OptionalIdentifier for VerificationCodeEntity {
-    fn ident_ref(&self) -> Option<Thing> {
+impl EntityWithId for VerificationCodeEntity {
+    fn id_str(&self) -> Option<&str> {
         match self.id.is_empty() {
-            true => Some(Thing::from((VERIFICATION_CODE_TABLE_NAME, self.id.as_ref()))),
-            false => None
+            true => Some(self.id.as_ref()),
+            false => None,
         }
     }
 }
