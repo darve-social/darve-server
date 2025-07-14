@@ -2,13 +2,11 @@ use crate::{
     database::client::Db,
     entities::{
         community::post_entity::PostDbService,
-        task::{
-            task_request_entity::{
-                DeliverableType, RewardType, TaskRequest, TaskRequestCreate, TaskRequestDbService,
-                TaskRequestType, TaskUserForReward,
-            },
-            task_request_participation_entity::TaskRequestParticipation,
+        task::task_request_entity::{
+            DeliverableType, RewardType, TaskRequest, TaskRequestCreate, TaskRequestDbService,
+            TaskRequestType, TaskUserForReward,
         },
+        task_donor::TaskDonor,
         task_request_user::{TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus},
         user_auth::local_user_entity::LocalUserDbService,
         wallet::{
@@ -17,7 +15,7 @@ use crate::{
         },
     },
     interfaces::repositories::{
-        task_participators::TaskParticipatorsRepositoryInterface,
+        task_donors::TaskDonorsRepositoryInterface,
         task_request_users::TaskRequestUsersRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
@@ -45,7 +43,7 @@ pub struct TaskView {
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub r#type: TaskRequestType,
-    pub participants: Vec<TaskRequestParticipation>,
+    pub donors: Vec<TaskDonor>,
     pub to_users: Vec<TaskRequestUser>,
     pub acceptance_period: Option<u16>,
     pub delivery_period: u16,
@@ -61,7 +59,7 @@ impl ViewFieldSelector for TaskView {
         currency,
         wallet_id,
         created_at,
-        ->task_request_participation.*.{id, amount, currency, transaction, user: out} as participants,
+        ->task_donor.*.{id, transaction, user: out} as donors,
         ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status} as to_users,
         type"
             .to_string()
@@ -92,7 +90,7 @@ pub struct TaskRequestInput {
 pub struct TaskService<'a, T, N, P>
 where
     T: TaskRequestUsersRepositoryInterface,
-    P: TaskParticipatorsRepositoryInterface,
+    P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
 {
     tasks_repository: TaskRequestDbService<'a>,
@@ -108,7 +106,7 @@ impl<'a, T, N, P> TaskService<'a, T, N, P>
 where
     T: TaskRequestUsersRepositoryInterface,
     N: UserNotificationsInterface,
-    P: TaskParticipatorsRepositoryInterface,
+    P: TaskDonorsRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -284,7 +282,7 @@ where
             .into());
         }
 
-        let participant = task.participants.iter().find(|p| p.user == donor_thing);
+        let participant = task.donors.iter().find(|p| p.user == donor_thing);
         let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
         let offer_id = match participant {
             Some(p) => {
@@ -425,7 +423,7 @@ where
             .into());
         }
 
-        if task.participants.iter().any(|t| t.user == user_thing) {
+        if task.donors.iter().any(|t| t.user == user_thing) {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
             }
@@ -539,7 +537,7 @@ where
             })?;
 
         let participant_ids = task
-            .participants
+            .donors
             .iter()
             .map(|t| t.user.clone())
             .collect::<Vec<Thing>>();
@@ -563,7 +561,7 @@ where
 
             let wallet_id = task.wallet.id.as_ref().unwrap();
             if delivered_users.is_empty() {
-                for p in task.participants {
+                for p in task.donors {
                     let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
                     let res = self
                         .transactions_repository

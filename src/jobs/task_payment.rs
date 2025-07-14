@@ -19,7 +19,7 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
                 &ctx,
                 &&state.event_sender,
                 &state.db.user_notifications,
-                &state.db.task_participators,
+                &state.db.task_donors,
                 &state.db.task_request_users,
             );
 

@@ -1,26 +1,25 @@
 use crate::database::client::Db;
 use crate::entities::task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME;
-use crate::entities::task::task_request_participation_entity::TABLE_NAME;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
-use crate::interfaces::repositories::task_participators::TaskParticipatorsRepositoryInterface;
+use crate::interfaces::repositories::task_donors::TaskDonorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
-pub struct TaskRequestParticipatorsRepository {
+pub struct TaskDonorsRepository {
     client: Arc<Db>,
     table_name: &'static str,
 }
 
-impl TaskRequestParticipatorsRepository {
+impl TaskDonorsRepository {
     pub fn new(client: Arc<Db>) -> Self {
         Self {
             client,
-            table_name: TABLE_NAME,
+            table_name: "task_donor",
         }
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -48,7 +47,7 @@ impl TaskRequestParticipatorsRepository {
 }
 
 #[async_trait]
-impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository {
+impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
     async fn create(
         &self,
         task_id: &str,

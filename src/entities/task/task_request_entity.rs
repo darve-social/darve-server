@@ -69,7 +69,7 @@ pub struct TaskUserForReward {
 #[derive(Debug, Deserialize)]
 pub struct TaskForReward {
     pub currency: CurrencySymbol,
-    pub participants: Vec<TaskDonorForReward>,
+    pub donors: Vec<TaskDonorForReward>,
     pub users: Vec<TaskUserForReward>,
     pub wallet: Wallet,
     pub balance: i64,
@@ -266,7 +266,7 @@ impl<'a> TaskRequestDbService<'a> {
                         currency,
                         wallet_id.transaction_head AS transaction_head,
                         ->task_request_user.{ status, id, user_id: out } AS users,
-                        ->task_request_participation.{ id: out, amount: transaction.amount_out } AS participants
+                        ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
                     FROM task_request
                     WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now()
                 ) WHERE transaction_head[currency].balance > 2;";

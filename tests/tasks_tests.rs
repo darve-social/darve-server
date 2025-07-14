@@ -75,8 +75,8 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert_eq!(first.participants.len(), 1);
-    let participator = first.participants.first().unwrap();
+    assert_eq!(first.donors.len(), 1);
+    let participator = first.donors.first().unwrap();
     assert_eq!(
         participator.user.as_ref().unwrap().id,
         user1.id.as_ref().unwrap().clone()
