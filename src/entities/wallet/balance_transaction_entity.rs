@@ -230,7 +230,8 @@ impl<'a> BalanceTransactionDbService<'a> {
              }};            
             LET $w_from = SELECT * FROM ONLY $w_from_id FETCH transaction_head[$currency];
             LET $balance = $w_from.transaction_head[$currency].balance OR 0;
-            LET $updated_from_balance = $balance - type::number($amt);
+            LET $tx_amt = type::number($amt);
+            LET $updated_from_balance = $balance - $tx_amt;
 
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
                 THROW \"{THROW_BALANCE_TOO_LOW}\";                
@@ -243,7 +244,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 with_wallet:$w_to_id,
                 tx_ident: $tx_ident,
                 currency: $currency,
-                amount_out: type::number($amt),
+                amount_out: $tx_amt,
                 balance: $updated_from_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
@@ -252,14 +253,14 @@ impl<'a> BalanceTransactionDbService<'a> {
             UPDATE $w_from_id SET transaction_head[$currency]=$tx_out_id, lock_id=NONE;
             LET $w_to = SELECT * FROM ONLY $w_to_id FETCH transaction_head[$currency];
             LET $balance_to = $w_to.transaction_head[$currency].balance OR 0;
-            LET $updated_to_balance = $balance_to + type::number($amt);
+            LET $updated_to_balance = $balance_to + $tx_amt;
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
                 id: rand::ulid(),
                 wallet: $w_to_id,
                 with_wallet:$w_from_id,
                 tx_ident: $tx_ident,
                 currency: $currency,
-                amount_in: $updated_to_balance,
+                amount_in: $tx_amt,
                 balance: $updated_to_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
