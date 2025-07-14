@@ -1165,7 +1165,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let _ = state
         .db
         .client
-        .query("UPDATE $id SET delivery_period=0;")
+        .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
         .bind(("id", get_str_thing(&task_id).unwrap()))
         .await;
     let mut multipart_data = axum_test::multipart::MultipartForm::new();
