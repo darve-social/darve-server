@@ -45,7 +45,7 @@ pub struct TaskView {
     pub r#type: TaskRequestType,
     pub donors: Vec<TaskDonor>,
     pub participants: Vec<TaskParticipant>,
-    pub acceptance_period: Option<u16>,
+    pub acceptance_period: u16,
     pub delivery_period: u16,
     pub created_at: DateTime<Utc>,
 }
@@ -100,6 +100,7 @@ where
     transactions_repository: BalanceTransactionDbService<'a>,
     task_donors_repository: &'a P,
     task_participants_repository: &'a T,
+    default_period_hours: u16,
 }
 
 impl<'a, T, N, P> TaskService<'a, T, N, P>
@@ -129,6 +130,7 @@ where
             ),
             task_donors_repository,
             task_participants_repository,
+            default_period_hours: 48,
         }
     }
 
@@ -175,8 +177,8 @@ where
                 deliverable_type: DeliverableType::PublicPost,
                 reward_type: RewardType::OnDelivery,
                 currency: offer_currency.clone(),
-                acceptance_period: data.acceptance_period,
-                delivery_period: data.delivery_period.unwrap_or(10),
+                acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
+                delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
             })
             .await?;
 
@@ -416,7 +418,7 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        if !self.can_still_use(task.created_at, task.acceptance_period) {
+        if !self.can_still_use(task.created_at, Some(task.acceptance_period)) {
             return Err(AppError::Generic {
                 description: "The acceptance period has expired".to_string(),
             }
@@ -509,13 +511,13 @@ where
             .into());
         }
 
-        let accepted_time = task_user
+        let acceptance = task_user
             .unwrap()
             .timelines
             .last()
-            .expect("last timeline of the task");
+            .expect("get last timeline of the task");
 
-        if !self.can_still_use(accepted_time.date, Some(task.delivery_period)) {
+        if !self.can_still_use(acceptance.date, Some(task.delivery_period)) {
             return Err(AppError::Generic {
                 description: "The delivery period has expired".to_string(),
             }
