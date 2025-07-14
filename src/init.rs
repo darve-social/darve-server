@@ -3,11 +3,7 @@ use crate::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
-    middleware::{
-        ctx::Ctx,
-        error::{AppError, AppResult},
-        mw_ctx::{self, CtxState},
-    },
+    middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
         self, auth, notifications, users,
         wallet::{wallet_endowment_routes, wallet_routes},
@@ -16,12 +12,10 @@ use crate::{
     services::auth_service::{AuthRegisterInput, AuthService},
 };
 use axum::{
-    body::Body,
     response::{IntoResponse, Response},
     routing::get,
     Router,
 };
-use axum_htmx::AutoVaryLayer;
 use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
@@ -36,7 +30,7 @@ use entities::user_auth::follow_entity::FollowDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
-use reqwest::{header::USER_AGENT, StatusCode};
+use reqwest::StatusCode;
 use routes::community::{
     community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes,
     reply_routes, stripe_routes,
@@ -47,24 +41,15 @@ use routes::user_auth::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
     register_routes,
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
-use uuid::Uuid;
 
 use crate::database::client::Database;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
-use axum::http;
-use http::Request;
-use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
-use tracing::{info, Span};
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
-    let c = Ctx::new(
-        Ok("create_drave_profiles".parse().unwrap()),
-        Uuid::new_v4(),
-        false,
-    );
+    let c = Ctx::new(Ok("create_drave_profiles".parse().unwrap()), false);
 
     let auth_service = AuthService::new(
         &ctx_state.db.client,
@@ -102,7 +87,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
 
 pub async fn run_migrations(database: &Database) -> AppResult<()> {
     let db = database.client.clone();
-    let c = Ctx::new(Ok("migrations".parse().unwrap()), Uuid::new_v4(), false);
+    let c = Ctx::new(Ok("migrations".parse().unwrap()), false);
 
     LocalUserDbService { db: &db, ctx: &c }.mutate_db().await?;
     AuthenticationDbService { db: &db, ctx: &c }
@@ -144,8 +129,6 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
     Router::new()
         .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("assets"))
-        // No requirements
-        // Also behind /api, but no auth requirement on this route
         .merge(init_server_routes::routes())
         .merge(auth::routes())
         .merge(login_routes::routes())
@@ -168,66 +151,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(users::routes())
         .merge(paypal::routes())
         .with_state(ctx_state.clone())
-        .layer(AutoVaryLayer)
-        // .layer(axum::middleware::map_response(mw_req_logger))
-        // .layer(middleware::map_response(mw_response_transformer::mw_htmx_transformer))
-        // This is where Ctx gets created, with every new request
-        .layer(axum::middleware::from_fn_with_state(
-            ctx_state.clone(),
-            mw_ctx::mw_ctx_constructor,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .on_request(|request: &Request<Body>, _: &Span| {
-                    let user_agent = request
-                        .headers()
-                        .get(USER_AGENT)
-                        .map(|d| format!("{:?}", d))
-                        .unwrap_or("None".to_string());
-
-                    let ctx = request.extensions().get::<Ctx>().cloned();
-                    let (req_id, user_id) = match ctx {
-                        Some(v) => (v.req_id().to_string(), format!("{:?}", v.user_id())),
-                        None => ("None".into(), "None".into()),
-                    };
-
-                    info!(
-                        request_id = %req_id,
-                        user_id = %user_id,
-                        method = %request.method(),
-                        uri = %request.uri().path(),
-                        user_agent = &user_agent,
-                        "Request"
-                    );
-                })
-                .on_response(|response: &Response<Body>, latency: Duration, _: &Span| {
-                    let status = response.status();
-                    let error = response
-                        .extensions()
-                        .get::<AppError>()
-                        .map(|e| format!("{e:?}"));
-
-                    info!(
-                        status = %status,
-                        latency_ms = %latency.as_millis(),
-                        error = ?error,
-                        "Response"
-                    );
-                })
-                .on_failure(
-                    |error: ServerErrorsFailureClass, _: Duration, _span: &Span| {
-                        tracing::debug!("something went wrong {:?}", error);
-                        sentry::capture_message(
-                            &format!("server error: {:?}", error),
-                            sentry::Level::Error,
-                        );
-                    },
-                ),
-        )
-        // Layers are executed from bottom up, so CookieManager has to be under ctx_constructor
         .layer(CookieManagerLayer::new())
-    // .layer(Extension(ctx_state.clone()))
-    // .fallback_service(routes_static());
 }
 
 async fn get_hc() -> Response {

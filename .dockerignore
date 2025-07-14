@@ -1,5 +1,4 @@
-./target
-./uploads
+target/
 ./.idea
 .env
-./secrets
+secrets/

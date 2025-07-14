@@ -4,7 +4,7 @@ use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::{
         community::discussion_entity::DiscussionDbService,
-        task_request_user::TaskRequestUserStatus,
+        task_request_user::TaskParticipantStatus,
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     middleware::{
@@ -61,11 +61,11 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.to_users.is_some());
-    assert_eq!(first.to_users.as_ref().unwrap().len(), 1);
-    let task_user = first.to_users.as_ref().unwrap().first().unwrap();
+    assert!(first.participants.is_some());
+    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
+    let task_user = first.participants.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskRequestUserStatus::Requested);
+    assert_eq!(task_user.status, TaskParticipantStatus::Requested);
     let task_request = server
         .get("/api/task_request/given")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -75,8 +75,8 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert_eq!(first.participants.len(), 1);
-    let participator = first.participants.first().unwrap();
+    assert_eq!(first.donors.len(), 1);
+    let participator = first.donors.first().unwrap();
     assert_eq!(
         participator.user.as_ref().unwrap().id,
         user1.id.as_ref().unwrap().clone()
@@ -132,11 +132,11 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.to_users.is_some());
-    assert_eq!(first.to_users.as_ref().unwrap().len(), 1);
-    let task_user = first.to_users.as_ref().unwrap().first().unwrap();
+    assert!(first.participants.is_some());
+    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
+    let task_user = first.participants.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskRequestUserStatus::Accepted);
+    assert_eq!(task_user.status, TaskParticipantStatus::Accepted);
 });
 
 test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
@@ -201,22 +201,22 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.to_users.is_some());
-    assert_eq!(first.to_users.as_ref().unwrap().len(), 2);
-    let task_users = first.to_users.as_ref().unwrap();
+    assert!(first.participants.is_some());
+    assert_eq!(first.participants.as_ref().unwrap().len(), 2);
+    let task_users = first.participants.as_ref().unwrap();
     assert_eq!(task_users.len(), 2);
     let task_user0 = task_users
         .iter()
         .find(|t| &t.user.id == user0.id.as_ref().unwrap())
         .unwrap();
     assert_eq!(task_user0.user.id, user0.id.as_ref().unwrap().clone());
-    assert_eq!(task_user0.status, TaskRequestUserStatus::Accepted);
+    assert_eq!(task_user0.status, TaskParticipantStatus::Accepted);
     let task_user = task_users
         .iter()
         .find(|t| &t.user.id == user.id.as_ref().unwrap())
         .unwrap();
     assert_eq!(task_user.user.id, user.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskRequestUserStatus::Accepted);
+    assert_eq!(task_user.status, TaskParticipantStatus::Accepted);
 });
 
 test_with_server!(
@@ -511,11 +511,11 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.to_users.is_some());
-    assert_eq!(first.to_users.as_ref().unwrap().len(), 1);
-    let task_user = first.to_users.as_ref().unwrap().first().unwrap();
+    assert!(first.participants.is_some());
+    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
+    let task_user = first.participants.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskRequestUserStatus::Rejected);
+    assert_eq!(task_user.status, TaskParticipantStatus::Rejected);
 });
 
 test_with_server!(
@@ -705,11 +705,11 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.to_users.is_some());
-    assert_eq!(first.to_users.as_ref().unwrap().len(), 1);
-    let task_user = first.to_users.as_ref().unwrap().first().unwrap();
+    assert!(first.participants.is_some());
+    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
+    let task_user = first.participants.as_ref().unwrap().first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskRequestUserStatus::Delivered);
+    assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
 });
 
 test_with_server!(
@@ -1165,7 +1165,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let _ = state
         .db
         .client
-        .query("UPDATE $id SET delivery_period=0;")
+        .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
         .bind(("id", get_str_thing(&task_id).unwrap()))
         .await;
     let mut multipart_data = axum_test::multipart::MultipartForm::new();
@@ -1218,7 +1218,7 @@ test_with_server!(
 
         let wallet_service = WalletDbService {
             db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), uuid::Uuid::new_v4(), false),
+            ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;

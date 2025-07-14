@@ -1,26 +1,25 @@
 use crate::database::client::Db;
 use crate::entities::task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME;
-use crate::entities::task::task_request_participation_entity::TABLE_NAME;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
-use crate::interfaces::repositories::task_participators::TaskParticipatorsRepositoryInterface;
+use crate::interfaces::repositories::task_donors::TaskDonorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
-pub struct TaskRequestParticipatorsRepository {
+pub struct TaskDonorsRepository {
     client: Arc<Db>,
     table_name: &'static str,
 }
 
-impl TaskRequestParticipatorsRepository {
+impl TaskDonorsRepository {
     pub fn new(client: Arc<Db>) -> Self {
         Self {
             client,
-            table_name: TABLE_NAME,
+            table_name: "task_donor",
         }
     }
     pub async fn mutate_db(&self) -> Result<(), AppError> {
@@ -34,8 +33,8 @@ impl TaskRequestParticipatorsRepository {
     DEFINE FIELD IF NOT EXISTS transaction ON TABLE {table_name} TYPE record<{TRANSACTION_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS votes ON TABLE {table_name} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {table_name} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {table_name} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {table_name} TYPE datetime DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.client.query(sql).await?;
 
@@ -48,7 +47,7 @@ impl TaskRequestParticipatorsRepository {
 }
 
 #[async_trait]
-impl TaskParticipatorsRepositoryInterface for TaskRequestParticipatorsRepository {
+impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
     async fn create(
         &self,
         task_id: &str,

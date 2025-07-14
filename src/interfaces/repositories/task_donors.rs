@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait TaskParticipatorsRepositoryInterface {
+pub trait TaskDonorsRepositoryInterface {
     async fn create(
         &self,
         task_id: &str,

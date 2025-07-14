@@ -1,12 +1,12 @@
 use crate::entities::task::task_request_entity::{self};
-use crate::entities::task_request_user::TaskRequestUserStatus;
+use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity;
 use crate::middleware;
+use crate::models::web::{TaskRequestDonorView, UserView};
 use crate::services::task_service::{
     TaskDeliveryData, TaskDonorData, TaskRequestInput, TaskService,
 };
-use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
@@ -82,67 +82,43 @@ pub struct DeliverTaskRequestInput {
     pub post_id: String,
 }
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskRequestViewToUsers {
+pub struct TaskRequestViewParticipant {
     pub user: UserView,
-    pub status: TaskRequestUserStatus,
+    pub status: TaskParticipantStatus,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub from_user: UserView,
+    pub creator: UserView,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to_users: Option<Vec<TaskRequestViewToUsers>>,
+    pub participants: Option<Vec<TaskRequestViewParticipant>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
-    pub participants: Vec<TaskRequestParticipationView>,
+    pub donors: Vec<TaskRequestDonorView>,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
     pub wallet_id: Thing,
+    pub on_post: Option<Thing>,
 }
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields(_ident: &IdentIdName) -> String {
         "id, 
-        from_user.{id, username, full_name} as from_user,
-        on_post, request_txt, reward_type, 
+        from_user.{id, username, full_name} as creator,
+        on_post, 
+        request_txt, 
+        reward_type, 
         currency,
         wallet_id,
-        ->task_request_user.{
+        ->task_participant.{
             user: out.{id, username, full_name},        
             status
-        } as to_users,
-        ->task_request_participation.{user:out.{id, username, full_name}, amount, currency} as participants"
+        } as participants,
+        ->task_donor.{id, user: out.{id, username, full_name}, amount: transaction.amount_out} as donors"
             .to_string()
     }
-}
-
-#[derive(Template, Serialize, Deserialize, Debug)]
-#[template(path = "nera2/default-content.html")]
-pub struct TaskRequestParticipationView {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user: Option<UserView>,
-    pub currency: CurrencySymbol,
-    pub amount: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
-}
-
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
-#[template(path = "nera2/default-content.html")]
-pub struct UserView {
-    pub id: Thing,
-    pub username: String,
-    pub full_name: Option<String>,
 }
 
 /*async fn post_requests_received(
@@ -169,7 +145,7 @@ pub struct UserView {
 */
 #[derive(Debug, Deserialize)]
 struct GetTaskByToUserQuery {
-    status: Option<TaskRequestUserStatus>,
+    status: Option<TaskParticipantStatus>,
 }
 async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
@@ -188,7 +164,10 @@ async fn user_requests_received(
         ctx: &ctx,
     }
     .get_by_user::<TaskRequestView>(&to_user, query.status)
-    .await?;
+    .await;
+
+    println!("task request list: {:?}", list);
+    let list = list?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -296,8 +275,8 @@ async fn create_entity(
         &ctx,
         &state.event_sender,
         &state.db.user_notifications,
-        &state.db.task_participators,
-        &state.db.task_request_users,
+        &state.db.task_donors,
+        &state.db.task_participants,
     );
 
     let task = task_service.create(&ctx.user_id()?, data).await?;
@@ -319,8 +298,8 @@ async fn reject_task_request(
         &ctx,
         &state.event_sender,
         &state.db.user_notifications,
-        &state.db.task_participators,
-        &state.db.task_request_users,
+        &state.db.task_donors,
+        &state.db.task_participants,
     );
 
     task_service.reject(&ctx.user_id()?, &task_id).await?;
@@ -342,8 +321,8 @@ async fn accept_task_request(
         &ctx,
         &state.event_sender,
         &state.db.user_notifications,
-        &state.db.task_participators,
-        &state.db.task_request_users,
+        &state.db.task_donors,
+        &state.db.task_participants,
     );
 
     task_service.accept(&ctx.user_id()?, &task_id).await?;
@@ -366,8 +345,8 @@ async fn deliver_task_request(
         &ctx,
         &state.event_sender,
         &state.db.user_notifications,
-        &state.db.task_participators,
-        &state.db.task_request_users,
+        &state.db.task_donors,
+        &state.db.task_participants,
     );
 
     task_service
@@ -429,8 +408,8 @@ async fn participate_task_request_offer(
         &ctx,
         &state.event_sender,
         &state.db.user_notifications,
-        &state.db.task_participators,
-        &state.db.task_request_users,
+        &state.db.task_donors,
+        &state.db.task_participants,
     );
 
     let id = task_service
