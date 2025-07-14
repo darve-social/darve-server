@@ -127,7 +127,7 @@ test_with_server!(
         let _ = state
             .db
             .client
-            .query("UPDATE $id SET delivery_period=0;")
+            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
             .bind(("id", get_str_thing(&task_id).unwrap()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;
@@ -256,7 +256,7 @@ test_with_server!(
         let _ = state
             .db
             .client
-            .query("UPDATE $id SET delivery_period=0;")
+            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
             .bind(("id", get_str_thing(&task_id).unwrap()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;
@@ -338,7 +338,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let _ = state
         .db
         .client
-        .query("UPDATE $id SET delivery_period=0;")
+        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
         .bind(("id", get_str_thing(&task_id).unwrap()))
         .await;
     tokio::time::sleep(Duration::from_secs(10)).await;
@@ -434,7 +434,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let _ = state
         .db
         .client
-        .query("UPDATE $id SET delivery_period=0;")
+        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
         .bind(("id", get_str_thing(&task_id).unwrap()))
         .await;
     tokio::time::sleep(Duration::from_secs(10)).await;
@@ -604,7 +604,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let _ = state
         .db
         .client
-        .query("UPDATE $id SET delivery_period=0;")
+        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
         .bind(("id", get_str_thing(&task_id).unwrap()))
         .await;
 
@@ -756,7 +756,7 @@ test_with_server!(
         let _ = state
             .db
             .client
-            .query("UPDATE $id SET delivery_period=0;")
+            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
             .bind(("id", get_str_thing(&task_id).unwrap()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;

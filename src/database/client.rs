@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::database::repositories::task_participation_repo::TaskRequestParticipatorsRepository;
-use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
+use crate::database::repositories::task_donors::TaskDonorsRepository;
+use crate::database::repositories::task_participants::TaskParticipantsRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
 use crate::middleware::error::AppError;
@@ -25,8 +25,8 @@ pub struct Database {
     pub client: Arc<Surreal<Any>>,
     pub verification_code: VerificationCodeRepository,
     pub user_notifications: UserNotificationsRepository,
-    pub task_participators: TaskRequestParticipatorsRepository,
-    pub task_request_users: TaskRequestUsesRepository,
+    pub task_donors: TaskDonorsRepository,
+    pub task_participants: TaskParticipantsRepository,
 }
 
 impl Database {
@@ -55,16 +55,16 @@ impl Database {
             client: client.clone(),
             verification_code: VerificationCodeRepository::new(client.clone()),
             user_notifications: UserNotificationsRepository::new(client.clone()),
-            task_participators: TaskRequestParticipatorsRepository::new(client.clone()),
-            task_request_users: TaskRequestUsesRepository::new(client.clone()),
+            task_donors: TaskDonorsRepository::new(client.clone()),
+            task_participants: TaskParticipantsRepository::new(client.clone()),
         }
     }
 
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         self.verification_code.mutate_db().await?;
         self.user_notifications.mutate_db().await?;
-        self.task_participators.mutate_db().await?;
-        self.task_request_users.mutate_db().await?;
+        self.task_donors.mutate_db().await?;
+        self.task_participants.mutate_db().await?;
         Ok(())
     }
 }

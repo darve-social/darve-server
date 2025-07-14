@@ -15,7 +15,6 @@ use helpers::post_helpers::create_fake_post;
 use std::i64;
 use surrealdb::sql::Thing;
 
-
 use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
@@ -38,7 +37,7 @@ test_with_server!(
 
         // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-        let (server, user0, user0_pwd, _) = create_fake_login_test_user(&server).await;
+        let (server, user0, user0_pwd, _user0_token) = create_fake_login_test_user(&server).await;
         let user_ident0 = user0.id.as_ref().unwrap().to_raw();
         let username0 = user0.username.to_string();
 
@@ -134,14 +133,14 @@ test_with_server!(
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        let offer0 = task.participants.get(0).unwrap();
+        let offer0 = task.donors.get(0).unwrap();
 
         assert_eq!(created_task.id, task.id.clone().unwrap().to_raw());
 
         assert_eq!(offer0.amount.clone(), user2_offer_amt);
-        assert_eq!(task.from_user.username, username2);
+        assert_eq!(task.creator.username, username2);
         // assert_eq!(task.to_user.clone().unwrap().username, username0);
-        assert_eq!(task.participants.len(), 1);
+        assert_eq!(task.donors.len(), 1);
         assert_eq!(offer0.user.clone().unwrap().username, username2);
 
         // all tasks given by user
@@ -202,7 +201,7 @@ test_with_server!(
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        assert_eq!(task.participants.len(), 2);
+        assert_eq!(task.donors.len(), 2);
         let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
         assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
@@ -236,10 +235,10 @@ test_with_server!(
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
         let task = post_tasks.get(0).unwrap();
-        assert_eq!(task.participants.len(), 2);
+        assert_eq!(task.donors.len(), 2);
 
         let task = post_tasks.get(0).unwrap();
-        assert_eq!(task.participants.len(), 2);
+        assert_eq!(task.donors.len(), 2);
         let balance = wallet_service.get_balance(&task.wallet_id).await.unwrap();
         assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
