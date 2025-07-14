@@ -28,15 +28,15 @@ impl TaskParticipantsRepository {
     }
 
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let table = self.table_name;
+        let table_name = self.table_name;
         let sql = format!("
-        DEFINE TABLE IF NOT EXISTS {table} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE FIELD IF NOT EXISTS timelines    ON {table} TYPE array<{{status: string, date: datetime}}>;
-        DEFINE FIELD IF NOT EXISTS status       ON {table} TYPE string;
-        DEFINE FIELD IF NOT EXISTS result       ON {table} FLEXIBLE TYPE option<object>;
-        DEFINE FIELD IF NOT EXISTS reward_tx    ON {table} FLEXIBLE TYPE option<record<{TRANSACTION_TABLE_NAME}>>;
-        DEFINE INDEX IF NOT EXISTS in_out_idx   ON {table} FIELDS in, out;
-        DEFINE INDEX IF NOT EXISTS status_idx   ON {table} FIELDS status;
+        DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+        DEFINE FIELD IF NOT EXISTS timelines    ON {table_name} TYPE array<{{status: string, date: datetime}}>;
+        DEFINE FIELD IF NOT EXISTS status       ON {table_name} TYPE string;
+        DEFINE FIELD IF NOT EXISTS result       ON {table_name} FLEXIBLE TYPE option<object>;
+        DEFINE FIELD IF NOT EXISTS reward_tx    ON {table_name} FLEXIBLE TYPE option<record<{TRANSACTION_TABLE_NAME}>>;
+        DEFINE INDEX IF NOT EXISTS status_idx   ON {table_name} FIELDS status;
+        DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     ");
         let mutation = self.client.query(sql).await?;
 

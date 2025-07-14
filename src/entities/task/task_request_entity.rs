@@ -130,7 +130,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -268,7 +268,9 @@ impl<'a> TaskRequestDbService<'a> {
                 ->task_participant.{ status, id, user_id: out } AS participants,
                 ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
             FROM task_request
+// TODO -precalculate on task create to 'payment_ready_timestamp' and create index on that field
             WHERE created_at + <duration>string::concat(delivery_period, 'h') + <duration>string::concat(acceptance_period, 'h') <= time::now()
+// TODO -remove balance check here and in payment fn set some task status if balance <2 and create index and we can check that status here
          ) WHERE transaction_head[currency].balance > 2;";
         let mut res = self.db.query(query).await?;
         let data = res.take::<Vec<TaskForReward>>(0)?;

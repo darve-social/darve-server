@@ -33,8 +33,8 @@ impl TaskDonorsRepository {
     DEFINE FIELD IF NOT EXISTS transaction ON TABLE {table_name} TYPE record<{TRANSACTION_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS votes ON TABLE {table_name} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {table_name} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {table_name} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {table_name} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {table_name} TYPE datetime DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.client.query(sql).await?;
 
