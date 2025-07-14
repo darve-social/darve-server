@@ -6,7 +6,7 @@ use crate::{
     interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
     middleware::error::AppError,
 };
-use crate::database::repository::Repository;
+use crate::database::repository_impl::Repository;
 
 pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 

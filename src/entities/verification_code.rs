@@ -1,7 +1,7 @@
-use crate::database::repository::EntityWithId;
 use crate::utils::validate_utils::{deserialize_thing_id, serialize_string_id, serialize_to_user_thing};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use crate::database::repository_traits::EntityWithId;
 
 // TODO this id macros are db dependant so maybe can use some surrealdb build flag that adds id macros so we don't need separate struct definition for db and service,route
 #[derive(Debug, Serialize, Deserialize)]

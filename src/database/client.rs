@@ -4,13 +4,14 @@ use crate::database::repositories::task_participation_repo::TaskRequestParticipa
 use crate::database::repositories::task_request_users::TaskRequestUsesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
-use crate::database::repository::{Repository, RepositoryCore};
 use crate::entities::verification_code::VerificationCodeEntity;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
+use crate::database::repository_impl::Repository;
+use crate::database::repository_traits::RepositoryCore;
 
 pub type Db = Surreal<Any>;
 
