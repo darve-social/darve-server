@@ -6,7 +6,6 @@ use crate::{
 };
 
 use tokio::task::JoinHandle;
-use uuid::Uuid;
 
 pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
     let state = state.clone();
@@ -14,14 +13,14 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
         loop {
             tokio::time::sleep(delay).await;
 
-            let ctx = Ctx::new(Ok("".to_string()), Uuid::new_v4(), false);
+            let ctx = Ctx::new(Ok("".to_string()), false);
             let task_service = TaskService::new(
                 &state.db.client,
                 &ctx,
                 &&state.event_sender,
                 &state.db.user_notifications,
-                &state.db.task_participators,
-                &state.db.task_request_users,
+                &state.db.task_donors,
+                &state.db.task_participants,
             );
 
             if let Err(err) = task_service.distribute_expired_tasks_rewards().await {

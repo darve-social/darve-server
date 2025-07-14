@@ -12,7 +12,7 @@ use darve_server::routes::community::{
 use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
+
 
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
@@ -94,7 +94,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let disc_rec = DiscussionDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok(user_ident), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok(user_ident), false),
     }
     .get(IdentIdName::Id(disc_id.clone()))
     .await;
@@ -130,7 +130,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let disc_posts = PostDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
     }
     .get_by_discussion_desc_view::<DiscussionPostView>(
         disc_id.clone(),
@@ -143,7 +143,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
     .await;
     let disc_posts_top1 = PostDbService {
         db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false),
+        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
     }
     .get_by_discussion_desc_view::<DiscussionPostView>(
         disc_id.clone(),
@@ -210,7 +210,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     // let created2 = &create_response2.json::<CreatedResponse>();
     // let disc2_id = created2.id.clone();
 
-    let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), false);
     let comm_db = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,

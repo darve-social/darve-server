@@ -13,7 +13,7 @@ use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user};
 use middleware::utils::string_utils::get_string_thing;
 use std::time::SystemTime;
-use uuid::Uuid;
+
 use wallet_routes::CurrencyTransactionHistoryView;
 
 test_with_server!(test_wallet_history, |server, ctx_state, config| {
@@ -79,11 +79,7 @@ test_with_server!(lock_user_balance, |server, ctx_state, config| {
 
     endow_user_response.assert_status_success();
 
-    let ctx = Ctx::new(
-        Ok(user2.id.as_ref().unwrap().to_raw()),
-        Uuid::new_v4(),
-        false,
-    );
+    let ctx = Ctx::new(Ok(user2.id.as_ref().unwrap().to_raw()), false);
     let lock_amt = 32;
     let transaction_service = LockTransactionDbService {
         db: &ctx_state.db.client,
@@ -148,11 +144,7 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
     println!("endow_user_response: {}", endow_response_text);
     endow_user_response.assert_status_success();
 
-    let ctx = Ctx::new(
-        Ok(user2.id.as_ref().unwrap().to_raw()),
-        Uuid::new_v4(),
-        false,
-    );
+    let ctx = Ctx::new(Ok(user2.id.as_ref().unwrap().to_raw()), false);
     let transaction_service = LockTransactionDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -246,11 +238,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
         let endow_response_text = endow_user_response.text();
         println!("endow_user_response: {}", endow_response_text);
-        let ctx = Ctx::new(
-            Ok(user2.id.as_ref().unwrap().to_raw()),
-            Uuid::new_v4(),
-            false,
-        );
+        let ctx = Ctx::new(Ok(user2.id.as_ref().unwrap().to_raw()), false);
         let transaction_service = LockTransactionDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
@@ -317,11 +305,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
         let endow_response_text = endow_user_response.text();
         println!("endow_user_response: {}", endow_response_text);
-        let ctx = Ctx::new(
-            Ok(user2.id.as_ref().unwrap().to_raw()),
-            Uuid::new_v4(),
-            false,
-        );
+        let ctx = Ctx::new(Ok(user2.id.as_ref().unwrap().to_raw()), false);
         let transaction_service = LockTransactionDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
