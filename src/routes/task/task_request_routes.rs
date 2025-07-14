@@ -1,5 +1,5 @@
 use crate::entities::task::task_request_entity::{self};
-use crate::entities::task_request_user::TaskRequestUserStatus;
+use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity;
 use crate::middleware;
@@ -82,9 +82,9 @@ pub struct DeliverTaskRequestInput {
     pub post_id: String,
 }
 #[derive(Deserialize, Serialize, Debug)]
-pub struct TaskRequestViewToUsers {
+pub struct TaskRequestViewParticipant {
     pub user: UserView,
-    pub status: TaskRequestUserStatus,
+    pub status: TaskParticipantStatus,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
@@ -92,7 +92,7 @@ pub struct TaskRequestView {
     pub id: Option<Thing>,
     pub creator: UserView,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to_users: Option<Vec<TaskRequestViewToUsers>>,
+    pub participants: Option<Vec<TaskRequestViewParticipant>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_post: Option<Thing>,
     pub request_txt: String,
@@ -112,10 +112,10 @@ impl ViewFieldSelector for TaskRequestView {
         reward_type, 
         currency,
         wallet_id,
-        ->task_request_user.{
+        ->task_participant.{
             user: out.{id, username, full_name},        
             status
-        } as to_users,
+        } as participants,
         ->task_donor.{id, user: out.{id, username, full_name}, amount: transaction.amount_out} as donors"
             .to_string()
     }
@@ -145,7 +145,7 @@ impl ViewFieldSelector for TaskRequestView {
 */
 #[derive(Debug, Deserialize)]
 struct GetTaskByToUserQuery {
-    status: Option<TaskRequestUserStatus>,
+    status: Option<TaskParticipantStatus>,
 }
 async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
@@ -164,7 +164,10 @@ async fn user_requests_received(
         ctx: &ctx,
     }
     .get_by_user::<TaskRequestView>(&to_user, query.status)
-    .await?;
+    .await;
+
+    println!("task request list: {:?}", list);
+    let list = list?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -217,9 +220,7 @@ async fn post_task_requests(
         ctx: &ctx,
     }
     .on_post_list_view::<TaskRequestView>(get_string_thing(post_id)?)
-    .await;
-    println!("task request list: {:?}", list);
-    let list = list?;
+    .await?;
     serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
 }
 
@@ -275,7 +276,7 @@ async fn create_entity(
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
-        &state.db.task_request_users,
+        &state.db.task_participants,
     );
 
     let task = task_service.create(&ctx.user_id()?, data).await?;
@@ -298,7 +299,7 @@ async fn reject_task_request(
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
-        &state.db.task_request_users,
+        &state.db.task_participants,
     );
 
     task_service.reject(&ctx.user_id()?, &task_id).await?;
@@ -321,7 +322,7 @@ async fn accept_task_request(
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
-        &state.db.task_request_users,
+        &state.db.task_participants,
     );
 
     task_service.accept(&ctx.user_id()?, &task_id).await?;
@@ -345,7 +346,7 @@ async fn deliver_task_request(
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
-        &state.db.task_request_users,
+        &state.db.task_participants,
     );
 
     task_service
@@ -408,7 +409,7 @@ async fn participate_task_request_offer(
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
-        &state.db.task_request_users,
+        &state.db.task_participants,
     );
 
     let id = task_service

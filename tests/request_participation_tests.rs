@@ -37,7 +37,7 @@ test_with_server!(
 
         // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-        let (server, user0, user0_pwd, _) = create_fake_login_test_user(&server).await;
+        let (server, user0, user0_pwd, user0_token) = create_fake_login_test_user(&server).await;
         let user_ident0 = user0.id.as_ref().unwrap().to_raw();
         let username0 = user0.username.to_string();
 

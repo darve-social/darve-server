@@ -2,11 +2,11 @@ use crate::{
     database::client::Db,
     entities::{
         task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
-        task_request_user::TaskRequestUserResult,
+        task_request_user::TaskParticipantResult,
         user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
         wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME,
     },
-    interfaces::repositories::task_request_users::TaskRequestUsersRepositoryInterface,
+    interfaces::repositories::task_participants::TaskParticipantsRepositoryInterface,
     middleware::error::AppError,
 };
 use async_trait::async_trait;
@@ -14,16 +14,16 @@ use std::sync::Arc;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
-pub struct TaskRequestUsesRepository {
+pub struct TaskParticipantsRepository {
     client: Arc<Db>,
     table_name: &'static str,
 }
 
-impl TaskRequestUsesRepository {
+impl TaskParticipantsRepository {
     pub fn new(client: Arc<Db>) -> Self {
         Self {
             client,
-            table_name: "task_request_user",
+            table_name: "task_participant",
         }
     }
 
@@ -42,14 +42,14 @@ impl TaskRequestUsesRepository {
 
         mutation
             .check()
-            .expect("should mutate TaskRequestUsesRepository");
+            .expect("should mutate TaskParticipantsRepository");
 
         Ok(())
     }
 }
 
 #[async_trait]
-impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
+impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
     async fn create(&self, task_id: &str, user_id: &str, status: &str) -> Result<String, String> {
         let sql = format!("
             RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status
@@ -75,7 +75,7 @@ impl TaskRequestUsersRepositoryInterface for TaskRequestUsesRepository {
         &self,
         id: &str,
         status: &str,
-        result: Option<TaskRequestUserResult>,
+        result: Option<TaskParticipantResult>,
     ) -> Result<(), String> {
         let query = format!(
             "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status {};",

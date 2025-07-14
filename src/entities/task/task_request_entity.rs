@@ -1,6 +1,6 @@
 use crate::database::client::Db;
 use crate::entities::community::post_entity;
-use crate::entities::task_request_user::TaskRequestUserStatus;
+use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity::{self};
 use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
@@ -59,10 +59,10 @@ pub struct TaskDonorForReward {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TaskUserForReward {
+pub struct TaskParticipantForReward {
     pub id: Thing,
     pub user_id: Thing,
-    pub status: TaskRequestUserStatus,
+    pub status: TaskParticipantStatus,
     pub reward_tx: Option<Thing>,
 }
 
@@ -70,7 +70,7 @@ pub struct TaskUserForReward {
 pub struct TaskForReward {
     pub currency: CurrencySymbol,
     pub donors: Vec<TaskDonorForReward>,
-    pub users: Vec<TaskUserForReward>,
+    pub participants: Vec<TaskParticipantForReward>,
     pub wallet: Wallet,
     pub balance: i64,
 }
@@ -195,14 +195,14 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user: &Thing,
-        status: Option<TaskRequestUserStatus>,
+        status: Option<TaskParticipantStatus>,
     ) -> CtxResult<Vec<T>> {
         let status_query = match &status {
-            Some(_) => "AND $status IN ->task_request_user.status",
+            Some(_) => "AND $status IN ->task_participant.status",
             None => "",
         };
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_request_user.out {};",
+            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_participant.out {};",
             &T::get_select_query_fields(&IdentIdName::Id(user.clone())),
             status_query
         );
@@ -265,7 +265,7 @@ impl<'a> TaskRequestDbService<'a> {
                         wallet_id.* AS wallet,
                         currency,
                         wallet_id.transaction_head AS transaction_head,
-                        ->task_request_user.{ status, id, user_id: out } AS users,
+                        ->task_participant.{ status, id, user_id: out } AS participants,
                         ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
                     FROM task_request
                     WHERE created_at + <duration>string::concat(delivery_period, 'h') <= time::now()

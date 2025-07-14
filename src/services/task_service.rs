@@ -3,11 +3,11 @@ use crate::{
     entities::{
         community::post_entity::PostDbService,
         task::task_request_entity::{
-            DeliverableType, RewardType, TaskRequest, TaskRequestCreate, TaskRequestDbService,
-            TaskRequestType, TaskUserForReward,
+            DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
+            TaskRequestDbService, TaskRequestType,
         },
         task_donor::TaskDonor,
-        task_request_user::{TaskRequestUser, TaskRequestUserResult, TaskRequestUserStatus},
+        task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
         user_auth::local_user_entity::LocalUserDbService,
         wallet::{
             balance_transaction_entity::BalanceTransactionDbService,
@@ -16,7 +16,7 @@ use crate::{
     },
     interfaces::repositories::{
         task_donors::TaskDonorsRepositoryInterface,
-        task_request_users::TaskRequestUsersRepositoryInterface,
+        task_participants::TaskParticipantsRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
     middleware::{
@@ -44,7 +44,7 @@ pub struct TaskView {
     pub currency: CurrencySymbol,
     pub r#type: TaskRequestType,
     pub donors: Vec<TaskDonor>,
-    pub to_users: Vec<TaskRequestUser>,
+    pub participants: Vec<TaskParticipant>,
     pub acceptance_period: Option<u16>,
     pub delivery_period: u16,
     pub created_at: DateTime<Utc>,
@@ -60,7 +60,7 @@ impl ViewFieldSelector for TaskView {
         wallet_id,
         created_at,
         ->task_donor.*.{id, transaction, user: out} as donors,
-        ->task_request_user.{id:record::id(id),task:record::id(in),user:record::id(out),status} as to_users,
+        ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status} as participants,
         type"
             .to_string()
     }
@@ -89,7 +89,7 @@ pub struct TaskRequestInput {
 
 pub struct TaskService<'a, T, N, P>
 where
-    T: TaskRequestUsersRepositoryInterface,
+    T: TaskParticipantsRepositoryInterface,
     P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
 {
@@ -99,12 +99,12 @@ where
     notification_service: NotificationService<'a, N>,
     transactions_repository: BalanceTransactionDbService<'a>,
     task_donors_repository: &'a P,
-    task_users_repository: &'a T,
+    task_participants_repository: &'a T,
 }
 
 impl<'a, T, N, P> TaskService<'a, T, N, P>
 where
-    T: TaskRequestUsersRepositoryInterface,
+    T: TaskParticipantsRepositoryInterface,
     N: UserNotificationsInterface,
     P: TaskDonorsRepositoryInterface,
 {
@@ -114,7 +114,7 @@ where
         event_sender: &'a Sender<AppEvent>,
         notification_repository: &'a N,
         task_donors_repository: &'a P,
-        task_users_repository: &'a T,
+        task_participants_repository: &'a T,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
@@ -128,7 +128,7 @@ where
                 notification_repository,
             ),
             task_donors_repository,
-            task_users_repository,
+            task_participants_repository,
         }
     }
 
@@ -206,11 +206,11 @@ where
 
         if let Some(ref user) = to_user {
             let _ = self
-                .task_users_repository
+                .task_participants_repository
                 .create(
                     &task.id.as_ref().unwrap().id.to_raw(),
                     &user.id.as_ref().unwrap().id.to_raw(),
-                    TaskRequestUserStatus::Requested.as_str(),
+                    TaskParticipantStatus::Requested.as_str(),
                 )
                 .await
                 .map_err(|e| AppError::SurrealDb {
@@ -270,9 +270,9 @@ where
             .into());
         }
 
-        let is_some_accepted_or_delivered = task.to_users.iter().any(|v| {
-            v.status == TaskRequestUserStatus::Accepted
-                || v.status == TaskRequestUserStatus::Delivered
+        let is_some_accepted_or_delivered = task.participants.iter().any(|v| {
+            v.status == TaskParticipantStatus::Accepted
+                || v.status == TaskParticipantStatus::Delivered
         });
 
         if is_some_accepted_or_delivered {
@@ -376,11 +376,11 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
         let user_id_id = user_thing.id.to_raw();
-        let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
+        let task_user = task.participants.iter().find(|v| v.user == user_id_id);
 
         let allow = task_user.map_or(false, |v| {
-            v.status == TaskRequestUserStatus::Requested
-                || v.status == TaskRequestUserStatus::Accepted
+            v.status == TaskParticipantStatus::Requested
+                || v.status == TaskParticipantStatus::Accepted
         });
 
         if !allow {
@@ -390,10 +390,10 @@ where
             .into());
         }
 
-        self.task_users_repository
+        self.task_participants_repository
             .update(
                 &task_user.as_ref().unwrap().id,
-                TaskRequestUserStatus::Rejected.as_str(),
+                TaskParticipantStatus::Rejected.as_str(),
                 None,
             )
             .await
@@ -431,7 +431,7 @@ where
         }
 
         let user_id_id = user_thing.id.to_raw();
-        let task_user = task.to_users.iter().find(|v| v.user == user_id_id);
+        let task_user = task.participants.iter().find(|v| v.user == user_id_id);
 
         match task.r#type {
             TaskRequestType::Open => {
@@ -443,11 +443,11 @@ where
                 };
 
                 let _ = self
-                    .task_users_repository
+                    .task_participants_repository
                     .create(
                         &task.id.id.to_raw(),
                         &user_id_id,
-                        TaskRequestUserStatus::Accepted.as_str(),
+                        TaskParticipantStatus::Accepted.as_str(),
                     )
                     .await
                     .map_err(|e| AppError::SurrealDb {
@@ -455,7 +455,7 @@ where
                     })?;
             }
             TaskRequestType::Close => {
-                if task_user.map_or(true, |v| v.status != TaskRequestUserStatus::Requested) {
+                if task_user.map_or(true, |v| v.status != TaskParticipantStatus::Requested) {
                     return Err(AppError::Generic {
                         description: "Forbidden".to_string(),
                     }
@@ -463,10 +463,10 @@ where
                 }
 
                 let _ = self
-                    .task_users_repository
+                    .task_participants_repository
                     .update(
                         &task_user.as_ref().unwrap().id,
-                        TaskRequestUserStatus::Accepted.as_str(),
+                        TaskParticipantStatus::Accepted.as_str(),
                         None,
                     )
                     .await
@@ -505,9 +505,9 @@ where
 
         let user_id_id = user_thing.id.to_raw();
         let task_user = task
-            .to_users
+            .participants
             .iter()
-            .find(|v| v.user == user_id_id && v.status == TaskRequestUserStatus::Accepted);
+            .find(|v| v.user == user_id_id && v.status == TaskParticipantStatus::Accepted);
 
         if task_user.is_none() {
             return Err(AppError::Generic {
@@ -522,11 +522,11 @@ where
             .must_exist(IdentIdName::Id(post_thing))
             .await?;
 
-        self.task_users_repository
+        self.task_participants_repository
             .update(
                 &task_user.unwrap().id,
-                TaskRequestUserStatus::Delivered.as_str(),
-                Some(TaskRequestUserResult {
+                TaskParticipantStatus::Delivered.as_str(),
+                Some(TaskParticipantResult {
                     urls: None,
                     post: Some(data.post_id),
                 }),
@@ -554,10 +554,10 @@ where
 
         for task in tasks {
             let delivered_users = task
-                .users
+                .participants
                 .iter()
-                .filter(|user| user.status == TaskRequestUserStatus::Delivered)
-                .collect::<Vec<&TaskUserForReward>>();
+                .filter(|user| user.status == TaskParticipantStatus::Delivered)
+                .collect::<Vec<&TaskParticipantForReward>>();
 
             let wallet_id = task.wallet.id.as_ref().unwrap();
             if delivered_users.is_empty() {
@@ -575,7 +575,7 @@ where
                     }
                 }
             } else {
-                let task_users: Vec<&TaskUserForReward> = delivered_users
+                let task_users: Vec<&TaskParticipantForReward> = delivered_users
                     .into_iter()
                     .filter(|u| u.reward_tx.is_none())
                     .collect();
