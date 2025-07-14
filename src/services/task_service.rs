@@ -60,7 +60,7 @@ impl ViewFieldSelector for TaskView {
         wallet_id,
         created_at,
         ->task_donor.*.{id, transaction, user: out} as donors,
-        ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status} as participants,
+        ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants,
         type"
             .to_string()
     }
@@ -496,13 +496,6 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        if !self.can_still_use(task.created_at, Some(task.delivery_period)) {
-            return Err(AppError::Generic {
-                description: "The delivery period has expired".to_string(),
-            }
-            .into());
-        }
-
         let user_id_id = user_thing.id.to_raw();
         let task_user = task
             .participants
@@ -512,6 +505,19 @@ where
         if task_user.is_none() {
             return Err(AppError::Generic {
                 description: "Forbidden".to_string(),
+            }
+            .into());
+        }
+
+        let accepted_time = task_user
+            .unwrap()
+            .timelines
+            .last()
+            .expect("last timeline of the task");
+
+        if !self.can_still_use(accepted_time.date, Some(task.delivery_period)) {
+            return Err(AppError::Generic {
+                description: "The delivery period has expired".to_string(),
             }
             .into());
         }
