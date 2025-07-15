@@ -8,14 +8,14 @@ pub trait VerificationCodeRepositoryInterface: RepositoryCore {
         &self,
         user_id: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCodeEntity, String>;
-    async fn increase_attempt(&self, code_id: &str) -> Result<(), String>;
+    ) -> Result<VerificationCodeEntity, surrealdb::Error>;
+    async fn increase_attempt(&self, code_id: &str) -> Result<(), surrealdb::Error>;
     async fn create(
         &self,
         user_id: &str,
         code: &str,
         email: &str,
         use_for: VerificationCodeFor,
-    ) -> Result<VerificationCodeEntity, String>;
-    async fn delete(&self, code_id: &str) -> Result<(), String>;
+    ) -> Result<VerificationCodeEntity, surrealdb::Error>;
+    async fn delete(&self, code_id: &str) -> Result<(), surrealdb::Error>;
 }

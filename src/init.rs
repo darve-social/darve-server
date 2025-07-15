@@ -9,7 +9,7 @@ use crate::{
         mw_ctx::{self, CtxState},
     },
     routes::{
-        self, auth, notifications, users,
+        self, auth_routes, notifications, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -147,7 +147,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         // No requirements
         // Also behind /api, but no auth requirement on this route
         .merge(init_server_routes::routes())
-        .merge(auth::routes())
+        .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())
         .merge(discussion_routes::routes())

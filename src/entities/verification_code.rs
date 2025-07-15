@@ -28,7 +28,7 @@ impl EntityWithId for VerificationCodeEntity {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum VerificationCodeFor {
     EmailVerification,
     ResetPassword,

@@ -3,10 +3,9 @@ use crate::database::repository_traits::{EntityWithId, RepositoryCore, Repositor
 use crate::database::surrdb_utils;
 use crate::database::surrdb_utils::{get_entity_query_str, get_list_qry, get_query, record_exist_all, record_exists, RecordWithId};
 use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
-use crate::middleware::error::{AppError, AppResult, CtxResult};
-use crate::middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
+use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use std::{marker::PhantomData, string::String};
 use surrealdb::sql::{Id, Thing};
@@ -86,7 +85,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         )
     }
 
-    async fn get_thing(&self, id: &str) -> Thing {
+    fn get_thing(&self, id: &str) -> Thing {
         Thing::from((self.table_name.as_ref(), id))
     }
 

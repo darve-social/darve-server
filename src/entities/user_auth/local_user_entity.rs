@@ -19,6 +19,7 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
+use crate::database::surrdb_utils::{get_str_id_thing, get_str_thing_surr};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
@@ -158,6 +159,12 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
+        let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }

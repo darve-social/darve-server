@@ -1,7 +1,5 @@
-use crate::middleware::error::{AppResult, CtxResult};
-use crate::middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
+use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
 use async_trait::async_trait;
-use serde::Deserialize;
 use std::string::String;
 use surrealdb::sql::Thing;
 
@@ -30,7 +28,7 @@ pub trait RepositoryCore {
 
     async fn delete(&self, record_id: &str) -> Result<bool, Self::Error>;
     async fn count(&self) -> Result<u64, Self::Error>;
-    async fn get_thing(&self, id: &str) -> Thing;
+    fn get_thing(&self, id: &str) -> Thing;
     async fn get_entity_list(
         &self,
         ident: &IdentIdName,

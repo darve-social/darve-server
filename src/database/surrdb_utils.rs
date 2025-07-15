@@ -1,19 +1,43 @@
 use askama::Template;
-use core::fmt;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
-use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 use crate::database::client::Db;
-use crate::middleware::ctx::Ctx;
-use crate::middleware::error::{AppError, AppResult, CtxError, CtxResult};
-use crate::middleware::utils::db_utils::{IdentIdName, Pagination, QryBindingsVal, QryOrder, UsernameIdent, ViewFieldSelector};
+use crate::middleware::utils::db_utils::{IdentIdName, Pagination, QryBindingsVal, QryOrder, ViewFieldSelector};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
+
+
+pub fn get_string_thing_surr(value: String) -> Result<Thing, surrealdb::Error> {
+    get_str_thing_surr(value.as_str())
+}
+
+pub fn get_str_thing_surr(value: &str) -> Result<Thing, surrealdb::Error> {
+    if value.is_empty() || !value.contains(":") {
+        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{value} - can't create Thing without table part")}));   
+    }
+    Thing::try_from(value).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:value.to_string()}))
+}
+
+pub fn get_str_id_thing(tb: &str, id: &str) -> Result<Thing, surrealdb::Error> {
+    if id.is_empty() || id.contains(":") {
+        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{}:{}", tb, id)}));
+    }
+    Thing::try_from((tb, id)).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{}:{}", tb, id)}))
+}
+
+
+pub fn get_thing_id( thing_id: &str) -> &str {
+    match thing_id.find(":") {
+        None => thing_id,
+        Some(ind) => {
+            &thing_id[ind+1..]
+        }
+    }
+}
 
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
@@ -277,7 +301,7 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> Result<Vec<Th
     let things = record_ids
         .iter()
         .map(|rec_id| {
-            Thing::try_from(rec_id.as_str()).map_err(|e| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            Thing::try_from(rec_id.as_str()).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
                 value: rec_id.to_string(),
             }))
         })

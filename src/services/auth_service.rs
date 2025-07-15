@@ -32,7 +32,7 @@ use crate::{
         verification::{apple, facebook, google},
     },
 };
-
+use crate::database::surrdb_utils::{get_str_id_thing, get_thing_id};
 use super::verification_code_service::VerificationCodeService;
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -399,7 +399,7 @@ where
 
         let _ = self
             .verification_code_service
-            .create_for_password(&user)
+            .create_for_password(get_thing_id(&user.id.expect("exists").id.to_raw()), &user.email_verified.expect("email exists"))
             .await?;
 
         Ok(())
