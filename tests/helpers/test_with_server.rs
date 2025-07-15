@@ -3,7 +3,7 @@
 macro_rules! test_with_server {
     ($name:ident, |$server:ident, $ctx_state:ident, $config:ident| $body:block) => {
 
-        #[tokio::test]
+        #[tokio::test(flavor="multi_thread")]
         #[serial_test::serial]
         async fn $name() {
             use axum_test::{TestServer, TestServerConfig};
@@ -11,6 +11,8 @@ macro_rules! test_with_server {
             use darve_server::config::AppConfig;
             use darve_server::middleware::mw_ctx::create_ctx_state;
             use darve_server::routes::user_auth::webauthn::webauthn_routes::create_webauth_config;
+            use futures::FutureExt;
+            use std::panic::{ resume_unwind};
 
             let $config = AppConfig::from_env();
 
@@ -48,12 +50,20 @@ macro_rules! test_with_server {
             )
             .expect("Failed to create test server");
 
-            (|| async $body)().await;
+            let test_result = std::panic::AssertUnwindSafe(async {
+                (|| async $body)().await;
+            })
+            .catch_unwind()
+            .await;
 
             $ctx_state.clone().db.client
-                .query(format!("REMOVE DATABASE {}", $config.db_database))
+                .query(format!("REMOVE DATABASE {};",$config.db_database))
                 .await
-                .expect("failed to remove test namespace");
+                .expect("failed to remove database");
+
+            if let Err(panic) = test_result {
+                resume_unwind(panic);
             }
+        }
     };
 }

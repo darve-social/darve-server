@@ -6,7 +6,6 @@ use darve_server::{
 };
 use fake::{faker, Fake};
 use surrealdb::sql::Thing;
-use uuid::Uuid;
 
 #[allow(dead_code)]
 pub struct CreateFakeCommunityResponse {
@@ -37,13 +36,14 @@ pub async fn create_fake_community(
         })
         .add_header("Accept", "application/json")
         .await;
+
     let created = &create_response.json::<CreatedResponse>();
 
     let comm_id = Thing::try_from(created.id.clone()).unwrap();
     let comm_name = created.uri.clone().unwrap();
     let _ = create_response.assert_status_success();
 
-    let ctx = Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok(user_ident), false);
 
     let community_db_service = CommunityDbService {
         db: &ctx_state.db.client,

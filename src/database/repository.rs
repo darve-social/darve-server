@@ -1,5 +1,5 @@
 use crate::database::client::Db;
-use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
+use crate::entities::task_donor::TaskDonor;
 use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
@@ -78,7 +78,7 @@ impl<
     }
 
     async fn delete(&self, participation_id: Thing) -> Result<bool, surrealdb::Error> {
-        let _res: Option<TaskRequestParticipation> = self
+        let _res: Option<TaskDonor> = self
             .client
             .delete((&self.table_name, participation_id.id.to_raw()))
             .await?;

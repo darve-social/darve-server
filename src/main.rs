@@ -1,17 +1,20 @@
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use config::AppConfig;
 use database::client::{Database, DbConfig};
 use middleware::mw_ctx::{self};
 use routes::user_auth::webauthn::webauthn_routes::{self};
 use sentry::{ClientInitGuard, ClientOptions};
-use tokio;
 
 pub mod config;
 pub mod database;
 pub mod entities;
 pub mod init;
 pub mod interfaces;
+pub mod jobs;
 pub mod middleware;
 pub mod models;
 pub mod routes;
@@ -19,7 +22,6 @@ pub mod services;
 pub mod utils;
 
 fn main() {
-    tracing_subscriber::fmt::init();
     let config = AppConfig::from_env();
 
     let _guard: Option<ClientInitGuard> = if let Some(ref link) = config.sentry_project_link {
@@ -64,6 +66,8 @@ async fn async_main(config: AppConfig) {
 
     let addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
+    let _task_handle = jobs::task_payment::run(ctx_state.clone(), Duration::from_secs(30)).await;
 
     axum::serve(listener, routes_all.into_make_service())
         .await

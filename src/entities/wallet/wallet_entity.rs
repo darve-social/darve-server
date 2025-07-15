@@ -1,5 +1,4 @@
 use askama_axum::Template;
-use balance_transaction_entity::BalanceTransactionDbService;
 
 use crate::database::client::Db;
 use middleware::utils::db_utils::{
@@ -7,7 +6,7 @@ use middleware::utils::db_utils::{
 };
 use middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -17,10 +16,11 @@ use surrealdb::sql::Thing;
 use surrealdb::Response;
 
 use super::balance_transaction_entity;
-use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::balance_transaction_entity::THROW_BALANCE_TOO_LOW;
+use crate::entities::wallet::balance_transaction_entity::{
+    BalanceTransactionDbService, THROW_BALANCE_TOO_LOW,
+};
 use crate::middleware;
-use crate::middleware::error::AppResult;
+use crate::middleware::error::{AppResult, CtxError};
 
 pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResult<()> {
     let query_err = query_response
@@ -70,7 +70,6 @@ pub const THROW_WALLET_LOCKED: &str = "Wallet locked";
 pub struct Wallet {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub user: Option<Thing>,
     pub transaction_head: WalletCurrencyTxHeads,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
@@ -147,7 +146,6 @@ pub struct WalletDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "wallet";
-const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
 pub const TRANSACTION_HEAD_F: &str = "transaction_head";
 
@@ -158,8 +156,6 @@ impl<'a> WalletDbService<'a> {
         let curr_eth = CurrencySymbol::ETH;
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE option<record<{USER_TABLE}>> VALUE $before OR $value; //TODO type::record({USER_TABLE}:record::id($this.id));
-    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F} ON TABLE {TABLE_NAME} TYPE object;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_usd} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
@@ -267,7 +263,6 @@ impl<'a> WalletDbService<'a> {
             .create(TABLE_NAME)
             .content(Wallet {
                 id: Some(wallet_id.clone()),
-                user: None,
                 transaction_head: WalletCurrencyTxHeads {
                     usd: Some(init_tx_usd.id.unwrap()),
                     eth: Some(init_tx_eth.id.unwrap()),

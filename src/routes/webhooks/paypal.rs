@@ -8,7 +8,6 @@ use axum::{
     Router,
 };
 use surrealdb::sql::Thing;
-use uuid::Uuid;
 
 use crate::{
     entities::wallet::gateway_transaction_entity::GatewayTransactionDbService,
@@ -43,7 +42,6 @@ async fn handle_webhook(
 
     let ctx = Ctx::new(
         Err(crate::middleware::error::AppError::AuthFailNoJwtCookie),
-        Uuid::new_v4(),
         false,
     );
 
