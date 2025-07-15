@@ -15,7 +15,6 @@ use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::request_utils::CreatedResponse;
 use surrealdb::sql::Thing;
 
-
 use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(get_community_view, |server, ctx_state, config| {

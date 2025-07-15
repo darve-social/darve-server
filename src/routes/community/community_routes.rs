@@ -84,7 +84,7 @@ pub struct CommunityView {
 }
 
 impl ViewFieldSelector for CommunityView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, title, default_discussion as profile_discussion, name_uri".to_string()
     }
 }

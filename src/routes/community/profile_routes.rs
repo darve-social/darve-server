@@ -7,7 +7,6 @@ use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
-use post_routes::{create_post_entity_route, PostInput};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
@@ -34,12 +33,13 @@ use post_stream_entity::PostStreamDbService;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
-use super::{discussion_routes, post_routes};
+use super::discussion_routes;
 use crate::database::client::Db;
 use crate::entities::community::{self, community_entity, post_stream_entity};
 use crate::entities::user_auth::authentication_entity::AuthenticationDbService;
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::interfaces::file_storage::FileStorageInterface;
+use crate::routes::posts::{create_post_entity_route, PostInput};
 use crate::routes::user_auth::follow_routes;
 use crate::services::user_service::UserService;
 use crate::utils::file::convert::convert_field_file_data;
@@ -125,7 +125,7 @@ pub struct ProfileView {
 }
 
 impl ViewFieldSelector for ProfileView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id as user_id, username, full_name, bio, image_uri, social_links, 0 as followers_nr, 0 as following_nr"
             .to_string()
     }
@@ -139,7 +139,7 @@ pub struct ProfileDiscussionView {
 }
 
 impl ViewFieldSelector for ProfileDiscussionView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id,  [] as posts".to_string()
     }
 }
@@ -161,7 +161,7 @@ pub struct ProfilePostView {
 
 impl ViewFieldSelector for ProfilePostView {
     // post fields selct qry for view
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, created_by.username as username, r_title_uri, title, content, media_links, r_created, belongs_to.id as belongs_to_id, replies_nr".to_string()
     }
 }

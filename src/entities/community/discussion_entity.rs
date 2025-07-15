@@ -15,6 +15,7 @@ use user_auth::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use crate::database::client::Db;
 use crate::entities::user_auth::{self, local_user_entity};
 use crate::middleware;
+use crate::middleware::utils::string_utils::get_str_thing;
 
 use super::discussion_topic_entity::{self, DiscussionTopic};
 use super::{community_entity, post_entity};
@@ -88,6 +89,12 @@ impl<'a> DiscussionDbService<'a> {
     pub async fn get(&self, ident_id_name: IdentIdName) -> CtxResult<Discussion> {
         let opt = get_entity::<Discussion>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<Discussion> {
+        let thing = get_str_thing(id)?;
+        let ident = IdentIdName::Id(thing);
+        self.get(ident).await
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(

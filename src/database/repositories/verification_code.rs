@@ -21,7 +21,7 @@ impl VerificationCodeRepository {
         Self { client }
     }
 
-    pub async fn mutate_db(&self) -> Result<(), AppError> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {VERIFICATION_CODE_TABLE_NAME} SCHEMAFULL;
         DEFINE FIELD IF NOT EXISTS user ON TABLE {VERIFICATION_CODE_TABLE_NAME} TYPE record<local_user>;

@@ -4,7 +4,6 @@ use darve_server::entities::user_auth::local_user_entity;
 use darve_server::middleware;
 use surrealdb::sql::Thing;
 
-
 use crate::helpers::create_login_test_user;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;

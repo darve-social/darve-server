@@ -2,7 +2,7 @@ use axum_test::multipart::MultipartForm;
 use axum_test::TestResponse;
 use axum_test::{multipart::Part, TestServer};
 use darve_server::middleware::{mw_ctx::CtxState, utils::request_utils::CreatedResponse};
-use darve_server::routes::community::post_routes::GetPostsQuery;
+use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
 use std::fs;
 use surrealdb::sql::Thing;

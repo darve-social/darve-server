@@ -22,7 +22,7 @@ impl TaskDonorsRepository {
             table_name: "task_donor",
         }
     }
-    pub async fn mutate_db(&self) -> Result<(), AppError> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let table_name = self.table_name;
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();

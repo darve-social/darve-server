@@ -17,8 +17,6 @@ use validator::Validate;
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER};
 use discussion_entity::DiscussionDbService;
-use discussion_routes::{is_user_chat_discussion, DiscussionPostView, DiscussionView};
-use discussion_topic_routes::DiscussionTopicView;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
@@ -28,22 +26,28 @@ use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::{Post, PostDbService};
 use post_stream_entity::PostStreamDbService;
-use reply_routes::PostReplyView;
 use tempfile::NamedTempFile;
 
 use crate::entities::community::{discussion_entity, post_entity, post_stream_entity};
+use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::middleware;
 
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::middleware::utils::string_utils::get_str_thing;
+use crate::routes::community::discussion_routes::{
+    is_user_chat_discussion, DiscussionLatestPostCreatedBy, DiscussionLatestPostView,
+    DiscussionPostView, DiscussionView,
+};
+use crate::routes::community::discussion_topic_routes::DiscussionTopicView;
+use crate::routes::community::reply_routes::PostReplyView;
+use crate::routes::tasks::TaskRequestView;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostService;
+use crate::services::task_service::{TaskRequestInput, TaskService};
 use crate::utils::file::convert::convert_field_file_data;
 use crate::utils::template_utils::ProfileFormPage;
-
-use super::discussion_routes::{DiscussionLatestPostCreatedBy, DiscussionLatestPostView};
-use super::{discussion_routes, discussion_topic_routes, reply_routes};
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let view_routes = Router::new().route("/discussion/:discussion_id/post", get(create_form));
@@ -53,6 +57,8 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     Router::new()
         .merge(view_routes)
         .route("/api/posts", get(get_posts))
+        .route("/api/posts/:post_id/tasks", post(create_task))
+        .route("/api/posts/:post_id/tasks", get(get_post_tasks))
         .route("/api/posts/:post_id/like", post(like))
         .route("/api/posts/:post_id/unlike", delete(unlike))
         .route(
@@ -71,7 +77,7 @@ struct PostDiscussionCommunityOwnerView {
 }
 
 impl ViewFieldSelector for PostDiscussionCommunityOwnerView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         // belongs_to == discussion
         // belongs_to.belongs_to == community
         "belongs_to, belongs_to.belongs_to.created_by.community.default_discussion as created_by_profile_profile_discussion, belongs_to.belongs_to.name_uri as community_uri, belongs_to.belongs_to.created_by.username as username".to_string()
@@ -192,6 +198,49 @@ pub struct GetPostsQuery {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetPostsResponse {
     pub posts: Vec<Post>,
+}
+
+async fn create_task(
+    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
+    Path(post_id): Path<String>,
+    Json(body): Json<TaskRequestInput>,
+) -> CtxResult<Json<TaskRequest>> {
+    let post_thing = get_str_thing(&post_id)?;
+    let task_service = TaskService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.task_relates,
+    );
+
+    let task = task_service
+        .create(&ctx.user_id()?, body, Some(post_thing.clone()))
+        .await?;
+
+    Ok(Json(task))
+}
+
+async fn get_post_tasks(
+    Path(post_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+) -> CtxResult<Json<Vec<TaskRequestView>>> {
+    let post_db_service = PostDbService {
+        ctx: &ctx,
+        db: &state.db.client,
+    };
+    let post = post_db_service.get_by_id_with_access(&post_id).await?;
+
+    let tasks = state
+        .db
+        .task_relates
+        .get_tasks_by_id::<TaskRequestView>(&post.id.as_ref().unwrap())
+        .await?;
+    Ok(Json(tasks))
 }
 
 async fn get_posts(

@@ -17,6 +17,7 @@ pub struct CtxError {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppError {
     Generic { description: String },
+    Forbidden,
     AuthenticationFail,
     RegisterFail,
     AuthorizationFail { required: String },
@@ -122,6 +123,7 @@ impl fmt::Display for AppError {
             AppError::ValidationErrors { value } => write!(f, "{value}"),
             AppError::BalanceTooLow => write!(f, "Balance too low"),
             AppError::WalletLocked => write!(f, "Wallet locked"),
+            AppError::Forbidden => write!(f, "Forbidden"),
         }
     }
 }
@@ -167,6 +169,7 @@ impl IntoResponse for CtxError {
             | AppError::RegisterFail
             | AppError::AuthFailJwtInvalid { .. }
             | AppError::AuthorizationFail { .. }
+            | AppError::Forbidden
             | AppError::AuthFailCtxNotInRequestExt => StatusCode::FORBIDDEN,
             AppError::ValidationErrors { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::AuthFailNoJwtCookie => StatusCode::UNAUTHORIZED,

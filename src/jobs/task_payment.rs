@@ -17,10 +17,11 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
             let task_service = TaskService::new(
                 &state.db.client,
                 &ctx,
-                &&state.event_sender,
+                &state.event_sender,
                 &state.db.user_notifications,
                 &state.db.task_donors,
                 &state.db.task_participants,
+                &state.db.task_relates,
             );
 
             if let Err(err) = task_service.distribute_expired_tasks_rewards().await {

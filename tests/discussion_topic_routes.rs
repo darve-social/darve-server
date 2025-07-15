@@ -15,7 +15,6 @@ use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
 use surrealdb::sql::Thing;
 
-
 use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(create_discussion, |server, ctx_state, config| {

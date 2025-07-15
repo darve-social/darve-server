@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
+use crate::database::repositories::task_relates::TaskRelatesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code::VerificationCodeRepository;
 use crate::middleware::error::AppError;
@@ -27,6 +28,7 @@ pub struct Database {
     pub user_notifications: UserNotificationsRepository,
     pub task_donors: TaskDonorsRepository,
     pub task_participants: TaskParticipantsRepository,
+    pub task_relates: TaskRelatesRepository,
 }
 
 impl Database {
@@ -57,6 +59,7 @@ impl Database {
             user_notifications: UserNotificationsRepository::new(client.clone()),
             task_donors: TaskDonorsRepository::new(client.clone()),
             task_participants: TaskParticipantsRepository::new(client.clone()),
+            task_relates: TaskRelatesRepository::new(client.clone()),
         }
     }
 
@@ -65,6 +68,7 @@ impl Database {
         self.user_notifications.mutate_db().await?;
         self.task_donors.mutate_db().await?;
         self.task_participants.mutate_db().await?;
+        self.task_relates.mutate_db().await?;
         Ok(())
     }
 }

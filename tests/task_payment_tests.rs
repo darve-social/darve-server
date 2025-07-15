@@ -6,13 +6,11 @@ use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::{
         community::discussion_entity::DiscussionDbService,
+        task::task_request_entity::TaskRequest,
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     jobs,
-    middleware::{
-        ctx::Ctx,
-        utils::{request_utils::CreatedResponse, string_utils::get_str_thing},
-    },
+    middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
 };
 
 use fake::{faker, Fake};
@@ -43,9 +41,8 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let task_request = server
-            .post("/api/task_request")
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "post_id": Some(post.id),
                 "offer_amount": Some(10),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
@@ -54,11 +51,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<CreatedResponse>().id;
+        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -68,19 +65,17 @@ test_with_server!(
             user1.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
@@ -90,12 +85,10 @@ test_with_server!(
             user2.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
@@ -103,7 +96,7 @@ test_with_server!(
 
         let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token3))
             .add_header("Accept", "application/json")
             .await;
@@ -113,12 +106,10 @@ test_with_server!(
             user3.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", token3))
             .add_header("Accept", "application/json")
             .await;
@@ -188,9 +179,8 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let task_request = server
-            .post("/api/task_request")
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "post_id": Some(post.id),
                 "offer_amount": Some(10),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
@@ -199,11 +189,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<CreatedResponse>().id;
+        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -213,19 +203,17 @@ test_with_server!(
             user1.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
@@ -235,12 +223,10 @@ test_with_server!(
             user2.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
@@ -248,7 +234,7 @@ test_with_server!(
 
         let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token3))
             .add_header("Accept", "application/json")
             .await;
@@ -315,9 +301,8 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     endow_user_response.assert_status_success();
 
     let task_request = server
-        .post("/api/task_request")
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "post_id": Some(post.id),
             "offer_amount": Some(10),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -326,11 +311,11 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
+    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
+        .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -389,9 +374,8 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     endow_user_response.assert_status_success();
 
     let task_request = server
-        .post("/api/task_request")
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "post_id": Some(post.id),
             "offer_amount": Some(10),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -400,7 +384,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
+    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
     let (server, donor1, _, donor1_token) = create_fake_login_test_user(&server).await;
     let donor1_amount = 100;
@@ -415,7 +399,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .await;
     endow_user_response.assert_status_success();
     let participate_response = server
-        .post(&format!("/api/task_offer/{}/participate", task_id))
+        .post(&format!("/api/tasks/{}/donor", task_id))
         .json(&json!({
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
@@ -426,7 +410,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
 
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
+        .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -494,9 +478,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     endow_user_response.assert_status_success();
 
     let task_request = server
-        .post("/api/task_request")
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "post_id": Some(post.id),
             "offer_amount": Some(10),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -505,7 +488,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<CreatedResponse>().id;
+    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
     let (server, donor1, _, _) = create_fake_login_test_user(&server).await;
     let donor1_amount = 100;
@@ -519,7 +502,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     endow_user_response.assert_status_success();
     let participate_response = server
-        .post(&format!("/api/task_offer/{}/participate", task_id))
+        .post(&format!("/api/tasks/{}/donor", task_id))
         .json(&json!({
             "amount": donor1_amount,
             "currency": CurrencySymbol::USD.to_string(),
@@ -540,7 +523,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     endow_user_response.assert_status_success();
     let participate_response = server
-        .post(&format!("/api/task_offer/{}/participate", task_id))
+        .post(&format!("/api/tasks/{}/donor", task_id))
         .json(&json!({
             "amount": donor2_amount,
             "currency": CurrencySymbol::USD.to_string(),
@@ -562,7 +545,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     endow_user_response.assert_status_success();
     let participate_response = server
-        .post(&format!("/api/task_offer/{}/participate", task_id))
+        .post(&format!("/api/tasks/{}/donor", task_id))
         .json(&json!({
             "amount": donor3_amount,
             "currency": CurrencySymbol::USD.to_string(),
@@ -584,7 +567,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     endow_user_response.assert_status_success();
     let participate_response = server
-        .post(&format!("/api/task_offer/{}/participate", task_id))
+        .post(&format!("/api/tasks/{}/donor", task_id))
         .json(&json!({
             "amount": donor4_amount,
             "currency": CurrencySymbol::USD.to_string(),
@@ -596,7 +579,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
 
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
-        .post(&format!("/api/task_request/{}/accept", task_id))
+        .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -694,9 +677,8 @@ test_with_server!(
         endow_user_response.assert_status_success();
         let donor0_task_amount = 100;
         let task_request = server
-            .post("/api/task_request")
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "post_id": Some(post.id),
                 "offer_amount": donor0_task_amount,
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
@@ -705,8 +687,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<CreatedResponse>().id;
-
+        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
         let (server, donor1, _, _) = create_fake_login_test_user(&server).await;
         let donor1_amount = 100;
         let endow_user_response = server
@@ -721,7 +702,7 @@ test_with_server!(
         let donor1_task_amount = 100;
         endow_user_response.assert_status_success();
         let participate_response = server
-            .post(&format!("/api/task_offer/{}/participate", task_id))
+            .post(&format!("/api/tasks/{}/donor", task_id))
             .json(&json!({
                 "amount": donor1_task_amount,
                 "currency": CurrencySymbol::USD.to_string(),
@@ -732,7 +713,7 @@ test_with_server!(
 
         let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
         let response = server
-            .post(&format!("/api/task_request/{}/accept", task_id))
+            .post(&format!("/api/tasks/{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", user1_token))
             .add_header("Accept", "application/json")
             .await;
@@ -742,12 +723,10 @@ test_with_server!(
             user1.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let post = create_fake_post(server, &disc, None, None).await;
-        let mut multipart_data = axum_test::multipart::MultipartForm::new();
-        multipart_data = multipart_data.add_text("post_id", post.id);
 
         let delivered_response = server
-            .post(&format!("/api/task_request/{}/deliver", task_id))
-            .multipart(multipart_data)
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": post.id }))
             .add_header("Cookie", format!("jwt={}", user1_token))
             .add_header("Accept", "application/json")
             .await;

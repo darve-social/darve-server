@@ -22,7 +22,7 @@ pub struct RecordWithId {
 }
 
 impl ViewFieldSelector for RecordWithId {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id".to_string()
     }
 }
@@ -165,7 +165,11 @@ impl fmt::Display for QryOrder {
 
 pub trait ViewFieldSelector {
     // select query fields to fill the View object
-    fn get_select_query_fields(ident: &IdentIdName) -> String;
+    fn get_select_query_fields() -> String;
+}
+
+pub trait ViewRelateField {
+    fn get_fields() -> &'static str;
 }
 
 fn get_entity_query_str(
@@ -301,7 +305,7 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
 ) -> CtxResult<Option<T>> {
     let query_string = get_entity_query_str(
         ident,
-        Some(T::get_select_query_fields(ident).as_str()),
+        Some(T::get_select_query_fields().as_str()),
         None,
         table_name,
     )?;
@@ -342,7 +346,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
 ) -> CtxResult<Vec<T>> {
     let query_string = get_entity_query_str(
         ident,
-        Some(T::get_select_query_fields(ident).as_str()),
+        Some(T::get_select_query_fields().as_str()),
         pagination,
         table_name,
     )?;

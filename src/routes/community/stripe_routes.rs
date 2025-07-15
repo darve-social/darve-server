@@ -109,7 +109,7 @@ pub struct AccessRuleChargeView {
 
 impl ViewFieldSelector for AccessRuleChargeView {
     // post fields selct qry for view
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, community, title, authorization_required, price_amount, available_period_days, community.*.stripe_connect_account_id as stripe_connect_account_id, community.*.stripe_connect_complete as stripe_connect_complete".to_string()
     }
 }

@@ -13,7 +13,6 @@ use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 use surrealdb::sql::Thing;
 
-
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use community_entity::CommunityDbService;
