@@ -55,7 +55,6 @@ where
         email: &str,
     ) -> Result<(), AppError> {
 
-        println!("TTTT={:?}", user_id);
         let _ = self
             .user_repository
             .get_by_id(user_id)
@@ -69,11 +68,10 @@ where
             });
         };
 
-        let res = self
+        self
             .verification_code_service
             .create_for_email(user_id, email)
-            .await;
-        dbg!(&res);
+            .await?;
 
         Ok(())
     }

@@ -349,7 +349,7 @@ where
 
         let verification_data = self
             .verification_code_service
-            .get_verified_password_code(&user.id.as_ref().unwrap().to_raw(), &input.code)
+            .get_verified_password_code(&user.id.as_ref().expect("exists").id.to_raw(), &input.code)
             .await?;
 
         let (_, hash) = hash_password(&input.password).expect("Hash password error");

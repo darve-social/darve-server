@@ -54,14 +54,15 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
             .bind(("user_id", user_thing.clone()))
             .bind(("use_for", use_for.clone()))
             .await?;
+        
         let data: Option<VerificationCodeEntity> = res.take(0)?;
-        dbg!(&data);
         match data {
             Some(v) => Ok(v),
             None => Err(surrealdb::Error::from(surrealdb::error::Db::IdNotFound {
                 rid: format!("user_id={user_id} use_for={use_for:?}")})),
             }
     }
+    
     async fn increase_attempt(&self, code_id: &str) -> Result<(), surrealdb::Error> {
         let id = self.get_thing(code_id);
         let res = self

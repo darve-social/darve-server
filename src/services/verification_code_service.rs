@@ -64,7 +64,7 @@ where
             )
             .await
             .map_err(|e| AppError::Generic { description: e })?;
-dbg!(&data);
+        
         Ok(data)
     }
 
@@ -100,7 +100,7 @@ dbg!(&data);
         user_id: &str,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        let res = self
+        self
             .get_verified_code(
                 user_id,
                 3,
@@ -108,9 +108,7 @@ dbg!(&data);
                 VerificationCodeFor::ResetPassword,
                 code,
             )
-            .await;
-        dbg!(&res);
-        Ok(res?)
+            .await
     }
 
     pub async fn get_verified_email_code(
@@ -118,7 +116,7 @@ dbg!(&data);
         user_id: &str,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        let res = self
+        self
             .get_verified_code(
                 user_id,
                 3,
@@ -126,8 +124,7 @@ dbg!(&data);
                 VerificationCodeFor::EmailVerification,
                 code,
             )
-            .await?;
-        Ok(res)
+            .await
     }
 
     async fn get_verified_code(
@@ -138,7 +135,6 @@ dbg!(&data);
         use_for: VerificationCodeFor,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        println!("UU={:?}", user_id);
         let data = self
             .repository
             .get_by_user(user_id, use_for)

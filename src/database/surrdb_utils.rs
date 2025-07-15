@@ -29,12 +29,12 @@ pub fn get_str_id_thing(tb: &str, id: &str) -> Result<Thing, surrealdb::Error> {
     Thing::try_from((tb, id)).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{}:{}", tb, id)}))
 }
 
-
-pub fn get_thing_id( thing_id: &str) -> &str {
-    match thing_id.find(":") {
-        None => thing_id,
+// get id from Thing's string
+pub fn get_thing_id(thing_str: &str) -> &str {
+    match thing_str.find(":") {
+        None => thing_str,
         Some(ind) => {
-            &thing_id[ind+1..]
+            &thing_str[ind+1..]
         }
     }
 }
