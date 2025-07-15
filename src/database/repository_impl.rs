@@ -2,7 +2,6 @@ use crate::database::client::Db;
 use crate::database::repository_traits::{EntityWithId, RepositoryCore, RepositoryEntityId};
 use crate::database::surrdb_utils;
 use crate::database::surrdb_utils::{get_entity_query_str, get_list_qry, get_query, record_exist_all, record_exists, RecordWithId};
-use crate::entities::task::task_request_participation_entity::TaskRequestParticipation;
 use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
 use async_trait::async_trait;
 use serde::Serialize;
@@ -65,7 +64,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
     }
 
     async fn delete(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
-        let _res: Option<TaskRequestParticipation> =
+        let _res: Option<Self::QueryResultItem> =
             self.client.delete((&self.table_name, record_id)).await?;
         Ok(true)
     }
