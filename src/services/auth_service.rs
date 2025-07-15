@@ -4,6 +4,8 @@ use surrealdb::sql::Thing;
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
 
+use super::verification_code_service::VerificationCodeService;
+use crate::database::surrdb_utils::get_thing_id;
 use crate::{
     database::client::Db,
     entities::{
@@ -32,8 +34,6 @@ use crate::{
         verification::{apple, facebook, google},
     },
 };
-use crate::database::surrdb_utils::{get_str_id_thing, get_thing_id};
-use super::verification_code_service::VerificationCodeService;
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {

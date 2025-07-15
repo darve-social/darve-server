@@ -5,6 +5,7 @@ use surrealdb::sql::Thing;
 use super::{access_right_entity, authorization_entity};
 use crate::database::client::Db;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
+use crate::database::surrdb_utils::get_str_id_thing;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
 use access_right_entity::AccessRightDbService;
@@ -19,7 +20,6 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use crate::database::surrdb_utils::{get_str_id_thing, get_str_thing_surr};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {

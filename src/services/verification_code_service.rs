@@ -2,10 +2,7 @@ use askama::Template;
 use chrono::{Duration, Utc};
 
 use crate::{
-    entities::{
-        user_auth::local_user_entity::LocalUser,
-        verification_code::{VerificationCodeEntity, VerificationCodeFor},
-    },
+    entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
     interfaces::{
         repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
         send_email::SendEmailInterface,

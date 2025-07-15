@@ -12,10 +12,8 @@ use crate::{
     utils::hash::{hash_password, verify_password},
 };
 
-use chrono::Duration;
-use crate::database::surrdb_utils::get_thing_id;
-use crate::middleware::utils::string_utils::get_str_thing;
 use super::verification_code_service::VerificationCodeService;
+use chrono::Duration;
 
 pub struct UserService<'a, V, S>
 where

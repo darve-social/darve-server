@@ -1,5 +1,6 @@
 mod helpers;
 
+use crate::helpers::create_fake_login_test_user;
 use darve_server::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use darve_server::{
     entities::{
@@ -11,8 +12,6 @@ use darve_server::{
 use fake::{faker, Fake};
 use serde_json::json;
 use uuid::Uuid;
-use darve_server::database::surrdb_utils::get_thing_id;
-use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
     let (_, user, _password, _) = create_fake_login_test_user(&server).await;
