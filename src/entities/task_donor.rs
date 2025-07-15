@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use wallet::wallet_entity::CurrencySymbol;
-
-use crate::entities::wallet::{self};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TaskDonor {
