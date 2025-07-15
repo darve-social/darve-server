@@ -1,7 +1,8 @@
 use super::{gateway_transaction_entity, lock_transaction_entity, wallet_entity};
 use crate::database::client::Db;
-use crate::entities::user_auth::local_user_entity;
-use crate::middleware::{self};
+use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
+use crate::middleware;
+use crate::middleware::error::CtxError;
 use crate::routes::wallet::wallet_routes;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
@@ -9,13 +10,19 @@ use middleware::utils::db_utils::{
 };
 use middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{to_value, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 use wallet_routes::CurrencyTransactionView;
+
+#[derive(Debug, Deserialize)]
+pub struct TransferCurrencyResponse {
+    pub tx_in_id: Thing,
+    pub tx_out_id: Thing,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
@@ -29,8 +36,6 @@ pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gateway_tx: Option<Thing>,
     pub currency: CurrencySymbol,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev_transaction: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount_in: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,8 +56,6 @@ pub const TABLE_NAME: &str = "balance_transaction";
 const WALLET_TABLE: &str = wallet_entity::TABLE_NAME;
 const GATEWAY_TX_TABLE: &str = gateway_transaction_entity::TABLE_NAME;
 const LOCK_TX_TABLE: &str = lock_transaction_entity::TABLE_NAME;
-const TRANSACTION_HEAD_F: &str = wallet_entity::TRANSACTION_HEAD_F;
-const USER_TABLE: &str = local_user_entity::TABLE_NAME;
 
 pub const THROW_BALANCE_TOO_LOW: &str = "Not enough balance";
 
@@ -80,19 +83,10 @@ impl<'a> BalanceTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS r_created_idx ON {TABLE_NAME} FIELDS r_created;
-
-        DEFINE FUNCTION OVERWRITE fn::zero_if_none($value: option<number>) {{
-            IF !$value {{
-                RETURN 0;
-            }}ELSE{{
-                RETURN $value;
-            }}
-        }};
     ");
         let mutation = self.db.query(sql).await?;
 
         mutation.check().expect("should mutate currencyTransaction");
-
         let g_wallet = WalletDbService {
             db: self.db,
             ctx: self.ctx,
@@ -107,19 +101,56 @@ impl<'a> BalanceTransactionDbService<'a> {
         Ok(())
     }
 
+    pub async fn transfer_task_reward(
+        &self,
+        wallet_from: &Thing,
+        wallet_to: &Thing,
+        amount: i64,
+        currency: &CurrencySymbol,
+        task_user_id: &Thing,
+    ) -> CtxResult<()> {
+        let tx_qry =
+            Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, true)?;
+
+        let mut query = self
+            .db
+            .query("BEGIN TRANSACTION")
+            .query(tx_qry.get_query_string())
+            .query("UPDATE $task_user_id SET reward_tx=$tx_in_id")
+            .query("COMMIT TRANSACTION")
+            .bind(("task_user_id", task_user_id.clone()));
+
+        for v in tx_qry.get_bindings().into_iter() {
+            query = query.bind(v);
+        }
+        let _ = query.await?.check()?;
+        Ok(())
+    }
+
     pub async fn transfer_currency(
         &self,
         wallet_from: &Thing,
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
-    ) -> CtxResult<()> {
+    ) -> CtxResult<TransferCurrencyResponse> {
         let tx_qry =
             Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
+        let mut query = self
+            .db
+            .query(tx_qry.get_query_string())
+            .query("RETURN {{ tx_in_id: $tx_in_id, tx_out_id: $tx_out_id }}");
 
-        let res = tx_qry.into_query(self.db).await?;
-        res.check()?;
-        Ok(())
+        for v in tx_qry.get_bindings().into_iter() {
+            query = query.bind(v);
+        }
+
+        let mut res = query.await?;
+        check_transaction_custom_error(&mut res)?;
+        let index = res.num_statements() - 1;
+        Ok(res
+            .take::<Option<TransferCurrencyResponse>>(index)?
+            .unwrap())
     }
 
     pub async fn user_transaction_list(
@@ -154,7 +185,6 @@ impl<'a> BalanceTransactionDbService<'a> {
             tx_ident: wallet_id.id.to_raw(),
             gateway_tx: None,
             currency,
-            prev_transaction: None,
             amount_in: None,
             amount_out: None,
             balance: 0,
@@ -196,53 +226,50 @@ impl<'a> BalanceTransactionDbService<'a> {
             UPDATE $w_from_id SET lock_id=$lock_id;
             LET $upd_lck = UPDATE $w_to_id SET lock_id=$lock_id;
             IF array::len($upd_lck)==0 {{
-               CREATE $w_to_id SET lock_id=$lock_id, {TRANSACTION_HEAD_F}={{}}; 
+               CREATE $w_to_id SET lock_id=$lock_id, transaction_head={{}}; 
              }};            
-            LET $w_from = SELECT * FROM ONLY $w_from_id FETCH {TRANSACTION_HEAD_F}.{currency};
-            LET $w_to = SELECT * FROM ONLY $w_to_id FETCH {TRANSACTION_HEAD_F}.{currency};
-            LET $w_to = IF type::is::none($w_to.user) {{
-                LET $w_to_prev_tx = type::record(\"{TABLE_NAME}:init_tx\");
-                LET $w_to_user_id = type::record(\"{USER_TABLE}:\"+record::id($w_to_id));
-                RETURN UPDATE ONLY $w_to_id SET user=$w_to_user_id, {TRANSACTION_HEAD_F}.{currency}=$w_to_prev_tx;
-            }}ELSE{{RETURN $w_to;}};
-            LET $updated_from_balance = fn::zero_if_none($w_from.{TRANSACTION_HEAD_F}.{currency}.balance) - type::number($amt);
+            LET $w_from = SELECT * FROM ONLY $w_from_id FETCH transaction_head[$currency];
+            LET $balance = $w_from.transaction_head[$currency].balance OR 0;
+            LET $tx_amt = type::number($amt);
+            LET $updated_from_balance = $balance - $tx_amt;
+
             IF $w_from_id!=$app_gateway_wallet_id && $updated_from_balance < 0 {{
-                THROW \"{THROW_BALANCE_TOO_LOW}\";
-           }};
+                THROW \"{THROW_BALANCE_TOO_LOW}\";                
+            }};
+
             LET $tx_ident = rand::ulid();
-            LET $out_tx_id = rand::ulid();
             LET $tx_out = INSERT INTO {TABLE_NAME} {{
-                id: $out_tx_id,
+                id: rand::ulid(),
                 wallet: $w_from_id,
                 with_wallet:$w_to_id,
                 tx_ident: $tx_ident,
                 currency: $currency,
-                prev_transaction: $w_from.{TRANSACTION_HEAD_F}.{currency}.id,
-                amount_out: type::number($amt),
+                amount_out: $tx_amt,
                 balance: $updated_from_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
             LET $tx_out_id = $tx_out[0].id;
-            UPDATE $w_from.id SET {TRANSACTION_HEAD_F}.{currency}=$tx_out_id, lock_id=NONE;
-            LET $in_tx_id = rand::ulid();
-            LET $updated_to_balance = fn::zero_if_none($w_to.{TRANSACTION_HEAD_F}.{currency}.balance) + type::number($amt);
+            UPDATE $w_from_id SET transaction_head[$currency]=$tx_out_id, lock_id=NONE;
+            LET $w_to = SELECT * FROM ONLY $w_to_id FETCH transaction_head[$currency];
+            LET $balance_to = $w_to.transaction_head[$currency].balance OR 0;
+            LET $updated_to_balance = $balance_to + $tx_amt;
             LET $tx_in = INSERT INTO {TABLE_NAME} {{
-                id: $in_tx_id,
+                id: rand::ulid(),
                 wallet: $w_to_id,
                 with_wallet:$w_from_id,
                 tx_ident: $tx_ident,
                 currency: $currency,
-                prev_transaction:  $w_to.{TRANSACTION_HEAD_F}.{currency}.id,
-                amount_in: type::number($amt),
+                amount_in: $tx_amt,
                 balance: $updated_to_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
             }} RETURN id;
             LET $tx_in_id = $tx_in[0].id;
-            UPDATE $w_to_id SET {TRANSACTION_HEAD_F}.{currency}=<record>$tx_in_id, lock_id=NONE;
-        {commit_tx}
-        ");
+            UPDATE $w_to_id SET transaction_head[$currency]=$tx_in_id, lock_id=NONE;
+            {commit_tx}
+         "
+        );
         let mut bindings = HashMap::new();
         bindings.insert(
             "w_from_id".to_string(),

@@ -11,14 +11,13 @@ use darve_server::{
 };
 use fake::{faker, Fake};
 use serde_json::json;
-use uuid::Uuid;
 
 test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
     let (_, user, _password, _) = create_fake_login_test_user(&server).await;
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
-    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
     let user_db = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -61,7 +60,7 @@ test_with_server!(
 
         let email = faker::internet::en::FreeEmail().fake::<String>();
 
-        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
         let user_db = LocalUserDbService {
             db: &ctx_state.db.client,
@@ -138,7 +137,7 @@ test_with_server!(
 
         let email = faker::internet::en::FreeEmail().fake::<String>();
 
-        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
         let user_db = LocalUserDbService {
             db: &ctx_state.db.client,
@@ -176,7 +175,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
 
     let email = faker::internet::en::FreeEmail().fake::<String>();
 
-    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
     let user_db = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -259,7 +258,7 @@ test_with_server!(
 
         let email = faker::internet::en::FreeEmail().fake::<String>();
 
-        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
         let user_db = LocalUserDbService {
             db: &ctx_state.db.client,
@@ -344,7 +343,7 @@ test_with_server!(
 
         let email = faker::internet::en::FreeEmail().fake::<String>();
 
-        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
 
         let user_db = LocalUserDbService {
             db: &ctx_state.db.client,

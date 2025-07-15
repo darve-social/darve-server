@@ -4,13 +4,13 @@ use super::ctx::Ctx;
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+
 use uuid::Uuid;
 use validator::ValidationErrors;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CtxError {
     pub error: AppError,
-    pub req_id: Uuid,
     pub is_htmx: bool,
 }
 
@@ -50,7 +50,6 @@ impl CtxError {
         |err| {
             let error = err.into();
             CtxError {
-                req_id: ctx.req_id(),
                 error: error,
                 is_htmx: ctx.is_htmx,
             }
@@ -62,7 +61,6 @@ impl From<surrealdb::Error> for CtxError {
     fn from(value: surrealdb::Error) -> Self {
         // dbg!(&value);
         CtxError {
-            req_id: Uuid::new_v4(),
             error: value.into(),
             is_htmx: false,
         }
@@ -73,7 +71,6 @@ impl From<surrealdb::Error> for CtxError {
 impl From<AppError> for CtxError {
     fn from(value: AppError) -> Self {
         CtxError {
-            req_id: Uuid::new_v4(),
             error: value,
             is_htmx: false,
         }
@@ -94,7 +91,6 @@ impl From<ValidationErrors> for CtxError {
             .collect::<serde_json::Map<_, _>>();
 
         CtxError {
-            req_id: Uuid::new_v4(),
             error: AppError::ValidationErrors {
                 value: json!(simplified),
             },
@@ -190,7 +186,7 @@ impl IntoResponse for CtxError {
 fn get_error_body(err: &CtxError, is_htmx: bool) -> String {
     match is_htmx {
         true => to_err_html(err.error.to_string()),
-        false => ErrorResponseBody::new(err.error.to_string(), Some(err.req_id.to_string())).into(),
+        false => ErrorResponseBody::new(err.error.to_string(), None).into(),
     }
 }
 

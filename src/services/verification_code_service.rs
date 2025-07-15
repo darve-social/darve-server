@@ -8,7 +8,7 @@ use crate::{
         send_email::SendEmailInterface,
     },
     middleware::error::{AppError, AppResult},
-    models::{EmailVerificationCode, ResetPassword},
+    models::email::{EmailVerificationCode, ResetPassword},
     utils::generate,
 };
 

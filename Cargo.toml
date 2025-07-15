@@ -39,11 +39,10 @@ async-stripe = { version = "0.41.0", features = [
     "checkout",
     "runtime-tokio-hyper",
 ] }
-tracing-subscriber = { version = "0.3.19", features = ["json"] }
-tracing = "0.1.41"
 google-cloud-storage = "0.24.0"
 async-trait = "0.1.88"
 dotenvy = "0.15.7"
+axum-extra = { version = "0.9", features = ["cookie"] }
 sentry = { version = "0.39.0", default-features = false, features = [
     "curl",
     "backtrace",
