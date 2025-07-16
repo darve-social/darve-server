@@ -141,46 +141,42 @@ user2_id=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
 user3_id=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
 
 echo "$user1_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/posts/$post_id/tasks" \
     -H "Content-Type: application/json" \
     -b "jwt=$user1_token" \
     -d "{
-      \"post_id\": \"$post_id\",
-      \"to_user\": \"$user2_id\",
+      \"participant\": \"$user2_id\",
       \"offer_amount\": 10,
       \"content\": \"Task for user2 from post $post_id\"
     }"
 
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/tasks/$post_id/tasks" \
     -H "Content-Type: application/json" \
     -b "jwt=$user1_token" \
     -d "{
-      \"post_id\": \"$post_id\",
-      \"to_user\": \"$user3_id\",
+      \"participant\": \"$user3_id\",
       \"offer_amount\": 10,
       \"content\": \"Task for user3 from post $post_id\"
     }"
 done
 
 echo "$user2_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/posts/$post_id/tasks" \
     -H "Content-Type: application/json" \
     -b "jwt=$user2_token" \
     -d "{
-      \"post_id\": \"$post_id\",
-      \"to_user\": \"$user3_id\",
+      \"participant\": \"$user3_id\",
       \"offer_amount\": 10,
       \"content\": \"Task for\"
     }"
 done
 
 echo "$user3_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/task_request" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/posts/$post_id/tasks" \
     -H "Content-Type: application/json" \
     -b "jwt=$user3_token" \
     -d "{
-      \"post_id\": \"$post_id\",
-      \"to_user\": \"$user1_id\",
+      \"participant\": \"$user1_id\",
       \"offer_amount\": 10,
       \"content\": \"Task for\"
     }"
