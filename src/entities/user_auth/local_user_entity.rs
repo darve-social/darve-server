@@ -4,7 +4,8 @@ use surrealdb::sql::Thing;
 
 use super::{access_right_entity, authorization_entity};
 use crate::database::client::Db;
-use crate::database::repositories::verification_code::VERIFICATION_CODE_TABLE_NAME;
+use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
+use crate::database::surrdb_utils::get_str_id_thing;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
 use access_right_entity::AccessRightDbService;
@@ -158,6 +159,12 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
+        let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }

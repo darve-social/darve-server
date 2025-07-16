@@ -5,6 +5,8 @@ use surrealdb::sql::Thing;
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
 
+use super::verification_code_service::VerificationCodeService;
+use crate::database::surrdb_utils::get_thing_id;
 use crate::{
     database::client::Db,
     entities::{
@@ -15,7 +17,7 @@ use crate::{
         },
     },
     interfaces::{
-        repositories::verification_code::VerificationCodeRepositoryInterface,
+        repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
         send_email::SendEmailInterface,
     },
     middleware::{
@@ -33,8 +35,6 @@ use crate::{
         verification::{apple, facebook, google},
     },
 };
-
-use super::verification_code::VerificationCodeService;
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {
@@ -350,7 +350,7 @@ where
 
         let verification_data = self
             .verification_code_service
-            .get_verified_password_code(&user.id.as_ref().unwrap().to_raw(), &input.code)
+            .get_verified_password_code(&user.id.as_ref().expect("exists").id.to_raw(), &input.code)
             .await?;
 
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
@@ -400,7 +400,7 @@ where
 
         let _ = self
             .verification_code_service
-            .create_for_password(&user)
+            .create_for_password(get_thing_id(&user.id.expect("exists").id.to_raw()), &user.email_verified.expect("email exists"))
             .await?;
 
         Ok(())

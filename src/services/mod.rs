@@ -4,4 +4,4 @@ pub mod notification_service;
 pub mod post_service;
 pub mod task_service;
 pub mod user_service;
-mod verification_code;
+mod verification_code_service;

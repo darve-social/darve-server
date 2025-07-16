@@ -28,6 +28,7 @@ use crate::{
         user_service::UserService,
     },
 };
+use crate::database::surrdb_utils::get_thing_id;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
@@ -154,7 +155,6 @@ async fn signup(
     );
 
     let (token, user) = auth_service.register_password(body).await?;
-
     if let Some(email) = email {
         let user_service = UserService::new(
             LocalUserDbService {
@@ -170,9 +170,12 @@ async fn signup(
             &state.db.verification_code,
         );
 
-        user_service
-            .start_email_verification(user.id.as_ref().unwrap().to_raw().as_str(), &email)
-            .await?;
+        let u_thing_str = user.id.as_ref().unwrap().to_raw();
+        let user_id = get_thing_id(&u_thing_str);
+        let res = user_service
+            .start_email_verification(user_id, &email)
+            .await;
+        res?;
     }
 
     cookies.add(
