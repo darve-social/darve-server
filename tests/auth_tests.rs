@@ -1,6 +1,7 @@
 mod helpers;
 
-use darve_server::interfaces::repositories::verification_code::VerificationCodeRepositoryInterface;
+use crate::helpers::create_fake_login_test_user;
+use darve_server::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use darve_server::{
     entities::{
         user_auth::{authentication_entity::AuthType, local_user_entity::LocalUserDbService},
@@ -10,8 +11,6 @@ use darve_server::{
 };
 use fake::{faker, Fake};
 use serde_json::json;
-
-use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
     let (_, user, _password, _) = create_fake_login_test_user(&server).await;
@@ -42,13 +41,14 @@ test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().to_raw(),
+            &user.id.as_ref().unwrap().id.to_raw(),
             VerificationCodeFor::ResetPassword,
         )
         .await
         .unwrap();
 
-    assert_eq!(user_code.user, user.id.as_ref().unwrap().to_raw());
+    println!("user code= {:?}", &user_code);
+    assert_eq!(user_code.user, user.id.as_ref().unwrap().id.to_raw());
     assert_eq!(user_code.email, email);
     assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
 });
@@ -84,13 +84,13 @@ test_with_server!(
             .db
             .verification_code
             .get_by_user(
-                &user.id.as_ref().unwrap().to_raw(),
+                &user.id.as_ref().unwrap().id.to_raw(),
                 VerificationCodeFor::ResetPassword,
             )
             .await
             .unwrap();
 
-        assert_eq!(user_code.user, user.id.as_ref().unwrap().to_raw());
+        assert_eq!(user_code.user, user.id.as_ref().unwrap().id.to_raw());
         assert_eq!(user_code.email, email);
         assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
     }
@@ -199,7 +199,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().to_raw(),
+            &user.id.as_ref().unwrap().id.to_raw(),
             VerificationCodeFor::ResetPassword,
         )
         .await
@@ -220,7 +220,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().to_raw(),
+            &user.id.as_ref().unwrap().id.to_raw(),
             VerificationCodeFor::ResetPassword,
         )
         .await;
@@ -265,8 +265,9 @@ test_with_server!(
             ctx: &ctx,
         };
 
+        let user_thing = user.id.as_ref().unwrap().clone();
         let _ = user_db
-            .set_user_email(user.id.as_ref().unwrap().clone(), email.clone())
+            .set_user_email( user_thing.clone(), email.clone())
             .await;
 
         let response = server
@@ -282,7 +283,7 @@ test_with_server!(
             .db
             .verification_code
             .get_by_user(
-                &user.id.as_ref().unwrap().to_raw(),
+                &user_thing.id.to_raw(),
                 VerificationCodeFor::ResetPassword,
             )
             .await

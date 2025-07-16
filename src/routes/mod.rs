@@ -1,4 +1,4 @@
-pub mod auth;
+pub mod auth_routes;
 pub mod community;
 pub mod notifications;
 pub mod task;
