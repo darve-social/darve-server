@@ -14,7 +14,6 @@ use crate::middleware::error::{AppError, AppResult, CtxError, CtxResult};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
 
-
 // TODO -move db specific things to /database-
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
