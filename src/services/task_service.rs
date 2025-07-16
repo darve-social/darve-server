@@ -25,7 +25,7 @@ use crate::{
     },
     middleware::{
         ctx::Ctx,
-        error::{AppError, AppResult},
+        error::{AppError, AppResult, CtxResult},
         mw_ctx::AppEvent,
         utils::{
             db_utils::{IdentIdName, ViewFieldSelector},
@@ -79,7 +79,7 @@ pub struct TaskDeliveryData {
     pub post_id: String,
 }
 
-#[derive(Deserialize, Serialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct TaskRequestInput {
     #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
@@ -151,7 +151,9 @@ where
         user_id: &str,
         data: TaskRequestInput,
         related_to: Option<Thing>,
-    ) -> AppResult<TaskRequest> {
+    ) -> CtxResult<TaskRequest> {
+        data.validate()?;
+
         let user_thing = get_str_thing(&user_id)?;
         let _ = self
             .users_repository

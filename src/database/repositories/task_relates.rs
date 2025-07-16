@@ -28,7 +28,6 @@ impl TaskRelatesRepository {
         let table_name = self.table_name;
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {table_name} FIELDS in UNIQUE;
     ");
         let mutation = self.client.query(sql).await?;
 
