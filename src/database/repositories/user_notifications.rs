@@ -21,7 +21,7 @@ impl UserNotificationsRepository {
         Self { client }
     }
 
-    pub async fn mutate_db(&self) -> Result<(), AppError> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
             " 
         DEFINE TABLE IF NOT EXISTS notifications SCHEMAFULL;

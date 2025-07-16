@@ -10,7 +10,7 @@ use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
+use middleware::utils::db_utils::{Pagination, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -54,7 +54,7 @@ pub struct CurrencyTransactionView {
 }
 
 impl ViewFieldSelector for CurrencyTransactionView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, wallet.{user.{id, username, full_name}, id }, with_wallet.{user.{id, username, full_name}, id }, balance, amount_in, amount_out, currency, r_created, r_updated".to_string()
     }
 }

@@ -66,7 +66,7 @@ struct UsernameView {
 }
 
 impl ViewFieldSelector for UsernameView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, username".to_string()
     }
 }

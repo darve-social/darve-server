@@ -124,7 +124,7 @@ pub struct WalletBalanceView {
 }
 
 impl ViewFieldSelector for WalletBalanceView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();

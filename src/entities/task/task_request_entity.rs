@@ -1,5 +1,4 @@
 use crate::database::client::Db;
-use crate::entities::community::post_entity;
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity::{self};
@@ -24,9 +23,7 @@ use wallet_entity::CurrencySymbol;
 pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub from_user: Thing,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_post: Option<Thing>,
+    pub created_by: Thing,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
     pub r#type: TaskRequestType,
@@ -43,7 +40,6 @@ pub struct TaskRequest {
 #[derive(Debug, Serialize)]
 pub struct TaskRequestCreate {
     pub from_user: Thing,
-    pub on_post: Option<Thing>,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
     pub r#type: TaskRequestType,
@@ -106,7 +102,6 @@ pub struct TaskRequestDbService<'a> {
 impl<'a> TaskRequestDbService<'a> {}
 
 pub const TABLE_NAME: &str = "task_request";
-const TABLE_COL_POST: &str = post_entity::TABLE_NAME;
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
 
 impl<'a> TaskRequestDbService<'a> {
@@ -117,10 +112,8 @@ impl<'a> TaskRequestDbService<'a> {
 
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS on_post ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_POST}>>;
-    DEFINE INDEX IF NOT EXISTS on_post_idx ON TABLE {TABLE_NAME} COLUMNS on_post;
-    DEFINE FIELD IF NOT EXISTS from_user ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE INDEX IF NOT EXISTS from_user_idx ON TABLE {TABLE_NAME} COLUMNS from_user;
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TABLE_NAME} COLUMNS created_by;
     DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
@@ -144,23 +137,21 @@ impl<'a> TaskRequestDbService<'a> {
             .db
             .query("BEGIN TRANSACTION")
             .query("LET $wallet_id=(CREATE wallet SET transaction_head = {{}} RETURN id)[0].id;")
-            .query(
-                "CREATE task_request SET
+            .query(format!(
+                "CREATE {TABLE_NAME} SET
                 delivery_period=$delivery_period,
                 wallet_id=$wallet_id,
-                on_post=$on_post,
-                from_user=$from_user,
+                created_by=$created_by,
                 deliverable_type=$deliverable_type,
                 request_txt=$request_txt,
                 reward_type=$reward_type,
                 currency=$currency,
                 type=$type,
                 acceptance_period=$acceptance_period;",
-            )
+            ))
             .query("COMMIT TRANSACTION")
             .bind(("delivery_period", record.delivery_period))
-            .bind(("on_post", record.on_post.clone()))
-            .bind(("from_user", record.from_user.clone()))
+            .bind(("created_by", record.from_user.clone()))
             .bind(("deliverable_type", record.deliverable_type.clone()))
             .bind(("request_txt", record.request_txt.clone()))
             .bind(("reward_type", record.reward_type.clone()))
@@ -203,7 +194,7 @@ impl<'a> TaskRequestDbService<'a> {
         };
         let query = format!(
             "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_participant.out {};",
-            &T::get_select_query_fields(&IdentIdName::Id(user.clone())),
+            &T::get_select_query_fields(),
             status_query
         );
         let mut res = self
@@ -218,21 +209,13 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn get_by_creator<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user: Thing,
-        post_id: Option<Thing>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<T>> {
-        let mut filter_by = vec![IdentIdName::ColumnIdent {
-            column: "from_user".to_string(),
+        let filter_by = vec![IdentIdName::ColumnIdent {
+            column: "created_by".to_string(),
             val: user.to_raw(),
             rec: true,
         }];
-        if post_id.is_some() {
-            filter_by.push(IdentIdName::ColumnIdent {
-                column: "on_post".to_string(),
-                val: post_id.expect("checked is some").to_raw(),
-                rec: true,
-            })
-        }
         get_entity_list_view::<T>(
             self.db,
             TABLE_NAME.to_string(),

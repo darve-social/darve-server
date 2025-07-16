@@ -27,7 +27,7 @@ impl TaskParticipantsRepository {
         }
     }
 
-    pub async fn mutate_db(&self) -> Result<(), AppError> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let table_name = self.table_name;
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;

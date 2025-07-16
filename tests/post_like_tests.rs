@@ -1,7 +1,7 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
-use darve_server::routes::community::post_routes::PostLikeResponse;
+use darve_server::routes::posts::PostLikeResponse;
 use helpers::community_helpers::create_fake_community;
 use helpers::post_helpers::{self, create_fake_post};
 

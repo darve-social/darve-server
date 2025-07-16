@@ -75,7 +75,7 @@ pub struct AccessRuleView {
 }
 
 impl ViewFieldSelector for AccessRuleView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, target_entity_id, access_gain_action_redirect_url, access_gain_action_confirmation"
             .to_string()
     }

@@ -6,10 +6,11 @@ use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 use crate::database::client::Db;
-use crate::middleware::utils::db_utils::{IdentIdName, Pagination, QryBindingsVal, QryOrder, ViewFieldSelector};
+use crate::middleware::utils::db_utils::{
+    IdentIdName, Pagination, QryBindingsVal, QryOrder, ViewFieldSelector,
+};
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
-
 
 pub fn get_string_thing_surr(value: String) -> Result<Thing, surrealdb::Error> {
     get_str_thing_surr(value.as_str())
@@ -17,25 +18,35 @@ pub fn get_string_thing_surr(value: String) -> Result<Thing, surrealdb::Error> {
 
 pub fn get_str_thing_surr(value: &str) -> Result<Thing, surrealdb::Error> {
     if value.is_empty() || !value.contains(":") {
-        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{value} - can't create Thing without table part")}));   
+        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            value: format!("{value} - can't create Thing without table part"),
+        }));
     }
-    Thing::try_from(value).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:value.to_string()}))
+    Thing::try_from(value).map_err(|_| {
+        surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            value: value.to_string(),
+        })
+    })
 }
 
 pub fn get_str_id_thing(tb: &str, id: &str) -> Result<Thing, surrealdb::Error> {
     if id.is_empty() || id.contains(":") {
-        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{}:{}", tb, id)}));
+        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            value: format!("{}:{}", tb, id),
+        }));
     }
-    Thing::try_from((tb, id)).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {value:format!("{}:{}", tb, id)}))
+    Thing::try_from((tb, id)).map_err(|_| {
+        surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            value: format!("{}:{}", tb, id),
+        })
+    })
 }
 
 // get id from Thing's string
 pub fn get_thing_id(thing_str: &str) -> &str {
     match thing_str.find(":") {
         None => thing_str,
-        Some(ind) => {
-            &thing_str[ind+1..]
-        }
+        Some(ind) => &thing_str[ind + 1..],
     }
 }
 
@@ -45,7 +56,6 @@ pub struct RecordWithId {
     #[allow(dead_code)]
     pub id: Thing,
 }
-
 
 pub fn get_entity_query_str(
     ident: &IdentIdName,
@@ -181,7 +191,7 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
 ) -> Result<Option<T>, surrealdb::Error> {
     let query_string = get_entity_query_str(
         ident,
-        Some(T::get_select_query_fields(ident).as_str()),
+        Some(T::get_select_query_fields().as_str()),
         None,
         table_name,
     )?;
@@ -222,7 +232,7 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
 ) -> Result<Vec<T>, surrealdb::Error> {
     let query_string = get_entity_query_str(
         ident,
-        Some(T::get_select_query_fields(ident).as_str()),
+        Some(T::get_select_query_fields().as_str()),
         pagination,
         table_name,
     )?;
@@ -289,11 +299,14 @@ pub async fn record_exists(db: &Db, record_id: &Thing) -> Result<(), surrealdb::
         true => Ok(()),
         false => Err(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
             rid: record_id.to_raw(),
-                })),
+        })),
     }
 }
 
-pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> Result<Vec<Thing>, surrealdb::Error> {
+pub async fn record_exist_all(
+    db: &Db,
+    record_ids: Vec<String>,
+) -> Result<Vec<Thing>, surrealdb::Error> {
     if record_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -301,9 +314,11 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> Result<Vec<Th
     let things = record_ids
         .iter()
         .map(|rec_id| {
-            Thing::try_from(rec_id.as_str()).map_err(|_| surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
-                value: rec_id.to_string(),
-            }))
+            Thing::try_from(rec_id.as_str()).map_err(|_| {
+                surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+                    value: rec_id.to_string(),
+                })
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 

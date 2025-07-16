@@ -18,6 +18,7 @@ use middleware::{
 use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
+use crate::middleware::utils::string_utils::get_str_thing;
 
 use super::reply_entity::Reply;
 use super::{discussion_entity, discussion_topic_entity};
@@ -99,7 +100,6 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
 
-
     DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_LIKE} TYPE datetime DEFAULT time::now();
@@ -119,6 +119,12 @@ impl<'a> PostDbService<'a> {
     pub async fn get(&self, ident_id_name: IdentIdName) -> CtxResult<Post> {
         let opt = get_entity::<Post>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<Post> {
+        let thing = get_str_thing(&id)?;
+        let ident = IdentIdName::Id(thing);
+        self.get(ident).await
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
@@ -152,18 +158,31 @@ impl<'a> PostDbService<'a> {
         get_entity_list_view::<T>(self.db, TABLE_NAME.to_string(), &filter_by, pagination).await
     }
 
+    pub async fn get_by_id_with_access(&self, post_id: &str) -> CtxResult<Post> {
+        let mut res = self
+            .db
+            .query("SELECT * FROM $id WHERE $access_rule;")
+            .bind(("id", get_str_thing(post_id)?))
+            .bind(("access_rule", self.get_access_query()))
+            .await?;
+        let post = res.take::<Option<Post>>(0)?;
+
+        post.ok_or(
+            AppError::EntityFailIdNotFound {
+                ident: post_id.to_string(),
+            }
+            .into(),
+        )
+    }
+
     pub async fn get_by_tag(&self, tag: Option<String>, pag: Pagination) -> CtxResult<Vec<Post>> {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
 
         let query_str = format!(
             "SELECT * FROM {TABLE_NAME}
-                WHERE record::id($this.belongs_to)=record::id($this.created_by)
-                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.id))) )=false
-                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to))) )=false
-                    AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to.belongs_to))) )=false
-                    AND not($this.discussion_topic.*.access_rule)=true
-                    {}
+                WHERE {} {}
                 ORDER BY id {order_dir} LIMIT $limit START $start;",
+            self.get_access_query(),
             if tag.is_some() {
                 "AND tags CONTAINS $tag"
             } else {
@@ -182,6 +201,15 @@ impl<'a> PostDbService<'a> {
         let posts = query.await?.take::<Vec<Post>>(0)?;
 
         Ok(posts)
+    }
+
+    fn get_access_query(&self) -> String {
+        "record::id($this.belongs_to)=record::id($this.created_by)
+        AND record::exists(type::record(string::concat('access_rule:',record::id($this.id))) )=false
+        AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to))) )=false
+        AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to.belongs_to))) )=false
+        AND not($this.discussion_topic.*.access_rule)=true
+        ".to_string()
     }
 
     fn create_filter(discussion_id: Thing, topic: Option<Thing>) -> IdentIdName {
@@ -245,7 +273,7 @@ impl<'a> PostDbService<'a> {
         let query = format!(
             "BEGIN TRANSACTION;
                 IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
-                RELATE $in->{TABLE_LIKE}->$out;
+                RELATE $in->{TABLE_LIKE}->$out; 
                 LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
                 UPDATE $out SET likes_nr = $count;
                 RETURN $count;

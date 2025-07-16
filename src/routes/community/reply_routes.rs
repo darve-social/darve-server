@@ -64,7 +64,7 @@ pub struct PostReplyView {
 }
 
 impl ViewFieldSelector for PostReplyView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, title, content, r_created, created_by.username as username".to_string()
     }
 }

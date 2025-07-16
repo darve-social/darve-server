@@ -15,7 +15,6 @@ use middleware::utils::request_utils::CreatedResponse;
 use reply_routes::PostReplyInput;
 use surrealdb::sql::Thing;
 
-
 test_with_server!(create_reply, |server, ctx_state, config| {
     let (server, user_ident) = create_login_test_user(&server, "usnnnn".to_string()).await;
 

@@ -13,7 +13,6 @@ use darve_server::entities::user_auth::authorization_entity::AUTH_ACTIVITY_VISIT
 use darve_server::middleware::ctx::Ctx;
 use surrealdb::sql::Thing;
 
-
 test_with_server!(authorization_compare, |_server, ctx_state, config| {
     let root_rec = "community";
 

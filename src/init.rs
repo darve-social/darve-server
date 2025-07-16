@@ -5,7 +5,9 @@ use crate::{
     },
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
-        self, auth_routes, notifications, users,
+        self, auth_routes,
+        community::profile_routes,
+        notifications, posts, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -32,10 +34,9 @@ use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use routes::community::{
-    community_routes, discussion_routes, discussion_topic_routes, post_routes, profile_routes,
-    reply_routes, stripe_routes,
+    community_routes, discussion_routes, discussion_topic_routes, reply_routes, stripe_routes,
 };
-use routes::task::task_request_routes;
+use routes::tasks;
 use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
 use routes::user_auth::{
     access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
@@ -137,13 +138,13 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(discussion_topic_routes::routes())
         .merge(community_routes::routes())
         .merge(access_rule_routes::routes())
-        .merge(post_routes::routes(ctx_state.upload_max_size_mb))
+        .merge(posts::routes(ctx_state.upload_max_size_mb))
         .merge(reply_routes::routes())
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
         .merge(stripe_routes::routes())
         .merge(access_gain_action_routes::routes())
         .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
-        .merge(task_request_routes::routes())
+        .merge(tasks::routes())
         .merge(follow_routes::routes())
         .merge(notifications::routes())
         .merge(wallet_routes::routes())

@@ -21,7 +21,6 @@ use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
 
-
 test_with_server!(get_user_followers, |server, ctx_state, config| {
     let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;

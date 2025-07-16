@@ -5,11 +5,14 @@ use std::sync::Arc;
 use crate::database::client::Db;
 use crate::entities::community::discussion_entity;
 use crate::entities::community::post_entity::PostDbService;
+use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
 use crate::middleware::mw_ctx::AppEventType;
+use crate::routes::tasks::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
+use crate::services::task_service::{TaskRequestInput, TaskService};
 use crate::{middleware, utils};
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::{AccessRule, AccessRuleDbService};
@@ -56,6 +59,8 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/discussions", post(create_discussion))
         .route("/api/discussions/:discussion_id", patch(update_discussion))
         .route("/api/discussions/:discussion_id", delete(delete_discussion))
+        .route("/api/discussions/:discussion_id/tasks", post(create_task))
+        .route("/api/discussions/:discussion_id/tasks", get(get_tasks))
         .route(
             "/api/discussions/:discussion_id/chat_users",
             post(add_discussion_users),
@@ -104,7 +109,7 @@ pub struct DiscussionView {
 }
 
 impl ViewFieldSelector for DiscussionView {
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, title, image_uri, [] as posts, topics.*.{id, title}, belongs_to, private_discussion_user_ids,  latest_post_id.{id, title, content, media_links, r_created, created_by.*} as latest_post".to_string()
     }
 }
@@ -150,7 +155,7 @@ pub struct DiscussionPostView {
 
 impl ViewFieldSelector for DiscussionPostView {
     // post fields selct qry for view
-    fn get_select_query_fields(_ident: &IdentIdName) -> String {
+    fn get_select_query_fields() -> String {
         "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
     }
 }
@@ -536,7 +541,6 @@ async fn discussion_sse(
                         ),
                         _ => None,
                     },
-                    
             };
             Ok(event_opt.unwrap_or_else(|| {
                 Event::default()
@@ -622,4 +626,68 @@ async fn update_discussion(
     disc_service.update(&discussion_id, data).await?;
 
     Ok(())
+}
+
+async fn get_tasks(
+    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
+    Path(discussion_id): Path<String>,
+) -> CtxResult<Json<Vec<TaskRequestView>>> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    }
+    .get_ctx_user()
+    .await?;
+
+    let disc_db_service = DiscussionDbService {
+        db: &state.db.client,
+        ctx: &ctx,
+    };
+
+    let disc = disc_db_service.get_by_id(&discussion_id).await?;
+
+    let is_allow = match disc.private_discussion_user_ids {
+        Some(user_ids) => user_ids.contains(user.id.as_ref().unwrap()),
+        None => false,
+    };
+
+    if !is_allow {
+        return Err(AppError::Generic {
+            description: "Forbidden".to_string(),
+        }
+        .into());
+    };
+    let tasks = state
+        .db
+        .task_relates
+        .get_tasks_by_id::<TaskRequestView>(&disc.id.as_ref().unwrap())
+        .await?;
+
+    Ok(Json(tasks))
+}
+
+async fn create_task(
+    ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
+    Path(discussion_id): Path<String>,
+    Json(body): Json<TaskRequestInput>,
+) -> CtxResult<Json<TaskRequest>> {
+    let disc_thing = get_string_thing(discussion_id)?;
+
+    let task_service = TaskService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.task_relates,
+    );
+
+    let task = task_service
+        .create(&ctx.user_id()?, body, Some(disc_thing.clone()))
+        .await?;
+
+    Ok(Json(task))
 }

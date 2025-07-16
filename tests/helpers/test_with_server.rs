@@ -35,8 +35,6 @@ macro_rules! test_with_server {
             let wa_config = create_webauth_config();
             let routes_all = darve_server::init::main_router(&$ctx_state.clone(), wa_config).await;
 
-
-
             let $server = TestServer::new_with_config(
                 routes_all,
                 TestServerConfig {
