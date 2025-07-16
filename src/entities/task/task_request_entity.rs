@@ -270,14 +270,16 @@ impl<'a> TaskRequestDbService<'a> {
     }
 
     pub async fn get_ready_for_payment(&self) -> CtxResult<Vec<TaskForReward>> {
-        let query = " SELECT *, wallet.transaction_head[currency].balance as balance
+        let query = format!(
+            "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
                 SELECT id, wallet_id.* AS wallet, currency,
-                    ->task_participant.{ status, id, user_id: out } AS participants,
-                    ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
-                FROM task_request
+                    ->task_participant.{{ status, id, user_id: out }} AS participants,
+                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
+                FROM {TABLE_NAME}
                 WHERE status != $status AND due_at <= time::now()
-            )";
+            )"
+        );
         let mut res = self
             .db
             .query(query)
