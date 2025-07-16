@@ -4,9 +4,10 @@ use std::time::Duration;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
+    database::client::Db,
     entities::{
         community::discussion_entity::DiscussionDbService,
-        task::task_request_entity::TaskRequest,
+        task::task_request_entity::{TaskRequest, TaskRequestStatus},
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     jobs,
@@ -15,8 +16,26 @@ use darve_server::{
 
 use fake::{faker, Fake};
 use helpers::post_helpers::create_fake_post;
+use serde::Deserialize;
 use serde_json::json;
 use surrealdb::sql::Thing;
+
+#[derive(Debug, Deserialize)]
+struct TaskView {
+    pub balance: i64,
+    pub status: TaskRequestStatus,
+}
+
+#[allow(dead_code)]
+async fn get_task_view(task_thing: Thing, db: &Db) -> TaskView {
+    let mut res = db
+        .query("SELECT *, wallet_id.transaction_head.USD.balance as balance FROM $id;")
+        .bind(("id", task_thing.clone()))
+        .await
+        .unwrap();
+
+    res.take::<Option<TaskView>>(0).unwrap().unwrap()
+}
 
 test_with_server!(
     one_donor_and_all_users_has_delivered,
@@ -114,12 +133,12 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
-
+        let task_thing = get_str_thing(&task_id).unwrap();
         let _ = state
             .db
             .client
             .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", get_str_thing(&task_id).unwrap()))
+            .bind(("id", task_thing.clone()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;
         let wallet_service = WalletDbService {
@@ -153,6 +172,9 @@ test_with_server!(
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 3);
+        let task = get_task_view(task_thing, &state.db.client).await;
+        assert_eq!(task.status, TaskRequestStatus::Completed);
+        assert_eq!(task.balance, 1);
     }
 );
 
@@ -239,11 +261,12 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let task_thing = get_str_thing(&task_id).unwrap();
         let _ = state
             .db
             .client
             .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", get_str_thing(&task_id).unwrap()))
+            .bind(("id", task_thing.clone()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;
         let wallet_service = WalletDbService {
@@ -277,6 +300,9 @@ test_with_server!(
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 0);
+        let task = get_task_view(task_thing, &state.db.client).await;
+        assert_eq!(task.status, TaskRequestStatus::Completed);
+        assert_eq!(task.balance, 0);
     }
 );
 
@@ -320,11 +346,12 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
+    let task_thing = get_str_thing(&task_id).unwrap();
     let _ = state
         .db
         .client
         .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .bind(("id", task_thing.clone()))
         .await;
     tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -351,6 +378,9 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, start_wallet_amount);
+    let task = get_task_view(task_thing, &state.db.client).await;
+    assert_eq!(task.status, TaskRequestStatus::Completed);
+    assert_eq!(task.balance, 0);
 });
 
 test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
@@ -415,11 +445,12 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
+    let task_thing = get_str_thing(&task_id).unwrap();
     let _ = state
         .db
         .client
         .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .bind(("id", task_thing.clone()))
         .await;
     tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -455,6 +486,9 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor1_amount);
+    let task = get_task_view(task_thing, &state.db.client).await;
+    assert_eq!(task.status, TaskRequestStatus::Completed);
+    assert_eq!(task.balance, 0);
 });
 
 test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
@@ -584,11 +618,12 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
+    let task_thing = get_str_thing(&task_id).unwrap();
     let _ = state
         .db
         .client
         .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .bind(("id", task_thing.clone()))
         .await;
 
     tokio::time::sleep(Duration::from_secs(10)).await;
@@ -652,6 +687,9 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor4_amount);
+    let task = get_task_view(task_thing, &state.db.client).await;
+    assert_eq!(task.status, TaskRequestStatus::Completed);
+    assert_eq!(task.balance, 0);
 });
 
 test_with_server!(
@@ -731,12 +769,12 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
-
+        let task_thing = get_str_thing(&task_id).unwrap();
         let _ = state
             .db
             .client
             .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", get_str_thing(&task_id).unwrap()))
+            .bind(("id", task_thing.clone()))
             .await;
         tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -772,5 +810,8 @@ test_with_server!(
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, donor1_amount - donor1_task_amount);
+        let task = get_task_view(task_thing, &state.db.client).await;
+        assert_eq!(task.status, TaskRequestStatus::Completed);
+        assert_eq!(task.balance, 0);
     }
 );

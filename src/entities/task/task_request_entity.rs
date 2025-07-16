@@ -19,7 +19,7 @@ use strum::{Display, EnumString};
 use surrealdb::sql::Thing;
 use wallet_entity::CurrencySymbol;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
@@ -30,11 +30,16 @@ pub struct TaskRequest {
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub created_at: DateTime<Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
     pub acceptance_period: u16,
     pub delivery_period: u16,
     pub wallet_id: Thing,
+    pub status: TaskRequestStatus,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub enum TaskRequestStatus {
+    InProgress,
+    Completed,
 }
 
 #[derive(Debug, Serialize)]
@@ -48,6 +53,7 @@ pub struct TaskRequestCreate {
     pub acceptance_period: u16,
     pub delivery_period: u16,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct TaskDonorForReward {
     pub amount: i64,
@@ -64,6 +70,7 @@ pub struct TaskParticipantForReward {
 
 #[derive(Debug, Deserialize)]
 pub struct TaskForReward {
+    pub id: Thing,
     pub currency: CurrencySymbol,
     pub donors: Vec<TaskDonorForReward>,
     pub participants: Vec<TaskParticipantForReward>,
@@ -119,11 +126,13 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TABLE_NAME} COLUMNS status;
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -147,7 +156,8 @@ impl<'a> TaskRequestDbService<'a> {
                 reward_type=$reward_type,
                 currency=$currency,
                 type=$type,
-                acceptance_period=$acceptance_period;",
+                acceptance_period=$acceptance_period,
+                status=$status;"
             ))
             .query("COMMIT TRANSACTION")
             .bind(("delivery_period", record.delivery_period))
@@ -158,6 +168,7 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("currency", record.currency.clone()))
             .bind(("type", record.r#type.clone()))
             .bind(("acceptance_period", record.acceptance_period))
+            .bind(("status", TaskRequestStatus::InProgress))
             .await
             .map_err(CtxError::from(self.ctx))?;
 
@@ -242,20 +253,31 @@ impl<'a> TaskRequestDbService<'a> {
         .await
     }
 
+    pub async fn update_status(&self, task: Thing, status: TaskRequestStatus) -> CtxResult<()> {
+        self.db
+            .query("UPDATE $id SET status=$status;")
+            .bind(("id", task))
+            .bind(("status", status))
+            .await?
+            .check()?;
+        Ok(())
+    }
+
     pub async fn get_ready_for_payment(&self) -> CtxResult<Vec<TaskForReward>> {
-        let query = "SELECT *, transaction_head[currency].balance as balance FROM (
-             SELECT
-                wallet_id.* AS wallet,
-                currency,
-                wallet_id.transaction_head AS transaction_head,
-                ->task_participant.{ status, id, user_id: out } AS participants,
-                ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
-            FROM task_request
-// TODO -precalculate on task create to 'payment_ready_timestamp' and create index on that field
-            WHERE created_at + <duration>string::concat(delivery_period, 'h') + <duration>string::concat(acceptance_period, 'h') <= time::now()
-// TODO -remove balance check here and in payment fn set some task status if balance <2 and create index and we can check that status here
-         ) WHERE transaction_head[currency].balance > 2;";
-        let mut res = self.db.query(query).await?;
+        let query = " SELECT *, wallet.transaction_head[currency].balance as balance
+             FROM (
+                SELECT id, wallet_id.* AS wallet, currency,
+                    ->task_participant.{ status, id, user_id: out } AS participants,
+                    ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
+                FROM task_request
+                WHERE status != $status AND
+                      created_at + <duration>string::concat(delivery_period, 'h') + <duration>string::concat(acceptance_period, 'h') <= time::now()
+            )";
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("status", TaskRequestStatus::Completed))
+            .await?;
         let data = res.take::<Vec<TaskForReward>>(0)?;
         Ok(data)
     }
