@@ -47,6 +47,7 @@ use crate::{middleware, utils};
 
 use utils::validate_utils::empty_string_as_none;
 use utils::validate_utils::validate_username;
+use crate::database::surrdb_utils::get_thing_id;
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
@@ -485,10 +486,11 @@ async fn email_verification_start(
         &ctx_state.db.verification_code,
     );
 
-    let current_user_id = ctx.user_id()?;
-
+    let current_user_thing_id = ctx.user_id()?;
+    let user_id = get_thing_id(&current_user_thing_id);
+    
     user_service
-        .start_email_verification(&current_user_id, &data.email)
+        .start_email_verification(user_id, &data.email)
         .await?;
 
     Ok(())
@@ -522,10 +524,11 @@ async fn email_verification_confirm(
         &ctx_state.db.verification_code,
     );
 
-    let current_user_id = ctx.user_id()?;
-
+    let u_thing_str = ctx.user_id()?;
+    let user_id = get_thing_id(&u_thing_str);
+    
     user_service
-        .email_confirmation(&current_user_id, &data.code, &data.email)
+        .email_confirmation(user_id, &data.code, &data.email)
         .await?;
 
     Ok(())

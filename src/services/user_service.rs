@@ -1,4 +1,4 @@
-use crate::interfaces::repositories::verification_code::VerificationCodeRepositoryInterface;
+use crate::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use crate::{
     entities::user_auth::{
         authentication_entity::{AuthType, AuthenticationDbService, CreateAuthInput},
@@ -12,9 +12,8 @@ use crate::{
     utils::hash::{hash_password, verify_password},
 };
 
+use super::verification_code_service::VerificationCodeService;
 use chrono::Duration;
-
-use super::verification_code::VerificationCodeService;
 
 pub struct UserService<'a, V, S>
 where
@@ -47,16 +46,16 @@ where
             verification_code_service,
         }
     }
+    
     pub async fn start_email_verification(
         &self,
         user_id: &str,
         email: &str,
     ) -> Result<(), AppError> {
-        let user_id_thing = get_string_thing(user_id.to_string())?;
 
         let _ = self
             .user_repository
-            .get(IdentIdName::Id(user_id_thing.clone()))
+            .get_by_id(user_id)
             .await?;
 
         let is_exists = self.user_repository.get_by_email(email).await.is_ok();
@@ -67,7 +66,7 @@ where
             });
         };
 
-        let _ = self
+        self
             .verification_code_service
             .create_for_email(user_id, email)
             .await?;
@@ -81,11 +80,10 @@ where
         code: &str,
         _email: &str,
     ) -> Result<(), AppError> {
-        let user_id_thing = get_string_thing(user_id.to_string())?;
 
         let user = self
             .user_repository
-            .get(IdentIdName::Id(user_id_thing.clone()))
+            .get_by_id(user_id)
             .await?;
 
         let code = self
