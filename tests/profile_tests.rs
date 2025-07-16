@@ -145,7 +145,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
             .await
             .unwrap()
             .code;
@@ -164,7 +164,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
             .await;
 
         assert!(code.is_err());
@@ -201,7 +201,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
             .await
             .unwrap()
             .code;
