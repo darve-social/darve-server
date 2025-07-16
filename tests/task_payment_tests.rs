@@ -37,6 +37,15 @@ async fn get_task_view(task_thing: Thing, db: &Db) -> TaskView {
     res.take::<Option<TaskView>>(0).unwrap().unwrap()
 }
 
+#[allow(dead_code)]
+async fn wait_for(task_thing: Thing, db: &Db) {
+    let _ = db
+        .query("UPDATE $id SET due_at=time::now();")
+        .bind(("id", task_thing.clone()))
+        .await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
+}
+
 test_with_server!(
     one_donor_and_all_users_has_delivered,
     |server, state, config| {
@@ -134,13 +143,8 @@ test_with_server!(
             .await;
         delivered_response.assert_status_success();
         let task_thing = get_str_thing(&task_id).unwrap();
-        let _ = state
-            .db
-            .client
-            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", task_thing.clone()))
-            .await;
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        wait_for(task_thing.clone(), &state.db.client).await;
+
         let wallet_service = WalletDbService {
             db: &state.db.client,
             ctx: &Ctx::new(Ok("".to_string()), false),
@@ -262,13 +266,7 @@ test_with_server!(
             .await;
         response.assert_status_success();
         let task_thing = get_str_thing(&task_id).unwrap();
-        let _ = state
-            .db
-            .client
-            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", task_thing.clone()))
-            .await;
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
             ctx: &Ctx::new(Ok("".to_string()), false),
@@ -347,13 +345,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .await;
     response.assert_status_success();
     let task_thing = get_str_thing(&task_id).unwrap();
-    let _ = state
-        .db
-        .client
-        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", task_thing.clone()))
-        .await;
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
@@ -446,13 +438,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .await;
     response.assert_status_success();
     let task_thing = get_str_thing(&task_id).unwrap();
-    let _ = state
-        .db
-        .client
-        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", task_thing.clone()))
-        .await;
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
@@ -619,14 +605,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     response.assert_status_success();
     let task_thing = get_str_thing(&task_id).unwrap();
-    let _ = state
-        .db
-        .client
-        .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-        .bind(("id", task_thing.clone()))
-        .await;
-
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
         db: &state.db.client,
@@ -770,13 +749,7 @@ test_with_server!(
             .await;
         delivered_response.assert_status_success();
         let task_thing = get_str_thing(&task_id).unwrap();
-        let _ = state
-            .db
-            .client
-            .query("UPDATE $id SET delivery_period=0,acceptance_period=0;")
-            .bind(("id", task_thing.clone()))
-            .await;
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        wait_for(task_thing.clone(), &state.db.client).await;
 
         let wallet_service = WalletDbService {
             db: &state.db.client,

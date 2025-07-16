@@ -5,7 +5,7 @@ use crate::entities::wallet::wallet_entity::{self};
 use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::middleware;
 use crate::middleware::utils::db_utils::get_entity_view;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
     ViewFieldSelector,
@@ -16,7 +16,7 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-use surrealdb::sql::Thing;
+use surrealdb::sql::{Datetime, Thing};
 use wallet_entity::CurrencySymbol;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,6 +34,7 @@ pub struct TaskRequest {
     pub delivery_period: u16,
     pub wallet_id: Thing,
     pub status: TaskRequestStatus,
+    pub due_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -127,12 +128,14 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS due_at ON TABLE {TABLE_NAME} TYPE datetime;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TABLE_NAME} COLUMNS status;
+    DEFINE INDEX IF NOT EXISTS idx_due_at ON TABLE {TABLE_NAME} COLUMNS due_at;
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -142,6 +145,8 @@ impl<'a> TaskRequestDbService<'a> {
     }
 
     pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
+        let hours = (record.delivery_period + record.acceptance_period) as i64;
+        let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
         let mut res = self
             .db
             .query("BEGIN TRANSACTION")
@@ -157,6 +162,7 @@ impl<'a> TaskRequestDbService<'a> {
                 currency=$currency,
                 type=$type,
                 acceptance_period=$acceptance_period,
+                due_at=$due_at,
                 status=$status;"
             ))
             .query("COMMIT TRANSACTION")
@@ -169,9 +175,9 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("type", record.r#type.clone()))
             .bind(("acceptance_period", record.acceptance_period))
             .bind(("status", TaskRequestStatus::InProgress))
+            .bind(("due_at", Datetime::from(due_at.unwrap())))
             .await
             .map_err(CtxError::from(self.ctx))?;
-
         let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;
         Ok(data.unwrap())
     }
@@ -270,8 +276,7 @@ impl<'a> TaskRequestDbService<'a> {
                     ->task_participant.{ status, id, user_id: out } AS participants,
                     ->task_donor.{ id: out, amount: transaction.amount_out } AS donors
                 FROM task_request
-                WHERE status != $status AND
-                      created_at + <duration>string::concat(delivery_period, 'h') + <duration>string::concat(acceptance_period, 'h') <= time::now()
+                WHERE status != $status AND due_at <= time::now()
             )";
         let mut res = self
             .db
