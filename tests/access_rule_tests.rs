@@ -25,7 +25,6 @@ use middleware::error::AppError;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
 use surrealdb::sql::Thing;
-use uuid::Uuid;
 
 test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
@@ -36,7 +35,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     let comm_id = Thing::try_from(fake_comm.id.clone()).unwrap();
     let comm_name = fake_comm.name.clone();
 
-    let ctx = &Ctx::new(Ok(user_ident), Uuid::new_v4(), false);
+    let ctx = &Ctx::new(Ok(user_ident), false);
     let comm_db = CommunityDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -180,7 +179,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     );
 
     // check view with no user
-    let ctx_no_user = Ctx::new(Err(AppError::AuthFailNoJwtCookie), Uuid::new_v4(), false);
+    let ctx_no_user = Ctx::new(Err(AppError::AuthFailNoJwtCookie), false);
     let comm_view = get_community(
         State(ctx_state.clone()),
         ctx_no_user,
@@ -253,7 +252,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     .await
     .expect("authorized");
 
-    let ctx_no_user = Ctx::new(Ok(new_user_id.to_string()), Uuid::new_v4(), false);
+    let ctx_no_user = Ctx::new(Ok(new_user_id.to_string()), false);
     let comm_view = get_community(
         State(ctx_state.clone()),
         ctx_no_user,

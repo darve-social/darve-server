@@ -2,43 +2,44 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TaskRequestUserStatus {
+pub enum TaskParticipantStatus {
     Requested,
     Rejected,
     Accepted,
     Delivered,
 }
 
-impl TaskRequestUserStatus {
+impl TaskParticipantStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            TaskRequestUserStatus::Requested => "Requested",
-            TaskRequestUserStatus::Rejected => "Rejected",
-            TaskRequestUserStatus::Accepted => "Accepted",
-            TaskRequestUserStatus::Delivered => "Delivered",
+            TaskParticipantStatus::Requested => "Requested",
+            TaskParticipantStatus::Rejected => "Rejected",
+            TaskParticipantStatus::Accepted => "Accepted",
+            TaskParticipantStatus::Delivered => "Delivered",
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TaskRequestUser {
+pub struct TaskParticipant {
     pub id: String,
     pub task: String,
     pub user: String,
-    pub status: TaskRequestUserStatus,
+    pub status: TaskParticipantStatus,
     #[serde(default)]
-    pub timelines: Vec<TaskRequestUserTimeline>,
-    pub result: Option<TaskRequestUserResult>,
+    pub timelines: Vec<TaskParticipantTimeline>,
+    pub result: Option<TaskParticipantResult>,
+    pub reward_tx: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TaskRequestUserTimeline {
-    pub status: TaskRequestUserStatus,
+pub struct TaskParticipantTimeline {
+    pub status: TaskParticipantStatus,
     pub date: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TaskRequestUserResult {
+pub struct TaskParticipantResult {
     pub urls: Option<Vec<String>>,
     pub post: Option<String>,
 }

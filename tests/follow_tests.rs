@@ -20,7 +20,7 @@ use middleware::ctx::Ctx;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
-use uuid::Uuid;
+
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
     let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
@@ -31,7 +31,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let user1_id = user1.id.unwrap();
     let user2_id = user2.id.unwrap();
 
-    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), Uuid::new_v4(), false);
+    let ctx = Ctx::new(Ok("user_ident".parse().unwrap()), false);
     let follow_db_service = FollowDbService {
         ctx: &ctx,
         db: &ctx_state.db.client,
@@ -382,7 +382,7 @@ test_with_server!(
         let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
         let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
-        let ctx = Ctx::new(Ok(user_ident1.clone()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_ident1.clone()), false);
 
         let profile_discussion =
             get_profile_community(&ctx_state.db.client, &ctx, user1_id.clone())
@@ -399,7 +399,7 @@ test_with_server!(
         let (_, user_ident2) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
         let user2_id = get_string_thing(user_ident2.clone()).expect("user1");
-        let ctx = Ctx::new(Ok(user_ident2.clone()), Uuid::new_v4(), false);
+        let ctx = Ctx::new(Ok(user_ident2.clone()), false);
 
         let follow_db_service = FollowDbService {
             ctx: &ctx,
