@@ -247,7 +247,7 @@
         "description": "Set password for current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -283,7 +283,7 @@
         "description": "Update password for current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -329,7 +329,7 @@
         "description": "Retrieve notifications for the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -404,7 +404,7 @@
         "description": "Mark all notifications as read for the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -424,7 +424,7 @@
         "description": "Get the count of notifications for the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -463,7 +463,7 @@
         "description": "Real-time notification stream using Server-Sent Events",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -490,7 +490,7 @@
         "description": "Mark a specific notification as read",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -524,7 +524,7 @@
         "description": "Get task requests received by the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -566,7 +566,7 @@
         "description": "Get task requests created by the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -596,7 +596,7 @@
         "description": "Accept a task request",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -630,7 +630,7 @@
         "description": "Reject a task request",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -664,7 +664,7 @@
         "description": "Mark a task as delivered",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -708,7 +708,7 @@
         "description": "Add or update a donor for a task",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -757,7 +757,7 @@
         "description": "Get posts from users that the current user follows",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -787,7 +787,7 @@
         "description": "Start email verification process",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -822,7 +822,7 @@
         "description": "Confirm email verification with code",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -857,7 +857,7 @@
         "description": "Update current user profile",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -894,7 +894,7 @@
         "description": "Create a new post for the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -929,7 +929,7 @@
         "description": "Get posts created by the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -990,7 +990,7 @@
         "description": "Search for users",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1032,7 +1032,7 @@
         "description": "Get posts with optional filtering",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1103,7 +1103,7 @@
         "description": "Create a task related to a post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1149,7 +1149,7 @@
         "description": "Get tasks related to a post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1190,7 +1190,7 @@
         "description": "Like a specific post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1228,7 +1228,7 @@
         "description": "Remove like from a specific post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1266,7 +1266,7 @@
         "description": "Create a reply to a specific post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1317,7 +1317,7 @@
         "description": "Get replies to a specific post",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1358,7 +1358,7 @@
         "description": "Get discussions for the current user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -1386,7 +1386,7 @@
         "description": "Create a new discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -1423,7 +1423,7 @@
         "description": "Update a discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1462,7 +1462,7 @@
         "description": "Delete a discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1493,7 +1493,7 @@
         "description": "Create a task related to a discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1539,7 +1539,7 @@
         "description": "Get tasks related to a discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1580,7 +1580,7 @@
         "description": "Add users to a discussion chat",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1624,7 +1624,7 @@
         "description": "Remove users from a discussion chat",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1670,7 +1670,7 @@
         "description": "Server-sent events stream for discussion updates",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1717,7 +1717,7 @@
         "description": "Create a new post in a discussion",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1765,7 +1765,7 @@
         "description": "Get transaction history for the current user's wallet",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1814,7 +1814,7 @@
         "description": "Get the current user's wallet balance",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "responses": {
@@ -1841,7 +1841,7 @@
         "description": "Withdraw money from the current user's wallet",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "requestBody": {
@@ -1879,7 +1879,7 @@
         "description": "Get followers of a specific user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1920,7 +1920,7 @@
         "description": "Get users that a specific user is following",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1961,7 +1961,7 @@
         "description": "Follow a specific user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -1993,7 +1993,7 @@
         "description": "Unfollow a specific user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -2025,7 +2025,7 @@
         "description": "Check if current user is following a specific user",
         "security": [
           {
-            "bearerAuth": []
+            "cookieAuth": []
           }
         ],
         "parameters": [
@@ -2873,10 +2873,10 @@
       }
     },
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "jwt"
       }
     }
   },

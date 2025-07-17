@@ -228,6 +228,8 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
+
+    println!(">>>>{:?}", create_response);
     let posts = &create_response.json::<Vec<DiscussionPostView>>();
     assert_eq!(posts.len(), 1);
 

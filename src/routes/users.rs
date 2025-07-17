@@ -24,7 +24,6 @@ use crate::{
     },
     interfaces::file_storage::FileStorageInterface,
     middleware::{
-        auth_data::AuthData,
         ctx::Ctx,
         error::{AppError, CtxResult},
         mw_ctx::CtxState,
@@ -143,7 +142,6 @@ pub struct EmailVerificationStartInput {
 }
 async fn email_verification_start(
     ctx: Ctx,
-    auth_data: AuthData,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
 ) -> CtxResult<()> {
@@ -162,7 +160,7 @@ async fn email_verification_start(
     );
 
     user_service
-        .start_email_verification(&auth_data.user_thing_id(), &data.email)
+        .start_email_verification(&ctx.user_thing_id()?, &data.email)
         .await?;
 
     Ok(())
@@ -179,7 +177,6 @@ pub struct EmailVerificationConfirmInput {
 
 async fn email_verification_confirm(
     ctx: Ctx,
-    auth_data: AuthData,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
 ) -> CtxResult<()> {
@@ -198,7 +195,7 @@ async fn email_verification_confirm(
     );
 
     user_service
-        .email_confirmation(&auth_data.user_thing_id(), &data.code, &data.email)
+        .email_confirmation(&ctx.user_thing_id()?, &data.code, &data.email)
         .await?;
 
     Ok(())
@@ -206,7 +203,6 @@ async fn email_verification_confirm(
 
 async fn get_following_posts(
     State(state): State<Arc<CtxState>>,
-    _auth_data: AuthData,
     ctx: Ctx,
 ) -> CtxResult<Json<Vec<DiscussionPostView>>> {
     let local_user_db_service = LocalUserDbService {
@@ -242,18 +238,15 @@ pub struct ProfileSettingsFormInput {
 async fn update_user(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    auth_data: AuthData,
     TypedMultipart(body_value): TypedMultipart<ProfileSettingsFormInput>,
 ) -> CtxResult<Json<LocalUser>> {
     body_value.validate()?;
-
+    let user_id_id = ctx.user_thing_id()?;
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
-    let mut user = local_user_db_service
-        .get_by_id(&auth_data.user_thing_id())
-        .await?;
+    let mut user = local_user_db_service.get_by_id(&user_id_id).await?;
 
     if let Some(username) = body_value.username {
         if local_user_db_service
@@ -300,11 +293,10 @@ async fn update_user(
 
 async fn create_post(
     ctx: Ctx,
-    auth_data: AuthData,
     State(ctx_state): State<Arc<CtxState>>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Json<Post>> {
-    let user_thing = get_str_thing(&auth_data.user_id)?;
+    let user_thing = get_str_thing(&ctx.user_id()?)?;
     let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
 
     let post_service = PostService::new(
@@ -316,7 +308,7 @@ async fn create_post(
     );
 
     let post = post_service
-        .create(&auth_data.user_thing_id(), &disc_id.to_raw(), input_value)
+        .create(&user_thing.id.to_raw(), &disc_id.to_raw(), input_value)
         .await?;
 
     Ok(Json(post))
@@ -324,11 +316,10 @@ async fn create_post(
 
 async fn get_posts(
     ctx: Ctx,
-    auth_data: AuthData,
     State(ctx_state): State<Arc<CtxState>>,
     Query(query): Query<DiscussionParams>,
 ) -> CtxResult<Json<Vec<PostView>>> {
-    let user_thing = get_str_thing(&auth_data.user_id)?;
+    let user_thing = get_str_thing(&ctx.user_id()?)?;
     let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
 
     let post_service = PostService::new(
@@ -340,7 +331,7 @@ async fn get_posts(
     );
 
     let posts = post_service
-        .get_by_query(&disc_id.to_raw(), &auth_data.user_thing_id(), query)
+        .get_by_query(&disc_id.to_raw(), &user_thing.id.to_raw(), query)
         .await?;
 
     Ok(Json(posts))
@@ -354,7 +345,6 @@ pub struct SearchInput {
 
 async fn search_users(
     ctx: Ctx,
-    auth_data: AuthData,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
 ) -> CtxResult<Json<Vec<LocalUser>>> {
@@ -364,7 +354,7 @@ async fn search_users(
     };
 
     let _ = local_user_db_service
-        .get_by_id(&auth_data.user_thing_id())
+        .get_by_id(&ctx.user_thing_id()?)
         .await?;
 
     let items: Vec<LocalUser> = local_user_db_service
