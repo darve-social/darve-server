@@ -52,6 +52,7 @@ async fn read(
 
     Ok(())
 }
+
 async fn read_all(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<()> {
     let user = LocalUserDbService {
         db: &state.db.client,

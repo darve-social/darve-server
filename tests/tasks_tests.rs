@@ -6,15 +6,13 @@ use darve_server::{
         community::{
             community_entity::CommunityDbService,
             discussion_entity::{Discussion, DiscussionDbService},
+            post_entity::Post,
         },
         task::task_request_entity::TaskRequest,
         task_request_user::TaskParticipantStatus,
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
-    middleware::{
-        ctx::Ctx,
-        utils::{request_utils::CreatedResponse, string_utils::get_str_thing},
-    },
+    middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
     routes::tasks::TaskRequestView,
 };
 
@@ -317,16 +315,16 @@ test_with_server!(
             user0.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let deliver_post = server
-            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<CreatedResponse>();
+            .json::<Post>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id }))
+            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -567,16 +565,16 @@ test_with_server!(
             user0.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let deliver_post = server
-            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<CreatedResponse>();
+            .json::<Post>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id }))
+            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw()}))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -680,16 +678,16 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         user0.id.as_ref().unwrap().id.to_raw().as_ref(),
     ));
     let deliver_post = server
-        .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+        .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
         .multipart(build_fake_post(None, None))
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token0))
         .await
-        .json::<CreatedResponse>();
+        .json::<Post>();
 
     let delivered_response = server
         .post(&format!("/api/tasks/{}/deliver", task_id))
-        .json(&json!({"post_id": deliver_post.id }))
+        .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -755,16 +753,16 @@ test_with_server!(
             user0.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let deliver_post = server
-            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<CreatedResponse>();
+            .json::<Post>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id }))
+            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -812,16 +810,16 @@ test_with_server!(
             user0.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let deliver_post = server
-            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<CreatedResponse>();
+            .json::<Post>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id }))
+            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -870,16 +868,16 @@ test_with_server!(
             user.id.as_ref().unwrap().id.to_raw().as_ref(),
         ));
         let deliver_post = server
-            .post(format!("/api/discussion/{}/post", disc.to_raw()).as_str())
+            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token))
             .await
-            .json::<CreatedResponse>();
+            .json::<Post>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id }))
+            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await;

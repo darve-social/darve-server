@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use askama_axum::axum_core::response::Response;
 use askama_axum::Template;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::Html;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
-use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
+use axum_typed_multipart::{FieldData, TryFromMultipart};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
@@ -14,59 +13,35 @@ use validator::Validate;
 
 use community::post_entity;
 use community_entity::{Community, CommunityDbService};
-use discussion_routes::{DiscussionPostView, DiscussionView};
+use discussion_routes::DiscussionPostView;
 use follow_entity::FollowDbService;
-use follow_routes::{UserItemView, UserListView};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
-use middleware::error::{AppError, CtxResult};
+use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::{
-    get_entity_list_view, IdentIdName, UsernameIdent, ViewFieldSelector,
-};
-use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
-use middleware::utils::request_utils::CreatedResponse;
+use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
+use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::PostDbService;
-use post_stream_entity::PostStreamDbService;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
 
 use super::discussion_routes;
 use crate::database::client::Db;
-use crate::entities::community::{self, community_entity, post_stream_entity};
-use crate::entities::user_auth::authentication_entity::AuthenticationDbService;
+use crate::entities::community::{self, community_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
-use crate::interfaces::file_storage::FileStorageInterface;
-use crate::routes::posts::{create_post_entity_route, PostInput};
-use crate::routes::user_auth::follow_routes;
-use crate::services::user_service::UserService;
-use crate::utils::file::convert::convert_field_file_data;
+use crate::routes::community::discussion_routes::DiscussionView;
 use crate::{middleware, utils};
 
 use utils::validate_utils::empty_string_as_none;
 use utils::validate_utils::validate_username;
-use crate::database::surrdb_utils::get_thing_id;
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
         .route("/u/:username_or_id", get(display_profile))
-        .route("/u/following/posts", get(get_following_posts))
-        .route("/api/user/:username/posts", get(get_user_posts))
-        .route("/api/user/post", post(create_user_post))
         .route("/accounts/edit", get(profile_form))
-        .route("/api/accounts/edit", post(profile_save))
-        .route("/api/user/search", post(search_users))
-        .route(
-            "/api/users/current/email/verification/start",
-            post(email_verification_start),
-        )
-        .route(
-            "/api/users/current/email/verification/confirm",
-            post(email_verification_confirm),
-        )
         // the file max limit is set on PostInput property
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
@@ -186,13 +161,6 @@ pub struct ProfileChat {
 pub struct FollowingStreamView {
     pub post_list: Vec<DiscussionPostView>,
 }
-
-#[derive(Deserialize, Serialize, Validate, Debug)]
-pub struct SearchInput {
-    #[validate(length(min = 3, message = "Min 3 characters"))]
-    pub query: String,
-}
-
 async fn profile_form(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
@@ -216,66 +184,6 @@ async fn profile_form(
         None,
     ))
 }
-
-async fn profile_save(
-    State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    TypedMultipart(body_value): TypedMultipart<ProfileSettingsFormInput>,
-) -> CtxResult<Html<String>> {
-    body_value.validate().map_err(|e1| {
-        ctx.to_ctx_error(AppError::Generic {
-            description: e1.to_string(),
-        })
-    })?;
-
-    let local_user_db_service = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-    let mut user = local_user_db_service.get_ctx_user().await?;
-
-    if let Some(username) = body_value.username {
-        user.username = username.trim().to_string();
-    }
-
-    // email needs to be verified first
-    // if let Some(email) = body_value.email {
-    //     user.email_verified = Some(email.to_string());
-    // }
-
-    if let Some(full_name) = body_value.full_name {
-        user.full_name = Some(full_name.trim().to_string());
-    }
-
-    if let Some(image_file) = body_value.image_url {
-        let file = convert_field_file_data(image_file)?;
-
-        let result = ctx_state
-            .file_storage
-            .upload(
-                file.data,
-                Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
-                &format!("profile_image.{}", file.extension),
-                file.content_type.as_deref(),
-            )
-            .await
-            .map_err(|e| {
-                ctx.to_ctx_error(AppError::Generic {
-                    description: e.to_string(),
-                })
-            })?;
-
-        user.image_uri = Some(result);
-    }
-
-    let user = local_user_db_service.update(user).await?;
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: user.id.unwrap().to_raw(),
-        uri: Some(user.username),
-        success: true,
-    })
-}
-
 async fn display_profile(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
@@ -355,181 +263,4 @@ async fn get_profile_discussion_view(
 pub async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
     let comm_db_ser = CommunityDbService { db, ctx };
     comm_db_ser.get_profile_community(user_id).await
-}
-
-// posts user is following
-async fn get_following_posts(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-) -> CtxResult<Html<String>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let stream_post_ids = PostStreamDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
-    .user_posts_stream(user_id)
-    .await?;
-    let post_list = if stream_post_ids.len() > 0 {
-        // TODO resolve view access
-        get_entity_list_view::<DiscussionPostView>(
-            &state.db.client,
-            post_entity::TABLE_NAME.to_string(),
-            &IdentIdName::Ids(stream_post_ids),
-            None,
-        )
-        .await?
-    } else {
-        vec![]
-    };
-
-    ctx.to_htmx_or_json(FollowingStreamView { post_list })
-}
-
-async fn create_user_post(
-    ctx: Ctx,
-    State(ctx_state): State<Arc<CtxState>>,
-    TypedMultipart(input_value): TypedMultipart<PostInput>,
-) -> CtxResult<Response> {
-    input_value.validate()?;
-
-    let user_id = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .get_ctx_user_thing()
-    .await?;
-    let profile_comm = get_profile_community(&ctx_state.db.client, &ctx, user_id).await?;
-
-    create_post_entity_route(
-        ctx,
-        Path(profile_comm.default_discussion.unwrap().to_raw()),
-        State(ctx_state),
-        TypedMultipart(input_value),
-    )
-    .await
-}
-
-async fn get_user_posts(
-    ctx: Ctx,
-    Path(username): Path<String>,
-    State(ctx_state): State<Arc<CtxState>>,
-    Query(q_params): Query<DiscussionParams>,
-) -> CtxResult<Html<String>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-    let user = local_user_db_service
-        .get(UsernameIdent(username).into())
-        .await?;
-    let profile_comm = get_profile_community(
-        &ctx_state.db.client,
-        &ctx,
-        user.id.expect("user id").clone(),
-    )
-    .await?;
-    let profile_disc_view = get_profile_discussion_view(
-        &ctx_state.db.client,
-        &ctx,
-        q_params,
-        profile_comm.default_discussion.expect("profile discussion"),
-    )
-    .await?;
-    ctx.to_htmx_or_json(profile_disc_view)
-}
-
-async fn search_users(
-    ctx: Ctx,
-    State(ctx_state): State<Arc<CtxState>>,
-    JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
-) -> CtxResult<Html<String>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-    // require logged in
-    local_user_db_service.get_ctx_user_thing().await?;
-    let items: Vec<UserItemView> = local_user_db_service
-        .search(form_value.query)
-        .await?
-        .into_iter()
-        .map(|u| u.into())
-        .collect();
-    ctx.to_htmx_or_json(UserListView { items })
-}
-
-#[derive(Debug, Deserialize, Validate, Serialize)]
-pub struct EmailVerificationStartInput {
-    #[validate(email)]
-    pub email: String,
-}
-async fn email_verification_start(
-    ctx: Ctx,
-    State(ctx_state): State<Arc<CtxState>>,
-    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
-) -> CtxResult<()> {
-    let user_service = UserService::new(
-        LocalUserDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.email_sender,
-        ctx_state.verification_code_ttl,
-        AuthenticationDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.db.verification_code,
-    );
-
-    let current_user_thing_id = ctx.user_id()?;
-    let user_id = get_thing_id(&current_user_thing_id);
-    
-    user_service
-        .start_email_verification(user_id, &data.email)
-        .await?;
-
-    Ok(())
-}
-
-#[derive(Debug, Deserialize, Validate, Serialize)]
-
-pub struct EmailVerificationConfirmInput {
-    #[validate(email)]
-    pub email: String,
-    #[validate(length(equal = 6, message = "Code must be 6 characters long"))]
-    pub code: String,
-}
-
-async fn email_verification_confirm(
-    ctx: Ctx,
-    State(ctx_state): State<Arc<CtxState>>,
-    JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
-) -> CtxResult<()> {
-    let user_service = UserService::new(
-        LocalUserDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.email_sender,
-        ctx_state.verification_code_ttl,
-        AuthenticationDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.db.verification_code,
-    );
-
-    let u_thing_str = ctx.user_id()?;
-    let user_id = get_thing_id(&u_thing_str);
-    
-    user_service
-        .email_confirmation(user_id, &data.code, &data.email)
-        .await?;
-
-    Ok(())
 }

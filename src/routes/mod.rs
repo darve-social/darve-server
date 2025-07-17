@@ -1,7 +1,10 @@
 pub mod auth_routes;
 pub mod community;
+pub mod discussions;
+pub mod follows;
 pub mod notifications;
 pub mod posts;
+pub mod swagger;
 pub mod tasks;
 pub mod user_auth;
 pub mod users;

@@ -43,10 +43,20 @@ where
             })
     }
 
-    pub async fn create_for_password(&self, user_id: &str, verified_email: &str) -> AppResult<VerificationCodeEntity> {
+    pub async fn create_for_password(
+        &self,
+        user_id: &str,
+        verified_email: &str,
+    ) -> AppResult<VerificationCodeEntity> {
         let code = generate::generate_number_code(6);
-        let data = VerificationCodeRepositoryInterface::create(self.repository, user_id, &code, verified_email, VerificationCodeFor::ResetPassword)
-            .await?;
+        let data = VerificationCodeRepositoryInterface::create(
+            self.repository,
+            user_id,
+            &code,
+            verified_email,
+            VerificationCodeFor::ResetPassword,
+        )
+        .await?;
 
         let model = ResetPassword {
             code: &code,
@@ -61,7 +71,7 @@ where
             )
             .await
             .map_err(|e| AppError::Generic { description: e })?;
-        
+
         Ok(data)
     }
 
@@ -72,8 +82,14 @@ where
     ) -> AppResult<VerificationCodeEntity> {
         let code = generate::generate_number_code(6);
 
-        let data = VerificationCodeRepositoryInterface::create(self.repository, user_id, &code, email, VerificationCodeFor::EmailVerification)
-            .await?;
+        let data = VerificationCodeRepositoryInterface::create(
+            self.repository,
+            user_id,
+            &code,
+            email,
+            VerificationCodeFor::EmailVerification,
+        )
+        .await?;
 
         let html = EmailVerificationCode {
             code: &code,
@@ -97,15 +113,14 @@ where
         user_id: &str,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        self
-            .get_verified_code(
-                user_id,
-                3,
-                self.code_ttl,
-                VerificationCodeFor::ResetPassword,
-                code,
-            )
-            .await
+        self.get_verified_code(
+            user_id,
+            3,
+            self.code_ttl,
+            VerificationCodeFor::ResetPassword,
+            code,
+        )
+        .await
     }
 
     pub async fn get_verified_email_code(
@@ -113,15 +128,14 @@ where
         user_id: &str,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        self
-            .get_verified_code(
-                user_id,
-                3,
-                self.code_ttl,
-                VerificationCodeFor::EmailVerification,
-                code,
-            )
-            .await
+        self.get_verified_code(
+            user_id,
+            3,
+            self.code_ttl,
+            VerificationCodeFor::EmailVerification,
+            code,
+        )
+        .await
     }
 
     async fn get_verified_code(
@@ -132,10 +146,7 @@ where
         use_for: VerificationCodeFor,
         code: &str,
     ) -> AppResult<VerificationCodeEntity> {
-        let data = self
-            .repository
-            .get_by_user(user_id, use_for)
-            .await?;
+        let data = self.repository.get_by_user(user_id, use_for).await?;
         let is_too_many_attempts = data.failed_code_attempts >= max_attempts;
 
         if is_too_many_attempts {
@@ -154,9 +165,7 @@ where
         }
 
         if data.code != code {
-            self.repository
-                .increase_attempt(&data.id)
-                .await?;
+            self.repository.increase_attempt(&data.id).await?;
 
             return Err(AppError::Generic {
                 description: "Wrong code.".to_string(),

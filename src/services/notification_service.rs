@@ -2,6 +2,7 @@ use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
 use crate::database::client::Db;
+use crate::entities::community::post_entity::Post;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
@@ -12,7 +13,6 @@ use crate::{
         error::{AppError, CtxResult},
         mw_ctx::{AppEvent, AppEventType},
     },
-    routes::community::discussion_routes::DiscussionPostView,
 };
 
 use surrealdb::sql::Thing;
@@ -191,7 +191,7 @@ where
         &self,
         user_id: &Thing,
         participators: &Vec<Thing>,
-        content: &String,
+        post: &Post,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
         let receivers = participators
@@ -206,21 +206,25 @@ where
                 "chat",
                 UserNotificationEvent::UserChatMessage.as_str(),
                 &receivers,
-                None,
+                Some({
+                    json!({
+                        "post_id": post.id.as_ref().unwrap()
+                    })
+                }),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
             metadata: None,
-            content: Some(content.to_owned()),
+            content: None,
             event: AppEventType::UserNotificationEvent(event),
         });
 
         Ok(())
     }
 
-    pub async fn on_community_post(&self, user_id: &Thing, content: &String) -> CtxResult<()> {
+    pub async fn on_community_post(&self, user_id: &Thing, post: &Post) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
 
         let follower_ids: Vec<Thing> = self
@@ -240,7 +244,11 @@ where
                 "chat",
                 UserNotificationEvent::UserCommunityPost.as_str(),
                 &receivers,
-                None,
+                Some({
+                    json!({
+                        "post_id": post.id.as_ref().cloned(),
+                    })
+                }),
             )
             .await?;
 
@@ -248,7 +256,7 @@ where
             receivers,
             user_id: user_id_str,
             metadata: None,
-            content: Some(content.clone()),
+            content: None,
             event: AppEventType::UserNotificationEvent(event),
         });
 
@@ -408,23 +416,19 @@ where
         Ok(())
     }
 
-    pub async fn on_discussion_post(
-        &self,
-        user_id: &Thing,
-        post_comm_view: &DiscussionPostView,
-    ) -> CtxResult<()> {
+    pub async fn on_discussion_post(&self, user_id: &Thing, post: &Post) -> CtxResult<()> {
         let receivers = vec![user_id.to_raw()];
 
-        let post_json = serde_json::to_string(&post_comm_view).map_err(|_| {
+        let post_json = serde_json::to_string(&post).map_err(|_| {
             self.ctx.to_ctx_error(AppError::Generic {
                 description: "Post to json error for notification event".to_string(),
             })
         })?;
 
         let metadata = AppEventMetadata {
-            discussion_id: Some(post_comm_view.belongs_to_id.clone()),
-            topic_id: post_comm_view.topic.clone().map(|t| t.id),
-            post_id: Some(post_comm_view.id.clone()),
+            discussion_id: Some(post.belongs_to.clone()),
+            topic_id: post.discussion_topic.clone(),
+            post_id: Some(post.id.clone().unwrap()),
         };
 
         let _ = self.event_sender.send(AppEvent {

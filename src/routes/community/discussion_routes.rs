@@ -5,25 +5,22 @@ use std::sync::Arc;
 use crate::database::client::Db;
 use crate::entities::community::discussion_entity;
 use crate::entities::community::post_entity::PostDbService;
-use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
-use crate::middleware::mw_ctx::AppEventType;
-use crate::routes::tasks::TaskRequestView;
-use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
-use crate::services::task_service::{TaskRequestInput, TaskService};
+use crate::middleware::utils::db_utils::ViewRelateField;
+use crate::routes::discussions::discussion_sse;
 use crate::{middleware, utils};
 use access_right_entity::AccessRightDbService;
 use access_rule_entity::{AccessRule, AccessRuleDbService};
 use askama_axum::Template;
 use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{Path, Query, State};
-use axum::response::sse::{Event, KeepAlive};
+use axum::response::sse::Event;
 use axum::response::Sse;
-use axum::routing::{delete, get, patch, post};
-use axum::{Json, Router};
-use discussion_entity::{Discussion, DiscussionDbService};
+use axum::routing::get;
+use axum::Router;
+use discussion_entity::DiscussionDbService;
 use discussion_topic_routes::{
     DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView,
 };
@@ -34,46 +31,26 @@ use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
-use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
+use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
-use validator::Validate;
 
 use super::discussion_topic_routes;
 
 pub fn routes() -> Router<Arc<CtxState>> {
-    let view_routes = Router::new()
-        .route(
-            "/community/:community_id/discussion",
-            get(create_update_form),
-        )
-        .route("/discussion/:discussion_id", get(display_discussion));
-
     Router::new()
-        .merge(view_routes)
-        .route("/api/discussions", get(get_discussions))
-        .route("/api/discussions", post(create_discussion))
-        .route("/api/discussions/:discussion_id", patch(update_discussion))
-        .route("/api/discussions/:discussion_id", delete(delete_discussion))
-        .route("/api/discussions/:discussion_id/tasks", post(create_task))
-        .route("/api/discussions/:discussion_id/tasks", get(get_tasks))
-        .route(
-            "/api/discussions/:discussion_id/chat_users",
-            post(add_discussion_users),
-        )
-        .route(
-            "/api/discussions/:discussion_id/chat_users",
-            delete(delete_discussion_users),
-        )
-        .route("/api/discussion/:discussion_id/sse", get(discussion_sse))
         .route(
             "/api/discussion/:discussion_id/sse/htmx",
             get(discussion_sse_htmx),
         )
+        .route(
+            "/community/:community_id/discussion",
+            get(create_update_form),
+        )
+        .route("/discussion/:discussion_id", get(display_discussion))
 }
 
 #[derive(Template, Serialize)]
@@ -157,6 +134,26 @@ impl ViewFieldSelector for DiscussionPostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
         "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
+    }
+}
+
+impl ViewRelateField for DiscussionPostView {
+    // post fields selct qry for view
+    fn get_fields() -> &'static str {
+        "id,
+        created_by_name: created_by.username, 
+        title, 
+        r_title_uri, 
+        content,
+        media_links, 
+        r_created, 
+        belongs_to_uri: belongs_to.name_uri, 
+        belongs_to_id: belongs_to.id,
+        replies_nr, 
+        topic: discussion_topic.{id, title}, 
+        access_rule: discussion_topic.access_rule.*, 
+        viewer_access_rights: [], 
+        has_view_access: false"
     }
 }
 
@@ -429,265 +426,4 @@ async fn discussion_sse_htmx(
     let mut ctx = ctx.clone();
     ctx.is_htmx = true;
     discussion_sse(State(ctx_state), ctx, Path(discussion_id), Query(q_params)).await
-}
-
-async fn discussion_sse(
-    State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Path(disc_id): Path<String>,
-    Query(q_params): Query<DiscussionParams>,
-) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
-    let discussion_id = get_string_thing(disc_id.clone())?;
-    let discussion = DiscussionDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .get(IdentIdName::Id(discussion_id))
-    .await?;
-    let discussion_id = discussion.id.expect("disc id");
-
-    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
-        &ctx_state.db.client,
-        &ctx,
-        &discussion_id,
-        discussion.private_discussion_user_ids,
-    )
-    .await?;
-
-    let rx = ctx_state.event_sender.subscribe();
-    let stream = BroadcastStream::new(rx)
-        .filter(move|msg| {
-            if msg.is_err()  {
-                return false;
-            }
-
-            let _ = match msg.as_ref().unwrap().clone().event {
-                AppEventType::DiscussionPostAdded | AppEventType::DiscussionPostReplyAdded | AppEventType::DiscussionPostReplyNrIncreased => (),
-                _ => return false,
-            };
-
-            let metadata = msg.as_ref().unwrap().metadata.as_ref().unwrap();
-
-            if *metadata.discussion_id.as_ref().unwrap() != discussion_id {
-                return false;
-            }
-
-            if q_params.topic_id.is_some() && q_params.topic_id.ne(&metadata.topic_id) {
-                return false;
-            }
-            true
-        })
-        .map(move |msg| {
-            let event_opt = match msg {
-                Err(_) => None,
-                Ok(msg) => match msg.event {
-                        AppEventType::DiscussionPostAdded => {
-                            match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
-                                Ok(mut dpv) => {
-                                    dpv.viewer_access_rights = user_auth.clone();
-                                    dpv.has_view_access = match &dpv.access_rule {
-                                        None => true,
-                                        Some(ar) => {
-                                            is_user_chat_discussion
-                                                || is_any_ge_in_list(
-                                                    &ar.authorization_required,
-                                                    &dpv.viewer_access_rights,
-                                                )
-                                                .unwrap_or(false)
-                                        }
-                                    };
-
-                                    match ctx.to_htmx_or_json(dpv) {
-                                        Ok(post_html) => Some(
-                                            Event::default().event("DiscussionPostAdded").data(post_html.0),
-                                        ),
-                                        Err(err) => {
-                                            let msg = "ERROR rendering DiscussionPostView";
-                                            println!("{} ERR={}", &msg, err.error);
-                                            Some(
-                                                Event::default()
-                                                    .data(&serde_json::to_string(&msg).unwrap())
-                                            )
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    let msg =
-                                    "ERROR converting NotificationEvent content to DiscussionPostView";
-                                    println!("{} ERR={err}", &msg);
-                                    Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
-                                }
-                            }
-                        }
-                        AppEventType::DiscussionPostReplyNrIncreased => Some(
-                            if ctx.is_htmx {
-                                let metadata = msg.metadata.as_ref().unwrap();
-                                let post_id = metadata.post_id.as_ref().unwrap().to_raw();
-                                let id = format!("DiscussionPostReplyNrIncreased_{}",post_id);
-                                    Event::default().event(id).data(&msg.content.unwrap())
-                            } else {
-                                Event::default()
-                                .data(&serde_json::to_string(&msg).unwrap())
-                            }
-                        ),
-                        AppEventType::DiscussionPostReplyAdded => Some(
-                          if ctx.is_htmx {
-                                Event::default().event("DiscussionPostReplyAdded") 
-                                .data(&msg.content.unwrap())
-                            } else {
-                                Event::default()
-                                .data(&serde_json::to_string(&msg).unwrap())
-                            }
-                        ),
-                        _ => None,
-                    },
-            };
-            Ok(event_opt.unwrap_or_else(|| {
-                Event::default()
-                    .data("No event".to_string())
-            }))
-        });
-
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
-}
-
-async fn create_discussion(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Json(data): Json<CreateDiscussion>,
-) -> CtxResult<Json<Discussion>> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    let disc = disc_service.create(data).await?;
-    Ok(Json(disc))
-}
-
-async fn get_discussions(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-) -> CtxResult<Json<Vec<Discussion>>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let disc_service = DiscussionService::new(&state, &ctx);
-    let discussions = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
-    Ok(Json(discussions))
-}
-
-#[derive(Debug, Deserialize, Validate)]
-struct DiscussionUsers {
-    user_ids: Vec<String>,
-}
-
-async fn add_discussion_users(
-    Path(discussion_id): Path<String>,
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
-) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service
-        .add_chat_users(&discussion_id, data.user_ids)
-        .await?;
-    Ok(())
-}
-
-async fn delete_discussion_users(
-    Path(discussion_id): Path<String>,
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
-) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service
-        .remove_chat_users(&discussion_id, data.user_ids)
-        .await?;
-    Ok(())
-}
-
-async fn delete_discussion(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Path(discussion_id): Path<String>,
-) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service.delete(&discussion_id).await?;
-    Ok(())
-}
-
-async fn update_discussion(
-    State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Path(discussion_id): Path<String>,
-    Json(data): Json<UpdateDiscussion>,
-) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service.update(&discussion_id, data).await?;
-
-    Ok(())
-}
-
-async fn get_tasks(
-    ctx: Ctx,
-    State(state): State<Arc<CtxState>>,
-    Path(discussion_id): Path<String>,
-) -> CtxResult<Json<Vec<TaskRequestView>>> {
-    let user = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    }
-    .get_ctx_user()
-    .await?;
-
-    let disc_db_service = DiscussionDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-
-    let disc = disc_db_service.get_by_id(&discussion_id).await?;
-
-    let is_allow = match disc.private_discussion_user_ids {
-        Some(user_ids) => user_ids.contains(user.id.as_ref().unwrap()),
-        None => false,
-    };
-
-    if !is_allow {
-        return Err(AppError::Generic {
-            description: "Forbidden".to_string(),
-        }
-        .into());
-    };
-    let tasks = state
-        .db
-        .task_relates
-        .get_tasks_by_id::<TaskRequestView>(&disc.id.as_ref().unwrap())
-        .await?;
-
-    Ok(Json(tasks))
-}
-
-async fn create_task(
-    ctx: Ctx,
-    State(state): State<Arc<CtxState>>,
-    Path(discussion_id): Path<String>,
-    Json(body): Json<TaskRequestInput>,
-) -> CtxResult<Json<TaskRequest>> {
-    let disc_thing = get_string_thing(discussion_id)?;
-
-    let task_service = TaskService::new(
-        &state.db.client,
-        &ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
-        &state.db.task_donors,
-        &state.db.task_participants,
-        &state.db.task_relates,
-    );
-
-    let task = task_service
-        .create(&ctx.user_id()?, body, Some(disc_thing.clone()))
-        .await?;
-
-    Ok(Json(task))
 }

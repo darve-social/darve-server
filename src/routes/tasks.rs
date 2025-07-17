@@ -7,7 +7,6 @@ use crate::middleware::utils::db_utils::ViewRelateField;
 use crate::models::web::{TaskRequestDonorView, UserView};
 use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
 use axum::extract::{Path, Query, State};
-use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use local_user_entity::LocalUserDbService;
@@ -16,7 +15,6 @@ use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::ViewFieldSelector;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
-use middleware::utils::request_utils::CreatedResponse;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use surrealdb::sql::Thing;
@@ -37,7 +35,6 @@ pub fn routes() -> Router<Arc<CtxState>> {
 #[derive(Deserialize, Serialize, Validate)]
 pub struct TaskRequestOfferInput {
     pub amount: u64,
-    pub currency: Option<CurrencySymbol>,
 }
 
 #[derive(Validate, Deserialize)]
@@ -99,7 +96,7 @@ async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Query(query): Query<GetTaskByToUserQuery>,
-) -> CtxResult<String> {
+) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let to_user = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
@@ -113,10 +110,13 @@ async fn user_requests_received(
     }
     .get_by_user::<TaskRequestView>(&to_user, query.status)
     .await?;
-    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+    Ok(Json(list))
 }
 
-async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<String> {
+async fn user_requests_given(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let from_user = LocalUserDbService {
         db: &state.db.client,
         ctx: &ctx,
@@ -129,18 +129,16 @@ async fn user_requests_given(State(state): State<Arc<CtxState>>, ctx: Ctx) -> Ct
         ctx: &ctx,
     }
     .get_by_creator::<TaskRequestView>(from_user, None)
-    .await;
+    .await?;
 
-    println!(">>>.{:?}", list);
-    let list = list?;
-    serde_json::to_string(&list).map_err(|e| ctx.to_ctx_error(e.into()))
+    Ok(Json(list))
 }
 
 async fn reject_task_request(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
@@ -153,18 +151,14 @@ async fn reject_task_request(
 
     task_service.reject(&ctx.user_id()?, &task_id).await?;
 
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: task_id,
-        uri: None,
-        success: true,
-    })
+    Ok(())
 }
 
 async fn accept_task_request(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(task_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
@@ -177,11 +171,7 @@ async fn accept_task_request(
 
     task_service.accept(&ctx.user_id()?, &task_id).await?;
 
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: task_id,
-        uri: None,
-        success: true,
-    })
+    Ok(())
 }
 
 async fn deliver_task_request(
@@ -189,7 +179,7 @@ async fn deliver_task_request(
     ctx: Ctx,
     Path(task_id): Path<String>,
     Json(input): Json<DeliverTaskRequestInput>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
@@ -210,11 +200,7 @@ async fn deliver_task_request(
         )
         .await?;
 
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: task_id,
-        uri: None,
-        success: true,
-    })
+    Ok(())
 }
 
 async fn upsert_donor(
@@ -222,7 +208,7 @@ async fn upsert_donor(
     ctx: Ctx,
     Path(task_id): Path<String>,
     JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
@@ -233,7 +219,7 @@ async fn upsert_donor(
         &state.db.task_relates,
     );
 
-    let id = task_service
+    let _ = task_service
         .upsert_donor(
             &task_id,
             &ctx.user_id()?,
@@ -243,9 +229,5 @@ async fn upsert_donor(
         )
         .await?;
 
-    ctx.to_htmx_or_json(CreatedResponse {
-        success: true,
-        id,
-        uri: None,
-    })
+    Ok(())
 }

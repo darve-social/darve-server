@@ -46,7 +46,7 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
 
     // check transaction history /api/user/wallet/history
     let transaction_history_response = server
-        .get("/api/user/wallet/history")
+        .get("/api/wallet/history")
         .add_header("Accept", "application/json")
         .await;
 
@@ -98,7 +98,7 @@ test_with_server!(lock_user_balance, |server, ctx_state, config| {
         .unwrap();
 
     let response = server
-        .get("/api/user/wallet/balance")
+        .get("/api/wallet/balance")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -115,7 +115,7 @@ test_with_server!(lock_user_balance, |server, ctx_state, config| {
     .unwrap();
 
     let response = server
-        .get("/api/user/wallet/balance")
+        .get("/api/wallet/balance")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -336,7 +336,7 @@ test_with_server!(
 test_with_server!(prod_balance_0, |server, ctx_state, config| {
     let (_, _user, _password, _) = create_fake_login_test_user(&server).await;
     let response = server
-        .get("/api/user/wallet/balance")
+        .get("/api/wallet/balance")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();

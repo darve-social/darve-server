@@ -1,7 +1,9 @@
 use crate::database::client::Db;
 use crate::database::repository_traits::{EntityWithId, RepositoryCore, RepositoryEntityId};
 use crate::database::surrdb_utils;
-use crate::database::surrdb_utils::{get_entity_query_str, get_list_qry, get_query, record_exist_all, record_exists, RecordWithId};
+use crate::database::surrdb_utils::{
+    get_entity_query_str, get_list_qry, get_query, record_exist_all, record_exists, RecordWithId,
+};
 use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
 use async_trait::async_trait;
 use serde::Serialize;
@@ -68,7 +70,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
             self.client.delete((&self.table_name, record_id)).await?;
         Ok(true)
     }
-    
+
     async fn count(&self) -> Result<u64, surrealdb::Error> {
         let query = format!(
             "(SELECT count() as count FROM ONLY {} GROUP ALL).count;",
@@ -138,7 +140,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
     }
 
     async fn record_exist_all(&self, record_ids: Vec<String>) -> Result<Vec<Thing>, Self::Error> {
-       record_exist_all(self.client.as_ref(), record_ids).await
+        record_exist_all(self.client.as_ref(), record_ids).await
     }
 }
 

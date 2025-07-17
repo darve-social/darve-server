@@ -400,7 +400,10 @@ where
 
         let _ = self
             .verification_code_service
-            .create_for_password(get_thing_id(&user.id.expect("exists").id.to_raw()), &user.email_verified.expect("email exists"))
+            .create_for_password(
+                get_thing_id(&user.id.expect("exists").id.to_raw()),
+                &user.email_verified.expect("email exists"),
+            )
             .await?;
 
         Ok(())

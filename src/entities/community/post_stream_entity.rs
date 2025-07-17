@@ -1,4 +1,5 @@
 use crate::database::client::Db;
+use crate::middleware::utils::db_utils::ViewRelateField;
 use serde::Deserialize;
 use std::collections::HashMap;
 use surrealdb::sql::Thing;
@@ -101,19 +102,29 @@ impl<'a> PostStreamDbService<'a> {
         self.add_to_users_stream(notify_followers, post_id).await
     }
 
-    pub async fn user_posts_stream(&self, user: Thing) -> CtxResult<Vec<Thing>> {
-        let qry = format!("SELECT ->{TABLE_NAME}->{TABLE_POST} as posts FROM <record>$user;");
-        self.get_stream_posts_qry::<Thing>(qry, user).await
-    }
-
-    async fn get_stream_posts_qry<T: for<'de> Deserialize<'de>>(
+    pub async fn get_posts<T: for<'b> Deserialize<'b> + ViewRelateField>(
         &self,
-        qry: String,
         user_id: Thing,
     ) -> CtxResult<Vec<T>> {
-        let mut res = self.db.query(qry).bind(("user", user_id.to_raw())).await?;
+        let fields = T::get_fields();
+        let qry = format!(
+            "SELECT ->{TABLE_NAME}->{TABLE_POST}.{{{fields}}} as posts FROM <record>$user;"
+        );
+        let mut res = self
+            .db
+            .query(qry)
+            .bind(("user", user_id))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
 
-        let res: Option<Vec<T>> = res.take("posts")?;
-        Ok(res.unwrap_or(vec![]))
+        let posts = res
+            .take::<Option<Vec<T>>>("posts")
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            });
+
+        Ok(posts?.unwrap_or_default())
     }
 }

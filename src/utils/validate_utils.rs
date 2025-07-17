@@ -1,9 +1,9 @@
+use crate::entities::community::discussion_entity::USER_TABLE_NAME;
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
-use crate::entities::community::discussion_entity::USER_TABLE_NAME;
 
 pub fn validate_username(u: &String) -> Result<(), ValidationError> {
     if Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap().is_match(u) {

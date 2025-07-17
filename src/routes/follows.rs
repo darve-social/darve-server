@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::vec;
 
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::community::post_entity::PostDbService;
@@ -10,16 +11,14 @@ use crate::middleware::utils::extractor_utils::DiscussionParams;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
 use axum::extract::{Path, State};
-use axum::response::Html;
 use axum::routing::{delete, get, post};
-use axum::Router;
+use axum::{Json, Router};
 use follow_entity::FollowDbService;
 use local_user_entity::{LocalUser, LocalUserDbService};
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::IdentIdName;
-use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -27,17 +26,11 @@ use user_auth::{follow_entity, local_user_entity};
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/user/:user_id/followers", get(get_followers))
-        .route("/api/user/:user_id/following", get(get_following))
-        .route("/api/follow/:follow_user_id", post(follow_user))
-        .route("/api/follow/:follow_user_id", delete(unfollow_user))
-        .route("/api/user/follows/:follows_user_id", get(is_following_user))
-}
-
-#[derive(Template, Serialize, Deserialize, Debug)]
-#[template(path = "nera2/follow-user-list.html")]
-pub struct UserListView {
-    pub items: Vec<UserItemView>,
+        .route("/api/users/:user_id/followers", get(get_followers))
+        .route("/api/users/:user_id/following", get(get_following))
+        .route("/api/followers/:follow_user_id", post(follow_user))
+        .route("/api/followers/:follow_user_id", delete(unfollow_user))
+        .route("/api/followers/:follow_user_id", get(is_following_user))
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -64,7 +57,7 @@ async fn get_followers(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<Json<Vec<UserItemView>>> {
     let user_id = get_string_thing(user_id.clone())?;
     let followers: Vec<UserItemView> = FollowDbService {
         db: &ctx_state.db.client,
@@ -75,14 +68,14 @@ async fn get_followers(
     .into_iter()
     .map(UserItemView::from)
     .collect();
-    ctx.to_htmx_or_json(UserListView { items: followers })
+    Ok(Json(followers))
 }
 
 async fn get_following(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<Json<Vec<UserItemView>>> {
     let user_id = get_string_thing(user_id.clone())?;
     let following = FollowDbService {
         db: &ctx_state.db.client,
@@ -93,14 +86,14 @@ async fn get_following(
     .into_iter()
     .map(UserItemView::from)
     .collect();
-    ctx.to_htmx_or_json(UserListView { items: following })
+    Ok(Json(following))
 }
 
 async fn follow_user(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(follow_user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<()> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -140,61 +133,49 @@ async fn follow_user(
         let _ = add_latest_posts(&from_user.id.unwrap(), &follow, &ctx_state, &ctx).await;
     }
 
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: follow_user_id,
-        success,
-        uri: None,
-    })
+    Ok(())
 }
 
 async fn unfollow_user(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    Path(unfollow_user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+    Path(follow_user_id): Path<String>,
+) -> CtxResult<()> {
     let user_id = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
-    let follow = get_string_thing(unfollow_user_id.clone())?;
-    let success = FollowDbService {
+    let follow = get_string_thing(follow_user_id.clone())?;
+    let _ = FollowDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .remove_follow(user_id, follow)
     .await?;
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: unfollow_user_id,
-        success,
-        uri: None,
-    })
+    Ok(())
 }
 
 async fn is_following_user(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    Path(following_user_id): Path<String>,
-) -> CtxResult<Html<String>> {
+    Path(follow_user_id): Path<String>,
+) -> CtxResult<()> {
     let user_id = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_ctx_user_thing()
     .await?;
-    let follows_user = get_string_thing(following_user_id.clone())?;
-    let success = FollowDbService {
+    let follows_user = get_string_thing(follow_user_id.clone())?;
+    let _ = FollowDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .is_following(user_id, follows_user.clone())
     .await?;
-    ctx.to_htmx_or_json(CreatedResponse {
-        id: follows_user.to_raw(),
-        success,
-        uri: None,
-    })
+    Ok(())
 }
 
 async fn add_latest_posts(
