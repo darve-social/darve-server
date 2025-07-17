@@ -1,6 +1,7 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use chrono::Utc;
 use darve_server::{
     entities::{
         community::{
@@ -64,6 +65,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let tasks = task_request.json::<Vec<TaskRequestView>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
+    assert!(first.due_at > Utc::now());
     assert!(first.participants.is_some());
     assert_eq!(first.participants.as_ref().unwrap().len(), 1);
     let task_user = first.participants.as_ref().unwrap().first().unwrap();
@@ -84,7 +86,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
         participator.user.as_ref().unwrap().id,
         user1.id.as_ref().unwrap().clone()
     );
-    assert_eq!(participator.amount, 1)
+    assert_eq!(participator.amount, 1);
 });
 
 test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {

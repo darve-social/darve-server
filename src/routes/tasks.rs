@@ -10,6 +10,7 @@ use axum::extract::{Path, Query, State};
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use chrono::{DateTime, Utc};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
@@ -62,11 +63,13 @@ pub struct TaskRequestView {
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub wallet_id: Thing,
+    pub due_at: DateTime<Utc>,
 }
 
 impl ViewFieldSelector for TaskRequestView {
     fn get_select_query_fields() -> String {
         "id,
+        due_at,
         created_by.{id, username, full_name} as created_by,
         ->task_participant.{ user: out.{id, username, full_name},status} as participants,
         request_txt,
@@ -81,6 +84,7 @@ impl ViewFieldSelector for TaskRequestView {
 impl ViewRelateField for TaskRequestView {
     fn get_fields() -> &'static str {
         "id,
+        due_at,
         created_by:created_by.{id, username, full_name},
         participants:->task_participant.{ user: out.{id, username, full_name},status},
         request_txt,

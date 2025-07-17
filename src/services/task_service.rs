@@ -7,7 +7,7 @@ use crate::{
         },
         task::task_request_entity::{
             DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
-            TaskRequestDbService, TaskRequestType,
+            TaskRequestDbService, TaskRequestStatus, TaskRequestType,
         },
         task_donor::TaskDonor,
         task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
@@ -570,6 +570,8 @@ where
                 .collect::<Vec<&TaskParticipantForReward>>();
 
             let wallet_id = task.wallet.id.as_ref().unwrap();
+
+            let mut is_completed = true;
             if delivered_users.is_empty() {
                 for p in task.donors {
                     let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
@@ -582,6 +584,8 @@ where
                             .notification_service
                             .on_update_balance(&p.id, &vec![p.id.clone()])
                             .await;
+                    } else {
+                        is_completed = false;
                     }
                 }
             } else {
@@ -608,8 +612,16 @@ where
                             .notification_service
                             .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
                             .await;
+                    } else {
+                        is_completed = false;
                     }
                 }
+            }
+            if is_completed {
+                let _ = self
+                    .tasks_repository
+                    .update_status(task.id, TaskRequestStatus::Completed)
+                    .await;
             }
         }
 
