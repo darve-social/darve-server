@@ -163,6 +163,7 @@ impl<'a> LocalUserDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
+    // param id is a id of the thing
     pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
         let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
@@ -213,8 +214,7 @@ impl<'a> LocalUserDbService<'a> {
             .create(TABLE_NAME)
             .content(ct_input)
             .await
-            .map(|v: Option<RecordWithId>| v.unwrap().id.id.to_raw())
-            .map(|id| format!("{TABLE_NAME}:{id}"))
+            .map(|v: Option<RecordWithId>| v.unwrap().id.to_raw())
             .map_err(CtxError::from(self.ctx))?;
         Ok(local_user_id)
     }

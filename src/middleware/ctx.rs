@@ -34,6 +34,14 @@ impl Ctx {
         })
     }
 
+    pub fn user_thing_id(&self) -> CtxResult<String> {
+        let id = self.user_id()?;
+        match id.find(":") {
+            None => Ok(id),
+            Some(ind) => Ok((&id[ind + 1..]).to_string()),
+        }
+    }
+
     pub fn to_htmx_or_json<T: Template + Serialize>(&self, object: T) -> CtxResult<Html<String>> {
         let rendered_string = match self.is_htmx {
             true => object.render().map_err(|_| {

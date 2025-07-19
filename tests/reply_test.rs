@@ -4,15 +4,14 @@ use crate::helpers::create_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
 use authorization_entity::{get_parent_ids, get_same_level_record_ids, is_child_record};
 use community_entity::{Community, CommunityDbService};
+use darve_server::entities::community::reply_entity::Reply;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::{
     entities::{community::community_entity, user_auth::authorization_entity},
     middleware,
-    routes::community::reply_routes,
 };
 use middleware::ctx::Ctx;
-use middleware::utils::request_utils::CreatedResponse;
-use reply_routes::PostReplyInput;
+use serde_json::json;
 use surrealdb::sql::Thing;
 
 test_with_server!(create_reply, |server, ctx_state, config| {
@@ -49,57 +48,54 @@ test_with_server!(create_reply, |server, ctx_state, config| {
 
     let reply_name = "post repl title Name 1".to_string();
     let create_response = server
-        .post(format!("/api/discussion/{comm_discussion_id}/post/{post_uri}/reply").as_str())
-        .json(&PostReplyInput {
-            id: None,
-            title: reply_name,
-            content: "contentttt".to_string(),
-        })
+        .post(format!("/api/posts/{post_uri}/replies").as_str())
+        .json(&json!({
+            "title": reply_name.clone(),
+            "content": "contentttt222".to_string(),
+        }))
         .add_header("Accept", "application/json")
         .await;
     dbg!(&create_response);
 
     let reply_name2 = "post repl Name 2?&$^%! <>end".to_string();
     let create_response2 = server
-        .post(format!("/api/discussion/{comm_discussion_id}/post/{post_uri}/reply").as_str())
-        .json(&PostReplyInput {
-            id: None,
-            title: reply_name2.clone(),
-            content: "contentttt222".to_string(),
-        })
+        .post(format!("/api/posts/{post_uri}/replies").as_str())
+        .json(&json!({
+            "title": reply_name2.clone(),
+            "content": "contentttt222".to_string(),
+        }))
         .add_header("Accept", "application/json")
         .await;
 
     let create_response3 = server
-        .post(format!("/api/discussion/{comm_discussion_id}/post/{post_uri}/reply").as_str())
-        .json(&PostReplyInput {
-            id: None,
-            title: reply_name2.clone(),
-            content: "contentttt33332".to_string(),
-        })
+        .post(format!("/api/posts/{post_uri}/replies").as_str())
+        .json(&json!({
+            "title": reply_name2.clone(),
+            "content": "contentttt222".to_string(),
+        }))
         .add_header("Accept", "application/json")
         .await;
 
     let create_response4 = server
-        .post(format!("/api/discussion/{comm_discussion_id}/post/{post_uri}/reply").as_str())
-        .json(&PostReplyInput {
-            id: None,
-            title: reply_name2.clone(),
-            content: "contentttt444442".to_string(),
-        })
+        .post(format!("/api/posts/{post_uri}/replies").as_str())
+        .json(&json!({
+            "title": reply_name2.clone(),
+            "content": "contentttt222".to_string(),
+        }))
         .add_header("Accept", "application/json")
         .await;
-    let _ = create_response.json::<CreatedResponse>();
-    let created2 = &create_response2.json::<CreatedResponse>();
-    let _ = create_response3.json::<CreatedResponse>();
 
     create_response.assert_status_success();
     create_response2.assert_status_success();
     create_response3.assert_status_success();
     create_response4.assert_status_success();
 
+    let _ = create_response.json::<Reply>();
+    let created2 = &create_response2.json::<Reply>();
+    let _ = create_response3.json::<Reply>();
+
     let id1 = &Thing::try_from(comm_discussion_id.as_str()).unwrap();
-    let id2 = &Thing::try_from(created2.id.as_str()).unwrap();
+    let id2 = &created2.id.as_ref().unwrap().clone();
     let rids = get_same_level_record_ids(id1, id2, &ctx, &ctx_state.db.client)
         .await
         .unwrap();

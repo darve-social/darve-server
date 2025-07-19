@@ -1,7 +1,8 @@
 use axum_test::multipart::MultipartForm;
 use axum_test::TestResponse;
 use axum_test::{multipart::Part, TestServer};
-use darve_server::middleware::{mw_ctx::CtxState, utils::request_utils::CreatedResponse};
+use darve_server::entities::community::post_entity::Post;
+use darve_server::middleware::mw_ctx::CtxState;
 use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
 use std::fs;
@@ -14,7 +15,7 @@ pub async fn create_post(
     data: MultipartForm,
 ) -> TestResponse {
     server
-        .post(format!("/api/discussion/{discussion_id}/post").as_str())
+        .post(format!("/api/discussions/{discussion_id}/posts").as_str())
         .multipart(data)
         .add_header("Accept", "application/json")
         .await
@@ -83,13 +84,12 @@ pub async fn create_fake_post(
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
     let create_post = create_post(&server, &discussion_id, data).await;
-    let created = create_post.json::<CreatedResponse>();
+    let post = create_post.json::<Post>();
     let _ = create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
 
     CreateFakePostResponse {
-        id: created.id,
-        uri: created.uri.unwrap(),
+        id: post.id.as_ref().unwrap().to_raw(),
+        uri: post.id.as_ref().unwrap().to_raw(),
     }
 }
 
@@ -126,11 +126,8 @@ pub async fn create_fake_post_with_file(
     data = data.add_part("file_1", part);
     let response = create_post(&server, &discussion_id, data).await;
     let _ = response.assert_status_success();
-    let created = response.json::<CreatedResponse>();
-
-    assert_eq!(created.id.len() > 0, true);
-
-    created.id
+    let post = response.json::<Post>();
+    post.id.as_ref().unwrap().to_raw()
 }
 
 #[allow(dead_code)]

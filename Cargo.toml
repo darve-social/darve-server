@@ -42,7 +42,7 @@ async-stripe = { version = "0.41.0", features = [
 google-cloud-storage = "0.24.0"
 async-trait = "0.1.88"
 dotenvy = "0.15.7"
-axum-extra = { version = "0.9", features = ["cookie"] }
+axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
 sentry = { version = "0.39.0", default-features = false, features = [
     "curl",
     "backtrace",

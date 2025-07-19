@@ -7,7 +7,7 @@ use crate::{
     routes::{
         self, auth_routes,
         community::profile_routes,
-        notifications, posts, users,
+        discussions, follows, notifications, posts, swagger, users,
         wallet::{wallet_endowment_routes, wallet_routes},
         webhooks::paypal,
     },
@@ -34,12 +34,12 @@ use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use routes::community::{
-    community_routes, discussion_routes, discussion_topic_routes, reply_routes, stripe_routes,
+    community_routes, discussion_routes, discussion_topic_routes, stripe_routes,
 };
 use routes::tasks;
 use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
 use routes::user_auth::{
-    access_gain_action_routes, access_rule_routes, follow_routes, init_server_routes, login_routes,
+    access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
     register_routes,
 };
 use std::sync::Arc;
@@ -139,18 +139,19 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(community_routes::routes())
         .merge(access_rule_routes::routes())
         .merge(posts::routes(ctx_state.upload_max_size_mb))
-        .merge(reply_routes::routes())
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
         .merge(stripe_routes::routes())
         .merge(access_gain_action_routes::routes())
         .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
         .merge(tasks::routes())
-        .merge(follow_routes::routes())
         .merge(notifications::routes())
         .merge(wallet_routes::routes())
         .merge(wallet_endowment_routes::routes(ctx_state.is_development))
-        .merge(users::routes())
+        .merge(users::routes(ctx_state.upload_max_size_mb))
         .merge(paypal::routes())
+        .merge(discussions::routes(ctx_state.upload_max_size_mb))
+        .merge(follows::routes())
+        .merge(swagger::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
 }

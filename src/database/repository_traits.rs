@@ -15,7 +15,7 @@ pub trait RepositoryCore {
         Self: Sized;
 
     async fn query(&self, query: &str) -> Result<Self::QueryResultList, Self::Error>;
-    async fn create(
+    async fn create_entity(
         &self,
         entity: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error>;

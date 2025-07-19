@@ -9,6 +9,7 @@ use darve_server::routes::community::community_routes::get_community;
 use darve_server::routes::community::{community_routes, discussion_topic_routes};
 use discussion_entity::DiscussionDbService;
 use discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
+use helpers::post_helpers::create_post;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::DiscussionParams;
@@ -86,19 +87,16 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     let topic1_id = created.topics.get(0).unwrap().id.clone();
 
     let post_name = "post title Name 1".to_string();
-    let create_post = server
-        .post(format!("/api/discussion/{comm_disc_id}/post").as_str())
-        .multipart(
-            MultipartForm::new()
-                .add_text("title", post_name.clone())
-                .add_text("content", "contentttt111")
-                .add_text("topic_id", ""),
-        )
-        .add_header("Accept", "application/json")
-        .await;
-    let created = create_post.json::<CreatedResponse>();
-    create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
+    let created_post = create_post(
+        server,
+        discussion.id.as_ref().unwrap(),
+        MultipartForm::new()
+            .add_text("title", post_name.clone())
+            .add_text("content", "contentttt111")
+            .add_text("topic_id", ""),
+    )
+    .await;
+    created_post.assert_status_success();
 
     let comm_view = get_community(
         State(ctx_state.clone()),
@@ -121,20 +119,17 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     assert_eq!(posts.len(), 1);
 
     let post_name = "post title Name 2".to_string();
-    let create_post = server
-        .post(format!("/api/discussion/{comm_disc_id}/post").as_str())
-        .multipart(
-            MultipartForm::new()
-                .add_text("title", post_name.clone())
-                .add_text("content", "contentttt111")
-                .add_text("topic_id", topic1_id.clone().unwrap().to_raw()),
-        )
-        .add_header("Accept", "application/json")
-        .await;
+    let created_post = create_post(
+        server,
+        discussion.id.as_ref().unwrap(),
+        MultipartForm::new()
+            .add_text("title", post_name.clone())
+            .add_text("content", "contentttt111")
+            .add_text("topic_id", topic1_id.clone().unwrap().to_raw()),
+    )
+    .await;
     //.json(&PostInput { title: post_name, content: "contentttt".to_string(), topic_id: topic1_id.clone().unwrap().to_raw() }).await;
-    let created = create_post.json::<CreatedResponse>();
-    create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
+    created_post.assert_status_success();
 
     let comm_view = get_community(
         State(ctx_state.clone()),

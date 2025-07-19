@@ -16,7 +16,7 @@ use crate::middleware;
 
 use super::{discussion_entity, post_entity};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Reply {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,

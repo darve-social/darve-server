@@ -4,19 +4,17 @@ use axum_test::{
     multipart::{MultipartForm, Part},
     TestResponse, TestServer,
 };
-use darve_server::routes::{
-    community::profile_routes::SearchInput, user_auth::follow_routes::UserListView,
-};
+use darve_server::{entities::user_auth::local_user_entity::LocalUser, routes::users::SearchInput};
 
 #[allow(dead_code)]
-pub async fn create_user(server: &TestServer, input: &SearchInput) -> UserListView {
+pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<LocalUser> {
     let request = server
-        .post("/api/user/search")
+        .get("/api/users")
         .json(input)
         .add_header("Accept", "application/json")
         .await;
     request.assert_status_success();
-    request.json::<UserListView>()
+    request.json::<Vec<LocalUser>>()
 }
 
 #[allow(dead_code)]
@@ -28,7 +26,7 @@ pub async fn update_current_user(server: &TestServer) -> TestResponse {
     let data = MultipartForm::new().add_part("image_url", part);
 
     server
-        .post("/api/accounts/edit")
+        .patch("/api/users/current")
         .add_header("Accept", "application/json")
         .multipart(data)
         .await

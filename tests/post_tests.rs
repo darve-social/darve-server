@@ -25,7 +25,6 @@ use helpers::post_helpers::{
 };
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
-use serde_json::{from_value, Value};
 
 test_with_server!(create_post, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
@@ -101,8 +100,7 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
 
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     let post = posts.last().unwrap();
     assert_eq!(post.media_links.as_ref().unwrap().len(), 1);
     assert!(post.media_links.as_ref().unwrap()[0].contains("test_image_2mb.jpg"));
@@ -205,8 +203,7 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
     .await;
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 2);
     assert_eq!(posts[0].tags.as_ref().unwrap()[0], tags[0]);
     assert_eq!(posts[0].tags.as_ref().unwrap()[1], tags[1]);
@@ -242,8 +239,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
 
     let posts_res = get_posts(&server, None).await;
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 4);
 
     let posts_res = get_posts(
@@ -258,8 +254,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 2);
 
     let posts_res = get_posts(
@@ -274,8 +269,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 1);
 
     let posts_res = get_posts(
@@ -290,8 +284,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 0);
 
     let posts_res = get_posts(
@@ -306,7 +299,6 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts_value = posts_res.json::<Value>();
-    let posts: Vec<Post> = from_value(posts_value.get("posts").unwrap().to_owned()).unwrap();
+    let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 1);
 });

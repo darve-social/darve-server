@@ -42,7 +42,7 @@ for user in "${USERS[@]}"; do
   curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$encode_userid/100"
 post_uris=()  # make sure it's cleared/reset
 for i in {1..3}; do
-  response=$(curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussion/$discussion_id/post" \
+  response=$(curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussions/$discussion_id/posts" \
     -H "Accept: application/json" \
     -b "jwt=$token" \
     -F "title=Post $i" \
@@ -51,12 +51,10 @@ for i in {1..3}; do
 
   echo "$response"  # debug log
 
-  postUri=$(echo "$response" | jq -r '.uri // empty')
-  post_id=$(echo "$response" | jq -r '.id // empty')
+  post_id=$(echo "$response" | jq -r '.id.tb + ":" + .id.id.String')
+  [[ -n "$post_id" ]] && post_uris+=("$post_id")
 
-  [[ -n "$post_id" ]] && post_uris+=("$post_id")  # append only if non-empty
-
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussion/$discussion_id/post/$postUri/reply" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/posts/$post_id/replies" \
     -H "Content-Type: application/json" \
     -b "jwt=$token" \
     -d '{"title": "Reply 1", "content": "Lorem Ipsum"}'
@@ -78,51 +76,51 @@ echo "Setting up follow relationships..."
 token=$(echo "${REGISTERED_USERS[0]}" | jq -r '.token')
 id1=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
 
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id1" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id2=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id2" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id3" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 token=$(echo "${REGISTERED_USERS[1]}" | jq -r '.token')
 id0=$(echo "${REGISTERED_USERS[0]}" | jq -r '.id')
 
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id1" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id2=$(echo "${REGISTERED_USERS[2]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id2" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id3" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 token=$(echo "${REGISTERED_USERS[2]}" | jq -r '.token')
 id0=$(echo "${REGISTERED_USERS[0]}" | jq -r '.id')
 
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id1" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id1" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id1=$(echo "${REGISTERED_USERS[1]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id2" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id2" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 
 id3=$(echo "${REGISTERED_USERS[3]}" | jq -r '.id')
-curl -s -X POST "$SCHEMA://$HOST:$PORT/api/follow/$id3" \
+curl -s -X POST "$SCHEMA://$HOST:$PORT/api/followers/$id3" \
   -H "Accept: application/json" \
   -b "jwt=$token"
 

@@ -3,10 +3,12 @@ use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::community::community_entity;
+use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
+use darve_server::middleware::utils::request_utils::CreatedResponse;
 use darve_server::routes::community::community_routes;
 use darve_server::routes::tasks::{TaskRequestOfferInput, TaskRequestView};
 use darve_server::routes::user_auth::login_routes;
@@ -22,9 +24,8 @@ use community_entity::{Community, CommunityDbService};
 use community_routes::CommunityInput;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
-use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use wallet_entity::{CurrencySymbol, WalletDbService};
+use wallet_entity::WalletDbService;
 use wallet_routes::CurrencyTransactionHistoryView;
 
 test_with_server!(
@@ -77,7 +78,7 @@ test_with_server!(
 
         let post_name = "post title Name 1".to_string();
         let create_post = server
-            .post(format!("/api/discussion/{community_discussion_id}/post").as_str())
+            .post(format!("/api/discussions/{community_discussion_id}/posts").as_str())
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
@@ -86,10 +87,9 @@ test_with_server!(
             )
             .add_header("Accept", "application/json")
             .await;
-        let created_post = create_post.json::<CreatedResponse>();
+        let created_post = create_post.json::<Post>();
         create_post.assert_status_success();
-        assert_eq!(created_post.id.len() > 0, true);
-        let post_id = created_post.id;
+        let post_id = created_post.id.as_ref().unwrap().to_raw();
 
         ////////// user 2 creates offer for user 0
 
@@ -130,7 +130,7 @@ test_with_server!(
             .get(&format!("/api/posts/{post_id}/tasks"))
             .add_header("Accept", "application/json")
             .await;
-        println!(">>>>{:?}", post_tasks_req);
+
         post_tasks_req.assert_status_success();
         let post_tasks = post_tasks_req.json::<Vec<TaskRequestView>>();
 
@@ -180,12 +180,10 @@ test_with_server!(
             .post(format!("/api/tasks/{}/donor", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
-                currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
         participate_response.assert_status_success();
-        let _res = participate_response.json::<CreatedResponse>();
 
         let wallet_service = WalletDbService {
             db: &ctx_state.db.client,
@@ -213,13 +211,11 @@ test_with_server!(
             .post(format!("/api/tasks/{}/donor", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
-                currency: Some(CurrencySymbol::USD),
             })
             .add_header("Accept", "application/json")
             .await;
 
         participate_response.assert_status_success();
-        let _res = participate_response.json::<CreatedResponse>();
 
         let wallet_service = WalletDbService {
             db: &ctx_state.db.client,
@@ -253,10 +249,7 @@ test_with_server!(
 
         let participate_response = server
             .post(format!("/api/tasks/{}/donor", task.id.clone().unwrap()).as_str())
-            .json(&TaskRequestOfferInput {
-                amount: 33,
-                currency: Some(CurrencySymbol::USD),
-            })
+            .json(&TaskRequestOfferInput { amount: 33 })
             .add_header("Accept", "application/json")
             .await;
 
@@ -316,7 +309,7 @@ test_with_server!(
         // create post on own profile for task delivery
         let post_name = "delivery post".to_string();
         let create_post = server
-            .post("/api/user/post")
+            .post("/api/users/current/posts")
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
@@ -325,11 +318,10 @@ test_with_server!(
             )
             .add_header("Accept", "application/json")
             .await;
-        let created_post = create_post.json::<CreatedResponse>();
+        let created_post = create_post.json::<Post>();
         create_post.assert_status_success();
-        let delivery_post_id = created_post.id.clone();
+        let delivery_post_id = created_post.id.as_ref().unwrap().to_raw();
         println!("DEL POST={}", delivery_post_id.clone());
-        assert_eq!(created_post.id.len() > 0, true);
 
         // deliver task
         let delivery_req = server
@@ -386,7 +378,7 @@ test_with_server!(
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
-            .get("/api/user/wallet/history?start=0&count=20")
+            .get("/api/wallet/history?start=0&count=20")
             .add_header("Accept", "application/json")
             .await;
         transaction_history_response.assert_status_success();
@@ -414,7 +406,7 @@ test_with_server!(
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
-            .get("/api/user/wallet/history?start=2&count=20")
+            .get("/api/wallet/history?start=2&count=20")
             .add_header("Accept", "application/json")
             .await;
         transaction_history_response.assert_status_success();
@@ -452,15 +444,14 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 
     let create_response = server
         .post(&format!(
-            "/api/follow/{}",
+            "/api/followers/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
 
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
@@ -517,15 +508,14 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
     ));
     let create_response = server
         .post(&format!(
-            "/api/follow/{}",
+            "/api/followers/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let req = server
         .get("/api/notifications")
@@ -568,15 +558,14 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
     let create_response = server
         .post(&format!(
-            "/api/follow/{}",
+            "/api/followers/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
@@ -619,15 +608,14 @@ test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     ));
     let create_response = server
         .post(&format!(
-            "/api/follow/{}",
+            "/api/followers/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
     let _ = create_fake_post(&server, &discussion_id, None, None).await;
