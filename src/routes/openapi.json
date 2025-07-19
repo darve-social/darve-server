@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8080",
+      "url": "",
       "description": "Development server"
     }
   ],
@@ -2763,17 +2763,38 @@
       },
       "TaskRequestInput": {
         "type": "object",
-        "required": ["request_txt"],
+        "required": ["content"],
         "properties": {
-          "request_txt": {
+          "content": {
             "type": "string",
-            "description": "Task request description"
+            "minLength": 5,
+            "description": "Task request description (min 5 characters)"
           },
-          "reward_type": {
-            "$ref": "#/components/schemas/RewardType"
+          "participant": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional participant identifier"
           },
-          "currency": {
-            "$ref": "#/components/schemas/CurrencySymbol"
+          "offer_amount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Optional offer amount, must be at least 1"
+          },
+          "acceptance_period": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Optional acceptance period in days"
+          },
+          "delivery_period": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "nullable": true,
+            "description": "Optional delivery period in days"
           }
         }
       },

@@ -76,7 +76,7 @@ async fn swagger_ui() -> impl IntoResponse {
 }
 
 async fn openapi_spec() -> impl IntoResponse {
-    let openapi_json = include_str!("../openapi.json");
+    let openapi_json = include_str!("./openapi.json");
 
     ([(header::CONTENT_TYPE, "application/json")], openapi_json)
 }

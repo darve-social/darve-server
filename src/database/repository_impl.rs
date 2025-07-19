@@ -41,7 +41,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         Ok(values)
     }
 
-    async fn create(
+    async fn create_entity(
         &self,
         entity: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error> {

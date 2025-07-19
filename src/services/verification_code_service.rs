@@ -82,14 +82,15 @@ where
     ) -> AppResult<VerificationCodeEntity> {
         let code = generate::generate_number_code(6);
 
-        let data = VerificationCodeRepositoryInterface::create(
-            self.repository,
-            user_id,
-            &code,
-            email,
-            VerificationCodeFor::EmailVerification,
-        )
-        .await?;
+        let data = self
+            .repository
+            .create(
+                user_id,
+                &code,
+                email,
+                VerificationCodeFor::EmailVerification,
+            )
+            .await?;
 
         let html = EmailVerificationCode {
             code: &code,

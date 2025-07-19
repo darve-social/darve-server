@@ -8,6 +8,7 @@ use crate::{
     middleware::error::AppError,
 };
 use async_trait::async_trait;
+use surrealdb::sql::Thing;
 
 pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 
@@ -81,7 +82,7 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         use_for: VerificationCodeFor,
     ) -> Result<VerificationCodeEntity, surrealdb::Error> {
         // let user_thing = Thing::try_from(user_id).map_err(|_| "User Id is invalid".to_string())?;
-        let user_thing = get_str_id_thing(USER_TABLE_NAME, user_id)?;
+        // let user_thing = get_str_id_thing(USER_TABLE_NAME, user_id)?;
         let qry = format!("
             BEGIN TRANSACTION;
                 DELETE FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;
@@ -91,7 +92,7 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         let mut res = self
             .client
             .query(qry)
-            .bind(("user_id", user_thing))
+            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("code", code.to_string()))
             .bind(("email", email.to_string()))
             .bind(("use_for", use_for))

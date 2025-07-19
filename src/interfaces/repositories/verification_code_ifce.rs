@@ -1,5 +1,7 @@
-use crate::database::repository_traits::RepositoryCore;
-use crate::entities::verification_code::{VerificationCodeEntity, VerificationCodeFor};
+use crate::{
+    database::repository_traits::RepositoryCore,
+    entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
+};
 use async_trait::async_trait;
 
 #[async_trait]
