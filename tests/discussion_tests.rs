@@ -107,8 +107,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
-                .add_text("content", "contentttt111")
-                .add_text("topic_id", ""),
+                .add_text("content", "contentttt111"),
         )
         .add_header("Accept", "application/json")
         .await;

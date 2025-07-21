@@ -92,8 +92,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
         discussion.id.as_ref().unwrap(),
         MultipartForm::new()
             .add_text("title", post_name.clone())
-            .add_text("content", "contentttt111")
-            .add_text("topic_id", ""),
+            .add_text("content", "contentttt111"),
     )
     .await;
     created_post.assert_status_success();

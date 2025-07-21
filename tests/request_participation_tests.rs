@@ -82,8 +82,7 @@ test_with_server!(
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
-                    .add_text("content", "contentttt")
-                    .add_text("topic_id", ""),
+                    .add_text("content", "contentttt"),
             )
             .add_header("Accept", "application/json")
             .await;
@@ -313,8 +312,7 @@ test_with_server!(
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
-                    .add_text("content", "delivery contentttt")
-                    .add_text("topic_id", ""),
+                    .add_text("content", "delivery contentttt"),
             )
             .add_header("Accept", "application/json")
             .await;
