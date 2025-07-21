@@ -37,7 +37,7 @@ use crate::{
         post_service::{PostInput, PostService, PostView},
         user_service::UserService,
     },
-    utils::{self, file::convert::convert_field_file_data},
+    utils::{self, file::convert::convert_field_file_data, validate_utils::validate_social_links},
 };
 
 use utils::validate_utils::empty_string_as_none;
@@ -233,6 +233,9 @@ pub struct ProfileSettingsFormInput {
     #[serde(skip_deserializing)]
     #[form_data(limit = "unlimited")]
     pub image_url: Option<FieldData<NamedTempFile>>,
+
+    #[validate(custom(function = "validate_social_links"))]
+    pub social_links: Vec<String>,
 }
 
 async fn update_user(
@@ -265,6 +268,8 @@ async fn update_user(
     if let Some(full_name) = body_value.full_name {
         user.full_name = Some(full_name.trim().to_string());
     }
+
+    user.social_links = Some(body_value.social_links);
 
     if let Some(image_file) = body_value.image_url {
         let file = convert_field_file_data(image_file)?;

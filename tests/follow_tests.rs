@@ -424,7 +424,6 @@ test_with_server!(
         let streams = post_stream_db_service
             .get_posts::<PostView>(user2_id.clone())
             .await;
-        println!(">>>>>>>{:?}", streams);
         let post_streams = streams
             .unwrap()
             .iter()
