@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -12,8 +11,7 @@ use access_right_entity::AccessRightDbService;
 use authorization_entity::Authorization;
 use middleware::error::AppError::EntityFailIdNotFound;
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, RecordWithId,
-    ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
 use middleware::utils::string_utils::get_string_thing;
 use middleware::{
@@ -29,7 +27,7 @@ pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub birth_date: Option<DateTime<Utc>>,
+    pub birth_date: Option<chrono::NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,7 +94,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
-    
+  
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
     DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
     DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
@@ -209,14 +207,33 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
-        let local_user_id: String = self
+        let query = format!(
+            "INSERT INTO {TABLE_NAME} {{
+                username:$username,
+                full_name:$full_name,
+                birth_date:$dirth_date,
+                bio:$bio,
+                image_uri:$image_uri,
+                phone:$phone,
+                email_verified:$email_verified
+            }};"
+        );
+        let mut res = self
             .db
-            .create(TABLE_NAME)
-            .content(ct_input)
+            .query(query)
+            .bind(("username", ct_input.username))
+            .bind(("phone", ct_input.phone))
+            .bind(("full_name", ct_input.full_name))
+            .bind(("email_verified", ct_input.email_verified))
+            .bind(("image_uri", ct_input.image_uri))
+            .bind(("social_links", ct_input.social_links))
+            .bind(("birth_date", ct_input.birth_date))
             .await
-            .map(|v: Option<RecordWithId>| v.unwrap().id.to_raw())
             .map_err(CtxError::from(self.ctx))?;
-        Ok(local_user_id)
+
+        let user = res.take::<Option<LocalUser>>(0)?;
+
+        Ok(user.unwrap().id.as_ref().unwrap().to_raw())
     }
 
     pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
