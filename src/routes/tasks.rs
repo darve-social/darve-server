@@ -35,6 +35,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct TaskRequestOfferInput {
+    #[validate(range(min = 100))]
     pub amount: u64,
 }
 

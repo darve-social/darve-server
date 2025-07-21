@@ -12,7 +12,7 @@ use darve_server::middleware::utils::request_utils::CreatedResponse;
 use darve_server::routes::community::community_routes;
 use darve_server::routes::tasks::{TaskRequestOfferInput, TaskRequestView};
 use darve_server::routes::user_auth::login_routes;
-use darve_server::routes::wallet::wallet_routes;
+use darve_server::routes::wallet::CurrencyTransactionHistoryView;
 use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use serde_json::json;
@@ -26,7 +26,6 @@ use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
 use wallet_entity::WalletDbService;
-use wallet_routes::CurrencyTransactionHistoryView;
 
 test_with_server!(
     create_task_request_participation,
@@ -97,7 +96,7 @@ test_with_server!(
         let user2_thing = get_string_thing(user_ident2).unwrap();
 
         // endow user 2
-        let user2_endow_amt = 100;
+        let user2_endow_amt = 200;
         let endow_user_response = server
             .get(&format!(
                 "/test/api/endow/{}/{}",
@@ -109,12 +108,12 @@ test_with_server!(
             .await;
         endow_user_response.assert_status_success();
 
-        let user2_offer_amt = 2;
+        let user2_offer_amt: i64 = 200;
         let offer_content = "contdad".to_string();
         let task_request = server
             .post(&format!("/api/posts/{post_id}/tasks"))
             .json(&TaskRequestInput {
-                offer_amount: Some(user2_offer_amt),
+                offer_amount: Some(user2_offer_amt as u64),
                 participant: Some(user_ident0.clone()),
                 content: offer_content.clone(),
                 acceptance_period: None,
@@ -139,7 +138,7 @@ test_with_server!(
 
         assert_eq!(created_task.id, task.id);
 
-        assert_eq!(offer0.amount.clone(), user2_offer_amt);
+        assert_eq!(offer0.amount.clone(), user2_offer_amt as i64);
         assert_eq!(task.created_by.username, username2);
         // assert_eq!(task.to_user.clone().unwrap().username, username0);
         assert_eq!(task.donors.len(), 1);
@@ -164,7 +163,7 @@ test_with_server!(
 
         // endow user 3
         let user3_endow_amt: i64 = 100;
-        let user3_offer_amt: i64 = 3;
+        let user3_offer_amt: i64 = 100;
         let endow_user_response = server
             .get(&format!(
                 "/test/api/endow/{}/{}",
@@ -206,7 +205,7 @@ test_with_server!(
         assert_eq!(balance.balance_usd, user2_offer_amt + user3_offer_amt);
 
         // change amount to 33 by sending another participation req
-        let user3_offer_amt: i64 = 33;
+        let user3_offer_amt: i64 = 100;
         let participate_response = server
             .post(format!("/api/tasks/{}/donor", task.id.clone().unwrap()).as_str())
             .json(&TaskRequestOfferInput {
@@ -249,7 +248,7 @@ test_with_server!(
 
         let participate_response = server
             .post(format!("/api/tasks/{}/donor", task.id.clone().unwrap()).as_str())
-            .json(&TaskRequestOfferInput { amount: 33 })
+            .json(&TaskRequestOfferInput { amount: 100 })
             .add_header("Accept", "application/json")
             .await;
 

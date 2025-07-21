@@ -3,7 +3,7 @@ use crate::database::client::Db;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::error::CtxError;
-use crate::routes::wallet::wallet_routes;
+use crate::routes::wallet::CurrencyTransactionView;
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal,
@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use surrealdb::sql::{to_value, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
-use wallet_routes::CurrencyTransactionView;
 
 #[derive(Debug, Deserialize)]
 pub struct TransferCurrencyResponse {
