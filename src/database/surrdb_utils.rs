@@ -61,7 +61,7 @@ pub fn get_entity_query_str(
     ident: &IdentIdName,
     select_fields_or_id: Option<&str>,
     pagination: Option<Pagination>,
-    table_name: String,
+    table_name: &str,
 ) -> Result<QryBindingsVal<String>, surrealdb::Error> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
 
@@ -126,7 +126,7 @@ pub fn get_entity_query_str(
             let fields = select_fields_or_id.unwrap_or("id");
             q_bindings.extend(ident.get_bindings_map());
             // TODO move table name to IdentIdName::ColumnIdent prop since it's used only here
-            q_bindings.insert("_table".to_string(), table_name);
+            q_bindings.insert("_table".to_string(), table_name.to_string());
             format!(
                 "SELECT {fields} FROM type::table($_table) WHERE {} {pagination_q};",
                 ident.to_string()
@@ -138,7 +138,7 @@ pub fn get_entity_query_str(
 
 pub async fn get_entity<T: for<'a> Deserialize<'a>>(
     db: &Db,
-    table_name: String,
+    table_name: &str,
     ident: &IdentIdName,
 ) -> Result<Option<T>, surrealdb::Error> {
     let query_string = get_entity_query_str(ident, Some("*"), None, table_name)?;
@@ -186,7 +186,7 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
 
 pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
     db: &Db,
-    table_name: String,
+    table_name: &str,
     ident: &IdentIdName,
 ) -> Result<Option<T>, surrealdb::Error> {
     let query_string = get_entity_query_str(
@@ -215,7 +215,7 @@ pub async fn get_query<T: for<'a> Deserialize<'a>>(
 
 pub async fn get_entity_list<T: for<'a> Deserialize<'a>>(
     db: &Db,
-    table_name: String,
+    table_name: &str,
     ident: &IdentIdName,
     pagination: Option<Pagination>,
 ) -> Result<Vec<T>, surrealdb::Error> {
@@ -226,7 +226,7 @@ pub async fn get_entity_list<T: for<'a> Deserialize<'a>>(
 
 pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
     db: &Db,
-    table_name: String,
+    table_name: &str,
     ident: &IdentIdName,
     pagination: Option<Pagination>,
 ) -> Result<Vec<T>, surrealdb::Error> {
@@ -269,13 +269,13 @@ pub fn create_db_qry(
 
 pub async fn exists_entity(
     db: &Db,
-    table_name: String,
+    table_name: &str,
     ident: &IdentIdName,
-) -> Result<Option<Thing>, surrealdb::Error> {
+) -> Result<Thing, surrealdb::Error> {
     match ident {
         IdentIdName::Id(id) => {
             record_exists(db, id).await?;
-            Ok(Some(id.clone()))
+            Ok(id.clone())
         }
         _ => {
             let query_string = get_entity_query_str(ident, None, None, table_name)?;
@@ -284,8 +284,10 @@ pub async fn exists_entity(
             let mut res = qry.await?;
             let res = res.take::<Option<RecordWithId>>(0)?;
             match res {
-                None => Ok(None),
-                Some(rec) => Ok(Some(rec.id)),
+                None =>Err(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
+            rid: ident.to_string(),
+        })),
+                Some(rec) => Ok(rec.id),
             }
         }
     }

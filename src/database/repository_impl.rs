@@ -1,9 +1,6 @@
 use crate::database::client::Db;
 use crate::database::repository_traits::{EntityWithId, RepositoryCore, RepositoryEntityId};
 use crate::database::surrdb_utils;
-use crate::database::surrdb_utils::{
-    get_entity_query_str, get_list_qry, get_query, record_exist_all, record_exists, RecordWithId,
-};
 use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
 use async_trait::async_trait;
 use serde::Serialize;
@@ -60,18 +57,18 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         &self,
         ident: &IdentIdName,
     ) -> Result<Option<Self::QueryResultItem>, Self::Error> {
-        let query_string = get_entity_query_str(ident, Some("*"), None, self.table_name.clone())?;
+        let query_string = surrdb_utils::get_entity_query_str(ident, Some("*"), None, self.table_name.as_ref())?;
         println!("QRY={:#?}", query_string);
-        get_query(self.client.as_ref(), query_string).await
+        surrdb_utils::get_query(self.client.as_ref(), query_string).await
     }
 
-    async fn delete(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
+    async fn delete_by_id(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
         let _res: Option<Self::QueryResultItem> =
             self.client.delete((&self.table_name, record_id)).await?;
         Ok(true)
     }
 
-    async fn count(&self) -> Result<u64, surrealdb::Error> {
+    async fn count_records(&self) -> Result<u64, surrealdb::Error> {
         let query = format!(
             "(SELECT count() as count FROM ONLY {} GROUP ALL).count;",
             self.table_name
@@ -96,51 +93,21 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         pagination: Option<Pagination>,
     ) -> Result<Self::QueryResultList, surrealdb::Error> {
         let query_string =
-            get_entity_query_str(ident, Some("*"), pagination, self.table_name.clone())?;
+            surrdb_utils::get_entity_query_str(ident, Some("*"), pagination, self.table_name.as_ref())?;
 
-        get_list_qry(self.client.as_ref(), query_string).await
+        surrdb_utils::get_list_qry(self.client.as_ref(), query_string).await
     }
 
-    async fn exists_entity(&self, ident: &IdentIdName) -> Result<Option<Thing>, Self::Error> {
-        match ident {
-            IdentIdName::Id(id) => {
-                record_exists(self.client.as_ref(), id).await?;
-                Ok(Some(id.clone()))
-            }
-            _ => {
-                let query_string =
-                    get_entity_query_str(ident, None, None, self.table_name.clone())?;
-                let qry = surrdb_utils::create_db_qry(self.client.as_ref(), query_string);
-
-                let mut res = qry.await?;
-                let res = res.take::<Option<RecordWithId>>(0)?;
-                match res {
-                    None => Ok(None),
-                    Some(rec) => Ok(Some(rec.id)),
-                }
-            }
-        }
+    async fn exists_entity(&self, ident: &IdentIdName) -> Result<Thing, Self::Error> {
+        surrdb_utils::exists_entity(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 
-    async fn record_exists(&self, record_id: &Thing) -> Result<(), Self::Error> {
-        let qry = "RETURN record::exists(<record>$rec_id);";
-        let mut res = self
-            .client
-            .as_ref()
-            .query(qry)
-            .bind(("rec_id", record_id.to_raw()))
-            .await?;
-        let res: Option<bool> = res.take(0)?;
-        match res.unwrap_or(false) {
-            true => Ok(()),
-            false => Err(Self::Error::from(surrealdb::error::Db::IdNotFound {
-                rid: record_id.to_raw(),
-            })),
-        }
+    async fn exists_record(&self, record_id: &Thing) -> Result<(), Self::Error> {
+        surrdb_utils::record_exists(self.client.as_ref(), record_id).await
     }
 
     async fn record_exist_all(&self, record_ids: Vec<String>) -> Result<Vec<Thing>, Self::Error> {
-        record_exist_all(self.client.as_ref(), record_ids).await
+        surrdb_utils::record_exist_all(self.client.as_ref(), record_ids).await
     }
 }
 

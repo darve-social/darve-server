@@ -26,16 +26,16 @@ pub trait RepositoryCore {
         ident: &IdentIdName,
     ) -> Result<Option<Self::QueryResultItem>, Self::Error>;
 
-    async fn delete(&self, record_id: &str) -> Result<bool, Self::Error>;
-    async fn count(&self) -> Result<u64, Self::Error>;
+    async fn delete_by_id(&self, record_id: &str) -> Result<bool, Self::Error>;
+    async fn count_records(&self) -> Result<u64, Self::Error>;
     fn get_thing(&self, id: &str) -> Thing;
     async fn get_entity_list(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> Result<Self::QueryResultList, Self::Error>;
-    async fn exists_entity(&self, ident: &IdentIdName) -> Result<Option<Thing>, Self::Error>;
-    async fn record_exists(&self, record_id: &Thing) -> Result<(), Self::Error>;
+    async fn exists_entity(&self, ident: &IdentIdName) -> Result<Thing, Self::Error>;
+    async fn exists_record(&self, record_id: &Thing) -> Result<(), Self::Error>;
     async fn record_exist_all(&self, record_ids: Vec<String>) -> Result<Vec<Thing>, Self::Error>;
 }
 
