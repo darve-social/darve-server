@@ -45,7 +45,7 @@ pub struct PostInput {
     pub title: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub content: String,
-    pub topic_id: String,
+    pub topic_id: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
@@ -237,10 +237,11 @@ where
             vec![]
         };
 
-        let topic_val: Option<Thing> = if data.topic_id.trim().len() > 0 {
-            get_string_thing(data.topic_id).ok()
-        } else {
-            None
+        let topic_val: Option<Thing> = match data.topic_id {
+            Some(v) => Some(get_string_thing(v).map_err(|_| AppError::Generic {
+                description: "Topic id is invalid".to_string(),
+            })?),
+            None => None,
         };
 
         let post_res = self
