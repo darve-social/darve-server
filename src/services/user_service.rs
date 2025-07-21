@@ -46,17 +46,13 @@ where
             verification_code_service,
         }
     }
-    
+
     pub async fn start_email_verification(
         &self,
         user_id: &str,
         email: &str,
     ) -> Result<(), AppError> {
-
-        let _ = self
-            .user_repository
-            .get_by_id(user_id)
-            .await?;
+        let _ = self.user_repository.get_by_id(user_id).await?;
 
         let is_exists = self.user_repository.get_by_email(email).await.is_ok();
 
@@ -66,8 +62,7 @@ where
             });
         };
 
-        self
-            .verification_code_service
+        self.verification_code_service
             .create_for_email(user_id, email)
             .await?;
 
@@ -80,11 +75,7 @@ where
         code: &str,
         _email: &str,
     ) -> Result<(), AppError> {
-
-        let user = self
-            .user_repository
-            .get_by_id(user_id)
-            .await?;
+        let user = self.user_repository.get_by_id(user_id).await?;
 
         let code = self
             .verification_code_service

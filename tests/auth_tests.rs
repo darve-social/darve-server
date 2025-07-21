@@ -267,7 +267,7 @@ test_with_server!(
 
         let user_thing = user.id.as_ref().unwrap().clone();
         let _ = user_db
-            .set_user_email( user_thing.clone(), email.clone())
+            .set_user_email(user_thing.clone(), email.clone())
             .await;
 
         let response = server
@@ -282,10 +282,7 @@ test_with_server!(
         let user_code = ctx_state
             .db
             .verification_code
-            .get_by_user(
-                &user_thing.id.to_raw(),
-                VerificationCodeFor::ResetPassword,
-            )
+            .get_by_user(&user_thing.id.to_raw(), VerificationCodeFor::ResetPassword)
             .await
             .unwrap();
 

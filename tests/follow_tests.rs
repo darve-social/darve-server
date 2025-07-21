@@ -3,23 +3,27 @@ use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
-        community::post_stream_entity::PostStreamDbService, user_auth::follow_entity,
+        community::{post_entity::Post, post_stream_entity::PostStreamDbService},
+        user_auth::follow_entity,
         user_notification::UserNotification,
     },
     middleware,
     routes::{
-        community::profile_routes::{self, get_profile_community},
-        user_auth::{follow_routes, login_routes},
+        community::{
+            discussion_routes::DiscussionPostView,
+            profile_routes::{self, get_profile_community},
+        },
+        follows::UserItemView,
+        user_auth::login_routes,
     },
+    services::post_service::PostView,
 };
 use follow_entity::FollowDbService;
-use follow_routes::UserListView;
 use helpers::{fake_username_min_len, post_helpers::create_fake_post};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
-use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use profile_routes::{FollowingStreamView, ProfileDiscussionView, ProfilePage};
+use profile_routes::ProfilePage;
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
     let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
@@ -58,17 +62,16 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     // logged in as username2
     // follow user_ident1
     let create_response = server
-        .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
 
     // refollow error
     let create_response = server
-        .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .add_header("Accept", "application/json")
@@ -105,16 +108,15 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let username3 = user3.username;
     // follow u1
     let create_response = server
-        .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
 
     // refollow error
     let create_response = server
-        .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .await;
@@ -137,39 +139,38 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // check if follows user1
     let create_response = server
-        .get(format!("/api/user/follows/{}", user_ident1.clone()).as_str())
+        .get(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
 
     // check followers for user1
     let create_response = server
-        .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
+        .get(format!("/api/users/{}/followers", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<UserListView>();
-    assert_eq!(created.items.len(), 2);
-    let f_usernames: Vec<String> = created.items.iter().map(|fu| fu.username.clone()).collect();
+    let created = &create_response.json::<Vec<UserItemView>>();
+    assert_eq!(created.len(), 2);
+    let f_usernames: Vec<String> = created.iter().map(|fu| fu.username.clone()).collect();
     assert_eq!(f_usernames.contains(&username2.clone()), true);
     assert_eq!(f_usernames.contains(&username3.clone()), true);
     assert_eq!(f_usernames.contains(&username1.clone()), false);
 
     // user1 follows 0
     let create_response = server
-        .get(format!("/api/user/{}/following", user_ident1.clone()).as_str())
+        .get(format!("/api/users/{}/following", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<UserListView>();
-    assert_eq!(created.items.len(), 0);
+    let created = &create_response.json::<Vec<UserItemView>>();
+    assert_eq!(created.len(), 0);
 
     // user3 get followers stream
     let create_response = server
-        .get("/u/following/posts")
+        .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<FollowingStreamView>();
-    assert_eq!(created.post_list.len(), 0);
+    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    assert_eq!(posts.len(), 0);
 
     // login user1
     server.get("/logout").await;
@@ -187,7 +188,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     // user1 post
     let post_name = "post title Name 1".to_string();
     let create_post = server
-        .post("/api/user/post")
+        .post("/api/users/current/posts")
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -196,21 +197,18 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         )
         .add_header("Accept", "application/json")
         .await;
-    let created = create_post.json::<CreatedResponse>();
     create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
+    let _post = create_post.json::<Post>();
 
     let response = server
-        .get(format!("/api/user/{}/posts", username1).as_str())
+        .get("/api/users/current/posts")
         .add_header("Accept", "application/json")
         .await;
-    let parsed_response = response.json::<ProfileDiscussionView>();
-    create_post.assert_status_success();
-    assert_eq!(parsed_response.posts.len(), 1);
-    assert_eq!(
-        parsed_response.posts[0].username.clone().unwrap(),
-        username1
-    );
+    response.assert_status_success();
+    let posts = response.json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].created_by_name, username1);
 
     // login user3
     server.get("/logout").await;
@@ -227,11 +225,13 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user3 get followers stream
     let create_response = server
-        .get("/u/following/posts")
+        .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<FollowingStreamView>();
-    assert_eq!(created.post_list.len(), 1);
+
+    println!(">>>>{:?}", create_response);
+    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    assert_eq!(posts.len(), 1);
 
     // login user1
     server
@@ -252,7 +252,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     // user1 post 2
     let post_name = "post title Name 2".to_string();
     let create_post = server
-        .post("/api/user/post")
+        .post("/api/users/current/posts")
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -261,9 +261,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         )
         .add_header("Accept", "application/json")
         .await;
-    let created = create_post.json::<CreatedResponse>();
     create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
 
     // login user3
     server.get("/logout").await;
@@ -279,19 +277,18 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user3 get followers stream
     let create_response = server
-        .get("/u/following/posts")
+        .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<FollowingStreamView>();
-    assert_eq!(created.post_list.len(), 2);
+    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    assert_eq!(posts.len(), 2);
 
     // user3 unfollow user1
     let create_response = server
-        .delete(format!("/api/follow/{}", user_ident1.clone()).as_str())
+        .delete(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, true);
+    create_response.assert_status_success();
 
     // check nr of user1 followers
     let profile1_response = server
@@ -303,19 +300,18 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // check nr of user1 followers
     let create_response = server
-        .get(format!("/api/user/{}/followers", user_ident1.clone()).as_str())
+        .get(format!("/api/users/{}/followers", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<UserListView>();
-    assert_eq!(created.items.len(), 1);
+    let created = &create_response.json::<Vec<UserItemView>>();
+    assert_eq!(created.len(), 1);
 
     // check user3 unfollowed user1
     let create_response = server
-        .get(format!("/api/user/follows/{}", user_ident1.clone()).as_str())
+        .get(format!("/api/followers/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<CreatedResponse>();
-    assert_eq!(created.success, false);
+    create_response.assert_status_success();
 
     // login user1
     server.get("/logout").await;
@@ -332,7 +328,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     // user1 post 3
     let post_name = "post title Name 3".to_string();
     let create_post = server
-        .post("/api/user/post")
+        .post("/api/users/current/posts")
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -341,9 +337,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         )
         .add_header("Accept", "application/json")
         .await;
-    let created = create_post.json::<CreatedResponse>();
     create_post.assert_status_success();
-    assert_eq!(created.id.len() > 0, true);
 
     // login user3
     server.get("/logout").await;
@@ -360,11 +354,11 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user3 get followers stream
     let create_response = server
-        .get("/u/following/posts")
+        .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let created = &create_response.json::<FollowingStreamView>();
-    assert_eq!(created.post_list.len(), 2);
+    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    assert_eq!(posts.len(), 2);
 
     let notifications_response = server
         .get("/api/notifications")
@@ -406,7 +400,7 @@ test_with_server!(
         };
 
         let create_response = server
-            .post(format!("/api/follow/{}", user_ident1.clone()).as_str())
+            .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
             .add_header("Accept", "application/json")
             .json("")
             .add_header("Accept", "application/json")
@@ -428,14 +422,18 @@ test_with_server!(
         };
 
         let streams = post_stream_db_service
-            .user_posts_stream(user2_id.clone())
+            .get_posts::<PostView>(user2_id.clone())
             .await;
+        println!(">>>>>>>{:?}", streams);
+        let post_streams = streams
+            .unwrap()
+            .iter()
+            .map(|p| p.id.to_raw())
+            .collect::<Vec<String>>();
 
-        assert!(streams.is_ok());
-        let post_streams = streams.unwrap();
         assert_eq!(post_streams.len(), 3);
-        assert!(post_streams.contains(&get_string_thing(post_2.id).unwrap()));
-        assert!(post_streams.contains(&get_string_thing(post_3.id).unwrap()));
-        assert!(post_streams.contains(&get_string_thing(post_4.id).unwrap()));
+        assert!(post_streams.contains(&post_2.id));
+        assert!(post_streams.contains(&post_3.id));
+        assert!(post_streams.contains(&post_4.id));
     }
 );

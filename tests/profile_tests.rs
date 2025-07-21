@@ -6,14 +6,16 @@ use darve_server::{
     },
     interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
     middleware::{self, utils::db_utils::UsernameIdent},
-    routes::community::profile_routes::{self},
+    routes::{
+        community::profile_routes::{self},
+        users::SearchInput,
+    },
 };
 use helpers::{
     create_fake_login_test_user, create_login_test_user,
     user_helpers::{self, get_user, update_current_user},
 };
 use middleware::ctx::Ctx;
-use profile_routes::SearchInput;
 use serde_json::json;
 
 test_with_server!(search_users, |server, ctx_state, config| {
@@ -25,7 +27,7 @@ test_with_server!(search_users, |server, ctx_state, config| {
     let (server, _) = create_login_test_user(&server, username3.clone()).await;
 
     let request = server
-        .post("/api/accounts/edit")
+        .patch("/api/users/current")
         .multipart(
             MultipartForm::new()
                 .add_text("username", "username_new")
@@ -36,82 +38,82 @@ test_with_server!(search_users, |server, ctx_state, config| {
         .await;
     request.assert_status_success();
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "rset".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 1);
+    assert_eq!(res.len(), 1);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "user".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 3);
+    assert_eq!(res.len(), 3);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "Userse".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 1);
+    assert_eq!(res.len(), 1);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "one".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 1);
+    assert_eq!(res.len(), 1);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "unknown".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 0);
+    assert_eq!(res.len(), 0);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "its".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 2);
+    assert_eq!(res.len(), 2);
 
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "hero".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 0);
+    assert_eq!(res.len(), 0);
 
     let (server, _) = create_login_test_user(&server, String::from("abcdtest")).await;
     let (server, _) = create_login_test_user(&server, String::from("abcdtest1")).await;
     let (server, _) = create_login_test_user(&server, String::from("abcdtest2")).await;
     let (server, _) = create_login_test_user(&server, String::from("abcdtest3")).await;
     let (server, _) = create_login_test_user(&server, String::from("abcdtest4")).await;
-    let res = user_helpers::create_user(
+    let res = user_helpers::search_users(
         &server,
         &SearchInput {
             query: "tes".to_string(),
         },
     )
     .await;
-    assert_eq!(res.items.len(), 5);
+    assert_eq!(res.len(), 5);
 });
 
 test_with_server!(

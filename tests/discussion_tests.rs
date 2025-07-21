@@ -103,7 +103,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let post_name = "post title Name 1".to_string();
     let create_post = server
-        .post(format!("/api/discussion/{disc_id}/post").as_str())
+        .post(format!("/api/discussions/{disc_id}/posts").as_str())
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -116,7 +116,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let post_name2 = "post title Name 2?&$^%! <>end".to_string();
     let create_response2 = server
-        .post(format!("/api/discussion/{disc_id}/post").as_str())
+        .post(format!("/api/discussions/{disc_id}/posts").as_str())
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name2.clone())

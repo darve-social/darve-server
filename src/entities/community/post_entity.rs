@@ -28,7 +28,7 @@ use super::{discussion_entity, discussion_topic_entity};
 /// discussions we have to filter by discussion and user to get user's posts
 /// in particular discussion. User profile posts are in profile discussion.
 ///
-#[derive(Clone, Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
     // id is ULID for sorting by time
     #[serde(skip_serializing_if = "Option::is_none")]

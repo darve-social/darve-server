@@ -28,9 +28,9 @@ use crate::utils::paypal::Paypal;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/user/wallet/history", get(get_wallet_history))
-        .route("/api/user/wallet/balance", get(get_user_balance))
-        .route("/api/user/wallet/withdraw", post(withdraw))
+        .route("/api/wallet/history", get(get_wallet_history))
+        .route("/api/wallet/balance", get(get_user_balance))
+        .route("/api/wallet/withdraw", post(withdraw))
 }
 
 #[derive(Template, Deserialize, Debug, Serialize)]
