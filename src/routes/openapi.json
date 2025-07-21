@@ -2716,22 +2716,34 @@
       },
       "CreateDiscussion": {
         "type": "object",
-        "required": ["title"],
+        "required": ["community_id", "title", "private_discussion_users_final"],
         "properties": {
+          "community_id": {
+            "type": "string",
+            "example": "community-123"
+          },
           "title": {
             "type": "string",
-            "description": "Discussion title"
+            "minLength": 5,
+            "example": "My discussion title"
           },
-          "description": {
+          "image_uri": {
             "type": "string",
-            "description": "Discussion description"
+            "format": "uri",
+            "nullable": true,
+            "example": "https://example.com/image.png"
           },
-          "private_discussion_user_ids": {
+          "chat_user_ids": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "User IDs for private discussions"
+            "nullable": true,
+            "example": ["user1", "user2"]
+          },
+          "private_discussion_users_final": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
