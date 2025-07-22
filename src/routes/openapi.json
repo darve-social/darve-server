@@ -2577,10 +2577,10 @@
       "TaskParticipantStatus": {
         "type": "string",
         "enum": [
-          "PENDING",
-          "ACCEPTED",
-          "REJECTED",
-          "COMPLETED"
+          "Requested",
+          "Rejected",
+          "Accepted",
+          "Delivered"
         ],
         "description": "Status of task participant"
       },
