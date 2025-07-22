@@ -1,5 +1,4 @@
 use crate::utils::validate_utils::validate_social_links;
-use argon2::password_hash::Value;
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},

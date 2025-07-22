@@ -18,7 +18,6 @@ use helpers::{
 };
 use middleware::ctx::Ctx;
 use serde_json::json;
-use validator::ValidateLength;
 
 test_with_server!(search_users, |server, ctx_state, config| {
     let username1 = "its_user_one".to_string();
