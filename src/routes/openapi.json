@@ -2491,6 +2491,13 @@
             "type": "string",
             "format": "binary",
             "description": "Profile image file"
+          },
+          "social_links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Each link must be a valid URL from Twitter, YouTube, Facebook, or Instagram"
           }
         }
       },

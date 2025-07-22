@@ -1,14 +1,13 @@
-use std::sync::Arc;
-
+use crate::utils::validate_utils::validate_social_links;
 use axum::{
-    extract::{DefaultBodyLimit, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
     Json, Router,
 };
-use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
+use axum_typed_multipart::TypedMultipart;
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
+use std::sync::Arc;
 use validator::Validate;
 
 use crate::{
@@ -37,10 +36,9 @@ use crate::{
         post_service::{PostInput, PostService, PostView},
         user_service::UserService,
     },
-    utils::{self, file::convert::convert_field_file_data},
+    utils::{self, file::convert::FileUpload},
 };
 
-use utils::validate_utils::empty_string_as_none;
 use utils::validate_utils::validate_username;
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
@@ -220,27 +218,61 @@ async fn get_following_posts(
     Ok(Json(data))
 }
 
-#[derive(Validate, TryFromMultipart, Deserialize, Debug)]
+#[derive(Validate, Debug)]
 pub struct ProfileSettingsFormInput {
     #[validate(custom(function = "validate_username"))]
-    #[serde(deserialize_with = "empty_string_as_none")]
     pub username: Option<String>,
-
     #[validate(length(min = 6, message = "Min 6 character"))]
-    #[serde(deserialize_with = "empty_string_as_none")]
     pub full_name: Option<String>,
-
-    #[serde(skip_deserializing)]
-    #[form_data(limit = "unlimited")]
-    pub image_url: Option<FieldData<NamedTempFile>>,
+    pub image_url: Option<FileUpload>,
+    #[validate(custom(function = "validate_social_links"))]
+    pub social_links: Option<Vec<String>>,
 }
 
+impl ProfileSettingsFormInput {
+    async fn try_from_multipart(multipart: &mut Multipart) -> CtxResult<Self> {
+        let mut form = ProfileSettingsFormInput {
+            username: None,
+            full_name: None,
+            image_url: None,
+            social_links: None,
+        };
+
+        while let Some(field) = multipart.next_field().await.unwrap() {
+            match field.name().unwrap() {
+                "username" => {
+                    let value = field.text().await.unwrap();
+                    form.username = Some(value);
+                }
+                "full_name" => {
+                    let value = field.text().await.unwrap();
+                    form.full_name = Some(value);
+                }
+                "social_links" => {
+                    let value = field.text().await.unwrap();
+                    let links = form.social_links.get_or_insert(vec![]);
+                    if !value.is_empty() {
+                        links.push(value);
+                    }
+                }
+                "image_url" => {
+                    form.image_url = FileUpload::try_from_field(field).await?.into();
+                }
+                _ => {}
+            }
+        }
+
+        form.validate()?;
+
+        Ok(form)
+    }
+}
 async fn update_user(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    TypedMultipart(body_value): TypedMultipart<ProfileSettingsFormInput>,
+    mut multipart: Multipart,
 ) -> CtxResult<Json<LocalUser>> {
-    body_value.validate()?;
+    let form = ProfileSettingsFormInput::try_from_multipart(&mut multipart).await?;
     let user_id_id = ctx.user_thing_id()?;
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -248,7 +280,7 @@ async fn update_user(
     };
     let mut user = local_user_db_service.get_by_id(&user_id_id).await?;
 
-    if let Some(username) = body_value.username {
+    if let Some(username) = form.username {
         if local_user_db_service
             .get_by_username(&username)
             .await
@@ -262,13 +294,15 @@ async fn update_user(
         user.username = username.trim().to_string();
     }
 
-    if let Some(full_name) = body_value.full_name {
+    if let Some(full_name) = form.full_name {
         user.full_name = Some(full_name.trim().to_string());
     }
 
-    if let Some(image_file) = body_value.image_url {
-        let file = convert_field_file_data(image_file)?;
+    if form.social_links.is_some() {
+        user.social_links = form.social_links;
+    }
 
+    if let Some(file) = form.image_url {
         let result = ctx_state
             .file_storage
             .upload(

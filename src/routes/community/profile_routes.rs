@@ -5,11 +5,9 @@ use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
-use axum_typed_multipart::{FieldData, TryFromMultipart};
+use axum_typed_multipart::TryFromMultipart;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use tempfile::NamedTempFile;
-use validator::Validate;
 
 use community::post_entity;
 use community_entity::{Community, CommunityDbService};
@@ -34,9 +32,6 @@ use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::routes::community::discussion_routes::DiscussionView;
 use crate::{middleware, utils};
 
-use utils::validate_utils::empty_string_as_none;
-use utils::validate_utils::validate_username;
-
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
@@ -55,24 +50,6 @@ pub struct ProfileSettingsForm {
     pub image_url: String,
 }
 
-#[derive(Validate, TryFromMultipart, Deserialize, Debug)]
-pub struct ProfileSettingsFormInput {
-    #[validate(custom(function = "validate_username"))]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub username: Option<String>,
-
-    #[validate(email(message = "Email expected"))]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub email: Option<String>,
-
-    #[validate(length(min = 6, message = "Min 6 character"))]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub full_name: Option<String>,
-
-    #[serde(skip_deserializing)]
-    #[form_data(limit = "unlimited")]
-    pub image_url: Option<FieldData<NamedTempFile>>,
-}
 #[derive(Template, Serialize, Deserialize, Debug, Clone)]
 #[template(path = "nera2/profile_page.html")]
 pub struct ProfilePage {
