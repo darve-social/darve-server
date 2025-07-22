@@ -6,7 +6,7 @@ use crate::database::repositories::task_relates::TaskRelatesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::repository_impl::Repository;
-use crate::database::repository_traits::RepositoryCore;
+use crate::database::repository_traits::RepositoryConn;
 use crate::entities::verification_code::VerificationCodeEntity;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
