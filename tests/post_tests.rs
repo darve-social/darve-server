@@ -54,7 +54,7 @@ test_with_server!(create_post, |server, ctx_state, config| {
     let posts = comm_view
         .community_view
         .unwrap()
-        .profile_discussion_view
+        .discussion_view
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 4);

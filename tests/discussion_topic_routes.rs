@@ -112,7 +112,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     let posts = comm_view
         .community_view
         .unwrap()
-        .profile_discussion_view
+        .discussion_view
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 1);
@@ -145,7 +145,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     let posts = comm_view
         .community_view
         .unwrap()
-        .profile_discussion_view
+        .discussion_view
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 2);
@@ -165,7 +165,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     let posts = comm_view
         .community_view
         .unwrap()
-        .profile_discussion_view
+        .discussion_view
         .unwrap()
         .posts;
     assert_eq!(posts.len(), 1);
