@@ -67,7 +67,9 @@ pub fn build_fake_post(topic_id: Option<Thing>, tags: Option<Vec<String>>) -> Mu
     let mut data = MultipartForm::new();
     data = data.add_text("title", post_name.clone());
     data = data.add_text("content", content);
-    data = data.add_text("topic_id", topic_id.map(|v| v.to_raw()).unwrap_or_default());
+    if topic_id.is_some() {
+        data = data.add_text("topic_id", topic_id.unwrap());
+    };
     let tags = tags.unwrap_or(vec![]);
     for tag in tags.into_iter() {
         data = data.add_text("tags", tag);

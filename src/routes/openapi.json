@@ -2451,7 +2451,7 @@
       },
       "PostInput": {
         "type": "object",
-        "required": ["title", "content", "topic_id"],
+        "required": ["title", "content"],
         "properties": {
           "title": {
             "type": "string",

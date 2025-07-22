@@ -192,8 +192,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
-                .add_text("content", "contentttt")
-                .add_text("topic_id", ""),
+                .add_text("content", "contentttt"),
         )
         .add_header("Accept", "application/json")
         .await;
@@ -256,8 +255,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
-                .add_text("content", "contentttt22")
-                .add_text("topic_id", ""),
+                .add_text("content", "contentttt22"),
         )
         .add_header("Accept", "application/json")
         .await;
@@ -332,8 +330,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
-                .add_text("content", "contentttt3")
-                .add_text("topic_id", ""),
+                .add_text("content", "contentttt3"),
         )
         .add_header("Accept", "application/json")
         .await;

@@ -71,8 +71,7 @@ test_with_server!(
         let title = "TEST_TEST";
         let data = MultipartForm::new()
             .add_text("title", title)
-            .add_text("content", "content")
-            .add_text("topic_id", "");
+            .add_text("content", "content");
 
         let response =
             helpers::post_helpers::create_post(server, &result.default_discussion, data).await;
@@ -81,8 +80,7 @@ test_with_server!(
 
         let data_1 = MultipartForm::new()
             .add_text("title", title)
-            .add_text("content", "content")
-            .add_text("topic_id", "");
+            .add_text("content", "content");
         let response_1 =
             helpers::post_helpers::create_post(server, &result.default_discussion, data_1).await;
 

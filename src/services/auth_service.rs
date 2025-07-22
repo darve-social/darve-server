@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -173,7 +173,9 @@ where
             bio: input.bio,
             social_links: None,
             image_uri: input.image_uri,
-            birth_date: input.birth_day,
+            birth_date: input
+                .birth_day
+                .map(|d| NaiveDate::from_ymd_opt(d.year(), d.month(), d.day()).unwrap()),
         };
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
         self.register(user, AuthType::PASSWORD, &hash).await

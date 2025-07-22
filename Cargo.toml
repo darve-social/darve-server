@@ -52,7 +52,7 @@ sentry = { version = "0.39.0", default-features = false, features = [
 argon2 = "0.5.3"
 
 [dev-dependencies]
-fake = "4.3.0"
+fake = { version = "4.3.0", features = ["chrono"] }
 serial_test = "3.2.0"
 
 [profile.release]
