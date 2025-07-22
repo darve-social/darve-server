@@ -1,4 +1,5 @@
 use crate::utils::validate_utils::validate_social_links;
+use argon2::password_hash::Value;
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
@@ -231,7 +232,6 @@ pub struct ProfileSettingsFormInput {
 
 impl ProfileSettingsFormInput {
     async fn try_from_multipart(multipart: &mut Multipart) -> CtxResult<Self> {
-        let mut links = Vec::new();
         let mut form = ProfileSettingsFormInput {
             username: None,
             full_name: None,
@@ -251,7 +251,10 @@ impl ProfileSettingsFormInput {
                 }
                 "social_links" => {
                     let value = field.text().await.unwrap();
-                    links.push(value);
+                    let links = form.social_links.get_or_insert(vec![]);
+                    if !value.is_empty() {
+                        links.push(value);
+                    }
                 }
                 "image_url" => {
                     form.image_url = FileUpload::try_from_field(field).await?.into();
@@ -260,9 +263,6 @@ impl ProfileSettingsFormInput {
             }
         }
 
-        if !links.is_empty() {
-            form.social_links = Some(links);
-        }
         form.validate()?;
 
         Ok(form)

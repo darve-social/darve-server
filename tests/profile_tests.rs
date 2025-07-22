@@ -18,6 +18,7 @@ use helpers::{
 };
 use middleware::ctx::Ctx;
 use serde_json::json;
+use validator::ValidateLength;
 
 test_with_server!(search_users, |server, ctx_state, config| {
     let username1 = "its_user_one".to_string();
@@ -497,3 +498,61 @@ test_with_server!(
             .contains("Social link must be from Twitter, Instagram, YouTube, or Facebook"))
     }
 );
+test_with_server!(set_empty_social_links, |server, ctx_state, config| {
+    let username1 = "its_user_one".to_string();
+    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+
+    let social_links = vec!["https://instagram.com".to_string()];
+
+    let mut multipart_form = MultipartForm::new();
+    for link in social_links.iter() {
+        multipart_form = multipart_form.add_text("social_links", link.clone());
+    }
+
+    let request = server
+        .patch("/api/users/current")
+        .multipart(multipart_form)
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("social_links", ""))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+    assert_eq!(user.social_links.unwrap().len(), 0);
+});
+test_with_server!(replace_social_links, |server, ctx_state, config| {
+    let username1 = "its_user_one".to_string();
+    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+
+    let social_links = vec!["https://instagram.com".to_string()];
+
+    let mut multipart_form = MultipartForm::new();
+    for link in social_links.iter() {
+        multipart_form = multipart_form.add_text("social_links", link.clone());
+    }
+
+    let request = server
+        .patch("/api/users/current")
+        .multipart(multipart_form)
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let new_link = "https://x.com/123";
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("social_links", new_link))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+    assert!(user.social_links.unwrap().contains(&new_link.to_string()));
+});
