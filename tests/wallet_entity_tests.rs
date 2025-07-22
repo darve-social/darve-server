@@ -6,15 +6,13 @@ use darve_server::entities::wallet::lock_transaction_entity::{
     LockTransactionDbService, UnlockTrigger,
 };
 use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
+use darve_server::middleware;
 use darve_server::middleware::ctx::Ctx;
-use darve_server::routes::wallet::wallet_routes::get_user_balance;
-use darve_server::{middleware, routes::wallet::wallet_routes};
+use darve_server::routes::wallet::{get_user_balance, CurrencyTransactionHistoryView};
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user};
 use middleware::utils::string_utils::get_string_thing;
 use std::time::SystemTime;
-
-use wallet_routes::CurrencyTransactionHistoryView;
 
 test_with_server!(test_wallet_history, |server, ctx_state, config| {
     // create 2 users with user1 and user2 names

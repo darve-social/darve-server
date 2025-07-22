@@ -1872,6 +1872,51 @@
         }
       }
     },
+    "/api/wallet/deposit": {
+      "post": {
+        "tags": ["Wallet"],
+        "summary": "Deposit to wallet",
+        "description": "Send money to the current user's wallet",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepositData"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DepositData"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stripe link ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "items": {
+                    "$ref": "#/components/schemas/DepositLink"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/users/{user_id}/followers": {
       "get": {
         "tags": ["Follows"],
@@ -2193,7 +2238,7 @@
           "amount": {
             "type": "integer",
             "format": "int64",
-            "minimum": 0,
+            "minimum": 100,
             "description": "Offer amount"
           }
         }
@@ -2848,10 +2893,24 @@
         "properties": {
           "amount": {
             "type": "integer",
-            "minimum": 1,
-            "description": "Amount to withdraw (minimum 1)"
+            "minimum": 100,
+            "description": "Amount to withdraw (minimum 100)"
           }
         }
+      },
+      "DepositData": {
+        "type": "object",
+        "required": ["amount"],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 100,
+            "description": "Amount to withdraw (minimum 100)"
+          }
+        }
+      },
+      "DepositLink": {
+        "type": "string"
       },
       "UserItemView": {
         "type": "object",

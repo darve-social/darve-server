@@ -46,7 +46,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -84,7 +84,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
         participator.user.as_ref().unwrap().id,
         user1.id.as_ref().unwrap().clone()
     );
-    assert_eq!(participator.amount, 1);
+    assert_eq!(participator.amount, 100);
 });
 
 test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
@@ -109,7 +109,7 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -165,7 +165,7 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -246,7 +246,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -296,7 +296,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -367,7 +367,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -411,7 +411,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -453,7 +453,7 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -490,7 +490,7 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -546,7 +546,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -617,7 +617,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -659,7 +659,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -734,7 +734,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -797,7 +797,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -855,7 +855,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -914,7 +914,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
@@ -926,7 +926,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post1.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -937,7 +937,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post2.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -963,7 +963,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post3.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -1070,7 +1070,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -1128,7 +1128,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -1187,7 +1187,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -1212,7 +1212,7 @@ test_with_server!(
         let participate_response = server
             .post(&format!("/api/tasks/{}/donor", task_id))
             .json(&json!({
-                "amount": 33,
+                "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
             }))
             .add_header("Accept", "application/json")
@@ -1264,7 +1264,7 @@ test_with_server!(
                 .as_str(),
             )
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -1290,7 +1290,7 @@ test_with_server!(
             .post(&format!("/api/tasks/{}/donor", task_id))
             .add_header("Cookie", format!("jwt={}", user1_token))
             .json(&json!({
-                "amount": 33,
+                "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
             }))
             .add_header("Accept", "application/json")
@@ -1310,7 +1310,7 @@ test_with_server!(
         let request = server
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({
-                "offer_amount": Some(1),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -1359,7 +1359,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
             .as_str(),
         )
         .json(&json!({
-            "offer_amount": Some(1),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))

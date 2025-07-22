@@ -57,7 +57,7 @@ pub struct RecordWithId {
     pub id: Thing,
 }
 
-pub fn get_entity_query_str(
+fn get_entity_query_str(
     ident: &IdentIdName,
     select_fields_or_id: Option<&str>,
     pagination: Option<Pagination>,
@@ -255,7 +255,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
     Ok(res)
 }
 
-pub fn create_db_qry(
+fn create_db_qry(
     db: &Db,
     query_string: QryBindingsVal<String>,
 ) -> Query<surrealdb::engine::any::Any> {
@@ -274,7 +274,7 @@ pub async fn exists_entity(
 ) -> Result<Thing, surrealdb::Error> {
     match ident {
         IdentIdName::Id(id) => {
-            record_exists(db, id).await?;
+            exists_by_thing(db, id).await?;
             Ok(id.clone())
         }
         _ => {
@@ -293,7 +293,7 @@ pub async fn exists_entity(
     }
 }
 
-pub async fn record_exists(db: &Db, record_id: &Thing) -> Result<(), surrealdb::Error> {
+pub async fn exists_by_thing(db: &Db, record_id: &Thing) -> Result<(), surrealdb::Error> {
     let qry = "RETURN record::exists(<record>$rec_id);";
     let mut res = db.query(qry).bind(("rec_id", record_id.to_raw())).await?;
     let res: Option<bool> = res.take(0)?;
@@ -350,6 +350,22 @@ pub async fn record_exist_all(
     }
 
     Ok(things)
+}
+
+pub async fn count_records(
+    db: &Db,
+table_name: &str) -> Result<u64, surrealdb::Error> {
+    let query = "(SELECT count() as count FROM ONLY $table_name GROUP ALL).count;";
+    let mut res = db.query(query)
+        .bind(("table_name", table_name.to_string()))
+        .await?;
+    let res: Option<u64> = res.take(0)?;
+    res.ok_or(
+        surrealdb::error::Db::TbNotFound {
+            name: format!("table {}", table_name),
+        }
+            .into(),
+    )
 }
 
 #[cfg(test)]

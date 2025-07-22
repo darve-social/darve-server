@@ -1,12 +1,14 @@
 use crate::database::client::Db;
-use crate::database::repository_traits::{EntityWithId, RepositoryCore, RepositoryEntityId};
+use crate::database::repository_traits::RepositoryEntityView;
+use crate::database::repository_traits::{EntityWithId, RepositoryConn, RepositoryCore, RepositoryEntityId};
 use crate::database::surrdb_utils;
-use crate::middleware::utils::db_utils::{IdentIdName, Pagination};
+use crate::middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelector};
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::{marker::PhantomData, string::String};
 use surrealdb::sql::{Id, Thing};
+use surrealdb::Error;
 
 #[derive(Debug)]
 pub struct Repository<E> {
@@ -16,8 +18,8 @@ pub struct Repository<E> {
 }
 
 #[async_trait]
-impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryCore
-    for Repository<E>
+impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryConn
+for Repository<E>
 {
     type Connection = Arc<Db>;
     type Error = surrealdb::Error;
@@ -31,14 +33,14 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
             _phantom: PhantomData,
         }
     }
+}
 
-    async fn query(&self, query: &str) -> Result<Self::QueryResultList, Self::Error> {
-        let mut result = self.client.query(query).await?;
-        let values: Self::QueryResultList = result.take(0)?;
-        Ok(values)
-    }
+#[async_trait]
+impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryCore
+    for Repository<E>
+{
 
-    async fn create_entity(
+    async fn item_create(
         &self,
         entity: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error> {
@@ -47,67 +49,69 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         Ok(res.unwrap())
     }
 
-    async fn select_by_id(&self, record_id: &str) -> Result<Self::QueryResultItem, Self::Error> {
+    async fn item_by_id(&self, id: &str) -> Result<Self::QueryResultItem, Self::Error> {
         let res: Option<Self::QueryResultItem> =
-            self.client.select((&self.table_name, record_id)).await?;
+            self.client.select((&self.table_name, id)).await?;
         Ok(res.unwrap())
     }
 
-    async fn get_entity(
+    async fn item_by_ident(
         &self,
         ident: &IdentIdName,
     ) -> Result<Option<Self::QueryResultItem>, Self::Error> {
-        let query_string = surrdb_utils::get_entity_query_str(ident, Some("*"), None, self.table_name.as_ref())?;
-        println!("QRY={:#?}", query_string);
-        surrdb_utils::get_query(self.client.as_ref(), query_string).await
+        surrdb_utils::get_entity(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 
-    async fn delete_by_id(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
+    async fn list_by_ids(
+        &self,
+        ids: Vec<&str>,
+    ) -> Result<Vec<Self::QueryResultItem>, Self::Error> {
+        let things = ids.into_iter().map(|id| self.get_thing(id)).collect();
+        surrdb_utils::get_entities_by_id(self.client.as_ref(),things).await
+    }
+
+    async fn item_delete(&self, record_id: &str) -> Result<bool, surrealdb::Error> {
         let _res: Option<Self::QueryResultItem> =
             self.client.delete((&self.table_name, record_id)).await?;
         Ok(true)
     }
 
     async fn count_records(&self) -> Result<u64, surrealdb::Error> {
-        let query = format!(
-            "(SELECT count() as count FROM ONLY {} GROUP ALL).count;",
-            self.table_name
-        );
-        let mut res = self.client.query(&query).await?;
-        let res: Option<u64> = res.take(0)?;
-        res.ok_or(
-            surrealdb::error::Db::TbNotFound {
-                name: format!("table {}", self.table_name),
-            }
-            .into(),
-        )
+        surrdb_utils::count_records(self.client.as_ref(), self.table_name.as_ref()).await
     }
 
     fn get_thing(&self, id: &str) -> Thing {
         Thing::from((self.table_name.as_ref(), id))
     }
 
-    async fn get_entity_list(
+    async fn list_by_ident(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> Result<Self::QueryResultList, surrealdb::Error> {
-        let query_string =
-            surrdb_utils::get_entity_query_str(ident, Some("*"), pagination, self.table_name.as_ref())?;
-
-        surrdb_utils::get_list_qry(self.client.as_ref(), query_string).await
+       surrdb_utils::get_entity_list(self.client.as_ref(), self.table_name.as_ref(), ident, pagination).await
     }
 
-    async fn exists_entity(&self, ident: &IdentIdName) -> Result<Thing, Self::Error> {
+    async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<Thing, Self::Error> {
         surrdb_utils::exists_entity(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 
-    async fn exists_record(&self, record_id: &Thing) -> Result<(), Self::Error> {
-        surrdb_utils::record_exists(self.client.as_ref(), record_id).await
+    async fn item_id_exists(&self, id: &str) -> Result<(), Self::Error> {
+        surrdb_utils::exists_by_thing(self.client.as_ref(), &self.get_thing(id)).await
     }
 
-    async fn record_exist_all(&self, record_ids: Vec<String>) -> Result<Vec<Thing>, Self::Error> {
-        surrdb_utils::record_exist_all(self.client.as_ref(), record_ids).await
+    async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<Thing>, Self::Error> {
+        let thing_strs = record_ids.into_iter().map(|id| {
+            format!("{}:{}", self.table_name, id)
+        }).collect();
+        surrdb_utils::record_exist_all(self.client.as_ref(), thing_strs).await
+    }
+
+    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(&self, ident: &IdentIdName, pagination: Option<Pagination>) -> Result<Vec<T>, Error> {
+        surrdb_utils::get_entity_list_view::<T>(self.client.as_ref(), self.table_name.as_ref(), ident, pagination).await
+    }
+    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(&self, ident: &IdentIdName) -> Result<Option<T>, Error> {
+        surrdb_utils::get_entity_view::<T>(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 }
 
@@ -115,7 +119,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
 impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static>
     RepositoryEntityId for Repository<E>
 {
-    async fn update(
+    async fn update_entity(
         &self,
         entity: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error> {
@@ -132,7 +136,7 @@ impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Syn
         Ok(res.unwrap())
     }
 
-    async fn create_update(
+    async fn create_update_entity(
         &self,
         record: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error> {
@@ -148,5 +152,42 @@ impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Syn
             .content(record)
             .await?;
         Ok(res.unwrap())
+    }
+}
+
+#[derive(Debug)]
+pub struct RepositoryView<E> {
+    pub client: Arc<Db>,
+    pub table_name: String,
+    _phantom: PhantomData<E>,
+}
+#[async_trait]
+impl<E: for<'de> serde::Deserialize<'de>  + Send + Sync + 'static + ViewFieldSelector>
+RepositoryConn for RepositoryView<E>
+{
+    type Connection = Arc<Db>;
+    type Error = surrealdb::Error;
+    type QueryResultItem = E;
+    type QueryResultList = Vec<Self::QueryResultItem>;
+
+    fn new(client: Self::Connection, table_name: String) -> Self {
+        RepositoryView {
+            client,
+            table_name,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+#[async_trait]
+impl<E: for<'de> serde::Deserialize<'de> + Send + Sync + 'static + ViewFieldSelector>
+RepositoryEntityView for RepositoryView<E>
+{
+    async fn list_view(&self, ident: &IdentIdName, pagination: Option<Pagination>) -> Result<Self::QueryResultList, Error> {
+        surrdb_utils::get_entity_list_view::<Self::QueryResultItem>(self.client.as_ref(), self.table_name.as_ref(), ident, pagination).await
+    }
+
+    async fn get_entity_view(&self, ident: &IdentIdName) -> Result<Option<Self::QueryResultItem>, Error> {
+        surrdb_utils::get_entity_view::<Self::QueryResultItem>(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 }

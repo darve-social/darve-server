@@ -84,8 +84,8 @@ pub struct TaskRequestInput {
     #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
     pub participant: Option<String>,
-    #[validate(range(min = 1))]
-    pub offer_amount: Option<i64>,
+    #[validate(range(min = 100))]
+    pub offer_amount: Option<u64>,
     #[validate(range(min = 1))]
     pub acceptance_period: Option<u16>,
     #[validate(range(min = 1))]
@@ -197,13 +197,17 @@ where
                 .await?;
         }
 
-        let offer_amount = data.offer_amount.unwrap_or(0);
-        if offer_amount > 0 {
+        if let Some(amount) = data.offer_amount {
             let wallet_from = WalletDbService::get_user_wallet_id(&user_thing);
 
             let response = self
                 .transactions_repository
-                .transfer_currency(&wallet_from, &task.wallet_id, offer_amount, &offer_currency)
+                .transfer_currency(
+                    &wallet_from,
+                    &task.wallet_id,
+                    amount as i64,
+                    &offer_currency,
+                )
                 .await?;
 
             let _ = self
@@ -212,7 +216,7 @@ where
                     &task.id.as_ref().unwrap().id.to_raw(),
                     &user_thing.id.to_raw(),
                     &response.tx_out_id.id.to_raw(),
-                    offer_amount as u64,
+                    amount as u64,
                     &offer_currency.to_string(),
                 )
                 .await

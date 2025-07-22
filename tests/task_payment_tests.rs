@@ -71,7 +71,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(10),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -158,7 +158,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        assert_eq!(balance.balance_usd, 3);
+        assert_eq!(balance.balance_usd, 33);
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
@@ -167,7 +167,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        assert_eq!(balance.balance_usd, 3);
+        assert_eq!(balance.balance_usd, 33);
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
@@ -175,7 +175,7 @@ test_with_server!(
             )))
             .await
             .unwrap();
-        assert_eq!(balance.balance_usd, 3);
+        assert_eq!(balance.balance_usd, 33);
         let task = get_task_view(task_thing, &state.db.client).await;
         assert_eq!(task.status, TaskRequestStatus::Completed);
         assert_eq!(task.balance, 1);
@@ -207,7 +207,7 @@ test_with_server!(
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
-                "offer_amount": Some(10),
+                "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -280,7 +280,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        assert_eq!(balance.balance_usd, 5);
+        assert_eq!(balance.balance_usd, 50);
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
@@ -289,7 +289,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        assert_eq!(balance.balance_usd, 5);
+        assert_eq!(balance.balance_usd, 50);
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
@@ -327,7 +327,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(10),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -398,7 +398,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(10),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -500,7 +500,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(10),
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
