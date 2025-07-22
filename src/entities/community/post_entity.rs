@@ -40,7 +40,7 @@ pub struct Post {
     pub discussion_topic: Option<Thing>,
     // #[serde(skip_serializing)]
     pub r_title_uri: Option<String>,
-    pub content: String,
+    pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media_links: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,7 +89,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
         ASSERT $value INSIDE (SELECT topics FROM ONLY $this.{TABLE_COL_BELONGS_TO}).topics;
     DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
-    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;

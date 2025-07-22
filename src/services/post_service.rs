@@ -43,8 +43,8 @@ use validator::Validate;
 pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
-    #[validate(length(min = 5, message = "Min 5 characters"))]
-    pub content: String,
+    #[validate(length(min = 1, message = "Content cannot be empty"))]
+    pub content: Option<String>,
     pub topic_id: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
     pub tags: Vec<String>,
@@ -191,6 +191,13 @@ where
 
     pub async fn create(&self, user_id: &str, disc_id: &str, data: PostInput) -> CtxResult<Post> {
         data.validate()?;
+
+        if data.content.is_none() && data.file_1.is_none() {
+            return Err(AppError::Generic {
+                description: "Empty content and missing file".to_string(),
+            }
+            .into());
+        }
 
         let user = self.users_repository.get_by_id(user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;

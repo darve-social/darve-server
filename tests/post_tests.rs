@@ -1,6 +1,7 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
+use crate::helpers::post_helpers::create_post;
+use crate::helpers::{create_fake_login_test_user, post_helpers};
 use axum::extract::Query;
 use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
@@ -18,7 +19,6 @@ use darve_server::routes::posts::GetPostsQuery;
 use helpers::community_helpers;
 use helpers::community_helpers::create_fake_community;
 use helpers::community_helpers::get_profile_discussion_id;
-use helpers::post_helpers;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
     create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
@@ -26,7 +26,7 @@ use helpers::post_helpers::{
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 
-test_with_server!(create_post, |server, ctx_state, config| {
+test_with_server!(create_post_test, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
@@ -300,3 +300,19 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     let posts = posts_res.json::<Vec<Post>>();
     assert_eq!(posts.len(), 1);
 });
+
+test_with_server!(
+    try_to_create_without_content_and_file,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let user_ident = user.id.as_ref().unwrap().to_raw();
+        let default_discussion =
+            community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
+
+        let data = MultipartForm::new().add_text("title", "Hello");
+        let response = create_post(server, &default_discussion, data).await;
+
+        response.assert_status_failure();
+        assert!(response.text().contains("Empty content and missing file"))
+    }
+);
