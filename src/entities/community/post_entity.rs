@@ -103,6 +103,7 @@ impl<'a> PostDbService<'a> {
     DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_LIKE} TYPE datetime DEFAULT time::now();
+    DEFINE FIELD IF NOT EXISTS count ON TABLE {TABLE_LIKE} TYPE number;
 
 ");
         let mutation = self.db.query(sql).await?;
@@ -269,13 +270,12 @@ impl<'a> PostDbService<'a> {
     //     })
     // }
 
-    pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<u32> {
+    pub async fn like(&self, user: Thing, post: Thing, count: u8) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
-                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
-                RELATE $in->{TABLE_LIKE}->$out; 
-                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
-                UPDATE $out SET likes_nr = $count;
+                RELATE $in->{TABLE_LIKE}->$out SET count=$count;
+                LET $count = math::sum(SELECT VALUE <-{TABLE_LIKE}.count[0] ?? 0 FROM $out);
+                UPDATE $out SET likes_nr=$count;
                 RETURN $count;
             COMMIT TRANSACTION;"
         );
@@ -284,18 +284,32 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("in", user))
             .bind(("out", post))
+            .bind(("count", count))
             .await?;
+
         let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
         Ok(count)
+    }
+
+    pub async fn is_liked(&self, user: Thing, post: Thing) -> CtxResult<bool> {
+        let query =
+            format!("RETURN count((SELECT id FROM like WHERE in=$user AND out=$post)) > 0;");
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", user))
+            .bind(("post", post))
+            .await?;
+        let is_liked = res.take::<Option<bool>>(0)?;
+        Ok(is_liked.unwrap_or_default())
     }
 
     pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
-                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
                 DELETE $in->{TABLE_LIKE} WHERE out=$out;
-                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
-                UPDATE $out SET likes_nr = $count;
+                LET $count = math::sum(SELECT VALUE <-{TABLE_LIKE}.count[0] ?? 0 FROM $out);
+                UPDATE $out SET likes_nr=$count;
                 RETURN $count;
             COMMIT TRANSACTION;"
         );

@@ -39,6 +39,11 @@ use tempfile::NamedTempFile;
 use tokio::sync::broadcast::Sender;
 use validator::Validate;
 
+#[derive(Debug, Deserialize)]
+pub struct PostLikeData {
+    pub count: Option<u8>,
+}
+
 #[derive(Validate, TryFromMultipart)]
 pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
@@ -136,15 +141,32 @@ where
         }
     }
 
-    pub async fn like(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
+    pub async fn like(&self, post_id: &str, user_id: &str, data: PostLikeData) -> CtxResult<u32> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self.posts_repository.get_by_id(post_id).await?;
 
+        let is_already_liked = self
+            .posts_repository
+            .is_liked(
+                user.id.as_ref().unwrap().clone(),
+                post.id.as_ref().unwrap().clone(),
+            )
+            .await?;
+
+        if is_already_liked {
+            return Err(AppError::Generic {
+                description: "User has already liked the post".to_string(),
+            }
+            .into());
+        }
+
+        let count = data.count.unwrap_or(1);
         let likes_count = self
             .posts_repository
             .like(
                 user.id.as_ref().unwrap().clone(),
                 post.id.as_ref().unwrap().clone(),
+                count,
             )
             .await?;
 
@@ -155,12 +177,28 @@ where
                 post.id.as_ref().unwrap().clone(),
             )
             .await?;
+
         Ok(likes_count)
     }
 
     pub async fn unlike(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self.posts_repository.get_by_id(post_id).await?;
+
+        let is_liked = self
+            .posts_repository
+            .is_liked(
+                user.id.as_ref().unwrap().clone(),
+                post.id.as_ref().unwrap().clone(),
+            )
+            .await?;
+
+        if !is_liked {
+            return Err(AppError::Generic {
+                description: "User has not liked the post".to_string(),
+            }
+            .into());
+        }
 
         let likes_count = self
             .posts_repository
