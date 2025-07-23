@@ -292,8 +292,7 @@ impl<'a> PostDbService<'a> {
     }
 
     pub async fn is_liked(&self, user: Thing, post: Thing) -> CtxResult<bool> {
-        let query =
-            format!("RETURN count((SELECT id FROM like WHERE in=$user AND out=$post)) > 0;");
+        let query = format!("RETURN count($user->like[WHERE out == $post]) > 0;");
         let mut res = self
             .db
             .query(query)
