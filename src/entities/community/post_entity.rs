@@ -54,6 +54,7 @@ pub struct Post {
     pub replies_nr: i64,
     pub likes_nr: i64,
     pub tags: Option<Vec<String>>,
+    pub hidden_for: Option<Vec<Thing>>,
 }
 
 pub struct PostDbService<'a> {
@@ -88,7 +89,6 @@ impl<'a> PostDbService<'a> {
     DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO_URI} ON TABLE {TABLE_NAME} COLUMNS belongs_to, r_title_uri UNIQUE;
     DEFINE FIELD IF NOT EXISTS {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
         ASSERT $value INSIDE (SELECT topics FROM ONLY $this.{TABLE_COL_BELONGS_TO}).topics;
-    DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
     DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
@@ -96,9 +96,13 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>
         ASSERT {{ IF type::is::array($value) AND array::len($value) < 6 {{ RETURN true }}ELSE{{ IF type::is::none($value){{RETURN true}}ELSE{{THROW \"Maxi nr of tags is 5\"}} }} }};
-    DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;
+    DEFINE FIELD IF NOT EXISTS hidden_for ON TABLE {TABLE_NAME} TYPE option<array<record<{TABLE_COL_USER}>>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+
+    DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
+    DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;
+    DEFINE INDEX IF NOT EXISTS hidden_for_idx ON TABLE {TABLE_NAME} COLUMNS hidden_for;
 
     DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
@@ -232,9 +236,10 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
-    pub async fn create_update(&self, record: Post) -> CtxResult<Post> {
+    pub async fn create_update(&self, mut record: Post) -> CtxResult<Post> {
         let resource = record.id.clone().unwrap_or(Self::get_new_post_thing());
-
+        record.r_created = None;
+        record.r_updated = None;
         self.db
             .upsert((resource.tb, resource.id.to_raw()))
             .content(record)

@@ -25,7 +25,7 @@ use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::routes::tasks::TaskRequestView;
 use crate::services::notification_service::NotificationService;
-use crate::services::post_service::PostService;
+use crate::services::post_service::{PostHideShowData, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
@@ -36,6 +36,8 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/posts/:post_id/tasks", get(get_post_tasks))
         .route("/api/posts/:post_id/like", post(like))
         .route("/api/posts/:post_id/unlike", delete(unlike))
+        .route("/api/posts/:post_id/hide", post(hide))
+        .route("/api/posts/:post_id/unhide", post(show))
         .route("/api/posts/:post_id/replies", post(create_reply))
         .route("/api/posts/:post_id/replies", get(get_replies))
         .layer(DefaultBodyLimit::max(max_bytes_val))
@@ -279,4 +281,44 @@ async fn create_reply(
         .await?;
 
     Ok(Json(reply))
+}
+
+async fn show(
+    State(ctx_state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    Json(body): Json<PostHideShowData>,
+) -> CtxResult<()> {
+    let user_id = ctx.user_thing_id()?;
+    let _ = PostService::new(
+        &ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+    )
+    .show(&user_id, &post_id, body)
+    .await?;
+
+    Ok(())
+}
+
+async fn hide(
+    State(ctx_state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(post_id): Path<String>,
+    Json(body): Json<PostHideShowData>,
+) -> CtxResult<()> {
+    let user_id = ctx.user_thing_id()?;
+    let _ = PostService::new(
+        &ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+    )
+    .hide(&user_id, &post_id, body)
+    .await?;
+
+    Ok(())
 }

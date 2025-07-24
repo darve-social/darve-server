@@ -147,3 +147,29 @@ pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestRespons
         .add_header("Accept", "application/json")
         .await
 }
+
+#[allow(dead_code)]
+pub async fn hide_post(server: &TestServer, post_id: &str, user_ids: Vec<String>) -> TestResponse {
+    let body = serde_json::json!({
+        "user_ids": user_ids
+    });
+
+    server
+        .post(format!("/api/posts/{post_id}/hide").as_str())
+        .json(&body)
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn show_post(server: &TestServer, post_id: &str, user_ids: Vec<String>) -> TestResponse {
+    let body = serde_json::json!({
+        "user_ids": user_ids
+    });
+
+    server
+        .post(format!("/api/posts/{post_id}/unhide").as_str())
+        .json(&body)
+        .add_header("Accept", "application/json")
+        .await
+}
