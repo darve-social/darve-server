@@ -144,7 +144,7 @@ where
     }
 
     pub async fn like(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
-        let (user, post, disc) = self.get_enitytis(user_id, post_id).await?;
+        let (user, post, disc) = self.get_entities(user_id, post_id).await?;
 
         if !disc.is_default() {
             let _ = self.authorized(&user, &disc).await?;
@@ -222,18 +222,19 @@ where
 
         let _ = self.authorized(&user, &disc).await?;
 
-        let disc_participators = &disc.private_discussion_user_ids.unwrap_or_default();
-        let (participants, hidden_for) = disc_participators.into_iter().fold(
-            (vec![], vec![]),
-            |(mut exclude, mut inlcude), item| {
+        let (participants, hidden_for) = disc
+            .private_discussion_user_ids
+            .as_ref()
+            .unwrap()
+            .into_iter()
+            .fold((vec![], vec![]), |(mut exclude, mut include), item| {
                 if data.hidden_for.contains(&item.to_raw()) {
-                    inlcude.push(item.clone())
+                    include.push(item.clone())
                 } else {
                     exclude.push(item.clone())
                 }
-                (exclude, inlcude)
-            },
-        );
+                (exclude, include)
+            });
 
         let new_post_id = PostDbService::get_new_post_thing();
 
@@ -323,7 +324,7 @@ where
             .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
             .await?;
 
-        if !participants.is_empty() {
+        if !disc.is_default() {
             self.notification_service
                 .on_chat_message(&user.id.as_ref().unwrap(), &participants, &post)
                 .await?;
@@ -354,7 +355,7 @@ where
         post_id: &str,
         data: PostHideShowData,
     ) -> AppResult<()> {
-        let (user, mut post, disc) = self.get_enitytis(user_id, post_id).await?;
+        let (user, mut post, disc) = self.get_entities(user_id, post_id).await?;
         let user_id_str = user.id.as_ref().unwrap().to_raw();
 
         if data.user_ids.contains(&user_id_str) {
@@ -389,7 +390,7 @@ where
         post_id: &str,
         data: PostHideShowData,
     ) -> AppResult<()> {
-        let (user, mut post, disc) = self.get_enitytis(user_id, post_id).await?;
+        let (user, mut post, disc) = self.get_entities(user_id, post_id).await?;
         let user_id_str = user.id.as_ref().unwrap().to_raw();
 
         if data.user_ids.contains(&user_id_str) {
@@ -429,7 +430,7 @@ where
         Ok(())
     }
 
-    async fn get_enitytis(
+    async fn get_entities(
         &self,
         user_id: &str,
         post_id: &str,
