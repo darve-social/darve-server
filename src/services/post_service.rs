@@ -2,15 +2,15 @@ use crate::{
     database::client::Db,
     entities::{
         community::{
-            discussion_entity::DiscussionDbService,
+            discussion_entity::{Discussion, DiscussionDbService},
             post_entity::{Post, PostDbService},
             post_stream_entity::PostStreamDbService,
         },
         user_auth::{
             access_right_entity::AccessRightDbService,
             access_rule_entity::AccessRule,
-            authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER},
-            local_user_entity::LocalUserDbService,
+            authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER},
+            local_user_entity::{LocalUser, LocalUserDbService},
         },
     },
     interfaces::{
@@ -22,8 +22,7 @@ use crate::{
         error::{AppError, AppResult, CtxResult},
         mw_ctx::AppEvent,
         utils::{
-            db_utils::{ViewFieldSelector, ViewRelateField},
-            extractor_utils::DiscussionParams,
+            db_utils::{Pagination, ViewFieldSelector, ViewRelateField},
             string_utils::get_string_thing,
         },
     },
@@ -101,6 +100,7 @@ impl ViewRelateField for PostView {
         has_view_access: false"
     }
 }
+
 pub struct PostService<'a, F, N>
 where
     F: FileStorageInterface,
@@ -144,8 +144,11 @@ where
     }
 
     pub async fn like(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
-        let user = self.users_repository.get_by_id(&user_id).await?;
-        let post = self.posts_repository.get_by_id(post_id).await?;
+        let (user, post, disc) = self.get_enitytis(user_id, post_id).await?;
+
+        if !disc.is_default() {
+            let _ = self.authorized(&user, &disc).await?;
+        }
 
         let likes_count = self
             .posts_repository
@@ -184,14 +187,18 @@ where
         &self,
         disc_id: &str,
         user_id: &str,
-        query: DiscussionParams,
+        pagination: Pagination,
     ) -> CtxResult<Vec<PostView>> {
-        let _ = self.users_repository.get_by_id(&user_id).await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
-
+        let _ = self.authorized(&user, &disc).await?;
         let items = self
             .posts_repository
-            .get_by_discussion_desc_view::<PostView>(disc.id.as_ref().unwrap().clone(), query)
+            .get_by_query(
+                user.id.as_ref().unwrap().id.to_raw().as_str(),
+                disc.id.as_ref().unwrap().id.to_raw().as_str(),
+                pagination,
+            )
             .await?;
         Ok(items)
     }
@@ -208,9 +215,14 @@ where
 
         let user = self.users_repository.get_by_id(user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
-        let disc_participators = &disc.private_discussion_user_ids.unwrap_or_default();
-        let is_user_chat = disc_participators.contains(&user.id.as_ref().unwrap());
 
+        if disc.is_default() && !data.hidden_for.is_empty() {
+            return Err(AppError::Forbidden.into());
+        }
+
+        let _ = self.authorized(&user, &disc).await?;
+
+        let disc_participators = &disc.private_discussion_user_ids.unwrap_or_default();
         let (participants, hidden_for) = disc_participators.into_iter().fold(
             (vec![], vec![]),
             |(mut exclude, mut inlcude), item| {
@@ -222,17 +234,6 @@ where
                 (exclude, inlcude)
             },
         );
-
-        if !is_user_chat {
-            let min_authorization = Authorization {
-                authorize_record_id: disc.id.clone().unwrap().clone(),
-                authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(),
-                authorize_height: 0,
-            };
-            self.access_repository
-                .is_authorized(&user.id.as_ref().unwrap(), &min_authorization)
-                .await?;
-        }
 
         let new_post_id = PostDbService::get_new_post_thing();
 
@@ -322,7 +323,7 @@ where
             .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
             .await?;
 
-        if is_user_chat {
+        if !participants.is_empty() {
             self.notification_service
                 .on_chat_message(&user.id.as_ref().unwrap(), &participants, &post)
                 .await?;
@@ -353,15 +354,14 @@ where
         post_id: &str,
         data: PostHideShowData,
     ) -> AppResult<()> {
-        let user = self.users_repository.get_by_id(user_id).await?;
+        let (user, mut post, disc) = self.get_enitytis(user_id, post_id).await?;
         let user_id_str = user.id.as_ref().unwrap().to_raw();
 
         if data.user_ids.contains(&user_id_str) {
             return Err(AppError::Forbidden);
         }
 
-        let mut post = self.posts_repository.get_by_id(post_id).await?;
-        if user.id.as_ref().unwrap() != &post.created_by {
+        if user.id.as_ref().unwrap() != &post.created_by || disc.is_default() {
             return Err(AppError::Forbidden);
         }
 
@@ -389,33 +389,22 @@ where
         post_id: &str,
         data: PostHideShowData,
     ) -> AppResult<()> {
-        let user = self.users_repository.get_by_id(user_id).await?;
+        let (user, mut post, disc) = self.get_enitytis(user_id, post_id).await?;
         let user_id_str = user.id.as_ref().unwrap().to_raw();
 
         if data.user_ids.contains(&user_id_str) {
             return Err(AppError::Forbidden);
         }
 
-        let mut post = self.posts_repository.get_by_id(post_id).await?;
-        if user.id.as_ref().unwrap() != &post.created_by {
+        if user.id.as_ref().unwrap() != &post.created_by || disc.is_default() {
             return Err(AppError::Forbidden);
         }
-        let disc = self
-            .discussions_repository
-            .get_by_id(post.belongs_to.to_raw().as_str())
-            .await?;
 
         if data.user_ids.is_empty() {
             return Ok(());
         }
 
         let disc_participants = disc.private_discussion_user_ids.unwrap_or_default();
-        let is_forbidden = disc_participants.is_empty();
-
-        if is_forbidden {
-            return Err(AppError::Forbidden);
-        }
-
         let hidden_user_ids = disc_participants
             .into_iter()
             .filter(|thing| data.user_ids.contains(&thing.to_raw()))
@@ -436,6 +425,45 @@ where
         ));
 
         self.posts_repository.create_update(post).await?;
+
+        Ok(())
+    }
+
+    async fn get_enitytis(
+        &self,
+        user_id: &str,
+        post_id: &str,
+    ) -> CtxResult<(LocalUser, Post, Discussion)> {
+        let user = self.users_repository.get_by_id(user_id).await?;
+        let post = self.posts_repository.get_by_id(post_id).await?;
+        let disc = self
+            .discussions_repository
+            .get_by_id(post.belongs_to.to_raw().as_str())
+            .await?;
+
+        Ok((user, post, disc))
+    }
+
+    async fn authorized(&self, user: &LocalUser, disc: &Discussion) -> CtxResult<()> {
+        let members = match disc.private_discussion_user_ids {
+            Some(ref members) => members,
+            None => &vec![],
+        };
+
+        let activity = if members.contains(user.id.as_ref().unwrap()) {
+            AUTH_ACTIVITY_MEMBER
+        } else {
+            AUTH_ACTIVITY_OWNER
+        };
+
+        let min_authorization = Authorization {
+            authorize_record_id: disc.id.clone().unwrap().clone(),
+            authorize_activity: activity.to_string(),
+            authorize_height: 0,
+        };
+        self.access_repository
+            .is_authorized(&user.id.as_ref().unwrap(), &min_authorization)
+            .await?;
 
         Ok(())
     }

@@ -17,9 +17,9 @@ use darve_server::middleware::{self};
 use darve_server::routes::community::community_routes;
 use darve_server::routes::community::profile_routes::get_profile_community;
 use darve_server::routes::posts::GetPostsQuery;
-use helpers::community_helpers;
 use helpers::community_helpers::create_fake_community;
 use helpers::community_helpers::get_profile_discussion_id;
+use helpers::community_helpers::{self, create_private_discussion};
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
     create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file, hide_post,
@@ -378,7 +378,7 @@ test_with_server!(
 );
 
 test_with_server!(
-    hide_post_with_empty_user_ids,
+    try_to_hide_post_with_empty_user_ids_in_default_disc,
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
@@ -386,6 +386,23 @@ test_with_server!(
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
         let post_response = create_fake_post(server, &default_discussion, None, None).await;
+        let post_id = post_response.id;
+
+        // Test hiding the post with empty user_ids list - should succeed (no-op)
+        let hide_response = hide_post(server, &post_id, vec![]).await;
+        hide_response.assert_status_forbidden();
+    }
+);
+test_with_server!(
+    hide_post_with_empty_user_ids,
+    |server, ctx_state, config| {
+        let (server, user, _, token1) = create_fake_login_test_user(&server).await;
+
+        let discussion =
+            create_private_discussion(&server, user.id.as_ref().unwrap().clone(), vec![], token1)
+                .await;
+
+        let post_response = create_fake_post(server, &discussion.id, None, None).await;
         let post_id = post_response.id;
 
         // Test hiding the post with empty user_ids list - should succeed (no-op)

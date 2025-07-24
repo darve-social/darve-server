@@ -42,6 +42,14 @@ pub struct Discussion {
     pub private_discussion_users_final: bool,
 }
 
+impl Discussion {
+    pub fn is_default(&self) -> bool {
+        self.id
+            .as_ref()
+            .map_or(false, |id| id.id == self.created_by.id)
+    }
+}
+
 pub struct DiscussionDbService<'a> {
     pub db: &'a Db,
     pub ctx: &'a Ctx,

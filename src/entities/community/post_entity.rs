@@ -19,6 +19,7 @@ use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::services::post_service::PostView;
 
 use super::reply_entity::Reply;
 use super::{discussion_entity, discussion_topic_entity};
@@ -341,6 +342,35 @@ impl<'a> PostDbService<'a> {
         })
     }
 
+    // id is id of the thing
+    pub async fn get_by_query(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        pag: Pagination,
+    ) -> CtxResult<Vec<PostView>> {
+        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+
+        let query = format!(
+            "SELECT {} FROM {TABLE_NAME}
+                WHERE belong_to = $disc AND (hidden_for == None || $user NOT IN hidden_for)
+                ORDER BY id {order_dir} LIMIT $limit START $start;",
+            PostView::get_select_query_fields()
+        );
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("limit", pag.count))
+            .bind(("start", pag.start))
+            .bind(("dics", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .await?;
+
+        let posts = res.take::<Vec<PostView>>(0)?;
+
+        Ok(posts)
+    }
     pub fn get_new_post_thing() -> Thing {
         // id is ULID for sorting by time
         Thing::from((TABLE_NAME.to_string(), Id::ulid()))
