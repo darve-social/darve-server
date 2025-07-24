@@ -371,15 +371,6 @@ where
             return Ok(());
         }
 
-        let disc = self
-            .discussions_repository
-            .get_by_id(post.belongs_to.to_raw().as_str())
-            .await?;
-
-        if disc.private_discussion_users_final {
-            return Err(AppError::Forbidden);
-        }
-
         post.hidden_for = Some(
             hidden_user_ids
                 .into_iter()
