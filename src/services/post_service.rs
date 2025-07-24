@@ -225,7 +225,7 @@ where
         let (participants, hidden_for) = disc
             .private_discussion_user_ids
             .as_ref()
-            .unwrap()
+            .unwrap_or(&vec![])
             .into_iter()
             .fold((vec![], vec![]), |(mut exclude, mut include), item| {
                 if data.hidden_for.contains(&item.to_raw()) {
