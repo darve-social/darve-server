@@ -353,7 +353,7 @@ impl<'a> PostDbService<'a> {
 
         let query = format!(
             "SELECT {} FROM {TABLE_NAME}
-                WHERE belong_to = $disc AND (hidden_for == None || $user NOT IN hidden_for)
+                WHERE belongs_to == $disc AND (hidden_for == None || $user NOT IN hidden_for)
                 ORDER BY id {order_dir} LIMIT $limit START $start;",
             PostView::get_select_query_fields()
         );
