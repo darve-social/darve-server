@@ -271,50 +271,41 @@ impl<'a> PostDbService<'a> {
     // }
 
     pub async fn like(&self, user: Thing, post: Thing, count: u16) -> CtxResult<u32> {
-        let query = format!(
-            "BEGIN TRANSACTION;
-                RELATE $in->{TABLE_LIKE}->$out SET count=$count;
-                LET $count = math::sum(SELECT VALUE <-{TABLE_LIKE}.count[0] ?? 0 FROM $out);
-                UPDATE $out SET likes_nr=$count;
-                RETURN $count;
-            COMMIT TRANSACTION;"
-        );
         let mut res = self
             .db
-            .query(query)
+            .query("BEGIN TRANSACTION;")
+            .query("LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id")
+            .query(
+                "IF $id THEN
+                    UPDATE $id SET count=$count
+                 ELSE
+                    RELATE $in->like->$out SET count=$count
+                 END;",
+            )
+            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
+            .query("UPDATE $out SET likes_nr=$count;")
+            .query("RETURN $count;")
+            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", post))
             .bind(("count", count))
-            .await?;
+            .await;
 
-        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
+        println!(">>>>{:?}", res);
+
+        let count = res?.take::<Option<i64>>(0)?.unwrap() as u32;
         Ok(count)
     }
 
-    pub async fn is_liked(&self, user: Thing, post: Thing) -> CtxResult<bool> {
-        let query = format!("RETURN count($user->like[WHERE out == $post]) > 0;");
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("user", user))
-            .bind(("post", post))
-            .await?;
-        let is_liked = res.take::<Option<bool>>(0)?;
-        Ok(is_liked.unwrap_or_default())
-    }
-
     pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
-        let query = format!(
-            "BEGIN TRANSACTION;
-                DELETE $in->{TABLE_LIKE} WHERE out=$out;
-                LET $count = math::sum(SELECT VALUE <-{TABLE_LIKE}.count[0] ?? 0 FROM $out);
-                UPDATE $out SET likes_nr=$count;
-                RETURN $count;
-            COMMIT TRANSACTION;"
-        );
         let mut res = self
             .db
-            .query(query)
+            .query("BEGIN TRANSACTION;")
+            .query("DELETE $in->like WHERE out=$out;")
+            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
+            .query("UPDATE $out SET likes_nr=$count;")
+            .query("RETURN $count;")
+            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", post))
             .await?;

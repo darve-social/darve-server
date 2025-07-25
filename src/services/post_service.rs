@@ -145,19 +145,6 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self.posts_repository.get_by_id(post_id).await?;
 
-        // TODO -optimize- don't check just update in query if exists
-        let is_already_liked = self
-            .posts_repository
-            .is_liked(
-                user.id.as_ref().unwrap().clone(),
-                post.id.as_ref().unwrap().clone(),
-            )
-            .await?;
-
-        if is_already_liked {
-            self.unlike(post_id, user_id).await?;
-        }
-
         let count = data.count.unwrap_or(1);
         let likes_count = self
             .posts_repository
@@ -182,21 +169,6 @@ where
     pub async fn unlike(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self.posts_repository.get_by_id(post_id).await?;
-
-        let is_liked = self
-            .posts_repository
-            .is_liked(
-                user.id.as_ref().unwrap().clone(),
-                post.id.as_ref().unwrap().clone(),
-            )
-            .await?;
-
-        if !is_liked {
-            return Err(AppError::Generic {
-                description: "User has not liked the post".to_string(),
-            }
-            .into());
-        }
 
         let likes_count = self
             .posts_repository

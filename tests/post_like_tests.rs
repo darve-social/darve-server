@@ -18,10 +18,6 @@ test_with_server!(create_post_like, |server, ctx_state, config| {
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 1);
 
-    // throw if like same post again
-    let response = post_helpers::create_post_like(&server, &result.id, None).await;
-    response.assert_status_failure();
-
     // check delete and count
     let response = post_helpers::delete_post_like(&server, &result.id).await;
     response.assert_status_ok();
@@ -47,7 +43,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     assert_eq!(likes_nr, 4);
 });
 
-test_with_server!(try_to_like_liked_post, |server, ctx_state, config| {
+test_with_server!(udpate_likes, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
@@ -58,17 +54,8 @@ test_with_server!(try_to_like_liked_post, |server, ctx_state, config| {
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 1);
 
-    let response = post_helpers::create_post_like(&server, &result.id, None).await;
-    response.assert_status_failure();
-    assert!(response.text().contains("User has already liked the post"))
-});
-
-test_with_server!(try_to_unlike_unliked_post, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-    let result = create_fake_post(server, &result.default_discussion, None, None).await;
-    let response = post_helpers::delete_post_like(&server, &result.id).await;
-    response.assert_status_failure();
-    assert!(response.text().contains("User has not liked the post"))
+    let response = post_helpers::create_post_like(&server, &result.id, Some(10)).await;
+    response.assert_status_ok();
+    let likes_nr = response.json::<PostLikeResponse>().likes_count;
+    assert_eq!(likes_nr, 10);
 });
