@@ -289,11 +289,9 @@ impl<'a> PostDbService<'a> {
             .bind(("in", user))
             .bind(("out", post))
             .bind(("count", count))
-            .await;
+            .await?;
 
-        println!(">>>>{:?}", res);
-
-        let count = res?.take::<Option<i64>>(0)?.unwrap() as u32;
+        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
         Ok(count)
     }
 
