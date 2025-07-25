@@ -87,8 +87,8 @@ pub async fn create_fake_post(
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
     let create_post = create_post(&server, &discussion_id, data).await;
-    let post = create_post.json::<Post>();
     let _ = create_post.assert_status_success();
+    let post = create_post.json::<Post>();
 
     CreateFakePostResponse {
         id: post.id.as_ref().unwrap().to_raw(),
@@ -150,6 +150,32 @@ pub async fn create_post_like(
 pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestResponse {
     server
         .delete(format!("/api/posts/{post_id}/unlike").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn hide_post(server: &TestServer, post_id: &str, user_ids: Vec<String>) -> TestResponse {
+    let body = serde_json::json!({
+        "user_ids": user_ids
+    });
+
+    server
+        .post(format!("/api/posts/{post_id}/hide").as_str())
+        .json(&body)
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn show_post(server: &TestServer, post_id: &str, user_ids: Vec<String>) -> TestResponse {
+    let body = serde_json::json!({
+        "user_ids": user_ids
+    });
+
+    server
+        .post(format!("/api/posts/{post_id}/unhide").as_str())
+        .json(&body)
         .add_header("Accept", "application/json")
         .await
 }

@@ -39,14 +39,13 @@ for user in "${USERS[@]}"; do
   userid=$(echo "$response" | jq -r '.user.id.tb + ":" + .user.id.id.String')
   
   discussion_id="discussion%3A$(echo "$response" | jq -r '.user.id.id.String')"
-  curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$encode_userid/100"
+  curl -s -X GET "$SCHEMA://$HOST:$PORT/test/api/endow/$encode_userid/1000"
 post_uris=()  # make sure it's cleared/reset
 for i in {1..3}; do
   response=$(curl -s -X POST "$SCHEMA://$HOST:$PORT/api/discussions/$discussion_id/posts" \
     -H "Accept: application/json" \
     -b "jwt=$token" \
     -F "title=Post $i" \
-    -F "topic_id=" \
     -F "content=Lorem Ipsum")
 
   echo "$response"  # debug log
@@ -144,16 +143,16 @@ echo "$user1_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
     -b "jwt=$user1_token" \
     -d "{
       \"participant\": \"$user2_id\",
-      \"offer_amount\": 10,
+      \"offer_amount\": 100,
       \"content\": \"Task for user2 from post $post_id\"
     }"
 
-  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/tasks/$post_id/tasks" \
+  curl -s -X POST "$SCHEMA://$HOST:$PORT/api/posts/$post_id/tasks" \
     -H "Content-Type: application/json" \
     -b "jwt=$user1_token" \
     -d "{
       \"participant\": \"$user3_id\",
-      \"offer_amount\": 10,
+      \"offer_amount\": 100,
       \"content\": \"Task for user3 from post $post_id\"
     }"
 done
@@ -164,7 +163,7 @@ echo "$user2_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
     -b "jwt=$user2_token" \
     -d "{
       \"participant\": \"$user3_id\",
-      \"offer_amount\": 10,
+      \"offer_amount\": 100,
       \"content\": \"Task for\"
     }"
 done
@@ -175,7 +174,7 @@ echo "$user3_posts_json" | jq -r '.[]' | while IFS= read -r post_id; do
     -b "jwt=$user3_token" \
     -d "{
       \"participant\": \"$user1_id\",
-      \"offer_amount\": 10,
+      \"offer_amount\": 100,
       \"content\": \"Task for\"
     }"
 done

@@ -1,4 +1,7 @@
-use crate::utils::validate_utils::validate_social_links;
+use crate::{
+    middleware::utils::db_utils::{Pagination, QryOrder},
+    utils::validate_utils::validate_social_links,
+};
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
@@ -365,7 +368,16 @@ async fn get_posts(
     );
 
     let posts = post_service
-        .get_by_query(&disc_id.to_raw(), &user_thing.id.to_raw(), query)
+        .get_by_query(
+            &disc_id.to_raw(),
+            &user_thing.id.to_raw(),
+            Pagination {
+                order_by: None,
+                order_dir: Some(QryOrder::DESC),
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
+            },
+        )
         .await?;
 
     Ok(Json(posts))

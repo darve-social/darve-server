@@ -1,8 +1,12 @@
 use axum_test::TestServer;
 use darve_server::{
-    entities::community::{community_entity, discussion_entity::DiscussionDbService},
+    entities::community::{
+        community_entity::{self, CommunityDbService},
+        discussion_entity::DiscussionDbService,
+    },
     middleware::{self, ctx::Ctx, mw_ctx::CtxState, utils::string_utils::get_string_thing},
     routes::community::community_routes,
+    services::discussion_service::CreateDiscussion,
 };
 use fake::{faker, Fake};
 use surrealdb::sql::Thing;
@@ -75,4 +79,46 @@ pub async fn get_profile_discussion_id(server: &TestServer, user_ident: String) 
 
     create_response.assert_status_success();
     return DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
+}
+
+#[allow(dead_code)]
+pub struct CreatePrivateDiscussionResponse {
+    pub id: Thing,
+    pub title: String,
+    pub participants: Vec<Thing>,
+}
+
+#[allow(dead_code)]
+pub async fn create_private_discussion(
+    server: &TestServer,
+    creator_id: Thing,
+    participant_ids: Vec<String>,
+    creator_token: String,
+) -> CreatePrivateDiscussionResponse {
+    use darve_server::entities::community::discussion_entity::Discussion;
+
+    let title = faker::lorem::en::Sentence(3..6).fake::<String>();
+    let community_id = CommunityDbService::get_profile_community_id(&creator_id);
+
+    let create_response = server
+        .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", creator_token))
+        .json(&CreateDiscussion {
+            community_id: community_id.to_raw(),
+            title: title.clone(),
+            image_uri: None,
+            chat_user_ids: Some(participant_ids),
+            private_discussion_users_final: true,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_success();
+    let result = create_response.json::<Discussion>();
+
+    CreatePrivateDiscussionResponse {
+        id: result.id.unwrap(),
+        title,
+        participants: result.private_discussion_user_ids.unwrap(),
+    }
 }
