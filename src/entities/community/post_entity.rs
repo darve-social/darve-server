@@ -108,6 +108,7 @@ impl<'a> PostDbService<'a> {
     DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_LIKE} TYPE datetime DEFAULT time::now();
+    DEFINE FIELD IF NOT EXISTS count ON TABLE {TABLE_LIKE} TYPE number;
 
 ");
         let mutation = self.db.query(sql).await?;
@@ -275,39 +276,40 @@ impl<'a> PostDbService<'a> {
     //     })
     // }
 
-    pub async fn like(&self, user: Thing, post: Thing) -> CtxResult<u32> {
-        let query = format!(
-            "BEGIN TRANSACTION;
-                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
-                RELATE $in->{TABLE_LIKE}->$out; 
-                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
-                UPDATE $out SET likes_nr = $count;
-                RETURN $count;
-            COMMIT TRANSACTION;"
-        );
+    pub async fn like(&self, user: Thing, post: Thing, count: u16) -> CtxResult<u32> {
         let mut res = self
             .db
-            .query(query)
+            .query("BEGIN TRANSACTION;")
+            .query("LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id")
+            .query(
+                "IF $id THEN
+                    UPDATE $id SET count=$count
+                 ELSE
+                    RELATE $in->like->$out SET count=$count
+                 END;",
+            )
+            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
+            .query("UPDATE $out SET likes_nr=$count;")
+            .query("RETURN $count;")
+            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", post))
+            .bind(("count", count))
             .await?;
+
         let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
         Ok(count)
     }
 
     pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
-        let query = format!(
-            "BEGIN TRANSACTION;
-                IF  !record::exists(<record>$out) {{THROW \"Post does not exist\";}};
-                DELETE $in->{TABLE_LIKE} WHERE out=$out;
-                LET $count = (SELECT count(<-like) AS likes FROM $out)[0].likes;
-                UPDATE $out SET likes_nr = $count;
-                RETURN $count;
-            COMMIT TRANSACTION;"
-        );
         let mut res = self
             .db
-            .query(query)
+            .query("BEGIN TRANSACTION;")
+            .query("DELETE $in->like WHERE out=$out;")
+            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
+            .query("UPDATE $out SET likes_nr=$count;")
+            .query("RETURN $count;")
+            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", post))
             .await?;

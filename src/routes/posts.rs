@@ -25,7 +25,7 @@ use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::routes::tasks::TaskRequestView;
 use crate::services::notification_service::NotificationService;
-use crate::services::post_service::{PostHideShowData, PostService};
+use crate::services::post_service::{PostHideShowData, PostLikeData, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
@@ -141,7 +141,9 @@ async fn like(
     ctx: Ctx,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
+    Json(body): Json<PostLikeData>,
 ) -> CtxResult<Json<PostLikeResponse>> {
+    let user_id = ctx.user_thing_id()?;
     let count = PostService::new(
         &ctx_state.db.client,
         &ctx,
@@ -149,7 +151,7 @@ async fn like(
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
     )
-    .like(&post_id, &ctx.user_thing_id()?)
+    .like(&post_id, &user_id, body)
     .await?;
 
     Ok(Json(PostLikeResponse { likes_count: count }))

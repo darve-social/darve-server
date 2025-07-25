@@ -39,6 +39,11 @@ use tokio::sync::broadcast::Sender;
 use validator::Validate;
 
 #[derive(Debug, Deserialize)]
+pub struct PostLikeData {
+    pub count: Option<u16>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PostHideShowData {
     pub user_ids: Vec<String>,
 }
@@ -143,18 +148,17 @@ where
         }
     }
 
-    pub async fn like(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
-        let (user, post, disc) = self.get_entities(user_id, post_id).await?;
+    pub async fn like(&self, post_id: &str, user_id: &str, data: PostLikeData) -> CtxResult<u32> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let post = self.posts_repository.get_by_id(post_id).await?;
 
-        if !disc.is_profile() {
-            let _ = self.authorized(&user, &disc).await?;
-        }
-
+        let count = data.count.unwrap_or(1);
         let likes_count = self
             .posts_repository
             .like(
                 user.id.as_ref().unwrap().clone(),
                 post.id.as_ref().unwrap().clone(),
+                count,
             )
             .await?;
 
@@ -165,6 +169,7 @@ where
                 post.id.as_ref().unwrap().clone(),
             )
             .await?;
+
         Ok(likes_count)
     }
 

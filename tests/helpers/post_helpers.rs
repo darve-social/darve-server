@@ -5,6 +5,7 @@ use darve_server::entities::community::post_entity::Post;
 use darve_server::middleware::mw_ctx::CtxState;
 use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
+use serde_json::json;
 use std::fs;
 use surrealdb::sql::Thing;
 
@@ -133,10 +134,15 @@ pub async fn create_fake_post_with_file(
 }
 
 #[allow(dead_code)]
-pub async fn create_post_like(server: &TestServer, post_id: &str) -> TestResponse {
+pub async fn create_post_like(
+    server: &TestServer,
+    post_id: &str,
+    count: Option<u8>,
+) -> TestResponse {
     server
         .post(format!("/api/posts/{post_id}/like").as_str())
         .add_header("Accept", "application/json")
+        .json(&json!({ "count": count }))
         .await
 }
 
