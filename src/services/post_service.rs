@@ -146,7 +146,7 @@ where
     pub async fn like(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
         let (user, post, disc) = self.get_entities(user_id, post_id).await?;
 
-        if !disc.is_default() {
+        if !disc.is_profile() {
             let _ = self.authorized(&user, &disc).await?;
         }
 
@@ -216,7 +216,7 @@ where
         let user = self.users_repository.get_by_id(user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
 
-        if disc.is_default() && !data.hidden_for.is_empty() {
+        if disc.is_profile() && !data.hidden_for.is_empty() {
             return Err(AppError::Forbidden.into());
         }
 
@@ -324,7 +324,7 @@ where
             .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
             .await?;
 
-        if !disc.is_default() {
+        if !disc.is_profile() {
             self.notification_service
                 .on_chat_message(&user.id.as_ref().unwrap(), &participants, &post)
                 .await?;
@@ -362,7 +362,7 @@ where
             return Err(AppError::Forbidden);
         }
 
-        if user.id.as_ref().unwrap() != &post.created_by || disc.is_default() {
+        if user.id.as_ref().unwrap() != &post.created_by || disc.is_profile() {
             return Err(AppError::Forbidden);
         }
 
@@ -397,7 +397,7 @@ where
             return Err(AppError::Forbidden);
         }
 
-        if user.id.as_ref().unwrap() != &post.created_by || disc.is_default() {
+        if user.id.as_ref().unwrap() != &post.created_by || disc.is_profile() {
             return Err(AppError::Forbidden);
         }
 

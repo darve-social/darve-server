@@ -43,7 +43,7 @@ pub struct Discussion {
 }
 
 impl Discussion {
-    pub fn is_default(&self) -> bool {
+    pub fn is_profile(&self) -> bool {
         self.id
             .as_ref()
             .map_or(false, |id| id.id == self.created_by.id)
