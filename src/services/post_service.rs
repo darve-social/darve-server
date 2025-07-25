@@ -9,7 +9,7 @@ use crate::{
         user_auth::{
             access_right_entity::AccessRightDbService,
             access_rule_entity::AccessRule,
-            authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER, AUTH_ACTIVITY_OWNER},
+            authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER},
             local_user_entity::{LocalUser, LocalUserDbService},
         },
     },
