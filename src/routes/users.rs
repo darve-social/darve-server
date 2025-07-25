@@ -380,7 +380,7 @@ pub struct SearchInput {
 async fn search_users(
     ctx: Ctx,
     State(ctx_state): State<Arc<CtxState>>,
-    JsonOrFormValidated(form_value): JsonOrFormValidated<SearchInput>,
+    Query(form_value): Query<SearchInput>,
 ) -> CtxResult<Json<Vec<LocalUser>>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
