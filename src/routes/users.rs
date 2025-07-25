@@ -59,6 +59,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             post(email_verification_confirm),
         )
         .route("/api/users/current", patch(update_user))
+        .route("/api/users/current", get(get_user))
         .route("/api/users/current/posts", post(create_post))
         .route("/api/users/current/posts", get(get_posts))
         .route("/api/users", get(search_users))
@@ -398,4 +399,17 @@ async fn search_users(
         .map(|u| u.into())
         .collect();
     Ok(Json(items))
+}
+
+async fn get_user(ctx: Ctx, State(ctx_state): State<Arc<CtxState>>) -> CtxResult<Json<LocalUser>> {
+    let local_user_db_service = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    };
+
+    let user = local_user_db_service
+        .get_by_id(&ctx.user_thing_id()?)
+        .await?;
+
+    Ok(Json(user))
 }

@@ -66,7 +66,7 @@ impl Debug for CtxState {
 pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
     let (event_sender, _) = broadcast::channel(100);
     let ctx_state = CtxState {
-        db: db,
+        db,
         start_password: config.init_server_password.clone(),
         is_development: config.is_development,
         stripe_secret_key: config.stripe_secret_key.clone(),
@@ -75,7 +75,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         min_platform_fee_abs_2dec: 500,
         platform_fee_rel: 0.05,
         upload_max_size_mb: config.upload_file_size_max_mb,
-        jwt: JWT::new(config.jwt_secret.clone(), Duration::days(7)),
+        jwt: JWT::new(config.jwt_secret.clone(), Duration::days(1)),
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
         google_ios_client_id: config.google_ios_client_id.clone(),
         google_android_client_id: config.google_android_client_id.clone(),

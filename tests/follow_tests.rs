@@ -3,7 +3,10 @@ use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
-        community::{post_entity::Post, post_stream_entity::PostStreamDbService},
+        community::{
+            discussion_entity::DiscussionDbService, post_entity::Post,
+            post_stream_entity::PostStreamDbService,
+        },
         user_auth::follow_entity,
         user_notification::UserNotification,
     },
@@ -11,7 +14,7 @@ use darve_server::{
     routes::{
         community::{
             discussion_routes::DiscussionPostView,
-            profile_routes::{self, get_profile_community},
+            profile_routes::{self},
         },
         follows::UserItemView,
         user_auth::login_routes,
@@ -372,14 +375,8 @@ test_with_server!(
         let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;
 
         let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
-        let ctx = Ctx::new(Ok(user_ident1.clone()), false);
 
-        let profile_discussion =
-            get_profile_community(&ctx_state.db.client, &ctx, user1_id.clone())
-                .await
-                .unwrap()
-                .default_discussion
-                .unwrap();
+        let profile_discussion = DiscussionDbService::get_profile_discussion_id(&user1_id);
 
         let _ = create_fake_post(&server, &profile_discussion, None, None).await;
         let post_2 = create_fake_post(&server, &profile_discussion, None, None).await;

@@ -8,6 +8,7 @@ use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::utils::db_utils::RecordWithId;
 use crate::middleware::utils::extractor_utils::DiscussionParams;
+use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
 use axum::extract::{Path, State};
@@ -28,6 +29,14 @@ pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/users/:user_id/followers", get(get_followers))
         .route("/api/users/:user_id/following", get(get_following))
+        .route(
+            "/api/users/:user_id/followers/count",
+            get(get_followers_count),
+        )
+        .route(
+            "/api/users/:user_id/following/count",
+            get(get_following_count),
+        )
         .route("/api/followers/:follow_user_id", post(follow_user))
         .route("/api/followers/:follow_user_id", delete(unfollow_user))
         .route("/api/followers/:follow_user_id", get(is_following_user))
@@ -51,6 +60,37 @@ impl From<LocalUser> for UserItemView {
             image_url: value.image_uri.clone().unwrap_or_default(),
         }
     }
+}
+
+async fn get_followers_count(
+    State(ctx_state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(user_id): Path<String>,
+) -> CtxResult<Json<u32>> {
+    let user_id = get_str_thing(&user_id)?;
+    let count = FollowDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .user_followers_number(user_id)
+    .await?;
+    Ok(Json(count as u32))
+}
+
+async fn get_following_count(
+    State(ctx_state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    Path(user_id): Path<String>,
+) -> CtxResult<Json<u32>> {
+    let user_id = get_str_thing(&user_id)?;
+    let count = FollowDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .user_following_number(user_id)
+    .await?;
+
+    Ok(Json(count as u32))
 }
 
 async fn get_followers(
