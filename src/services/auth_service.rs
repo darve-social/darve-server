@@ -1,12 +1,6 @@
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
-use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
-
-use uuid::Uuid;
-use validator::{Validate, ValidateEmail};
-
 use super::verification_code_service::VerificationCodeService;
 use crate::database::surrdb_utils::get_thing_id;
+use crate::utils;
 use crate::{
     database::client::Db,
     entities::{
@@ -35,6 +29,12 @@ use crate::{
         verification::{apple, facebook, google},
     },
 };
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
+use utils::validate_utils::validate_birth_date;
+use uuid::Uuid;
+use validator::{Validate, ValidateEmail};
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthRegisterInput {
@@ -45,6 +45,7 @@ pub struct AuthRegisterInput {
     #[validate(email)]
     pub email: Option<String>,
     pub bio: Option<String>,
+    #[validate(custom(function = "validate_birth_date", message = "Birth date is invalid"))]
     pub birth_day: Option<DateTime<Utc>>,
     #[validate(length(min = 6, message = "Min 1 character"))]
     pub full_name: Option<String>,
@@ -173,9 +174,7 @@ where
             bio: input.bio,
             social_links: None,
             image_uri: input.image_uri,
-            birth_date: input
-                .birth_day
-                .map(|d| NaiveDate::from_ymd_opt(d.year(), d.month(), d.day()).unwrap()),
+            birth_date: input.birth_day,
         };
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
         self.register(user, AuthType::PASSWORD, &hash).await

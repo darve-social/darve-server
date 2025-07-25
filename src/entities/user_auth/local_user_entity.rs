@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -27,7 +28,7 @@ pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub birth_date: Option<chrono::NaiveDate>,
+    pub birth_date: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -211,11 +212,12 @@ impl<'a> LocalUserDbService<'a> {
             "INSERT INTO {TABLE_NAME} {{
                 username:$username,
                 full_name:$full_name,
-                birth_date:$dirth_date,
+                birth_date:<datetime>$birth_date,
                 bio:$bio,
                 image_uri:$image_uri,
                 phone:$phone,
-                email_verified:$email_verified
+                email_verified:$email_verified,
+                social_links:$social_links
             }};"
         );
         let mut res = self
@@ -241,14 +243,34 @@ impl<'a> LocalUserDbService<'a> {
             description: "can not update user with no id".to_string(),
         })?;
         // record.r_created = None;
-
-        let disc_topic: Option<LocalUser> = self
+        //
+        let query = "UPDATE $id MERGE {
+                username:$username,
+                full_name:$full_name,
+                birth_date:<datetime>$birth_date,
+                bio:$bio,
+                image_uri:$image_uri,
+                phone:$phone,
+                email_verified:$email_verified,
+                social_links:$social_links
+            };";
+        let mut res = self
             .db
-            .upsert((resource.tb, resource.id.to_raw()))
-            .content(record)
+            .query(query)
+            .bind(("id", resource))
+            .bind(("username", record.username))
+            .bind(("phone", record.phone))
+            .bind(("full_name", record.full_name))
+            .bind(("email_verified", record.email_verified))
+            .bind(("image_uri", record.image_uri))
+            .bind(("social_links", record.social_links))
+            .bind(("birth_date", record.birth_date))
             .await
             .map_err(CtxError::from(self.ctx))?;
-        Ok(disc_topic.unwrap())
+
+        let user = res.take::<Option<LocalUser>>(0)?;
+
+        Ok(user.unwrap())
     }
 
     pub async fn users_len(&self) -> CtxResult<i32> {

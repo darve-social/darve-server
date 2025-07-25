@@ -6,7 +6,9 @@ use axum::{
     Json, Router,
 };
 use axum_typed_multipart::TypedMultipart;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use validator::Validate;
 
@@ -39,6 +41,7 @@ use crate::{
     utils::{self, file::convert::FileUpload},
 };
 
+use utils::validate_utils::validate_birth_date;
 use utils::validate_utils::validate_username;
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
@@ -227,6 +230,8 @@ pub struct ProfileSettingsFormInput {
     pub image_url: Option<FileUpload>,
     #[validate(custom(function = "validate_social_links"))]
     pub social_links: Option<Vec<String>>,
+    #[validate(custom(function = "validate_birth_date", message = "Birth date is invalid"))]
+    pub birth_date: Option<DateTime<Utc>>,
 }
 
 impl ProfileSettingsFormInput {
@@ -236,29 +241,38 @@ impl ProfileSettingsFormInput {
             full_name: None,
             image_url: None,
             social_links: None,
+            birth_date: None,
         };
 
         while let Some(field) = multipart.next_field().await.unwrap() {
-            match field.name().unwrap() {
-                "username" => {
-                    let value = field.text().await.unwrap();
-                    form.username = Some(value);
-                }
-                "full_name" => {
-                    let value = field.text().await.unwrap();
-                    form.full_name = Some(value);
-                }
-                "social_links" => {
-                    let value = field.text().await.unwrap();
-                    let links = form.social_links.get_or_insert(vec![]);
-                    if !value.is_empty() {
-                        links.push(value);
+            if let Some(name) = field.name() {
+                match name {
+                    "username" => {
+                        form.username = Some(field.text().await.unwrap_or_default());
                     }
+                    "full_name" => {
+                        form.full_name = Some(field.text().await.unwrap_or_default());
+                    }
+                    "birth_date" => {
+                        let value: String = field.text().await.unwrap_or_default();
+                        let date = DateTime::parse_from_rfc3339(&value).map_err(|e| {
+                            AppError::ValidationErrors {
+                                value: json!({"birth_date": e.to_string()}),
+                            }
+                        })?;
+                        form.birth_date = Some(date.to_utc());
+                    }
+                    "social_links" => {
+                        let value = field.text().await.unwrap_or_default();
+                        if !value.is_empty() {
+                            form.social_links.get_or_insert_with(Vec::new).push(value);
+                        }
+                    }
+                    "image_url" => {
+                        form.image_url = FileUpload::try_from_field(field).await?.into();
+                    }
+                    _ => {}
                 }
-                "image_url" => {
-                    form.image_url = FileUpload::try_from_field(field).await?.into();
-                }
-                _ => {}
             }
         }
 
@@ -296,6 +310,10 @@ async fn update_user(
 
     if let Some(full_name) = form.full_name {
         user.full_name = Some(full_name.trim().to_string());
+    }
+
+    if let Some(value) = form.birth_date {
+        user.birth_date = Some(value);
     }
 
     if form.social_links.is_some() {
