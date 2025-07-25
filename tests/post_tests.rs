@@ -8,13 +8,13 @@ use axum_test::multipart::MultipartForm;
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
+use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
 use darve_server::routes::community::community_routes;
-use darve_server::routes::community::profile_routes::get_profile_community;
 use darve_server::routes::posts::GetPostsQuery;
 use helpers::community_helpers;
 use helpers::community_helpers::create_fake_community;
@@ -110,12 +110,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     let ctx = Ctx::new(Ok(user_ident.clone()), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
-    let default_discussion =
-        get_profile_community(&ctx_state.db.client, &ctx, user_thing_id.clone())
-            .await
-            .unwrap()
-            .default_discussion
-            .unwrap();
+    let default_discussion = DiscussionDbService::get_profile_discussion_id(&user_thing_id);
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let _ = create_fake_post(server, &default_discussion, None, None).await;
