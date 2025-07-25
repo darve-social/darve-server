@@ -41,7 +41,7 @@ use validator::Validate;
 
 #[derive(Debug, Deserialize)]
 pub struct PostLikeData {
-    pub count: Option<u8>,
+    pub count: Option<u16>,
 }
 
 #[derive(Validate, TryFromMultipart)]

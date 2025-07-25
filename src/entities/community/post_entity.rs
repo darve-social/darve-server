@@ -270,7 +270,7 @@ impl<'a> PostDbService<'a> {
     //     })
     // }
 
-    pub async fn like(&self, user: Thing, post: Thing, count: u8) -> CtxResult<u32> {
+    pub async fn like(&self, user: Thing, post: Thing, count: u16) -> CtxResult<u32> {
         let query = format!(
             "BEGIN TRANSACTION;
                 RELATE $in->{TABLE_LIKE}->$out SET count=$count;
