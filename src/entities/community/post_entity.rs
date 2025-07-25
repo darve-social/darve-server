@@ -363,7 +363,7 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
-            .bind(("dics", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
+            .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .await?;
 
