@@ -264,8 +264,9 @@ impl ProfileSettingsFormInput {
                     }
                     "social_links" => {
                         let value = field.text().await.unwrap_or_default();
+                        let links = form.social_links.get_or_insert_with(Vec::new);
                         if !value.is_empty() {
-                            form.social_links.get_or_insert_with(Vec::new).push(value);
+                            links.push(value);
                         }
                     }
                     "image_url" => {

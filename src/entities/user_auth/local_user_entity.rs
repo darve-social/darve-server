@@ -207,12 +207,13 @@ impl<'a> LocalUserDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
+    // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
     pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
         let query = format!(
             "INSERT INTO {TABLE_NAME} {{
                 username:$username,
                 full_name:$full_name,
-                birth_date:<datetime>$birth_date,
+                birth_date: IF $birth_date THEN <datetime>$birth_date ELSE None END,
                 bio:$bio,
                 image_uri:$image_uri,
                 phone:$phone,
@@ -238,6 +239,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(user.unwrap().id.as_ref().unwrap().to_raw())
     }
 
+    // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
     pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
         let resource = record.id.clone().ok_or(AppError::Generic {
             description: "can not update user with no id".to_string(),
@@ -247,7 +249,7 @@ impl<'a> LocalUserDbService<'a> {
         let query = "UPDATE $id MERGE {
                 username:$username,
                 full_name:$full_name,
-                birth_date:<datetime>$birth_date,
+                birth_date: IF $birth_date THEN <datetime>$birth_date ELSE None END,
                 bio:$bio,
                 image_uri:$image_uri,
                 phone:$phone,
