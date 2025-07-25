@@ -10,7 +10,7 @@ use darve_server::{entities::user_auth::local_user_entity::LocalUser, routes::us
 pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<LocalUser> {
     let request = server
         .get("/api/users")
-        .json(input)
+        .add_query_param("query", input.query.clone())
         .add_header("Accept", "application/json")
         .await;
     request.assert_status_success();
