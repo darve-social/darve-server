@@ -451,25 +451,23 @@ where
     }
 
     async fn authorized(&self, user: &LocalUser, disc: &Discussion) -> CtxResult<()> {
-        let members = match disc.private_discussion_user_ids {
-            Some(ref members) => members,
-            None => &vec![],
-        };
-
-        let activity = if members.contains(user.id.as_ref().unwrap()) {
-            AUTH_ACTIVITY_MEMBER
-        } else {
-            AUTH_ACTIVITY_OWNER
-        };
-
-        let min_authorization = Authorization {
-            authorize_record_id: disc.id.clone().unwrap().clone(),
-            authorize_activity: activity.to_string(),
-            authorize_height: 0,
-        };
-        self.access_repository
-            .is_authorized(&user.id.as_ref().unwrap(), &min_authorization)
-            .await?;
+        match disc.private_discussion_user_ids {
+            Some(ref members) => {
+                if !members.contains(&user.id.as_ref().unwrap()) {
+                    return Err(AppError::Forbidden.into());
+                }
+            }
+            None => {
+                let min_authorization = Authorization {
+                    authorize_record_id: disc.id.clone().unwrap().clone(),
+                    authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
+                    authorize_height: 0,
+                };
+                self.access_repository
+                    .is_authorized(&user.id.as_ref().unwrap(), &min_authorization)
+                    .await?;
+            }
+        }
 
         Ok(())
     }

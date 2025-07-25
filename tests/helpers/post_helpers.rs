@@ -87,8 +87,8 @@ pub async fn create_fake_post(
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
     let create_post = create_post(&server, &discussion_id, data).await;
-    let post = create_post.json::<Post>();
     let _ = create_post.assert_status_success();
+    let post = create_post.json::<Post>();
 
     CreateFakePostResponse {
         id: post.id.as_ref().unwrap().to_raw(),
