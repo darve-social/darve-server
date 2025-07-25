@@ -145,6 +145,7 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self.posts_repository.get_by_id(post_id).await?;
 
+        // TODO -optimize- don't check just update in query if exists
         let is_already_liked = self
             .posts_repository
             .is_liked(
@@ -154,10 +155,7 @@ where
             .await?;
 
         if is_already_liked {
-            return Err(AppError::Generic {
-                description: "User has already liked the post".to_string(),
-            }
-            .into());
+            self.unlike(post_id, user_id).await?;
         }
 
         let count = data.count.unwrap_or(1);
