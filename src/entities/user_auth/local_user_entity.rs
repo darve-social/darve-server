@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -17,7 +16,7 @@ use middleware::utils::db_utils::{
 use middleware::utils::string_utils::get_string_thing;
 use middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
