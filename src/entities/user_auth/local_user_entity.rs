@@ -28,7 +28,7 @@ pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub birth_date: Option<DateTime<Utc>>,
+    pub birth_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,7 +88,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS email_verified ON TABLE {TABLE_NAME} TYPE option<string>;// VALUE string::lowercase($value) ASSERT string::is::email($value);
     DEFINE FIELD IF NOT EXISTS username ON TABLE {TABLE_NAME} TYPE string VALUE string::lowercase($value);
     DEFINE FIELD IF NOT EXISTS full_name ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<datetime>;
+    DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
@@ -209,69 +209,19 @@ impl<'a> LocalUserDbService<'a> {
 
     // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
     pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
-        let query = format!(
-            "INSERT INTO {TABLE_NAME} {{
-                username:$username,
-                full_name:$full_name,
-                birth_date: IF $birth_date THEN <datetime>$birth_date ELSE None END,
-                bio:$bio,
-                image_uri:$image_uri,
-                phone:$phone,
-                email_verified:$email_verified,
-                social_links:$social_links
-            }};"
-        );
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("username", ct_input.username))
-            .bind(("phone", ct_input.phone))
-            .bind(("full_name", ct_input.full_name))
-            .bind(("email_verified", ct_input.email_verified))
-            .bind(("image_uri", ct_input.image_uri))
-            .bind(("social_links", ct_input.social_links))
-            .bind(("birth_date", ct_input.birth_date))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-
-        let user = res.take::<Option<LocalUser>>(0)?;
-
+        let user: Option<LocalUser> = self.db.create(TABLE_NAME).content(ct_input).await?;
         Ok(user.unwrap().id.as_ref().unwrap().to_raw())
     }
 
-    // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
     pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
         let resource = record.id.clone().ok_or(AppError::Generic {
             description: "can not update user with no id".to_string(),
         })?;
-        // record.r_created = None;
-        //
-        let query = "UPDATE $id MERGE {
-                username:$username,
-                full_name:$full_name,
-                birth_date: IF $birth_date THEN <datetime>$birth_date ELSE None END,
-                bio:$bio,
-                image_uri:$image_uri,
-                phone:$phone,
-                email_verified:$email_verified,
-                social_links:$social_links
-            };";
-        let mut res = self
+        let user: Option<LocalUser> = self
             .db
-            .query(query)
-            .bind(("id", resource))
-            .bind(("username", record.username))
-            .bind(("phone", record.phone))
-            .bind(("full_name", record.full_name))
-            .bind(("email_verified", record.email_verified))
-            .bind(("image_uri", record.image_uri))
-            .bind(("social_links", record.social_links))
-            .bind(("birth_date", record.birth_date))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-
-        let user = res.take::<Option<LocalUser>>(0)?;
-
+            .update((TABLE_NAME, resource.id.to_raw()))
+            .content(record)
+            .await?;
         Ok(user.unwrap())
     }
 

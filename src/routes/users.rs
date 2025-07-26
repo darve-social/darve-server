@@ -314,7 +314,7 @@ async fn update_user(
     }
 
     if let Some(value) = form.birth_date {
-        user.birth_date = Some(value);
+        user.birth_date = Some(value.date_naive().to_string());
     }
 
     if form.social_links.is_some() {
