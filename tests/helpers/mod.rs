@@ -4,7 +4,7 @@ pub mod test_with_server;
 pub mod user_helpers;
 
 use axum_test::TestServer;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Months, Utc};
 use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use fake::{faker, Fake};
 use serde_json::{json, Value};
@@ -41,7 +41,10 @@ pub async fn create_fake_login_test_user(
             "password": pwd.clone(),
             "email": faker::internet::en::FreeEmail().fake::<String>(),
             "full_name": faker::name::en::Name().fake::<String>(),
-            "birth_day": faker::chrono::en::DateTime().fake::<DateTime<Utc>>()
+            "birth_day": faker::chrono::en::DateTimeBetween(
+                Utc::now().checked_sub_months(Months::new(12*100)).unwrap(),
+                Utc::now().checked_sub_months(Months::new(12*10)).unwrap()
+            ).fake::<DateTime<Utc>>()
         }))
         .await;
 
