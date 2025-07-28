@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
 use community::post_entity;
-use community_entity::{Community, CommunityDbService};
+use community_entity::CommunityDbService;
 use discussion_routes::DiscussionPostView;
 use follow_entity::FollowDbService;
 use local_user_entity::LocalUserDbService;
@@ -71,10 +71,10 @@ pub struct ProfileView {
     pub image_uri: Option<String>,
     pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
-    pub profile_discussion: Option<Thing>,
+    pub default_discussion: Option<Thing>,
     pub followers_nr: i64,
     pub following_nr: i64,
-    pub profile_discussion_view: Option<ProfileDiscussionView>,
+    pub default_discussion_view: Option<ProfileDiscussionView>,
 }
 
 impl ViewFieldSelector for ProfileView {
@@ -185,17 +185,23 @@ async fn display_profile(
     let mut profile_view = local_user_db_service
         .get_view::<ProfileView>(user_ident)
         .await?;
-    let profile_comm =
-        get_profile_community(&ctx_state.db.client, &ctx, profile_view.user_id.clone()).await?;
-    profile_view.community = profile_comm.id;
-    profile_view.profile_discussion = profile_comm.default_discussion;
 
-    let disc_id = profile_view.profile_discussion.clone().unwrap();
+    let comm_db_ser = CommunityDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    };
+    let profile_comm = comm_db_ser
+        .get_profile_community(profile_view.user_id.clone())
+        .await?;
+    profile_view.community = profile_comm.id;
+    profile_view.default_discussion = profile_comm.default_discussion;
+
+    let disc_id = profile_view.default_discussion.clone().unwrap();
 
     let dis_view =
         get_profile_discussion_view(&ctx_state.db.client, &ctx, q_params, disc_id).await?;
 
-    profile_view.profile_discussion_view = Some(dis_view);
+    profile_view.default_discussion_view = Some(dis_view);
     let follow_db_service = FollowDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -235,9 +241,4 @@ async fn get_profile_discussion_view(
         .await?;
     dis_view.posts = discussion_posts;
     Ok(dis_view)
-}
-
-pub async fn get_profile_community(db: &Db, ctx: &Ctx, user_id: Thing) -> CtxResult<Community> {
-    let comm_db_ser = CommunityDbService { db, ctx };
-    comm_db_ser.get_profile_community(user_id).await
 }

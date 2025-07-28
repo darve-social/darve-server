@@ -750,6 +750,86 @@
         }
       }
     },
+    "/api/users/{user_id}/followers/count": {
+      "get": {
+        "tags": ["Follows"],
+        "summary": "Get user's followers count",
+        "description": "Get the number of followers for a specific user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "The ID of the user",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Followers count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Number of followers"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users/{user_id}/following/count": {
+      "get": {
+        "tags": ["Follows"],
+        "summary": "Get user's following count",
+        "description": "Get the number of users a specific user is following",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "description": "The ID of the user",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Following count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Number of users being followed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/users/current/following/posts": {
       "get": {
         "tags": ["Users"],
@@ -851,10 +931,35 @@
       }
     },
     "/api/users/current": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get current user",
+        "description": "Get current authenticated user information",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
       "patch": {
         "tags": ["Users"],
-        "summary": "Update current user profile",
-        "description": "Update current user profile information including username, full name, birth date, profile image, and social links. All fields are optional.",
+        "summary": "Update current user",
+        "description": "Update current user profile",
         "security": [
           {
             "cookieAuth": []
@@ -890,6 +995,7 @@
         }
       }
     },
+
     "/api/users/current/posts": {
       "post": {
         "tags": ["Users"],
@@ -2089,7 +2195,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Request processed successfully"
+            "description": "Following status checked successfully"
           },
           "401": {
             "description": "Unauthorized"
