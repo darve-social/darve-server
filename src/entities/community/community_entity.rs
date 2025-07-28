@@ -5,7 +5,6 @@ use validator::Validate;
 
 use crate::database::client::Db;
 use crate::{entities::user_auth, middleware};
-use middleware::error::AppResult;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
@@ -35,8 +34,6 @@ pub struct Community {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_discussion: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_chats: Option<Vec<Thing>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub courses: Option<Vec<Thing>>,
@@ -52,7 +49,6 @@ impl Community {
             title: None,
             name_uri: user_id.to_raw(),
             default_discussion: None,
-            profile_chats: None,
             r_created: None,
             courses: None,
             created_by: user_id.clone(),
@@ -85,7 +81,6 @@ impl<'a> CommunityDbService<'a> {
     // DEFINE FIELD IF NOT EXISTS following_posts_discussion ON TABLE {TABLE_NAME} TYPE option<record<{DISCUSSION_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS courses ON TABLE {TABLE_NAME} TYPE option<array<record<course>>>;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<local_user>;
-    DEFINE FIELD IF NOT EXISTS profile_chats ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TABLE_NAME}>>>;
     DEFINE FIELD IF NOT EXISTS stripe_connect_account_id ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS stripe_connect_complete ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
@@ -208,30 +203,6 @@ impl<'a> CommunityDbService<'a> {
             .await?;
 
         Ok(comm)
-    }
-
-    pub async fn add_profile_chat_discussion(
-        &self,
-        user_id: Thing,
-        discussion_id: Thing,
-    ) -> AppResult<()> {
-        // !!! needs profile community already
-        // or like discussion_entity.add_topic
-        let user_comm = self.get_profile_community(user_id).await?;
-
-        let p_chats = user_comm.profile_chats.unwrap_or(vec![]);
-        if !p_chats.contains(&discussion_id) {
-            let comm_id = user_comm.id.clone().unwrap();
-            let _res: Option<Community> = self
-                .db
-                .update((comm_id.tb, comm_id.id.to_string()))
-                .patch(PatchOp::add(
-                    "/profile_chats".to_string().as_str(),
-                    [discussion_id],
-                ))
-                .await?;
-        }
-        Ok(())
     }
 
     pub async fn get_profile_community(&self, user_id: Thing) -> CtxResult<Community> {
