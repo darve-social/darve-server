@@ -986,6 +986,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation error - invalid input data"
+          },
           "401": {
             "description": "Unauthorized"
           }
@@ -2374,24 +2377,28 @@
           },
           "full_name": {
             "type": "string",
+            "nullable": true,
             "description": "Full name"
           },
           "birth_date": {
             "type": "string",
             "format": "date-time",
+            "nullable": true,
             "description": "Birth date"
           },
           "phone": {
             "type": "string",
+            "nullable": true,
             "description": "Phone number"
           },
           "email_verified": {
             "type": "string",
-            "format": "email",
+            "nullable": true,
             "description": "Verified email address"
           },
           "bio": {
             "type": "string",
+            "nullable": true,
             "description": "User biography"
           },
           "social_links": {
@@ -2399,10 +2406,12 @@
             "items": {
               "type": "string"
             },
+            "nullable": true,
             "description": "Social media links"
           },
           "image_uri": {
             "type": "string",
+            "nullable": true,
             "description": "Profile image URI"
           }
         }
@@ -2586,24 +2595,37 @@
         "properties": {
           "username": {
             "type": "string",
-            "description": "Username"
+            "nullable": true,
+            "minLength": 6,
+            "pattern": "^[A-Za-z0-9_]{6,}$",
+            "description": "Username (optional) - Letters, numbers and '_'. Minimum 6 characters"
           },
           "full_name": {
             "type": "string",
             "minLength": 6,
-            "description": "Full name (minimum 6 characters)"
+            "nullable": true,
+            "description": "Full name (minimum 6 characters, optional)"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Birth date in RFC3339 format (optional) - Must be between 10 and 120 years ago"
           },
           "image_url": {
             "type": "string",
             "format": "binary",
-            "description": "Profile image file"
+            "nullable": true,
+            "description": "Profile image file (optional)"
           },
           "social_links": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "format": "uri"
             },
-            "description": "Each link must be a valid URL from Twitter, YouTube, Facebook, or Instagram"
+            "nullable": true,
+            "description": "Social media links (optional) - Must be HTTPS URLs from x.com, instagram.com, youtube.com, or facebook.com. No duplicate domains allowed."
           }
         }
       },

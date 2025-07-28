@@ -1,4 +1,5 @@
 use crate::entities::community::discussion_entity::USER_TABLE_NAME;
+use chrono::{DateTime, Months, Utc};
 use regex::Regex;
 use reqwest::Url;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -14,6 +15,25 @@ pub fn validate_username(u: &String) -> Result<(), ValidationError> {
             .with_message("Letters, numbers and '_'. Minimum 6 characters".into());
         Err(error)
     }
+}
+
+pub fn validate_phone_number(u: &String) -> Result<(), ValidationError> {
+    if Regex::new(r"^\+?[0-9]{7,15}$").unwrap().is_match(u) {
+        Ok(())
+    } else {
+        Err(ValidationError::new("invalid_phone_number"))
+    }
+}
+
+pub fn validate_birth_date(date: &DateTime<Utc>) -> Result<(), ValidationError> {
+    let min = Utc::now()
+        .checked_sub_months(Months::new(120 * 12))
+        .unwrap();
+    let max = Utc::now().checked_sub_months(Months::new(10 * 12)).unwrap();
+    if *date < min || *date > max {
+        return Err(ValidationError::new("invalid_birth_date_range"));
+    }
+    Ok(())
 }
 
 pub fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
