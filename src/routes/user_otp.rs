@@ -2,6 +2,7 @@ use crate::{
     middleware::{
         auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
     },
+    models::view::UserView,
     utils::totp::{Totp, TotpResposne},
 };
 use axum::{
@@ -107,5 +108,9 @@ async fn otp_validate(
             description: e.to_string(),
         })?;
 
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": UserView::from(user) })),
+    )
+        .into_response())
 }
