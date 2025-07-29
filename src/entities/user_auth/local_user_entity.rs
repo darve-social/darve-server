@@ -15,6 +15,7 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
+use crate::middleware::utils::db_utils::record_exists;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
@@ -148,6 +149,11 @@ impl<'a> LocalUserDbService<'a> {
         let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+    
+    // param id is a id of the thing
+    pub async fn exists_by_id(&self, id: &str) -> CtxResult<()> {
+        Ok(record_exists(self.db, &get_str_id_thing(TABLE_NAME, id)? ).await?)
     }
 
     pub async fn get_by_email(&self, email: &str) -> CtxResult<LocalUser> {

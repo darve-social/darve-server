@@ -84,7 +84,7 @@ async fn get_notifications(
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_by_id(&auth_data.user_thing_id())
+    .exists_by_id(&auth_data.user_thing_id())
     .await?;
 
     let notifications = state
@@ -118,7 +118,7 @@ async fn get_count(
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_by_id(&auth_data.user_thing_id())
+    .exists_by_id(&auth_data.user_thing_id())
     .await?;
 
     let count = state

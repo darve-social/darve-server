@@ -8,12 +8,12 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use reqwest::StatusCode;
 
+use super::ctx::Ctx;
+use crate::database::surrdb_utils::get_thing_id;
 use crate::{
     middleware::mw_ctx::{CtxState, JWT_KEY},
     utils::jwt::TokenType,
 };
-
-use super::ctx::Ctx;
 
 #[derive(Debug)]
 pub struct AuthWithLoginAccess {
@@ -23,10 +23,7 @@ pub struct AuthWithLoginAccess {
 
 impl AuthWithLoginAccess {
     pub fn user_thing_id(&self) -> String {
-        match self.user_id.find(":") {
-            None => self.user_id.clone(),
-            Some(ind) => (&self.user_id[ind + 1..]).to_string(),
-        }
+        get_thing_id(self.user_id.as_str()).to_string()
     }
 }
 
