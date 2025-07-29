@@ -3,6 +3,7 @@ use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
 };
 use crate::middleware;
+use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::{AppEventType, CtxState};
 use crate::middleware::utils::db_utils::QryOrder;
 use axum::extract::{Path, Query, State};
@@ -76,21 +77,21 @@ struct GetNotificationsQuery {
 
 async fn get_notifications(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Query(query): Query<GetNotificationsQuery>,
 ) -> CtxResult<Json<Vec<UserNotification>>> {
-    let user = LocalUserDbService {
+    let _ = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_ctx_user_thing()
+    .exists_by_id(&auth_data.user_thing_id())
     .await?;
 
     let notifications = state
         .db
         .user_notifications
         .get_by_user(
-            &user.to_raw(),
+            &auth_data.user_id,
             GetNotificationOptions {
                 limit: query.count.unwrap_or(50),
                 start: query.start.unwrap_or(0),
@@ -110,20 +111,20 @@ struct GetCountQuery {
 
 async fn get_count(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Query(query): Query<GetCountQuery>,
 ) -> CtxResult<Json<u64>> {
-    let user = LocalUserDbService {
+    let _ = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_ctx_user_thing()
+    .exists_by_id(&auth_data.user_thing_id())
     .await?;
 
     let count = state
         .db
         .user_notifications
-        .get_count(&user.to_raw(), query.is_read)
+        .get_count(&auth_data.user_id, query.is_read)
         .await?;
 
     Ok(Json(count))
@@ -131,11 +132,11 @@ async fn get_count(
 
 async fn sse(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let user = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_ctx_user_thing()
     .await?;

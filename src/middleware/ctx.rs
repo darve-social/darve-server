@@ -97,7 +97,10 @@ impl FromRequestParts<Arc<CtxState>> for Ctx {
         };
 
         let jwt_user_id: Result<String, AppError> = match cookies.get(JWT_KEY) {
-            Some(cookie) => match app_state.jwt.decode(cookie.value()) {
+            Some(cookie) => match app_state
+                .jwt
+                .decode_by_type(cookie.value(), crate::utils::jwt::TokenType::Login)
+            {
                 Ok(claims) => Ok(claims.auth),
                 Err(_) => Err(AppError::AuthFailNoJwtCookie),
             },

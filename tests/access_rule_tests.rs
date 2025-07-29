@@ -209,7 +209,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     );
 
     // check view with low access user
-    let new_user_id = &LocalUserDbService {
+    let new_user = &LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
@@ -232,7 +232,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     );
 
     user_service
-        .set_password(&new_user_id, "visitor")
+        .set_password(&new_user.id.as_ref().unwrap().to_raw(), "visitor")
         .await
         .unwrap();
 
@@ -241,7 +241,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
         ctx,
     }
     .authorize(
-        Thing::try_from(new_user_id.clone()).unwrap(),
+        new_user.id.as_ref().unwrap().clone(),
         Authorization {
             authorize_record_id: comm_id.clone(),
             authorize_activity: AUTH_ACTIVITY_VISITOR.to_string(),
@@ -252,7 +252,7 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     .await
     .expect("authorized");
 
-    let ctx_no_user = Ctx::new(Ok(new_user_id.to_string()), false);
+    let ctx_no_user = Ctx::new(Ok(new_user.id.as_ref().unwrap().to_raw()), false);
     let comm_view = get_community(
         State(ctx_state.clone()),
         ctx_no_user,

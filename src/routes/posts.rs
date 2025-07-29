@@ -20,6 +20,7 @@ use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 
+use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
@@ -71,7 +72,7 @@ pub struct GetPostsResponse {
 }
 
 async fn create_task(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Path(post_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
@@ -79,7 +80,7 @@ async fn create_task(
     let post_thing = get_str_thing(&post_id)?;
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
@@ -88,19 +89,19 @@ async fn create_task(
     );
 
     let task = task_service
-        .create(&ctx.user_id()?, body, Some(post_thing.clone()))
+        .create(&auth_data.user_id, body, Some(post_thing.clone()))
         .await?;
 
     Ok(Json(task))
 }
 
 async fn get_post_tasks(
+    auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let post_db_service = PostDbService {
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
         db: &state.db.client,
     };
     let post = post_db_service.get_by_id_with_access(&post_id).await?;
@@ -138,15 +139,15 @@ pub struct PostLikeResponse {
 }
 
 async fn like(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<PostLikeData>,
 ) -> CtxResult<Json<PostLikeResponse>> {
-    let user_id = ctx.user_thing_id()?;
+    let user_id = auth_data.user_thing_id();
     let count = PostService::new(
         &ctx_state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
@@ -158,18 +159,18 @@ async fn like(
 }
 
 async fn unlike(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<PostLikeResponse>> {
     let count = PostService::new(
         &ctx_state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
     )
-    .unlike(&post_id, &ctx.user_thing_id()?)
+    .unlike(&post_id, &auth_data.user_thing_id())
     .await?;
 
     Ok(Json(PostLikeResponse { likes_count: count }))
@@ -177,26 +178,26 @@ async fn unlike(
 
 async fn get_replies(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
 ) -> CtxResult<Json<Vec<PostReplyView>>> {
     let _ = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_ctx_user_thing()
+    .get_by_id(&auth_data.user_thing_id())
     .await?;
 
     let post = PostDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_by_id(&post_id)
     .await?;
 
     let replies = ReplyDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_by_post_desc_view::<PostReplyView>(post.id.as_ref().unwrap().clone(), 0, 120)
     .await?;
@@ -216,26 +217,28 @@ pub struct PostReplyInput {
 
 async fn create_reply(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
 ) -> CtxResult<Json<Reply>> {
-    let created_by = LocalUserDbService {
+    let user = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_ctx_user_thing()
+    .get_by_id(&auth_data.user_thing_id())
     .await?;
+    let created_by = user.id.as_ref().unwrap();
     let post_db_service = PostDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let post = post_db_service.get_by_id(&post_id).await?;
 
     let reply_db_service = ReplyDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
+
     let reply = reply_db_service
         .create(Reply {
             id: None,
@@ -258,7 +261,7 @@ async fn create_reply(
 
     let n_service = NotificationService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
     );
