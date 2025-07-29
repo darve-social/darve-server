@@ -1,6 +1,4 @@
 mod helpers;
-
-use axum::extract::State;
 use chrono::DateTime;
 use darve_server::entities::wallet::lock_transaction_entity::{
     LockTransactionDbService, UnlockTrigger,
@@ -8,7 +6,7 @@ use darve_server::entities::wallet::lock_transaction_entity::{
 use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
 use darve_server::middleware;
 use darve_server::middleware::ctx::Ctx;
-use darve_server::routes::wallet::{get_user_balance, CurrencyTransactionHistoryView};
+use darve_server::routes::wallet::CurrencyTransactionHistoryView;
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user};
 use middleware::utils::string_utils::get_string_thing;
@@ -221,7 +219,7 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
 test_with_server!(
     check_lock_user_wallet_parallel_1,
     |server, ctx_state, config| {
-        let (server, user2, ..) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let endow_amt = 30;
         let endow_user_response = server
             .get(&format!(
@@ -276,9 +274,12 @@ test_with_server!(
             )
             .await;
         assert!(res.is_ok());
-
-        let bal = get_user_balance(ctx, State(ctx_state.clone())).await;
-        let bal: WalletBalancesView = serde_json::from_str(bal.unwrap().0.as_str()).unwrap();
+        let res = server
+            .get("/api/wallet/balance")
+            .add_header("Cookie", format!("jwt={}", token2))
+            .await;
+        res.assert_status_success();
+        let bal: WalletBalancesView = res.json::<WalletBalancesView>();
         assert_eq!(bal.balance_locked.balance_usd, 6);
         assert_eq!(bal.balance.balance_usd, 24);
         println!("bal: {}", serde_json::to_string_pretty(&bal).unwrap());

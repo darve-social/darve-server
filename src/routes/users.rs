@@ -1,4 +1,9 @@
-use crate::utils::validate_utils::validate_social_links;
+use crate::{
+    middleware::{
+        auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
+    },
+    utils::validate_utils::validate_social_links,
+};
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
@@ -7,6 +12,7 @@ use axum::{
 };
 use axum_typed_multipart::TypedMultipart;
 use chrono::{DateTime, Utc};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -66,6 +72,9 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/users/current/posts", post(create_post))
         .route("/api/users/current/posts", get(get_posts))
         .route("/api/users", get(search_users))
+        .route("/api/users/current/otp/enable", post(otp_enable))
+        .route("/api/users/current/otp/disable", post(otp_disable))
+        .route("/api/users/current/otp/validate", post(otp_validate))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -76,27 +85,27 @@ struct SetPasswordInput {
 }
 
 async fn set_password(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<SetPasswordInput>,
 ) -> CtxResult<Response> {
-    let user_id = ctx.user_id()?;
-
     let user_service = UserService::new(
         LocalUserDbService {
             db: &state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &state.email_sender,
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &state.db.verification_code,
     );
 
-    user_service.set_password(&user_id, &data.password).await?;
+    user_service
+        .set_password(&auth_data.user_id, &data.password)
+        .await?;
 
     Ok(().into_response())
 }
@@ -110,28 +119,26 @@ struct ResetPasswordInput {
 }
 
 async fn reset_password(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<ResetPasswordInput>,
 ) -> CtxResult<String> {
-    let user_id = ctx.user_id()?;
-
     let user_service = UserService::new(
         LocalUserDbService {
             db: &state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &state.email_sender,
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &state.db.verification_code,
     );
 
     let _ = user_service
-        .update_password(&user_id, &data.new_password, &data.old_password)
+        .update_password(&auth_data.user_id, &data.new_password, &data.old_password)
         .await?;
 
     Ok("Password updated successfully.".to_string())
@@ -143,26 +150,26 @@ pub struct EmailVerificationStartInput {
     pub email: String,
 }
 async fn email_verification_start(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
             db: &ctx_state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &ctx_state.db.verification_code,
     );
 
     user_service
-        .start_email_verification(&ctx.user_thing_id()?, &data.email)
+        .start_email_verification(&auth_data.user_thing_id(), &data.email)
         .await?;
 
     Ok(())
@@ -178,26 +185,26 @@ pub struct EmailVerificationConfirmInput {
 }
 
 async fn email_verification_confirm(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
 ) -> CtxResult<()> {
     let user_service = UserService::new(
         LocalUserDbService {
             db: &ctx_state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state.db.client,
-            ctx: &ctx,
+            ctx: &auth_data.ctx,
         },
         &ctx_state.db.verification_code,
     );
 
     user_service
-        .email_confirmation(&ctx.user_thing_id()?, &data.code, &data.email)
+        .email_confirmation(&auth_data.user_thing_id(), &data.code, &data.email)
         .await?;
 
     Ok(())
@@ -205,18 +212,20 @@ async fn email_verification_confirm(
 
 async fn get_following_posts(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
 ) -> CtxResult<Json<Vec<DiscussionPostView>>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
+    let user = local_user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
     let data = PostStreamDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_posts::<DiscussionPostView>(user_id)
+    .get_posts::<DiscussionPostView>(user.id.as_ref().unwrap().clone())
     .await?;
 
     Ok(Json(data))
@@ -285,16 +294,17 @@ impl ProfileSettingsFormInput {
 }
 async fn update_user(
     State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     mut multipart: Multipart,
 ) -> CtxResult<Json<LocalUser>> {
     let form = ProfileSettingsFormInput::try_from_multipart(&mut multipart).await?;
-    let user_id_id = ctx.user_thing_id()?;
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
-    let mut user = local_user_db_service.get_by_id(&user_id_id).await?;
+    let mut user = local_user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
 
     if let Some(username) = form.username {
         if local_user_db_service
@@ -332,10 +342,8 @@ async fn update_user(
                 file.content_type.as_deref(),
             )
             .await
-            .map_err(|e| {
-                ctx.to_ctx_error(AppError::Generic {
-                    description: e.to_string(),
-                })
+            .map_err(|e| AppError::Generic {
+                description: e.to_string(),
             })?;
 
         user.image_uri = Some(result);
@@ -346,16 +354,16 @@ async fn update_user(
 }
 
 async fn create_post(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Json<Post>> {
-    let user_thing = get_str_thing(&ctx.user_id()?)?;
+    let user_thing = get_str_thing(&auth_data.user_id)?;
     let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
 
     let post_service = PostService::new(
         &ctx_state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
@@ -369,16 +377,16 @@ async fn create_post(
 }
 
 async fn get_posts(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     Query(query): Query<DiscussionParams>,
 ) -> CtxResult<Json<Vec<PostView>>> {
-    let user_thing = get_str_thing(&ctx.user_id()?)?;
+    let user_thing = get_str_thing(&auth_data.user_id)?;
     let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
 
     let post_service = PostService::new(
         &ctx_state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
@@ -398,17 +406,17 @@ pub struct SearchInput {
 }
 
 async fn search_users(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     Query(form_value): Query<SearchInput>,
 ) -> CtxResult<Json<Vec<LocalUser>>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
 
     let _ = local_user_db_service
-        .get_by_id(&ctx.user_thing_id()?)
+        .get_by_id(&auth_data.user_thing_id())
         .await?;
 
     let items: Vec<LocalUser> = local_user_db_service
@@ -431,4 +439,80 @@ async fn get_user(ctx: Ctx, State(ctx_state): State<Arc<CtxState>>) -> CtxResult
         .await?;
 
     Ok(Json(user))
+}
+
+async fn otp_disable(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<()> {
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let mut user = local_user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+
+    user.is_otp_enabled = false;
+    local_user_db_service.update(user).await?;
+
+    Ok(())
+}
+
+async fn otp_enable(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<String> {
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let user_id = auth_data.user_thing_id();
+    let mut user = local_user_db_service.get_by_id(&user_id).await?;
+    let res = state.totp.generate(&user_id);
+
+    if !user.is_otp_enabled {
+        user.is_otp_enabled = true;
+        local_user_db_service.update(user).await?;
+    }
+
+    Ok(res.url)
+}
+
+#[derive(Debug, Deserialize)]
+struct OtpVerificationData {
+    pub token: String,
+}
+
+async fn otp_validate(
+    auth_data: AuthWithOtpAccess,
+    State(state): State<Arc<CtxState>>,
+    Json(data): Json<OtpVerificationData>,
+) -> CtxResult<Response> {
+    let user_id = auth_data.user_id;
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &Ctx::new(Ok(user_id.clone()), false),
+    };
+
+    let user = local_user_db_service.get_by_id(&user_id).await?;
+
+    if !user.is_otp_enabled {
+        return Err(AppError::Forbidden.into());
+    }
+
+    if !state.totp.is_valid(&user_id, &data.token) {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let token = state
+        .jwt
+        .create_by_login(&user.id.as_ref().unwrap().to_raw())
+        .map_err(|e| AppError::Generic {
+            description: e.to_string(),
+        })?;
+
+    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
 }

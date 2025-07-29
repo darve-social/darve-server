@@ -483,7 +483,7 @@ pub async fn finish_authentication(
 
             let token = state
                 .jwt
-                .encode(&exists_id.unwrap())
+                .create_by_login(&exists_id.unwrap())
                 .expect("JWT encode should work");
 
             cookies.add(

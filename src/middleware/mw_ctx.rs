@@ -4,6 +4,7 @@ use crate::entities::user_notification::UserNotification;
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
+use crate::utils::totp::Totp;
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
@@ -55,6 +56,7 @@ pub struct CtxState {
     pub paypal_webhook_id: String,
     pub paypal_client_id: String,
     pub paypal_client_key: String,
+    pub totp: Totp,
 }
 
 impl Debug for CtxState {
@@ -97,6 +99,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_webhook_id: config.paypal_webhook_id.clone(),
         paypal_client_id: config.paypal_client_id.clone(),
         paypal_client_key: config.paypal_client_key.clone(),
+        totp: Totp::new("OBWGC2LOFVZXI4TJNZTS243FMNZGK5BNGEZDG".to_string()),
     };
     Arc::new(ctx_state)
 }

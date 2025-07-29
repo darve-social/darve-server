@@ -7,6 +7,7 @@ pub mod posts;
 pub mod swagger;
 pub mod tasks;
 pub mod user_auth;
+pub mod user_otp;
 pub mod users;
 pub mod wallet;
 pub mod webhooks;

@@ -1,4 +1,4 @@
-use chrono::{TimeDelta, Utc};
+use chrono::{Duration, TimeDelta, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
@@ -7,12 +7,19 @@ pub struct JWTConfig {
     pub duration: TimeDelta,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TokenType {
+    Login,
+    Otp,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,
     pub auth: String,
     pub exp: usize,
     pub iat: usize,
+    pub r#type: TokenType,
 }
 
 pub struct JWT {
@@ -30,12 +37,13 @@ impl JWT {
         }
     }
 
-    pub fn encode(&self, user_id: &String) -> Result<String, String> {
+    pub fn create_by_login(&self, user_id: &str) -> Result<String, String> {
         let claims = Claims {
-            sub: user_id.clone(),
-            auth: user_id.clone(),
+            sub: user_id.to_string(),
+            auth: user_id.to_string(),
             exp: (Utc::now() + self.duration).timestamp() as usize,
             iat: Utc::now().timestamp() as usize,
+            r#type: TokenType::Login,
         };
 
         let token_res = encode(&Header::default(), &claims, &self.key_enc);
@@ -46,13 +54,36 @@ impl JWT {
         }
     }
 
-    pub fn decode(&self, token: &str) -> Result<Claims, String> {
+    pub fn create_by_otp(&self, user_id: &str) -> Result<String, String> {
+        let claims = Claims {
+            sub: user_id.to_string(),
+            auth: user_id.to_string(),
+            exp: (Utc::now() + Duration::minutes(1)).timestamp() as usize,
+            iat: Utc::now().timestamp() as usize,
+            r#type: TokenType::Login,
+        };
+
+        let token_res = encode(&Header::default(), &claims, &self.key_enc);
+
+        match token_res {
+            Ok(token) => Ok(token),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    pub fn decode_by_type(&self, token: &str, r#type: TokenType) -> Result<Claims, String> {
         let token_message =
             decode::<Claims>(&token, &self.key_dec, &Validation::new(Algorithm::HS256));
 
-        match token_message {
-            Ok(data) => Ok(data.claims),
+        let data = match token_message {
+            Ok(data) => data.claims,
             Err(err) => return Err(err.to_string()),
+        };
+
+        if data.r#type == r#type {
+            Ok(data)
+        } else {
+            Err("Token type is not equal".to_string())
         }
     }
 }

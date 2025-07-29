@@ -7,6 +7,7 @@ use crate::entities::community::post_entity::Post;
 use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
 use crate::middleware;
+use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::routes::community::discussion_routes::DiscussionPostView;
 use crate::routes::tasks::TaskRequestView;
@@ -265,25 +266,25 @@ struct DiscussionUsers {
 }
 
 async fn add_discussion_users(
+    auth_data: AuthWithLoginAccess,
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
-        .add_chat_users(&discussion_id, data.user_ids)
+        .add_chat_users(&auth_data.user_id, &discussion_id, data.user_ids)
         .await?;
     Ok(())
 }
 
 async fn delete_discussion_users(
+    auth_data: AuthWithLoginAccess,
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
         .remove_chat_users(&discussion_id, data.user_ids)
         .await?;
@@ -291,42 +292,46 @@ async fn delete_discussion_users(
 }
 
 async fn delete_discussion(
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service.delete(&discussion_id).await?;
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    disc_service
+        .delete(&auth_data.user_id, &discussion_id)
+        .await?;
     Ok(())
 }
 
 async fn update_discussion(
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateDiscussion>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &ctx);
-    disc_service.update(&discussion_id, data).await?;
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    disc_service
+        .update(&auth_data.user_id, &discussion_id, data)
+        .await?;
 
     Ok(())
 }
 
 async fn get_tasks(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let user = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
-    .get_ctx_user()
+    .get_by_id(&auth_data.user_thing_id())
     .await?;
 
     let disc_db_service = DiscussionDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
 
     let disc = disc_db_service.get_by_id(&discussion_id).await?;
@@ -352,7 +357,7 @@ async fn get_tasks(
 }
 
 async fn create_task(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
@@ -361,7 +366,7 @@ async fn create_task(
 
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
@@ -370,30 +375,28 @@ async fn create_task(
     );
 
     let task = task_service
-        .create(&ctx.user_id()?, body, Some(disc_thing.clone()))
+        .create(&auth_data.user_id, body, Some(disc_thing.clone()))
         .await?;
 
     Ok(Json(task))
 }
 
 async fn create_post(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
 ) -> CtxResult<Json<Post>> {
-    let user_id = ctx.user_thing_id()?;
-
     let post_service = PostService::new(
         &ctx_state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
     );
 
     let post = post_service
-        .create(&user_id, &discussion_id, input_value)
+        .create(&auth_data.user_thing_id(), &discussion_id, input_value)
         .await?;
 
     Ok(Json(post))

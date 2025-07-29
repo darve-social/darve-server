@@ -3,6 +3,7 @@ use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity;
 use crate::middleware;
+use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::ViewRelateField;
 use crate::models::web::{TaskRequestDonorView, UserView};
 use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
@@ -99,19 +100,19 @@ struct GetTaskByToUserQuery {
 }
 async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Query(query): Query<GetTaskByToUserQuery>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let to_user = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let list = TaskRequestDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_by_user::<TaskRequestView>(&to_user, query.status)
     .await?;
@@ -120,18 +121,18 @@ async fn user_requests_received(
 
 async fn user_requests_given(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let from_user = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
     let list = TaskRequestDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .get_by_creator::<TaskRequestView>(from_user, None)
     .await?;
@@ -141,12 +142,12 @@ async fn user_requests_given(
 
 async fn reject_task_request(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
 ) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
@@ -154,19 +155,19 @@ async fn reject_task_request(
         &state.db.task_relates,
     );
 
-    task_service.reject(&ctx.user_id()?, &task_id).await?;
+    task_service.reject(&auth_data.user_id, &task_id).await?;
 
     Ok(())
 }
 
 async fn accept_task_request(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
 ) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
@@ -174,7 +175,7 @@ async fn accept_task_request(
         &state.db.task_relates,
     );
 
-    task_service.accept(&ctx.user_id()?, &task_id).await?;
+    task_service.accept(&auth_data.user_id, &task_id).await?;
 
     Ok(())
 }

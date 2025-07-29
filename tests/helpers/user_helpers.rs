@@ -13,6 +13,7 @@ pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<Local
         .add_query_param("query", input.query.clone())
         .add_header("Accept", "application/json")
         .await;
+
     request.assert_status_success();
     request.json::<Vec<LocalUser>>()
 }
