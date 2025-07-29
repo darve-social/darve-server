@@ -1,5 +1,9 @@
 use crate::{
-    middleware::utils::db_utils::{Pagination, QryOrder},
+    middleware::{
+        auth_with_login_access::AuthWithLoginAccess,
+        utils::db_utils::{IdentIdName, Pagination, QryOrder},
+    },
+    models::view::UserView,
     utils::validate_utils::validate_social_links,
 };
 use axum::{
