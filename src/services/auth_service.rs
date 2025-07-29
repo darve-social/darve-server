@@ -31,7 +31,6 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
 use utils::validate_utils::validate_birth_date;
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
@@ -122,7 +121,7 @@ where
 
         let user = self
             .user_repository
-            .get(UsernameIdent(input.username.to_string()).into())
+            .get_by_username(&input.username)
             .await?;
 
         let auth = self
@@ -139,12 +138,18 @@ where
             }
             .into());
         }
+        let user_id = user.id.as_ref().unwrap().to_raw();
+        let token = match user.is_otp_enabled {
+            true => self
+                .jwt
+                .create_by_otp(&user_id)
+                .map_err(|e| AppError::AuthFailJwtInvalid {
+                    source: e.to_string(),
+                })?,
+            false => self.build_jwt_token(&user_id)?,
+        };
 
-        Ok((
-            self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                .await?,
-            user,
-        ))
+        Ok((token, user))
     }
 
     pub async fn register_password(
@@ -165,17 +170,12 @@ where
             }));
         };
 
-        let user = LocalUser {
-            id: None,
-            username: input.username,
-            full_name: input.full_name,
-            phone: None,
-            email_verified: None,
-            bio: input.bio,
-            social_links: None,
-            image_uri: input.image_uri,
-            birth_date: input.birth_day.map(|d| d.date_naive().to_string()),
-        };
+        let mut user = LocalUser::default(input.username);
+        user.full_name = input.full_name;
+        user.bio = input.bio;
+        user.image_uri = input.image_uri;
+        user.birth_date = input.birth_day.map(|d| d.date_naive().to_string());
+
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
         self.register(user, AuthType::PASSWORD, &hash).await
     }
@@ -204,26 +204,18 @@ where
                     .get(IdentIdName::Id(get_string_thing(user_id)?))
                     .await?;
 
-                let token = self
-                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                    .await?;
+                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
                 Ok((token, user))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
-                    let new_user = LocalUser {
-                        id: None,
-                        username: self
-                            .build_username(apple_user.email.clone(), apple_user.name.clone())
+                    let mut new_user = LocalUser::default(
+                        self.build_username(apple_user.email.clone(), apple_user.name.clone())
                             .await,
-                        full_name: apple_user.name,
-                        birth_date: None,
-                        phone: None,
-                        email_verified: apple_user.email,
-                        bio: None,
-                        social_links: None,
-                        image_uri: None,
-                    };
+                    );
+
+                    new_user.full_name = apple_user.name;
+                    new_user.email_verified = apple_user.email;
                     return self
                         .register(new_user, AuthType::APPLE, &apple_user.id)
                         .await;
@@ -253,26 +245,17 @@ where
                     .get(IdentIdName::Id(get_string_thing(user_id)?))
                     .await?;
 
-                let token = self
-                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                    .await?;
+                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
                 Ok((token, user))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
-                    let new_user = LocalUser {
-                        id: None,
-                        username: self
-                            .build_username(fb_user.email, Some(fb_user.name.clone()))
+                    let mut new_user = LocalUser::default(
+                        self.build_username(fb_user.email, Some(fb_user.name.clone()))
                             .await,
-                        full_name: Some(fb_user.name.clone()),
-                        birth_date: None,
-                        phone: None,
-                        email_verified: None,
-                        bio: None,
-                        social_links: None,
-                        image_uri: None,
-                    };
+                    );
+
+                    new_user.full_name = Some(fb_user.name.clone());
                     return self
                         .register(new_user, AuthType::FACEBOOK, &fb_user.id)
                         .await;
@@ -306,27 +289,18 @@ where
                     .get(IdentIdName::Id(get_string_thing(user_id)?))
                     .await?;
 
-                let token = self
-                    .build_jwt_token(&user.id.as_ref().unwrap().to_raw())
-                    .await?;
+                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
                 Ok((token, user))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
-                    let new_user = LocalUser {
-                        id: None,
-                        username: self
-                            .build_username(google_user.email.clone(), google_user.name.clone())
+                    let mut new_user = LocalUser::default(
+                        self.build_username(google_user.email.clone(), google_user.name.clone())
                             .await,
-
-                        full_name: google_user.name,
-                        birth_date: None,
-                        phone: None,
-                        email_verified: google_user.email,
-                        bio: None,
-                        social_links: None,
-                        image_uri: google_user.picture,
-                    };
+                    );
+                    new_user.full_name = google_user.name;
+                    new_user.email_verified = google_user.email;
+                    new_user.image_uri = google_user.picture;
                     return self
                         .register(new_user, AuthType::GOOGLE, &google_user.sub)
                         .await;
@@ -489,8 +463,8 @@ where
         Uuid::new_v4().to_string().replace("-", "_")
     }
 
-    async fn build_jwt_token(&self, user_id: &String) -> CtxResult<String> {
-        Ok(self.jwt.encode(user_id).map_err(|e| {
+    fn build_jwt_token(&self, user_id: &String) -> CtxResult<String> {
+        Ok(self.jwt.create_by_login(user_id).map_err(|e| {
             self.ctx
                 .to_ctx_error(AppError::AuthFailJwtInvalid { source: e })
         })?)
@@ -498,27 +472,26 @@ where
 
     async fn register(
         &self,
-        mut data: LocalUser,
+        data: LocalUser,
         auth_type: AuthType,
         token: &str,
     ) -> CtxResult<(String, LocalUser)> {
-        let user_id = self.user_repository.create(data.clone()).await?;
+        let user = self.user_repository.create(data).await?;
         let _ = self
             .auth_repository
             .create(CreateAuthInput {
-                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                local_user: user.id.as_ref().unwrap().clone(),
                 token: token.to_string(),
                 auth_type,
                 passkey_json: None,
             })
             .await?;
-        let token = self.build_jwt_token(&user_id).await?;
-        data.id = Some(get_string_thing(user_id)?);
+        let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
 
         self.community_repository
-            .create_profile(data.id.as_ref().unwrap().clone())
+            .create_profile(user.id.as_ref().unwrap().clone())
             .await?;
 
-        Ok((token, data))
+        Ok((token, user))
     }
 }

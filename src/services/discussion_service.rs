@@ -57,8 +57,8 @@ impl<'a> DiscussionService<'a> {
         }
     }
 
-    pub async fn delete(&self, disc_id: &str) -> AppResult<()> {
-        let user_id: Thing = get_str_thing(self.ctx.user_id()?.as_str())?;
+    pub async fn delete(&self, user_id: &str, disc_id: &str) -> AppResult<()> {
+        let user_id: Thing = get_str_thing(user_id)?;
         self.access_right_repository
             .has_owner_access(&user_id, disc_id)
             .await?;
@@ -66,8 +66,13 @@ impl<'a> DiscussionService<'a> {
         Ok(())
     }
 
-    pub async fn update(&self, disc_id: &str, data: UpdateDiscussion) -> AppResult<()> {
-        let user_id: Thing = get_str_thing(self.ctx.user_id()?.as_str())?;
+    pub async fn update(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        data: UpdateDiscussion,
+    ) -> AppResult<()> {
+        let user_id: Thing = get_str_thing(user_id)?;
         let disc_id = self
             .access_right_repository
             .has_owner_access(&user_id, disc_id)
@@ -85,16 +90,18 @@ impl<'a> DiscussionService<'a> {
 
     pub async fn add_chat_users(
         &self,
+        user_id: &str,
         disc_id: &str,
         new_user_ids: Vec<String>,
     ) -> CtxResult<Vec<Thing>> {
         if new_user_ids.is_empty() {
-            return Err(self.ctx.to_ctx_error(AppError::Generic {
+            return Err(AppError::Generic {
                 description: "no users present".to_string(),
-            }));
+            }
+            .into());
         }
 
-        let user_id: Thing = get_str_thing(self.ctx.user_id()?.as_str())?;
+        let user_id: Thing = get_str_thing(user_id)?;
         let disc_id = self
             .access_right_repository
             .has_owner_access(&user_id, disc_id)

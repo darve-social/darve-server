@@ -6,5 +6,6 @@ pub mod hash;
 pub mod jwt;
 pub mod paypal;
 pub mod template_utils;
+pub mod totp;
 pub mod validate_utils;
 pub mod verification;

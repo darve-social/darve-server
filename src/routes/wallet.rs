@@ -7,6 +7,7 @@ use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbSer
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
+use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::{AppError, CtxResult};
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder::DESC;
@@ -78,30 +79,30 @@ pub struct WalletUserView {
 }
 
 pub async fn get_user_balance(
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Html<String>> {
     let user_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let wallet_service = WalletDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let user_id = user_service.get_ctx_user_thing().await?;
     let balances_view = wallet_service.get_user_balances(&user_id).await?;
-    ctx.to_htmx_or_json(balances_view)
+    auth_data.ctx.to_htmx_or_json(balances_view)
 }
 
 pub async fn get_wallet_history(
     State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Query(params): Query<DiscussionParams>,
 ) -> CtxResult<Html<String>> {
     let user_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let user_id = user_service.get_ctx_user_thing().await?;
     let pagination = Some(Pagination {
@@ -112,16 +113,18 @@ pub async fn get_wallet_history(
     });
     let tx_service = BalanceTransactionDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let user_wallet_id = WalletDbService::get_user_wallet_id(&user_id);
     let transactions = tx_service
         .user_transaction_list(&user_wallet_id, pagination)
         .await?;
-    ctx.to_htmx_or_json(CurrencyTransactionHistoryView {
-        wallet: user_wallet_id,
-        transactions,
-    })
+    auth_data
+        .ctx
+        .to_htmx_or_json(CurrencyTransactionHistoryView {
+            wallet: user_wallet_id,
+            transactions,
+        })
 }
 
 #[derive(Debug, Deserialize, Validate)]

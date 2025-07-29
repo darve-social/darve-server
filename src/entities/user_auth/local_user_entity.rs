@@ -1,23 +1,21 @@
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-use super::{access_right_entity, authorization_entity};
 use crate::database::client::Db;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
-use crate::database::surrdb_utils::get_str_id_thing;
+use crate::database::surrdb_utils::{get_entity, get_str_id_thing};
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
-use access_right_entity::AccessRightDbService;
-use authorization_entity::Authorization;
 use middleware::error::AppError::EntityFailIdNotFound;
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
+    exists_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
 use middleware::utils::string_utils::get_string_thing;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
+use crate::middleware::utils::db_utils::record_exists;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LocalUser {
@@ -38,6 +36,9 @@ pub struct LocalUser {
     pub social_links: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_uri: Option<String>,
+    #[serde(default)]
+    pub is_otp_enabled: bool,
+    pub otp_secret: Option<String>,
 }
 
 impl LocalUser {
@@ -52,6 +53,8 @@ impl LocalUser {
             bio: None,
             social_links: None,
             image_uri: None,
+            is_otp_enabled: false,
+            otp_secret: None,
         }
     }
 }
@@ -92,6 +95,9 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
+    DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
+
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
   
@@ -109,18 +115,6 @@ impl<'a> LocalUserDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_ctx_user_id(&self) -> CtxResult<String> {
-        let created_by = self.ctx.user_id()?;
-        let user_id = get_string_thing(created_by.clone())?;
-        let existing_id = self.exists(IdentIdName::Id(user_id)).await?;
-        match existing_id {
-            None => Err(self
-                .ctx
-                .to_ctx_error(EntityFailIdNotFound { ident: created_by })),
-            Some(uid) => Ok(uid),
-        }
-    }
-
     pub async fn get_ctx_user_thing(&self) -> CtxResult<Thing> {
         let created_by = self.ctx.user_id()?;
         let user_id = get_string_thing(created_by.clone())?;
@@ -131,17 +125,6 @@ impl<'a> LocalUserDbService<'a> {
                 .to_ctx_error(EntityFailIdNotFound { ident: created_by })),
             Some(_uid) => Ok(user_id),
         }
-    }
-
-    pub async fn is_ctx_user_authorised(&self, authorization: &Authorization) -> CtxResult<()> {
-        let created_by = self.ctx.user_id()?;
-        let user_id = get_string_thing(created_by.clone())?;
-        AccessRightDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .is_authorized(&user_id, authorization)
-        .await
     }
 
     pub async fn get_ctx_user(&self) -> CtxResult<LocalUser> {
@@ -157,15 +140,20 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
-        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
     // param id is a id of the thing
     pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
         let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
-        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME.to_string(), &ident).await?;
+        let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+    
+    // param id is a id of the thing
+    pub async fn exists_by_id(&self, id: &str) -> CtxResult<()> {
+        Ok(record_exists(self.db, &get_str_id_thing(TABLE_NAME, id)? ).await?)
     }
 
     pub async fn get_by_email(&self, email: &str) -> CtxResult<LocalUser> {
@@ -191,10 +179,22 @@ impl<'a> LocalUserDbService<'a> {
         Ok(u_view.username)
     }
 
-    pub async fn search(&self, find: String) -> CtxResult<Vec<LocalUser>> {
-        let qry = format!("SELECT id, username, full_name, image_uri FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;");
-        let res = self.db.query(qry).bind(("find", find));
-        let res: Vec<LocalUser> = res.await?.take(0)?;
+    pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        find: String,
+    ) -> CtxResult<Vec<T>> {
+        let field = T::get_select_query_fields();
+        let qry = format!(
+            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;",
+            field
+        );
+        let res = self
+            .db
+            .query(qry)
+            .bind(("find", find))
+            .await?
+            .take::<Vec<T>>(0)?;
+
         Ok(res)
     }
 
@@ -207,9 +207,9 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
-    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
+    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<LocalUser> {
         let user: Option<LocalUser> = self.db.create(TABLE_NAME).content(ct_input).await?;
-        Ok(user.unwrap().id.as_ref().unwrap().to_raw())
+        Ok(user.unwrap())
     }
 
     pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
@@ -248,7 +248,6 @@ impl<'a> LocalUserDbService<'a> {
             .await?;
 
         res.check()?;
-
         Ok(())
     }
 }

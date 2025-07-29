@@ -8,12 +8,13 @@ use axum::{
 use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use reqwest::StatusCode;
 
-use crate::middleware::mw_ctx::CtxState;
+use crate::{middleware::mw_ctx::CtxState, utils::jwt::TokenType};
 
-pub struct AuthData {
+pub struct AuthWithOtpAccess {
     pub user_id: String,
 }
-impl AuthData {
+
+impl AuthWithOtpAccess {
     pub fn user_thing_id(&self) -> String {
         match self.user_id.find(":") {
             None => self.user_id.clone(),
@@ -23,7 +24,7 @@ impl AuthData {
 }
 
 #[async_trait]
-impl FromRequestParts<Arc<CtxState>> for AuthData {
+impl FromRequestParts<Arc<CtxState>> for AuthWithOtpAccess {
     type Rejection = StatusCode;
 
     async fn from_request_parts(
@@ -35,8 +36,8 @@ impl FromRequestParts<Arc<CtxState>> for AuthData {
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         match parts.headers.typed_get::<Authorization<Bearer>>() {
-            Some(token) => match app_state.jwt.decode(token.token()) {
-                Ok(claims) => Ok(AuthData {
+            Some(token) => match app_state.jwt.decode_by_type(token.token(), TokenType::Otp) {
+                Ok(claims) => Ok(AuthWithOtpAccess {
                     user_id: claims.auth,
                 }),
                 Err(_) => Err(StatusCode::UNAUTHORIZED),
