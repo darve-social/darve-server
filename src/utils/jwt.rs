@@ -60,7 +60,7 @@ impl JWT {
             auth: user_id.to_string(),
             exp: (Utc::now() + Duration::minutes(1)).timestamp() as usize,
             iat: Utc::now().timestamp() as usize,
-            r#type: TokenType::Login,
+            r#type: TokenType::Otp,
         };
 
         let token_res = encode(&Header::default(), &claims, &self.key_enc);

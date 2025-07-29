@@ -78,10 +78,10 @@ async fn otp_validate(
     State(state): State<Arc<CtxState>>,
     Json(data): Json<OtpVerificationData>,
 ) -> CtxResult<Response> {
-    let user_id = auth_data.user_id;
+    let user_id = auth_data.user_thing_id();
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
-        ctx: &Ctx::new(Ok(user_id.clone()), false),
+        ctx: &Ctx::new(Ok(auth_data.user_id.clone()), false),
     };
 
     let user = local_user_db_service.get_by_id(&user_id).await?;

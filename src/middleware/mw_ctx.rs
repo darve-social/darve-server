@@ -99,7 +99,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_webhook_id: config.paypal_webhook_id.clone(),
         paypal_client_id: config.paypal_client_id.clone(),
         paypal_client_key: config.paypal_client_key.clone(),
-        totp: Totp::new("OBWGC2LOFVZXI4TJNZTS243FMNZGK5BNGEZDG".to_string()),
+        totp: Totp::new(config.totp_secret_key.clone()),
     };
     Arc::new(ctx_state)
 }
