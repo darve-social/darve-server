@@ -4,10 +4,10 @@ use axum_test::{
     multipart::{MultipartForm, Part},
     TestResponse, TestServer,
 };
-use darve_server::{entities::user_auth::local_user_entity::LocalUser, routes::users::SearchInput};
+use darve_server::{models::view::UserView, routes::users::SearchInput};
 
 #[allow(dead_code)]
-pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<LocalUser> {
+pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<UserView> {
     let request = server
         .get("/api/users")
         .add_query_param("query", input.query.clone())
@@ -15,7 +15,7 @@ pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<Local
         .await;
 
     request.assert_status_success();
-    request.json::<Vec<LocalUser>>()
+    request.json::<Vec<UserView>>()
 }
 
 #[allow(dead_code)]

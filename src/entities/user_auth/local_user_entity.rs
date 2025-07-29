@@ -37,6 +37,7 @@ pub struct LocalUser {
     pub image_uri: Option<String>,
     #[serde(default)]
     pub is_otp_enabled: bool,
+    pub otp_secret: Option<String>,
 }
 
 impl LocalUser {
@@ -52,6 +53,7 @@ impl LocalUser {
             social_links: None,
             image_uri: None,
             is_otp_enabled: false,
+            otp_secret: None,
         }
     }
 }
@@ -93,6 +95,8 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
+    DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
+
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
   
@@ -169,10 +173,22 @@ impl<'a> LocalUserDbService<'a> {
         Ok(u_view.username)
     }
 
-    pub async fn search(&self, find: String) -> CtxResult<Vec<LocalUser>> {
-        let qry = format!("SELECT id, username, full_name, image_uri FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;");
-        let res = self.db.query(qry).bind(("find", find));
-        let res: Vec<LocalUser> = res.await?.take(0)?;
+    pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        find: String,
+    ) -> CtxResult<Vec<T>> {
+        let field = T::get_select_query_fields();
+        let qry = format!(
+            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;",
+            field
+        );
+        let res = self
+            .db
+            .query(qry)
+            .bind(("find", find))
+            .await?
+            .take::<Vec<T>>(0)?;
+
         Ok(res)
     }
 
@@ -185,9 +201,9 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     // TODO surrealdb datetime issue https://github.com/surrealdb/surrealdb/issues/2454
-    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<String> {
+    pub async fn create(&self, ct_input: LocalUser) -> CtxResult<LocalUser> {
         let user: Option<LocalUser> = self.db.create(TABLE_NAME).content(ct_input).await?;
-        Ok(user.unwrap().id.as_ref().unwrap().to_raw())
+        Ok(user.unwrap())
     }
 
     pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {

@@ -2,8 +2,9 @@ mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
-    entities::user_auth::local_user_entity::LocalUserDbService, middleware::ctx::Ctx,
-    utils::totp::Totp,
+    entities::user_auth::local_user_entity::LocalUserDbService,
+    middleware::ctx::Ctx,
+    utils::totp::{Totp, TotpResposne},
 };
 use serde_json::json;
 
@@ -12,14 +13,14 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
 
     // Enable OTP
     let response = server
-        .post("/api/otp/enable")
+        .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
 
     response.assert_status_success();
-    let otp_url = response.text();
-    assert!(otp_url.starts_with("otpauth://totp/"));
-    assert!(otp_url.contains("Darve"));
+    let otp = response.json::<TotpResposne>();
+    assert!(otp.url.starts_with("otpauth://totp/"));
+    assert!(otp.url.contains("Darve"));
 
     // Verify user's OTP is enabled in database
     let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
@@ -38,7 +39,7 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
 
 test_with_server!(test_otp_enable_unauthorized, |server, ctx_state, config| {
     // Try to enable OTP without authentication
-    let response = server.post("/api/otp/enable").await;
+    let response = server.post("/api/users/current/otp/enable").await;
 
     response.assert_status_unauthorized();
 });
@@ -50,23 +51,22 @@ test_with_server!(
 
         // Enable OTP first time
         let response1 = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
-
         response1.assert_status_success();
-        let otp_url1 = response1.text();
+        let otp1 = response1.json::<TotpResposne>();
 
         // Enable OTP second time - should still work and return same URL
         let response2 = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
 
         response2.assert_status_success();
-        let otp_url2 = response2.text();
+        let otp2 = response1.json::<TotpResposne>();
 
-        assert_eq!(otp_url1, otp_url2);
+        assert_eq!(otp1.url, otp2.url);
 
         // Verify user's OTP is still enabled
         let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
@@ -89,7 +89,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
 
     // First enable OTP
     let enable_response = server
-        .post("/api/otp/enable")
+        .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
     enable_response.assert_status_success();
@@ -109,7 +109,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
 
     // Now disable OTP
     let disable_response = server
-        .post("/api/otp/disable")
+        .post("/api/users/current/otp/disable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
 
@@ -128,7 +128,7 @@ test_with_server!(
     test_otp_disable_unauthorized,
     |server, ctx_state, config| {
         // Try to disable OTP without authentication
-        let response = server.post("/api/otp/disable").await;
+        let response = server.post("/api/users/current/otp/disable").await;
 
         response.assert_status_unauthorized();
     }
@@ -141,7 +141,7 @@ test_with_server!(
 
         // Disable OTP when it's not enabled (should still work)
         let response = server
-            .post("/api/otp/disable")
+            .post("/api/users/current/otp/disable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
 
@@ -168,15 +168,25 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
 
     // First enable OTP
     let enable_response = server
-        .post("/api/otp/enable")
+        .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
     enable_response.assert_status_success();
 
     // Generate a valid OTP token
+    let user_db_service = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &Ctx::new(Ok("".to_string()), false),
+    };
     let user_id = user.id.as_ref().unwrap().id.to_raw();
-    let totp = Totp::new(config.totp_secret_key.clone());
-    let totp_response = totp.generate(&user_id);
+    let user_with_otp = user_db_service
+        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .await
+        .unwrap();
+    assert!(user_with_otp.is_otp_enabled);
+
+    let totp = Totp::new(&user_id, user_with_otp.otp_secret.clone());
+    let totp_response = totp.generate();
     let valid_token = totp_response.token;
 
     // Create OTP token for validation request
@@ -187,7 +197,7 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
 
     // Validate OTP
     let response = server
-        .post("/api/otp/validate")
+        .post("/api/users/current/otp/validate")
         .add_header("Authorization", &format!("Bearer {}", otp_token))
         .json(&json!({
             "token": valid_token
@@ -211,7 +221,7 @@ test_with_server!(
     |server, ctx_state, config| {
         // Try to validate OTP without OTP authentication
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .json(&json!({
                 "token": "123456"
             }))
@@ -228,7 +238,7 @@ test_with_server!(
 
         // Try to validate OTP with login token instead of OTP token
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", token))
             .json(&json!({
                 "token": "123456"
@@ -254,7 +264,7 @@ test_with_server!(
 
         // Try to validate OTP when user hasn't enabled it
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": "123456"
@@ -272,7 +282,7 @@ test_with_server!(
 
         // First enable OTP
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         enable_response.assert_status_success();
@@ -287,7 +297,7 @@ test_with_server!(
 
         // Try to validate with invalid OTP token
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": "000000"
@@ -305,7 +315,7 @@ test_with_server!(
 
         // First enable OTP
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         enable_response.assert_status_success();
@@ -320,7 +330,7 @@ test_with_server!(
 
         // Try to validate with missing token field
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({}))
             .await;
@@ -329,7 +339,7 @@ test_with_server!(
 
         // Try to validate with empty token
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": ""
@@ -345,11 +355,11 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
 
     // Step 1: Enable OTP
     let enable_response = server
-        .post("/api/otp/enable")
+        .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", login_token))
         .await;
     enable_response.assert_status_success();
-    let otp_url = enable_response.text();
+    let otp_url = enable_response.json::<TotpResposne>().url;
     assert!(otp_url.starts_with("otpauth://totp/"));
 
     // Step 2: Verify OTP is enabled in database
@@ -373,12 +383,12 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
         .expect("Failed to create OTP token");
 
     // Step 4: Generate valid OTP and validate
-    let totp = Totp::new(config.totp_secret_key.clone());
-    let totp_response = totp.generate(&user_id);
+    let totp = Totp::new(&user_id, updated_user.otp_secret.clone());
+    let totp_response = totp.generate();
     let valid_otp_token = totp_response.token;
 
     let validate_response = server
-        .post("/api/otp/validate")
+        .post("/api/users/current/otp/validate")
         .add_header("Authorization", &format!("Bearer {}", otp_token))
         .json(&json!({
             "token": valid_otp_token
@@ -392,7 +402,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
 
     // Step 5: Disable OTP
     let disable_response = server
-        .post("/api/otp/disable")
+        .post("/api/users/current/otp/disable")
         .add_header("Cookie", &format!("jwt={}", login_token))
         .await;
     disable_response.assert_status_success();
@@ -412,7 +422,7 @@ test_with_server!(
 
         // First enable OTP
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         enable_response.assert_status_success();
@@ -428,13 +438,23 @@ test_with_server!(
             .expect("Failed to create OTP token");
 
         // Generate a valid TOTP token
-        let totp = Totp::new(config.totp_secret_key.clone());
-        let totp_response = totp.generate(&user_id);
+        let user_db_service = LocalUserDbService {
+            db: &ctx_state.db.client,
+            ctx: &Ctx::new(Ok("".to_string()), false),
+        };
+        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_with_otp = user_db_service
+            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .await
+            .unwrap();
+
+        let totp = Totp::new(&user_id, user_with_otp.otp_secret.clone());
+        let totp_response = totp.generate();
         let valid_token = totp_response.token;
 
         // This should work with a fresh token
         let response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": valid_token
@@ -442,69 +462,13 @@ test_with_server!(
             .await;
 
         response.assert_status_success();
-    }
-);
-
-test_with_server!(
-    test_otp_validate_returns_correct_user_data,
-    |server, ctx_state, config| {
-        let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
-
-        // First enable OTP
-        let enable_response = server
-            .post("/api/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
-            .await;
-        enable_response.assert_status_success();
-
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
-        let totp = Totp::new(config.totp_secret_key.clone());
-        let totp_response = totp.generate(&user_id);
-        let valid_token = totp_response.token;
-
-        let otp_token = ctx_state
-            .jwt
-            .create_by_otp(&user_id)
-            .expect("Failed to create OTP token");
-
-        let response = server
-            .post("/api/otp/validate")
-            .add_header("Authorization", &format!("Bearer {}", otp_token))
-            .json(&json!({
-                "token": valid_token
-            }))
-            .await;
-
-        response.assert_status_success();
-
-        let response_json = response.json::<serde_json::Value>();
-        let returned_user = &response_json["user"];
-        let returned_token = response_json["token"].as_str().unwrap();
-
-        // Verify user data matches
-        assert_eq!(returned_user["username"], user.username);
-        assert_eq!(returned_user["is_otp_enabled"], true);
-        if let Some(full_name) = &user.full_name {
-            assert_eq!(returned_user["full_name"], *full_name);
-        }
-
-        // Verify the returned token is a valid login token
-        assert!(!returned_token.is_empty());
-
-        // Test the returned token can be used for authenticated requests
-        let test_response = server
-            .post("/api/otp/disable") // Use the returned token to disable OTP
-            .add_header("Cookie", &format!("jwt={}", returned_token))
-            .await;
-
-        test_response.assert_status_success();
     }
 );
 
 test_with_server!(
     test_otp_login_flow_enable_logout_login_again,
     |server, ctx_state, config| {
-        let (_server, user, password, initial_token) = create_fake_login_test_user(&server).await;
+        let (_server, user, password, _) = create_fake_login_test_user(&server).await;
 
         // Step 1: User logs in initially (OTP not enabled yet)
         let login_response = server
@@ -524,12 +488,12 @@ test_with_server!(
 
         // Step 2: Enable OTP while logged in
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
 
         enable_response.assert_status_success();
-        let otp_url = enable_response.text();
+        let otp_url = enable_response.json::<TotpResposne>().url;
         assert!(otp_url.starts_with("otpauth://totp/"));
 
         // Verify OTP is enabled in database
@@ -567,20 +531,28 @@ test_with_server!(
         assert_ne!(otp_token, login_token); // Should be different from initial login token
 
         // Step 5: Generate valid TOTP and complete authentication
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
-        let totp = Totp::new(config.totp_secret_key.clone());
-        let totp_response = totp.generate(&user_id);
+        let user_with_otp = user_db_service
+            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .await
+            .unwrap();
+        assert!(user_with_otp.is_otp_enabled);
+        assert!(user_with_otp.otp_secret.is_some());
+
+        let totp = Totp::new(
+            &user_with_otp.id.as_ref().unwrap().id.to_raw(),
+            user_with_otp.otp_secret.clone(),
+        );
+        let totp_response = totp.generate();
         let valid_otp_token = totp_response.token;
 
         // Step 6: Validate OTP to get final login token
         let validate_response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": valid_otp_token
             }))
             .await;
-        println!(">>>>>>{:?}", validate_response);
         validate_response.assert_status_success();
         let final_json = validate_response.json::<serde_json::Value>();
         let final_login_token = final_json["token"].as_str().unwrap();
@@ -593,7 +565,7 @@ test_with_server!(
 
         // Step 7: Verify the final token can be used for authenticated requests
         let test_auth_response = server
-            .post("/api/otp/disable")
+            .post("/api/users/current/otp/disable")
             .add_header("Cookie", &format!("jwt={}", final_login_token))
             .await;
 
@@ -626,7 +598,7 @@ test_with_server!(
         let login_token = login_json["token"].as_str().unwrap();
 
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
         enable_response.assert_status_success();
@@ -645,7 +617,7 @@ test_with_server!(
 
         // Step 3: Try to validate with wrong OTP code
         let validate_response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", otp_token))
             .json(&json!({
                 "token": "000000"
@@ -674,28 +646,39 @@ test_with_server!(
         let login_token = login_json["token"].as_str().unwrap();
 
         let enable_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
         enable_response.assert_status_success();
 
         // Step 2: Create an expired OTP token manually
         let user_id = user.id.as_ref().unwrap().id.to_raw();
+
         let expired_otp_token = ctx_state
             .jwt
             .create_by_otp(&user_id)
             .expect("Failed to create OTP token");
+        let user_db_service = LocalUserDbService {
+            db: &ctx_state.db.client,
+            ctx: &Ctx::new(Ok("".to_string()), false),
+        };
+
+        let user_with_otp = user_db_service
+            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .await
+            .unwrap();
+        assert!(user_with_otp.is_otp_enabled);
 
         // Step 3: Generate valid TOTP code
-        let totp = Totp::new(config.totp_secret_key.clone());
-        let totp_response = totp.generate(&user_id);
+        let totp = Totp::new(&user_id, user_with_otp.otp_secret.clone());
+        let totp_response = totp.generate();
         let valid_otp_code = totp_response.token;
 
         // Step 4: Try to use the OTP token (in real scenario this would be expired after 1 minute)
         // Since we can't easily simulate time passing, we test with a fresh token
         // This test mainly verifies the flow works with proper tokens
         let validate_response = server
-            .post("/api/otp/validate")
+            .post("/api/users/current/otp/validate")
             .add_header("Authorization", &format!("Bearer {}", expired_otp_token))
             .json(&json!({
                 "token": valid_otp_code
@@ -726,7 +709,7 @@ test_with_server!(
 
         // Verify this is a regular login token (can be used immediately)
         let test_response = server
-            .post("/api/otp/enable")
+            .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
 

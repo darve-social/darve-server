@@ -5213,6 +5213,7 @@ dependencies = [
  "base32",
  "constant_time_eq",
  "hmac",
+ "rand 0.9.1",
  "sha1",
  "sha2",
  "url",

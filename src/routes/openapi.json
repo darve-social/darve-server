@@ -1157,10 +1157,10 @@
         }
       }
     },
-    "/api/otp/enable": {
+    "/api/users/current/otp/enable": {
       "post": {
         "tags": [
-          "User OTP"
+          "Users"
         ],
         "summary": "Enable OTP for current user",
         "description": "Enable two-factor authentication (OTP) for the current user",
@@ -1187,10 +1187,10 @@
         }
       }
     },
-    "/api/otp/disable": {
+    "/api/users/current/otp/disable": {
       "post": {
         "tags": [
-          "User OTP"
+          "Users"
         ],
         "summary": "Disable OTP for current user",
         "description": "Disable two-factor authentication (OTP) for the current user",
@@ -1209,16 +1209,16 @@
         }
       }
     },
-    "/api/otp/validate": {
+    "/api/users/current/otp/validate": {
       "post": {
         "tags": [
-          "User OTP"
+          "Users"
         ],
         "summary": "Validate OTP token",
         "description": "Validate OTP token for a user with OTP enabled and return full authentication token",
         "security": [
           {
-            "cookieAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -3485,6 +3485,11 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "jwt"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
@@ -3492,10 +3497,6 @@
     {
       "name": "Authentication",
       "description": "User authentication and authorization endpoints"
-    },
-    {
-      "name": "User OTP",
-      "description": "User opt-in and consent management endpoints"
     },
     {
       "name": "Users",

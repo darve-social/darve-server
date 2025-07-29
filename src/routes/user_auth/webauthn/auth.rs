@@ -266,7 +266,7 @@ pub async fn finish_register(
         if !username_is_available {
             return Err(WebauthnError::UserExists);
         }
-        let user_id = user_db_service
+        let local_user = user_db_service
             .create(LocalUser::default(register_user_ident))
             .await?;
 
@@ -280,7 +280,7 @@ pub async fn finish_register(
 
         auth_db_service
             .create(CreateAuthInput {
-                local_user: Thing::try_from(user_id.as_str()).unwrap(),
+                local_user: local_user.id.as_ref().unwrap().clone(),
                 token: cred_id,
                 auth_type: AuthType::PASSKEY,
                 passkey_json,

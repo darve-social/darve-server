@@ -1,5 +1,8 @@
-use crate::middleware::{
-    auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
+use crate::{
+    middleware::{
+        auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
+    },
+    utils::totp::{Totp, TotpResposne},
 };
 use axum::{
     extract::State,
@@ -23,9 +26,9 @@ use crate::{
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/otp/enable", post(otp_enable))
-        .route("/api/otp/disable", post(otp_disable))
-        .route("/api/otp/validate", post(otp_validate))
+        .route("/api/users/current/otp/enable", post(otp_enable))
+        .route("/api/users/current/otp/disable", post(otp_disable))
+        .route("/api/users/current/otp/validate", post(otp_validate))
 }
 
 async fn otp_disable(
@@ -42,6 +45,7 @@ async fn otp_disable(
         .await?;
 
     user.is_otp_enabled = false;
+    user.otp_secret = None;
     local_user_db_service.update(user).await?;
 
     Ok(())
@@ -50,7 +54,7 @@ async fn otp_disable(
 async fn otp_enable(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-) -> CtxResult<String> {
+) -> CtxResult<Json<TotpResposne>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -58,14 +62,14 @@ async fn otp_enable(
 
     let user_id = auth_data.user_thing_id();
     let mut user = local_user_db_service.get_by_id(&user_id).await?;
-    let res = state.totp.generate(&user_id);
+    let totp = Totp::new(&user_id, user.otp_secret.clone());
+    let res = totp.generate();
 
-    if !user.is_otp_enabled {
-        user.is_otp_enabled = true;
-        local_user_db_service.update(user).await?;
-    }
+    user.is_otp_enabled = true;
+    user.otp_secret = Some(res.secret.clone());
+    local_user_db_service.update(user).await?;
 
-    Ok(res.url)
+    Ok(Json(res))
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,7 +94,9 @@ async fn otp_validate(
         return Err(AppError::Forbidden.into());
     }
 
-    if !state.totp.is_valid(&user_id, &data.token) {
+    let totp = Totp::new(&user_id, user.otp_secret.clone());
+
+    if !totp.is_valid(&data.token) {
         return Err(AppError::Forbidden.into());
     }
 

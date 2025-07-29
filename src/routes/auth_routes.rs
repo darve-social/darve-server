@@ -21,6 +21,7 @@ use crate::{
         mw_ctx::{CtxState, JWT_KEY},
         utils::extractor_utils::JsonOrFormValidated,
     },
+    models::view::UserView,
     services::{
         auth_service::{
             AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
@@ -80,7 +81,11 @@ async fn sign_by_apple(
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
         .await?;
 
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": UserView::from(user) })),
+    )
+        .into_response())
 }
 
 async fn sign_by_google(
@@ -107,7 +112,11 @@ async fn sign_by_google(
         )
         .await?;
 
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": UserView::from(user) })),
+    )
+        .into_response())
 }
 
 async fn signin(
@@ -134,7 +143,11 @@ async fn signin(
             .http_only(true)
             .into(), //.finish(),
     );
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": UserView::from(user) })),
+    )
+        .into_response())
 }
 
 async fn signup(
@@ -182,7 +195,11 @@ async fn signup(
             .into(), //.finish(),
     );
 
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": UserView::from(user) })),
+    )
+        .into_response())
 }
 
 async fn forgot_password(
