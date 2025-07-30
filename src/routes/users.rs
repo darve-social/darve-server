@@ -1,6 +1,9 @@
 use crate::{
-    middleware::{auth_with_login_access::AuthWithLoginAccess, utils::db_utils::IdentIdName},
-    models::view::UserView,
+    middleware::{
+        auth_with_login_access::AuthWithLoginAccess,
+        utils::db_utils::{IdentIdName, Pagination, QryOrder},
+    },
+    models::view::{PostView, UserView},
     utils::validate_utils::validate_social_links,
 };
 use axum::{
@@ -37,7 +40,7 @@ use crate::{
     },
     routes::community::discussion_routes::DiscussionPostView,
     services::{
-        post_service::{PostInput, PostService, PostView},
+        post_service::{PostInput, PostService},
         user_service::UserService,
     },
     utils::{self, file::convert::FileUpload},
@@ -386,9 +389,17 @@ async fn get_posts(
     );
 
     let posts = post_service
-        .get_by_query(&disc_id.to_raw(), &user_thing.id.to_raw(), query)
+        .get_by_query(
+            &disc_id.to_raw(),
+            &auth_data.user_thing_id(),
+            Pagination {
+                order_by: None,
+                order_dir: Some(QryOrder::DESC),
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
+            },
+        )
         .await?;
-
     Ok(Json(posts))
 }
 

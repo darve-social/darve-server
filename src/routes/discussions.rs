@@ -9,6 +9,8 @@ use crate::entities::user_auth::{access_right_entity, authorization_entity, loca
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::models::view::PostView;
 use crate::routes::community::discussion_routes::DiscussionPostView;
 use crate::routes::tasks::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
@@ -56,6 +58,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         )
         .route("/api/discussions/:discussion_id/sse", get(discussion_sse))
         .route("/api/discussions/:discussion_id/posts", post(create_post))
+        .route("/api/discussions/:discussion_id/posts", get(get_posts))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -400,4 +403,37 @@ async fn create_post(
         .await?;
 
     Ok(Json(post))
+}
+
+async fn get_posts(
+    ctx: Ctx,
+    State(ctx_state): State<Arc<CtxState>>,
+    Path(discussion_id): Path<String>,
+    Query(query): Query<DiscussionParams>,
+) -> CtxResult<Json<Vec<PostView>>> {
+    let user_id = ctx.user_thing_id()?;
+    let post_service = PostService::new(
+        &ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+    );
+
+    let posts = post_service
+        .get_by_query(
+            &discussion_id,
+            &user_id,
+            Pagination {
+                order_by: None,
+                order_dir: Some(QryOrder::DESC),
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
+            },
+        )
+        .await?;
+
+    println!(">>>>>{:?}", posts);
+
+    Ok(Json(posts))
 }

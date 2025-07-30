@@ -1,3 +1,4 @@
+use crate::models::view::PostView;
 use crate::{
     database::client::Db,
     entities::{
@@ -8,7 +9,6 @@ use crate::{
         },
         user_auth::{
             access_right_entity::AccessRightDbService,
-            access_rule_entity::AccessRule,
             authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER},
             local_user_entity::LocalUserDbService,
         },
@@ -21,11 +21,7 @@ use crate::{
         ctx::Ctx,
         error::{AppError, CtxResult},
         mw_ctx::AppEvent,
-        utils::{
-            db_utils::{ViewFieldSelector, ViewRelateField},
-            extractor_utils::DiscussionParams,
-            string_utils::get_string_thing,
-        },
+        utils::{db_utils::Pagination, string_utils::get_string_thing},
     },
     services::notification_service::NotificationService,
     utils::file::convert::convert_field_file_data,
@@ -33,7 +29,7 @@ use crate::{
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
 use futures::future::join_all;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use tokio::sync::broadcast::Sender;
@@ -57,48 +53,6 @@ pub struct PostInput {
     pub file_1: Option<FieldData<NamedTempFile>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PostView {
-    pub id: Thing,
-    pub created_by_name: String,
-    pub belongs_to_uri: Option<String>,
-    pub belongs_to_id: Thing,
-    pub title: String,
-    pub r_title_uri: Option<String>,
-    pub content: String,
-    pub media_links: Option<Vec<String>>,
-    pub r_created: String,
-    pub replies_nr: i64,
-    pub access_rule: Option<AccessRule>,
-    pub viewer_access_rights: Vec<Authorization>,
-    pub has_view_access: bool,
-}
-
-impl ViewFieldSelector for PostView {
-    // post fields selct qry for view
-    fn get_select_query_fields() -> String {
-        "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
-    }
-}
-
-impl ViewRelateField for PostView {
-    fn get_fields() -> &'static str {
-        "id,
-        created_by_name: created_by.username, 
-        title, 
-        r_title_uri, 
-        content,
-        media_links, 
-        r_created, 
-        belongs_to_uri: belongs_to.name_uri, 
-        belongs_to_id: belongs_to.id,
-        replies_nr, 
-        topic: discussion_topic.{id, title}, 
-        access_rule: discussion_topic.access_rule.*, 
-        viewer_access_rights: [], 
-        has_view_access: false"
-    }
-}
 pub struct PostService<'a, F, N>
 where
     F: FileStorageInterface,
@@ -185,15 +139,20 @@ where
         &self,
         disc_id: &str,
         user_id: &str,
-        query: DiscussionParams,
+        pag: Pagination,
     ) -> CtxResult<Vec<PostView>> {
-        let _ = self.users_repository.get_by_id(&user_id).await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
+
+        if !disc.is_profile() && !disc.is_member(user.id.as_ref().unwrap()) {
+            return Err(AppError::Forbidden.into());
+        }
 
         let items = self
             .posts_repository
-            .get_by_discussion_desc_view::<PostView>(disc.id.as_ref().unwrap().clone(), query)
+            .get_by_query(user_id, &disc.id.as_ref().unwrap().id.to_raw(), pag)
             .await?;
+
         Ok(items)
     }
 

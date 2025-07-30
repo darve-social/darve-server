@@ -1,3 +1,4 @@
+pub mod archived_posts;
 pub mod task_donors;
 pub mod task_participants;
 pub mod task_relates;

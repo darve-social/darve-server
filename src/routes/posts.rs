@@ -37,6 +37,8 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/posts/:post_id/tasks", get(get_post_tasks))
         .route("/api/posts/:post_id/like", post(like))
         .route("/api/posts/:post_id/unlike", delete(unlike))
+        .route("/api/posts/:post_id/archive", post(archive))
+        .route("/api/posts/:post_id/unarchive", post(unarchive))
         .route("/api/posts/:post_id/replies", post(create_reply))
         .route("/api/posts/:post_id/replies", get(get_replies))
         .layer(DefaultBodyLimit::max(max_bytes_val))
@@ -284,4 +286,64 @@ async fn create_reply(
         .await?;
 
     Ok(Json(reply))
+}
+
+async fn archive(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Path(post_id): Path<String>,
+) -> CtxResult<()> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+
+    let post = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&post_id)
+    .await?;
+
+    state
+        .db
+        .archived_posts
+        .archive(
+            &post.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().id.to_raw(),
+        )
+        .await?;
+    Ok(())
+}
+
+async fn unarchive(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Path(post_id): Path<String>,
+) -> CtxResult<()> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+
+    let post = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&post_id)
+    .await?;
+
+    state
+        .db
+        .archived_posts
+        .unarchive(
+            &post.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().id.to_raw(),
+        )
+        .await?;
+    Ok(())
 }
