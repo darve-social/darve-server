@@ -360,11 +360,7 @@ impl<'a> PostDbService<'a> {
             .bind(("start", pag.start))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
-            .await
-            .map_err(|e| {
-                println!(">>>>.{:?}", e);
-                e
-            })?;
+            .await?;
 
         let posts = res.take::<Vec<PostView>>(0)?;
 

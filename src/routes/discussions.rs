@@ -433,7 +433,5 @@ async fn get_posts(
         )
         .await?;
 
-    println!(">>>>>{:?}", posts);
-
     Ok(Json(posts))
 }
