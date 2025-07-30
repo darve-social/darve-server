@@ -11,6 +11,7 @@ use darve_server::{
         user_notification::UserNotification,
     },
     middleware,
+    models::view::PostView,
     routes::{
         community::{
             discussion_routes::DiscussionPostView,
@@ -19,7 +20,6 @@ use darve_server::{
         follows::UserItemView,
         user_auth::login_routes,
     },
-    services::post_service::PostView,
 };
 use follow_entity::FollowDbService;
 use helpers::{fake_username_min_len, post_helpers::create_fake_post};
