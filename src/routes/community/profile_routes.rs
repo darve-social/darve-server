@@ -68,19 +68,25 @@ pub struct ProfileView {
     pub username: String,
     pub full_name: Option<String>,
     pub bio: Option<String>,
+    pub email: Option<String>,
+    pub birth_date: Option<String>,
+    pub phone: Option<String>,
     pub image_uri: Option<String>,
+    #[serde(default)]
+    pub is_otp_enbaled: bool,
     pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
     pub default_discussion: Option<Thing>,
+    #[serde(default)]
     pub followers_nr: i64,
+    #[serde(default)]
     pub following_nr: i64,
     pub default_discussion_view: Option<ProfileDiscussionView>,
 }
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields() -> String {
-        "id as user_id, username, full_name, bio, image_uri, social_links, 0 as followers_nr, 0 as following_nr"
-            .to_string()
+        "*, id as user_id".to_string()
     }
 }
 
