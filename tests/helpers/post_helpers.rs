@@ -153,3 +153,19 @@ pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestRespons
         .add_header("Accept", "application/json")
         .await
 }
+
+#[allow(dead_code)]
+pub async fn archive_post(server: &TestServer, post_id: &str) -> TestResponse {
+    server
+        .post(format!("/api/posts/{post_id}/archive").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn unarchive_post(server: &TestServer, post_id: &str) -> TestResponse {
+    server
+        .post(format!("/api/posts/{post_id}/unarchive").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}
