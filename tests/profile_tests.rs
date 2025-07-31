@@ -600,3 +600,28 @@ test_with_server!(
         assert!(user.birth_date.is_none());
     }
 );
+
+test_with_server!(update_bio, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+
+    assert!(user.bio.is_none());
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("bio", "test"))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+    assert_eq!(user.bio, Some("test".to_string()));
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("bio", ""))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+
+    assert!(user.bio.is_none())
+});

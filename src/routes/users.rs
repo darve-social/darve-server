@@ -235,6 +235,7 @@ enum UpdateField<T> {
 pub struct ProfileSettingsFormInput {
     username: Option<String>,
     full_name: UpdateField<String>,
+    bio: UpdateField<String>,
     image_url: UpdateField<FileUpload>,
     social_links: Option<Vec<String>>,
     birth_date: UpdateField<DateTime<Utc>>,
@@ -248,6 +249,7 @@ impl ProfileSettingsFormInput {
             image_url: UpdateField::None,
             social_links: None,
             birth_date: UpdateField::None,
+            bio: UpdateField::None,
         };
 
         while let Some(field) = multipart.next_field().await.unwrap() {
@@ -260,6 +262,14 @@ impl ProfileSettingsFormInput {
                         })?;
 
                         form.username = Some(username);
+                    }
+                    "bio" => {
+                        let bio = field.text().await.unwrap_or_default();
+                        form.bio = if !bio.is_empty() {
+                            UpdateField::Set(bio)
+                        } else {
+                            UpdateField::Unset
+                        }
                     }
                     "full_name" => {
                         let full_name = field.text().await.unwrap_or_default();
@@ -370,6 +380,12 @@ async fn update_user(
     match form.full_name {
         UpdateField::Set(value) => user.full_name = Some(value.trim().to_string()),
         UpdateField::Unset => user.full_name = None,
+        _ => (),
+    };
+
+    match form.bio {
+        UpdateField::Set(value) => user.bio = Some(value.trim().to_string()),
+        UpdateField::Unset => user.bio = None,
         _ => (),
     };
 
