@@ -12,7 +12,7 @@ use axum::{
 use axum_typed_multipart::TypedMultipart;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, to_value};
+use serde_json::json;
 use std::{path::Path, sync::Arc};
 use validator::Validate;
 
@@ -299,7 +299,7 @@ impl ProfileSettingsFormInput {
                             links.push(value);
                         }
                         validate_social_links(&links).map_err(|e| AppError::ValidationErrors {
-                            value: to_value(e).unwrap(),
+                            value: json!({ "social_links": e.message }),
                         })?;
                     }
                     "image_url" => {
