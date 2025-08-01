@@ -1,6 +1,5 @@
 use crate::database::repository_impl::Repository;
 use crate::database::repository_traits::RepositoryCore;
-use crate::database::surrdb_utils::get_str_id_thing;
 use crate::entities::community::discussion_entity::USER_TABLE_NAME;
 use crate::{
     entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
@@ -41,9 +40,7 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         user_id: &str,
         use_for: VerificationCodeFor,
     ) -> Result<VerificationCodeEntity, surrealdb::Error> {
-        // let user_thing = Thing::try_from((USER_TABLE_NAME,user_id)).map_err(|_|surrealdb::error::Db::IdInvalid {value: user_id.to_string()})?;
-        let user_thing = get_str_id_thing(USER_TABLE_NAME, user_id)?;
-
+        let user_thing = Thing::from((USER_TABLE_NAME, user_id));
         let qry = format!(
             "SELECT * FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;"
         );

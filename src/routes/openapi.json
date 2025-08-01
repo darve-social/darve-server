@@ -225,7 +225,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResetPasswordInput"
+                "$ref": "#/components/schemas/ForgotPasswordResetInput"
               }
             }
           }
@@ -236,88 +236,6 @@
           },
           "400": {
             "description": "Invalid verification code or input"
-          }
-        }
-      }
-    },
-    "/api/users/current/password": {
-      "post": {
-        "tags": ["Users"],
-        "summary": "Set user password",
-        "description": "Set password for current user",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetPasswordInput"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "$ref": "#/components/schemas/SetPasswordInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Password set successfully"
-          },
-          "400": {
-            "description": "Invalid password"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      },
-      "patch": {
-        "tags": ["Users"],
-        "summary": "Update user password",
-        "description": "Update password for current user",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResetPasswordInput"
-              }
-            },
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "$ref": "#/components/schemas/ResetPasswordInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Password updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "example": "Password updated successfully."
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid password"
-          },
-          "401": {
-            "description": "Unauthorized"
           }
         }
       }
@@ -995,6 +913,131 @@
         }
       }
     },
+
+    "/api/users/current/set_password/start": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Start password set process",
+        "description": "Start password set process for current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Password set process started"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users/current/set_password/confirm": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Confirm password setting",
+        "description": "Confirm password setting with verification code for current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password set successfully"
+          },
+          "400": {
+            "description": "Invalid password or verification code"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users/current/update_password/start": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Start password update process",
+        "description": "Start password update process for current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Password update process started"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users/current/update_password/confirm": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Confirm password update",
+        "description": "Confirm password update with verification code for current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordInput"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "example": "Password updated successfully."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid password or verification code"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/users/current/posts": {
       "post": {
         "tags": ["Users"],
@@ -1107,7 +1150,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TotpResposne"
+                  "$ref": "#/components/schemas/TotpResponse"
                 }
               }
             }
@@ -1202,13 +1245,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Search results",
+            "description": "List of users matching the search query",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/LocalUser"
+                    "$ref": "#/components/schemas/UserView"
                   }
                 }
               }
@@ -2295,7 +2338,7 @@
   },
   "components": {
     "schemas": {
-      "TotpResposne": {
+      "TotpResponse": {
         "type": "object",
         "properties": {
           "token": {
@@ -2389,6 +2432,27 @@
       },
       "ResetPasswordInput": {
         "type": "object",
+        "required": ["old_password", "new_password", "code"],
+        "properties": {
+          "old_password": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Current password (minimum 6 characters)"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 6,
+            "description": "New password (minimum 6 characters)"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Verification code (minimum 6 characters)"
+          }
+        }
+      },
+      "ForgotPasswordResetInput": {
+        "type": "object",
         "required": ["password", "code", "email_or_username"],
         "properties": {
           "password": {
@@ -2414,11 +2478,16 @@
           "password": {
             "type": "string",
             "minLength": 6,
-            "description": "Password (minimum 6 characters)"
+            "description": "New password"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Verification code"
           }
         }
       },
-      "ChangePasswordInput": {
+      "UpdatePasswordInput": {
         "type": "object",
         "required": ["old_password", "new_password"],
         "properties": {
@@ -2430,7 +2499,12 @@
           "new_password": {
             "type": "string",
             "minLength": 6,
-            "description": "New password (minimum 6 characters)"
+            "description": "New password"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "description": "Verification code"
           }
         }
       },
@@ -3242,128 +3316,117 @@
             "type": "string",
             "description": "Username of post creator"
           },
+          "belongs_to_uri": {
+            "type": "string",
+            "nullable": true,
+            "description": "URI of the discussion this post belongs to"
+          },
+          "belongs_to_id": {
+            "type": "string",
+            "description": "ID of the discussion this post belongs to"
+          },
           "title": {
             "type": "string",
             "description": "Post title"
+          },
+          "r_title_uri": {
+            "type": "string",
+            "nullable": true,
+            "description": "URI-friendly version of the title"
           },
           "content": {
             "type": "string",
             "description": "Post content"
           },
-          "discussion_id": {
-            "type": "string",
-            "description": "Discussion ID"
+          "media_links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true,
+            "description": "Links to media files"
           },
           "r_created": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          },
+          "replies_nr": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of replies"
+          },
+          "topic": {
+            "type": "object",
+            "nullable": true,
+            "description": "Discussion topic information"
+          },
+          "access_rule": {
+            "type": "object",
+            "nullable": true,
+            "description": "Access control rules for the post"
+          },
+          "viewer_access_rights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Access rights of the current viewer"
+          },
+          "has_view_access": {
+            "type": "boolean",
+            "description": "Whether the current user has view access to this post"
           }
-        },
-        "UserPreferences": {
-          "type": "object",
-          "properties": {
-            "email_notifications": {
-              "type": "boolean",
-              "description": "Whether to receive email notifications"
-            },
-            "push_notifications": {
-              "type": "boolean",
-              "description": "Whether to receive push notifications"
-            },
-            "marketing_emails": {
-              "type": "boolean",
-              "description": "Whether to receive marketing emails"
-            },
-            "data_analytics": {
-              "type": "boolean",
-              "description": "Whether to allow data analytics collection"
-            },
-            "third_party_sharing": {
-              "type": "boolean",
-              "description": "Whether to allow data sharing with third parties"
-            }
+        }
+      },
+      "ConsentInput": {
+        "type": "object",
+        "required": ["consent_type"],
+        "properties": {
+          "consent_type": {
+            "type": "string",
+            "enum": [
+              "data_processing",
+              "marketing",
+              "analytics",
+              "third_party_sharing"
+            ],
+            "description": "Type of consent being granted"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Specific purpose for the consent"
           }
-        },
-        "UserPreferencesInput": {
-          "type": "object",
-          "properties": {
-            "email_notifications": {
-              "type": "boolean",
-              "nullable": true,
-              "description": "Whether to receive email notifications"
-            },
-            "push_notifications": {
-              "type": "boolean",
-              "nullable": true,
-              "description": "Whether to receive push notifications"
-            },
-            "marketing_emails": {
-              "type": "boolean",
-              "nullable": true,
-              "description": "Whether to receive marketing emails"
-            },
-            "data_analytics": {
-              "type": "boolean",
-              "nullable": true,
-              "description": "Whether to allow data analytics collection"
-            },
-            "third_party_sharing": {
-              "type": "boolean",
-              "nullable": true,
-              "description": "Whether to allow data sharing with third parties"
-            }
-          }
-        },
-        "ConsentInput": {
-          "type": "object",
-          "required": ["consent_type"],
-          "properties": {
-            "consent_type": {
-              "type": "string",
-              "enum": [
-                "data_processing",
-                "marketing",
-                "analytics",
-                "third_party_sharing"
-              ],
-              "description": "Type of consent being granted"
-            },
-            "purpose": {
-              "type": "string",
-              "description": "Specific purpose for the consent"
-            }
-          }
-        },
-        "ConsentRevokeInput": {
-          "type": "object",
-          "required": ["consent_type"],
-          "properties": {
-            "consent_type": {
-              "type": "string",
-              "enum": [
-                "data_processing",
-                "marketing",
-                "analytics",
-                "third_party_sharing"
-              ],
-              "description": "Type of consent being revoked"
-            }
+        }
+      },
+      "ConsentRevokeInput": {
+        "type": "object",
+        "required": ["consent_type"],
+        "properties": {
+          "consent_type": {
+            "type": "string",
+            "enum": [
+              "data_processing",
+              "marketing",
+              "analytics",
+              "third_party_sharing"
+            ],
+            "description": "Type of consent being revoked"
           }
         }
       }
+    }
+  },
+  "securitySchemes": {
+    "cookieAuth": {
+      "type": "apiKey",
+      "in": "cookie",
+      "name": "jwt"
     },
-    "securitySchemes": {
-      "cookieAuth": {
-        "type": "apiKey",
-        "in": "cookie",
-        "name": "jwt"
-      },
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
+    "bearerAuth": {
+      "type": "http",
+      "scheme": "bearer",
+      "bearerFormat": "JWT"
     }
   },
   "tags": [

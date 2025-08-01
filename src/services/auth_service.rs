@@ -1,5 +1,5 @@
 use super::verification_code_service::VerificationCodeService;
-use crate::database::surrdb_utils::get_thing_id;
+use crate::entities::verification_code::VerificationCodeFor;
 use crate::utils;
 use crate::{
     database::client::Db,
@@ -325,13 +325,21 @@ where
 
         let verification_data = self
             .verification_code_service
-            .get_verified_password_code(&user.id.as_ref().expect("exists").id.to_raw(), &input.code)
+            .get(
+                &user.id.as_ref().expect("exists").id.to_raw(),
+                VerificationCodeFor::ResetPassword,
+                &input.code,
+            )
             .await?;
 
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
 
         self.auth_repository
-            .update_token(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD, hash)
+            .update_token(
+                &user.id.as_ref().unwrap().id.to_raw(),
+                AuthType::PASSWORD,
+                hash,
+            )
             .await?;
 
         self.verification_code_service
@@ -375,9 +383,10 @@ where
 
         let _ = self
             .verification_code_service
-            .create_for_password(
-                get_thing_id(&user.id.expect("exists").id.to_raw()),
+            .create(
+                &user.id.expect("exists").id.to_raw(),
                 &user.email_verified.expect("email exists"),
+                VerificationCodeFor::ResetPassword,
             )
             .await?;
 

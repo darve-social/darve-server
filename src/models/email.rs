@@ -8,8 +8,9 @@ pub struct EmailVerificationCode<'a> {
 }
 
 #[derive(Template, Debug)]
-#[template(path = "emails/reset_password.html")]
-pub struct ResetPassword<'a> {
+#[template(path = "emails/password_verification_code.html")]
+pub struct PasswordVerificationCode<'a> {
     pub code: &'a str,
     pub ttl: &'a str,
+    pub action: &'a str,
 }

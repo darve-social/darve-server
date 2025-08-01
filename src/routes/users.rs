@@ -49,8 +49,22 @@ use utils::validate_utils::validate_username;
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
-        .route("/api/users/current/password", patch(reset_password))
-        .route("/api/users/current/password", post(set_password))
+        .route(
+            "/api/users/current/set_password/start",
+            post(start_set_password),
+        )
+        .route(
+            "/api/users/current/set_password/confirm",
+            post(set_password),
+        )
+        .route(
+            "/api/users/current/update_password/start",
+            post(start_update_password),
+        )
+        .route(
+            "/api/users/current/update_password/confirm",
+            post(reset_password),
+        )
         .route(
             "/api/users/current/following/posts",
             get(get_following_posts),
@@ -74,7 +88,59 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
 #[derive(Debug, Deserialize, Validate)]
 struct SetPasswordInput {
     #[validate(length(min = 6, message = "Min 6 characters"))]
-    password: String,
+    pub password: String,
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub code: String,
+}
+
+async fn start_set_password(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<Response> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &state.db.client,
+            ctx: &auth_data.ctx,
+        },
+        &state.email_sender,
+        state.verification_code_ttl,
+        AuthenticationDbService {
+            db: &state.db.client,
+            ctx: &auth_data.ctx,
+        },
+        &state.db.verification_code,
+    );
+
+    user_service
+        .start_set_password(&auth_data.user_thing_id())
+        .await?;
+
+    Ok(().into_response())
+}
+
+async fn start_update_password(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<Response> {
+    let user_service = UserService::new(
+        LocalUserDbService {
+            db: &state.db.client,
+            ctx: &auth_data.ctx,
+        },
+        &state.email_sender,
+        state.verification_code_ttl,
+        AuthenticationDbService {
+            db: &state.db.client,
+            ctx: &auth_data.ctx,
+        },
+        &state.db.verification_code,
+    );
+
+    user_service
+        .start_update_password(&auth_data.user_thing_id())
+        .await?;
+
+    Ok(().into_response())
 }
 
 async fn set_password(
@@ -97,7 +163,7 @@ async fn set_password(
     );
 
     user_service
-        .set_password(&auth_data.user_id, &data.password)
+        .set_password(&auth_data.user_thing_id(), &data.password, &data.code)
         .await?;
 
     Ok(().into_response())
@@ -109,6 +175,8 @@ struct ResetPasswordInput {
     old_password: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
     new_password: String,
+    #[validate(length(min = 6, message = "Min 6 characters"))]
+    pub code: String,
 }
 
 async fn reset_password(
@@ -131,7 +199,12 @@ async fn reset_password(
     );
 
     let _ = user_service
-        .update_password(&auth_data.user_id, &data.new_password, &data.old_password)
+        .update_password(
+            &auth_data.user_thing_id(),
+            &data.new_password,
+            &data.old_password,
+            &data.code,
+        )
         .await?;
 
     Ok("Password updated successfully.".to_string())

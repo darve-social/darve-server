@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use strum::EnumString;
 use surrealdb::sql::Thing;
 
-use crate::database::client::Db;
 use crate::middleware;
+use crate::{database::client::Db, entities::community::discussion_entity::USER_TABLE_NAME};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
@@ -117,7 +117,7 @@ impl<'a> AuthenticationDbService<'a> {
 
     pub async fn update_token(
         &self,
-        user: String,
+        user_id: &str,
         auth_type: AuthType,
         token: String,
     ) -> CtxResult<()> {
@@ -127,7 +127,7 @@ impl<'a> AuthenticationDbService<'a> {
                 "UPDATE type::table($table) SET token=$value  WHERE local_user=<record>$user AND auth_type=$auth_type;",
             )
             .bind(("table", TABLE_NAME))
-            .bind(("user", Thing::from_str(&user).unwrap()))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id ))))
             .bind(("auth_type", auth_type))
             .bind(("value", token))
             .await?;

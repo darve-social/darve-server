@@ -1,3 +1,4 @@
+use crate::entities::verification_code::VerificationCodeFor;
 use crate::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use crate::{
     entities::user_auth::{
@@ -5,10 +6,7 @@ use crate::{
         local_user_entity::LocalUserDbService,
     },
     interfaces::send_email::SendEmailInterface,
-    middleware::{
-        error::{AppError, AppResult},
-        utils::{db_utils::IdentIdName, string_utils::get_string_thing},
-    },
+    middleware::error::{AppError, AppResult},
     utils::hash::{hash_password, verify_password},
 };
 
@@ -63,7 +61,7 @@ where
         };
 
         self.verification_code_service
-            .create_for_email(user_id, email)
+            .create(user_id, email, VerificationCodeFor::EmailVerification)
             .await?;
 
         Ok(())
@@ -79,7 +77,7 @@ where
 
         let code = self
             .verification_code_service
-            .get_verified_email_code(user_id, code)
+            .get(user_id, VerificationCodeFor::EmailVerification, code)
             .await?;
 
         self.user_repository
@@ -89,13 +87,71 @@ where
         Ok(())
     }
 
-    pub async fn set_password(&self, user_id: &str, password: &str) -> AppResult<()> {
-        let user_thing = get_string_thing(user_id.to_string())?;
+    pub async fn start_set_password(&self, user_id: &str) -> Result<(), AppError> {
+        let user = self.user_repository.get_by_id(user_id).await?;
 
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(user_thing.clone()))
+        if user.email_verified.is_none() {
+            return Err(AppError::Generic {
+                description: "The user has not set email yet".to_string(),
+            }
+            .into());
+        }
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
             .await?;
+
+        if !auth.is_none() {
+            return Err(AppError::Generic {
+                description: "User has already set a password".to_string(),
+            });
+        };
+        self.verification_code_service
+            .create(
+                user_id,
+                &user.email_verified.unwrap(),
+                VerificationCodeFor::SetPassword,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn start_update_password(&self, user_id: &str) -> Result<(), AppError> {
+        let user = self.user_repository.get_by_id(user_id).await?;
+
+        if user.email_verified.is_none() {
+            return Err(AppError::Generic {
+                description: "The user has not set email yet".to_string(),
+            }
+            .into());
+        }
+
+        let auth = self
+            .auth_repository
+            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .await?;
+
+        if auth.is_none() {
+            return Err(AppError::Generic {
+                description: "User hasn't set password yet".to_string(),
+            });
+        };
+
+        self.verification_code_service
+            .create(
+                user_id,
+                &user.email_verified.unwrap(),
+                VerificationCodeFor::UpdatePassword,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_password(&self, user_id: &str, password: &str, code: &str) -> AppResult<()> {
+        let user = self.user_repository.get_by_id(user_id).await?;
 
         let auth = self
             .auth_repository
@@ -108,15 +164,28 @@ where
             });
         }
 
+        let verification_data = self
+            .verification_code_service
+            .get(
+                &user.id.as_ref().expect("exists").id.to_raw(),
+                VerificationCodeFor::SetPassword,
+                &code,
+            )
+            .await?;
+
         let (_, hash) = hash_password(password).expect("Hash password error");
 
         self.auth_repository
             .create(CreateAuthInput {
-                local_user: user_thing,
+                local_user: user.id.as_ref().unwrap().clone(),
                 token: hash,
                 auth_type: AuthType::PASSWORD,
                 passkey_json: None,
             })
+            .await?;
+
+        self.verification_code_service
+            .delete(&verification_data.id)
             .await?;
 
         Ok(())
@@ -127,13 +196,9 @@ where
         user_id: &str,
         new_pass: &str,
         old_pass: &str,
+        code: &str,
     ) -> AppResult<()> {
-        let user_thing = get_string_thing(user_id.to_string())?;
-
-        let user = self
-            .user_repository
-            .get(IdentIdName::Id(user_thing))
-            .await?;
+        let user = self.user_repository.get_by_id(user_id).await?;
 
         let auth = self
             .auth_repository
@@ -145,6 +210,12 @@ where
                 description: "User hasn't set password yet".to_string(),
             });
         };
+
+        let code = self
+            .verification_code_service
+            .get(user_id, VerificationCodeFor::UpdatePassword, code)
+            .await?;
+
         if !verify_password(&auth.unwrap().token, old_pass) {
             return Err(AppError::Generic {
                 description: "Invalid password".to_string(),
@@ -153,8 +224,10 @@ where
         let (_, hash) = hash_password(new_pass).expect("Hash password error");
 
         self.auth_repository
-            .update_token(user_id.to_string(), AuthType::PASSWORD, hash)
+            .update_token(user_id, AuthType::PASSWORD, hash)
             .await?;
+
+        self.verification_code_service.delete(&code.id).await?;
 
         Ok(())
     }

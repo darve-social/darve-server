@@ -34,4 +34,6 @@ impl EntityWithId for VerificationCodeEntity {
 pub enum VerificationCodeFor {
     EmailVerification,
     ResetPassword,
+    SetPassword,
+    UpdatePassword,
 }
