@@ -13,7 +13,7 @@ use axum_typed_multipart::TypedMultipart;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 use validator::Validate;
 
 use crate::{
@@ -224,46 +224,83 @@ async fn get_following_posts(
     Ok(Json(data))
 }
 
+#[derive(Debug)]
+enum UpdateField<T> {
+    Set(T),
+    Unset,
+    None,
+}
+
 #[derive(Validate, Debug)]
 pub struct ProfileSettingsFormInput {
-    #[validate(custom(function = "validate_username"))]
-    pub username: Option<String>,
-    #[validate(length(min = 6, message = "Min 6 character"))]
-    pub full_name: Option<String>,
-    pub image_url: Option<FileUpload>,
-    #[validate(custom(function = "validate_social_links"))]
-    pub social_links: Option<Vec<String>>,
-    #[validate(custom(function = "validate_birth_date", message = "Birth date is invalid"))]
-    pub birth_date: Option<DateTime<Utc>>,
+    username: Option<String>,
+    full_name: UpdateField<String>,
+    bio: UpdateField<String>,
+    image_url: UpdateField<FileUpload>,
+    social_links: Option<Vec<String>>,
+    birth_date: UpdateField<DateTime<Utc>>,
 }
 
 impl ProfileSettingsFormInput {
     async fn try_from_multipart(multipart: &mut Multipart) -> CtxResult<Self> {
         let mut form = ProfileSettingsFormInput {
             username: None,
-            full_name: None,
-            image_url: None,
+            full_name: UpdateField::None,
+            image_url: UpdateField::None,
             social_links: None,
-            birth_date: None,
+            birth_date: UpdateField::None,
+            bio: UpdateField::None,
         };
 
         while let Some(field) = multipart.next_field().await.unwrap() {
             if let Some(name) = field.name() {
                 match name {
                     "username" => {
-                        form.username = Some(field.text().await.unwrap_or_default());
+                        let username = field.text().await.unwrap_or_default();
+                        validate_username(&username).map_err(|e| AppError::ValidationErrors {
+                            value: json!({ "username": e.message }),
+                        })?;
+
+                        form.username = Some(username);
+                    }
+                    "bio" => {
+                        let bio = field.text().await.unwrap_or_default();
+                        form.bio = if !bio.is_empty() {
+                            UpdateField::Set(bio)
+                        } else {
+                            UpdateField::Unset
+                        }
                     }
                     "full_name" => {
-                        form.full_name = Some(field.text().await.unwrap_or_default());
+                        let full_name = field.text().await.unwrap_or_default();
+                        form.full_name = if !full_name.is_empty() {
+                            if full_name.trim().len() < 6 {
+                                return Err(AppError::ValidationErrors {
+                                    value: json!({ "full_name": "Min 6 characters"}),
+                                }
+                                .into());
+                            };
+
+                            UpdateField::Set(full_name)
+                        } else {
+                            UpdateField::Unset
+                        }
                     }
                     "birth_date" => {
                         let value: String = field.text().await.unwrap_or_default();
-                        let date = DateTime::parse_from_rfc3339(&value).map_err(|e| {
-                            AppError::ValidationErrors {
-                                value: json!({"birth_date": e.to_string()}),
-                            }
-                        })?;
-                        form.birth_date = Some(date.to_utc());
+                        form.birth_date = if !value.is_empty() {
+                            let date = DateTime::parse_from_rfc3339(&value)
+                                .map_err(|e| AppError::ValidationErrors {
+                                    value: json!({"birth_date": e.to_string()}),
+                                })?
+                                .to_utc();
+                            validate_birth_date(&date).map_err(|e| AppError::ValidationErrors {
+                                value: json!({"birth_date": e.message}),
+                            })?;
+                            UpdateField::Set(date)
+                        } else {
+                            UpdateField::Unset
+                        }
                     }
                     "social_links" => {
                         let value = field.text().await.unwrap_or_default();
@@ -271,17 +308,43 @@ impl ProfileSettingsFormInput {
                         if !value.is_empty() {
                             links.push(value);
                         }
+                        validate_social_links(&links).map_err(|e| AppError::ValidationErrors {
+                            value: json!({ "social_links": e.message }),
+                        })?;
                     }
                     "image_url" => {
-                        form.image_url = FileUpload::try_from_field(field).await?.into();
+                        let file_name = field.file_name().map(|v| v.to_string());
+                        let content_type = field.content_type().map(|v| v.to_string());
+                        let data = field.bytes().await.map_err(|e| AppError::Generic {
+                            description: format!("Failed to read file: {}", e),
+                        })?;
+
+                        form.image_url = if !data.is_empty() {
+                            let file_name = file_name.ok_or(AppError::Generic {
+                                description: "Missing file name".to_string(),
+                            })?;
+                            let extension = Path::new(&file_name)
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .ok_or(AppError::Generic {
+                                    description: "File has no valid extension".to_string(),
+                                })?
+                                .to_string();
+
+                            UpdateField::Set(FileUpload {
+                                content_type,
+                                file_name,
+                                data: data.to_vec(),
+                                extension,
+                            })
+                        } else {
+                            UpdateField::Unset
+                        }
                     }
                     _ => {}
                 }
             }
         }
-
-        form.validate()?;
-
         Ok(form)
     }
 }
@@ -295,6 +358,7 @@ async fn update_user(
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
+
     let mut user = local_user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
@@ -313,35 +377,59 @@ async fn update_user(
         user.username = username.trim().to_string();
     }
 
-    if let Some(full_name) = form.full_name {
-        user.full_name = Some(full_name.trim().to_string());
-    }
+    match form.full_name {
+        UpdateField::Set(value) => user.full_name = Some(value.trim().to_string()),
+        UpdateField::Unset => user.full_name = None,
+        _ => (),
+    };
 
-    if let Some(value) = form.birth_date {
-        user.birth_date = Some(value.date_naive().to_string());
-    }
+    match form.bio {
+        UpdateField::Set(value) => user.bio = Some(value.trim().to_string()),
+        UpdateField::Unset => user.bio = None,
+        _ => (),
+    };
+
+    match form.birth_date {
+        UpdateField::Set(value) => user.birth_date = Some(value.date_naive().to_string()),
+        UpdateField::Unset => user.birth_date = None,
+        _ => (),
+    };
 
     if form.social_links.is_some() {
         user.social_links = form.social_links;
     }
 
-    if let Some(file) = form.image_url {
-        let result = ctx_state
-            .file_storage
-            .upload(
-                file.data,
-                Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
-                &format!("profile_image.{}", file.extension),
-                file.content_type.as_deref(),
-            )
-            .await
-            .map_err(|e| AppError::Generic {
-                description: e.to_string(),
-            })?;
+    match form.image_url {
+        UpdateField::Set(file) => {
+            let result = ctx_state
+                .file_storage
+                .upload(
+                    file.data,
+                    Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                    &format!("profile_image.{}", file.extension),
+                    file.content_type.as_deref(),
+                )
+                .await
+                .map_err(|e| AppError::Generic {
+                    description: e.to_string(),
+                })?;
 
-        user.image_uri = Some(result);
-    }
-
+            user.image_uri = Some(result);
+        }
+        UpdateField::Unset => {
+            if let Some(url) = user.image_uri {
+                let _ = ctx_state
+                    .file_storage
+                    .delete(
+                        Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                        url.split("/").last().unwrap(),
+                    )
+                    .await;
+            }
+            user.image_uri = None;
+        }
+        _ => (),
+    };
     let user = local_user_db_service.update(user).await?;
     Ok(Json(UserView::from(user)))
 }

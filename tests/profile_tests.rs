@@ -1,4 +1,5 @@
 mod helpers;
+
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
@@ -36,6 +37,7 @@ test_with_server!(search_users, |server, ctx_state, config| {
         )
         .add_header("Accept", "application/json")
         .await;
+
     request.assert_status_success();
 
     let res = user_helpers::search_users(
@@ -526,6 +528,7 @@ test_with_server!(set_empty_social_links, |server, ctx_state, config| {
     let user = request.json::<LocalUser>();
     assert_eq!(user.social_links.unwrap().len(), 0);
 });
+
 test_with_server!(replace_social_links, |server, ctx_state, config| {
     let username1 = "its_user_one".to_string();
     let (server, _) = create_login_test_user(&server, username1.clone()).await;
@@ -554,4 +557,71 @@ test_with_server!(replace_social_links, |server, ctx_state, config| {
     request.assert_status_success();
     let user = request.json::<LocalUser>();
     assert!(user.social_links.unwrap().contains(&new_link.to_string()));
+});
+
+test_with_server!(replace_image_url, |server, ctx_state, config| {
+    let username1 = "its_user_one".to_string();
+    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+
+    let create_response = update_current_user(&server).await;
+    create_response.assert_status_success();
+
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("image_url", ""))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+    assert!(user.image_uri.is_none());
+});
+
+test_with_server!(
+    set_none_fullname_and_birth_date,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+
+        assert!(user.full_name.is_some());
+        assert!(user.birth_date.is_some());
+        let request = server
+            .patch("/api/users/current")
+            .multipart(
+                MultipartForm::new()
+                    .add_text("full_name", "")
+                    .add_text("birth_date", ""),
+            )
+            .add_header("Accept", "application/json")
+            .await;
+
+        request.assert_status_success();
+        let user = request.json::<LocalUser>();
+        assert!(user.full_name.is_none());
+        assert!(user.birth_date.is_none());
+    }
+);
+
+test_with_server!(update_bio, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+
+    assert!(user.bio.is_none());
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("bio", "test"))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+    assert_eq!(user.bio, Some("test".to_string()));
+    let request = server
+        .patch("/api/users/current")
+        .multipart(MultipartForm::new().add_text("bio", ""))
+        .add_header("Accept", "application/json")
+        .await;
+
+    request.assert_status_success();
+    let user = request.json::<LocalUser>();
+
+    assert!(user.bio.is_none())
 });
