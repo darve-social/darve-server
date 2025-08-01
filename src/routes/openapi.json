@@ -1454,6 +1454,74 @@
         }
       }
     },
+    "/api/posts/{post_id}/archive": {
+      "post": {
+        "tags": ["Posts"],
+        "summary": "Archive a post",
+        "description": "Archive a specific post",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the post to archive",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post archived successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        }
+      }
+    },
+    "/api/posts/{post_id}/unarchive": {
+      "post": {
+        "tags": ["Posts"],
+        "summary": "Unarchive a post",
+        "description": "Unarchive a specific post",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the post to unarchive",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post unarchived successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        }
+      }
+    },
     "/api/posts/{post_id}/replies": {
       "post": {
         "tags": ["Posts"],
