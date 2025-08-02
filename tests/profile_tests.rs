@@ -3,7 +3,10 @@ mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
-        user_auth::local_user_entity::{LocalUser, LocalUserDbService},
+        user_auth::{
+            authentication_entity::AuthType,
+            local_user_entity::{LocalUser, LocalUserDbService},
+        },
         verification_code::VerificationCodeFor,
     },
     interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
@@ -306,30 +309,61 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let new_password = "setPassword123";
 
     // Create and login user
-    let (server, local_user, _old_password, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _old_password, _) = create_fake_login_test_user(&server).await;
 
-    // Set password using POST endpoint (no old password required)
     let response = server
-        .post("/api/users/current/password")
-        .json(&serde_json::json!({
-            "password": new_password
-        }))
+        .post("/api/users/current/set_password/start")
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+
+    assert!(response.text().contains("The user has not set email yet"));
+
+    let _ = ctx_state
+        .db
+        .client
+        .query("UPDATE $user SET email_verified=$email")
+        .bind(("email", "test@test.com"))
+        .bind(("user", user.id.as_ref().unwrap().clone()))
+        .await;
+
+    let response = server
+        .post("/api/users/current/set_password/start")
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
     assert!(response.text().contains("User has already set a password"));
 
-    let _ = ctx_state
+    ctx_state
         .db
         .client
-        .query("DELETE authentication WHERE local_user=$user")
-        .bind(("user", local_user.id.unwrap()))
-        .await;
+        .query("DELETE FROM authentication WHERE local_user=$user AND auth_type=$auth_type")
+        .bind(("user", user.id.as_ref().unwrap().clone()))
+        .bind(("auth_type", AuthType::PASSWORD))
+        .await
+        .unwrap();
 
     let response = server
-        .post("/api/users/current/password")
-        .json(&serde_json::json!({
-            "password": new_password
+        .post("/api/users/current/set_password/start")
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    let user_code = ctx_state
+        .db
+        .verification_code
+        .get_by_user(
+            &user.id.as_ref().unwrap().id.to_raw(),
+            VerificationCodeFor::SetPassword,
+        )
+        .await
+        .unwrap();
+
+    let response = server
+        .post("/api/users/current/set_password/confirm")
+        .json(&json!({
+             "password": new_password,
+             "code": user_code.code
         }))
         .add_header("Accept", "application/json")
         .await;
@@ -342,7 +376,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": local_user.username,
+            "username": user.username,
             "password": new_password
         }))
         .add_header("Accept", "application/json")
@@ -351,9 +385,10 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
 
     // Test validation: password too short should fail
     let response = server
-        .post("/api/users/current/password")
+        .post("/api/users/current/set_password/confirm")
         .json(&serde_json::json!({
-            "password": "12345" // Less than 6 characters
+            "password": "123485",
+            "code": "222222"
         }))
         .add_header("Accept", "application/json")
         .await;
@@ -364,14 +399,45 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let new_password = "newPassword456";
 
     // Create and login user
-    let (server, local_user, password, _) = create_fake_login_test_user(&server).await;
+    let (server, user, password, _) = create_fake_login_test_user(&server).await;
+
+    let response = server
+        .post("/api/users/current/update_password/start")
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_failure();
+    assert!(response.text().contains("The user has not set email yet"));
+
+    let _ = ctx_state
+        .db
+        .client
+        .query("UPDATE $user SET email_verified=$email")
+        .bind(("email", "test@test.com"))
+        .bind(("user", user.id.as_ref().unwrap().clone()))
+        .await;
+
+    let response = server
+        .post("/api/users/current/update_password/start")
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+    let user_code = ctx_state
+        .db
+        .verification_code
+        .get_by_user(
+            &user.id.as_ref().unwrap().id.to_raw(),
+            VerificationCodeFor::UpdatePassword,
+        )
+        .await
+        .unwrap();
 
     // Try to update password with wrong old password
     let response = server
-        .patch("/api/users/current/password")
+        .post("/api/users/current/update_password/confrim")
         .json(&serde_json::json!({
             "old_password": "wrongPassword",
-            "new_password": new_password
+            "new_password": new_password,
+            "code": user_code
         }))
         .add_header("Accept", "application/json")
         .await;
@@ -379,10 +445,11 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
 
     // Update password with correct old password
     let response = server
-        .patch("/api/users/current/password")
+        .post("/api/users/current/update_password/confirm")
         .json(&serde_json::json!({
             "old_password": password,
-            "new_password": new_password
+            "new_password": new_password,
+            "code": user_code.code
         }))
         .add_header("Accept", "application/json")
         .await;
@@ -395,7 +462,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": local_user.username,
+            "username": user.username,
             "password": password
         }))
         .add_header("Accept", "application/json")
@@ -406,7 +473,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": local_user.username,
+            "username": user.username,
             "password": new_password
         }))
         .add_header("Accept", "application/json")

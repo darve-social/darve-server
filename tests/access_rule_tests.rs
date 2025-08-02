@@ -9,14 +9,12 @@ use axum::extract::{Path, Query, State};
 use community_entity::CommunityDbService;
 use community_routes::get_community;
 use darve_server::entities::community::community_entity;
-use darve_server::entities::user_auth::authentication_entity::AuthenticationDbService;
 use darve_server::entities::user_auth::{
     access_right_entity, access_rule_entity, authorization_entity, local_user_entity,
 };
 use darve_server::middleware;
 use darve_server::routes::community::{community_routes, discussion_topic_routes};
 use darve_server::routes::user_auth::access_rule_routes;
-use darve_server::services::user_service::UserService;
 use discussion_topic_routes::{DiscussionTopicItemsEdit, TopicInput};
 use helpers::create_fake_login_test_user;
 use local_user_entity::{LocalUser, LocalUserDbService};
@@ -216,25 +214,6 @@ test_with_server!(display_access_rule_content, |server, ctx_state, config| {
     .create(LocalUser::default("visitor".to_string()))
     .await
     .unwrap();
-
-    let user_service = UserService::new(
-        LocalUserDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.email_sender,
-        ctx_state.verification_code_ttl,
-        AuthenticationDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        },
-        &ctx_state.db.verification_code,
-    );
-
-    user_service
-        .set_password(&new_user.id.as_ref().unwrap().to_raw(), "visitor")
-        .await
-        .unwrap();
 
     AccessRightDbService {
         db: &ctx_state.db.client,
