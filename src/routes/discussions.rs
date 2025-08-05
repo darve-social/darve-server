@@ -9,10 +9,11 @@ use crate::entities::user_auth::{access_right_entity, authorization_entity, loca
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
+use crate::middleware::utils::string_utils::get_str_thing;
 use crate::routes::community::discussion_routes::DiscussionPostView;
 use crate::routes::tasks::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
-use crate::services::post_service::{PostInput, PostService};
+use crate::services::post_service::{PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
@@ -56,6 +57,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         )
         .route("/api/discussions/:discussion_id/sse", get(discussion_sse))
         .route("/api/discussions/:discussion_id/posts", post(create_post))
+        .route("/api/discussions/:discussion_id/posts", get(get_posts))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -393,6 +395,7 @@ async fn create_post(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
     );
 
     let post = post_service
@@ -400,4 +403,28 @@ async fn create_post(
         .await?;
 
     Ok(Json(post))
+}
+
+async fn get_posts(
+    auth_data: AuthWithLoginAccess,
+    State(ctx_state): State<Arc<CtxState>>,
+    Path(disc_id): Path<String>,
+    Query(query): Query<DiscussionParams>,
+) -> CtxResult<Json<Vec<PostView>>> {
+    let user_thing = get_str_thing(&auth_data.user_id)?;
+
+    let post_service = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+        &ctx_state.db.tags,
+    );
+
+    let posts = post_service
+        .get_by_query(&disc_id, &user_thing.id.to_raw(), query)
+        .await?;
+
+    Ok(Json(posts))
 }

@@ -2334,6 +2334,28 @@
           }
         }
       }
+    },
+    "/api/tags": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "Get all tags ",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2870,10 +2892,6 @@
             "minLength": 1,
             "description": "Post content (minimum 1 characters)"
           },
-          "topic_id": {
-            "type": "string",
-            "description": "Topic ID for the post"
-          },
           "tags": {
             "type": "array",
             "items": {
@@ -2919,13 +2937,6 @@
             },
             "description": "Media links attached to the post"
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Tags associated with the post"
-          },
           "likes_nr": {
             "type": "integer",
             "description": "Number of likes"
@@ -2934,12 +2945,12 @@
             "type": "integer",
             "description": "Number of replies"
           },
-          "r_created": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
           },
-          "r_updated": {
+          "updated_at": {
             "type": "string",
             "format": "date-time",
             "description": "Last update timestamp"
@@ -2984,12 +2995,12 @@
             "type": "integer",
             "description": "Number of replies"
           },
-          "r_created": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
           },
-          "has_view_access": {
+          "updated_at": {
             "type": "boolean",
             "description": "Whether the viewer has access to this post"
           }
@@ -3008,10 +3019,6 @@
         "type": "object",
         "required": ["title", "content"],
         "properties": {
-          "id": {
-            "type": "string",
-            "description": "Reply ID (optional)"
-          },
           "title": {
             "type": "string",
             "minLength": 5,
@@ -3434,6 +3441,7 @@
       "name": "Authentication",
       "description": "User authentication and authorization endpoints"
     },
+
     {
       "name": "Users",
       "description": "User management endpoints"
@@ -3461,6 +3469,10 @@
     {
       "name": "Follows",
       "description": "User following and follower endpoints"
+    },
+    {
+      "name": "Tags",
+      "description": "Tags"
     }
   ]
 }

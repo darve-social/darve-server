@@ -1,14 +1,12 @@
 mod helpers;
 
 use axum_test::multipart::MultipartForm;
-use darve_server::entities::community::{community_entity, discussion_entity, post_entity};
+use darve_server::entities::community::{community_entity, discussion_entity};
 use darve_server::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity,
 };
 use darve_server::middleware;
-use darve_server::routes::community::{
-    community_routes, discussion_routes, discussion_topic_routes,
-};
+use darve_server::routes::community::{community_routes, discussion_topic_routes};
 use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 use surrealdb::sql::Thing;
@@ -18,16 +16,13 @@ use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use community_entity::CommunityDbService;
 use community_routes::CommunityInput;
 use discussion_entity::{Discussion, DiscussionDbService};
-use discussion_routes::DiscussionPostView;
 use discussion_topic_routes::TopicInput;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::utils::db_utils::IdentIdName;
-use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
-use post_entity::PostDbService;
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -125,37 +120,6 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     create_response2.assert_status_success();
-
-    let disc_posts = PostDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
-    }
-    .get_by_discussion_desc_view::<DiscussionPostView>(
-        disc_id.clone(),
-        DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        },
-    )
-    .await;
-    let disc_posts_top1 = PostDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
-    }
-    .get_by_discussion_desc_view::<DiscussionPostView>(
-        disc_id.clone(),
-        DiscussionParams {
-            topic_id: Some(topic_id),
-            start: None,
-            count: None,
-        },
-    )
-    .await;
-    assert_eq!(disc_posts.is_ok(), true);
-    assert_eq!(disc_posts.unwrap().len(), 2);
-    assert_eq!(disc_posts_top1.is_ok(), true);
-    assert_eq!(disc_posts_top1.unwrap().len(), 1);
 });
 
 test_with_server!(create_discussion, |server, ctx_state, config| {
