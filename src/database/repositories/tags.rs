@@ -70,12 +70,24 @@ impl TagsRepositoryInterface for TagsRepository {
         Ok(data)
     }
 
-    async fn get(&self) -> AppResult<Vec<String>> {
+    async fn get(&self, start_with: Option<String>, pag: Pagination) -> AppResult<Vec<String>> {
+        let query = format!(
+            "SELECT *, record::id(id) as value FROM tags {} ORDER BY id {} LIMIT $limit START $start;",
+            if start_with.is_some() {
+                "WHERE string::starts_with(record::id(id), $value) "
+            } else {
+                ""
+            },
+            pag.order_dir.unwrap_or(QryOrder::DESC).to_string()
+        );
         let mut res = self
             .client
-            .query("SELECT VALUE record::id(id) FROM tags;")
+            .query(query)
+            .bind(("value", start_with))
+            .bind(("limit", pag.count))
+            .bind(("start", pag.start))
             .await?;
-        let data = res.take::<Vec<String>>(0)?;
+        let data = res.take::<Vec<String>>((0, "value"))?;
         Ok(data)
     }
 }

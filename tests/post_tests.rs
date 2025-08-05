@@ -9,6 +9,7 @@ use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
+use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
@@ -193,7 +194,20 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
         .json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
 
-    let tags = ctx_state.db.tags.get().await.unwrap();
+    let tags = ctx_state
+        .db
+        .tags
+        .get(
+            None,
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                count: 10,
+                start: 0,
+            },
+        )
+        .await
+        .unwrap();
     assert!(tags.contains(&tags[0]));
     assert!(tags.contains(&tags[1]));
     assert!(tags.contains(&tags[2]));

@@ -12,5 +12,5 @@ pub trait TagsRepositoryInterface {
         tag: &str,
         pad: Pagination,
     ) -> AppResult<Vec<T>>;
-    async fn get(&self) -> AppResult<Vec<String>>;
+    async fn get(&self, start_with: Option<String>, pad: Pagination) -> AppResult<Vec<String>>;
 }
