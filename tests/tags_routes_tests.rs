@@ -189,7 +189,6 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
     let response = server.get("/api/tags").await;
     response.assert_status_success();
     let data = response.json::<Vec<String>>();
-    println!(">>>>{:?}", data);
     assert_eq!(data[0], "js");
     assert_eq!(data[1], "c++");
     assert_eq!(data[2], "rust");

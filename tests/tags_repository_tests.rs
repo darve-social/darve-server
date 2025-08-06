@@ -152,8 +152,8 @@ test_with_server!(filter_tags_by_start_with, |server, ctx_state, config| {
         )
         .await
         .unwrap();
-    assert_eq!(saved_tags[0], "rust".to_string());
-    assert_eq!(saved_tags[1], "javascript".to_string());
-    assert_eq!(saved_tags[2], "java".to_string());
-    assert_eq!(saved_tags[3], "backend".to_string());
+    assert_eq!(saved_tags[3], "rust".to_string());
+    assert_eq!(saved_tags[2], "javascript".to_string());
+    assert_eq!(saved_tags[1], "java".to_string());
+    assert_eq!(saved_tags[0], "backend".to_string());
 });

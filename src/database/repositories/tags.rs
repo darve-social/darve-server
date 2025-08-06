@@ -90,7 +90,6 @@ impl TagsRepositoryInterface for TagsRepository {
             .bind(("start", pag.start))
             .await?;
 
-        println!(">>>>.{:?}", res);
         let data = res.take::<Vec<String>>((0, "tag"))?;
         Ok(data)
     }
