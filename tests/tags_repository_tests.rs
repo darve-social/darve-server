@@ -3,7 +3,6 @@ mod helpers;
 use crate::helpers::create_fake_login_test_user;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
-use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::string_utils::get_str_thing;
