@@ -71,14 +71,16 @@ impl TagsRepositoryInterface for TagsRepository {
     }
 
     async fn get(&self, start_with: Option<String>, pag: Pagination) -> AppResult<Vec<String>> {
+        let dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let where_condition = if start_with.is_some() {
+            "WHERE string::starts_with(record::id(id), $value)"
+        } else {
+            ""
+        };
         let query = format!(
-            "SELECT *, record::id(id) as value FROM tags {} ORDER BY id {} LIMIT $limit START $start;",
-            if start_with.is_some() {
-                "WHERE string::starts_with(record::id(id), $value) "
-            } else {
-                ""
-            },
-            pag.order_dir.unwrap_or(QryOrder::DESC).to_string()
+            "SELECT record::id(id) as tag, math::sum(->tag.out.likes_nr) AS count FROM tags
+            {where_condition}
+            ORDER BY count {dir}, tag ASC LIMIT $limit START $start;",
         );
         let mut res = self
             .client
@@ -87,7 +89,9 @@ impl TagsRepositoryInterface for TagsRepository {
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .await?;
-        let data = res.take::<Vec<String>>((0, "value"))?;
+
+        println!(">>>>.{:?}", res);
+        let data = res.take::<Vec<String>>((0, "tag"))?;
         Ok(data)
     }
 }

@@ -197,9 +197,9 @@ impl<'a> PostDbService<'a> {
         )
     }
 
-    pub async fn get_by_tag(&self, tag: &str, pag: Pagination) -> CtxResult<Vec<Post>> {
-        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
-        let order_by = pag.order_by.unwrap_or("id".to_string()).to_string();
+    pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<Post>> {
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
         let query = format!(
             "SELECT *, out.* AS entity FROM $tag->tag
@@ -211,8 +211,8 @@ impl<'a> PostDbService<'a> {
             .db
             .query(query)
             .bind(("tag", Thing::from(("tags", tag))))
-            .bind(("limit", pag.count))
-            .bind(("start", pag.start))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
             .await?;
 
         let posts = res.take::<Vec<Post>>((0, "entity"))?;

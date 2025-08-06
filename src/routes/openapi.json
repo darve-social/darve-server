@@ -2338,11 +2338,55 @@
     "/api/tags": {
       "get": {
         "tags": ["Tags"],
-        "summary": "Get all tags ",
+        "summary": "Get tags with optional filtering and pagination",
+        "description": "Retrieve a list of tags with optional filtering by prefix and pagination support",
         "security": [],
+        "parameters": [
+          {
+            "name": "start_with",
+            "in": "query",
+            "description": "Filter tags that start with this string",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_dir",
+            "in": "query",
+            "description": "Order direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ASC", "DESC"]
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of tags to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "tags",
+            "description": "List of tags matching the specified criteria",
             "content": {
               "application/json": {
                 "schema": {

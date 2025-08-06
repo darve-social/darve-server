@@ -1,16 +1,29 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use darve_server::entities::community::discussion_entity::DiscussionDbService;
+use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::user_auth::local_user_entity::LocalUser;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
+use darve_server::middleware::utils::string_utils::get_str_thing;
+use helpers::post_helpers::create_fake_post;
 
 test_with_server!(test_create_with_relate, |server, ctx_state, config| {
     let (_, user, _, _) = create_fake_login_test_user(&server).await;
-    let entity = user.id.unwrap();
+    let entity = create_fake_post(
+        &server,
+        &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
+        None,
+        None,
+    )
+    .await;
     let tags = vec!["rust".to_string(), "backend".to_string()];
-    let result = ctx_state.db.tags.create_with_relate(tags, entity).await;
-
+    let result = ctx_state
+        .db
+        .tags
+        .create_with_relate(tags.clone(), get_str_thing(&entity.id).unwrap())
+        .await;
     assert!(result.is_ok());
 
     // Verify tags created
@@ -34,12 +47,18 @@ test_with_server!(test_create_with_relate, |server, ctx_state, config| {
 
 test_with_server!(test_get_by_tag, |server, ctx_state, config| {
     let (_, user, _, _) = create_fake_login_test_user(&server).await;
-    let entity = user.id.unwrap();
+    let entity = create_fake_post(
+        &server,
+        &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
+        None,
+        None,
+    )
+    .await;
     let tags = vec!["frontend".to_string(), "javascript".to_string()];
     let _ = ctx_state
         .db
         .tags
-        .create_with_relate(tags.clone(), entity.clone())
+        .create_with_relate(tags.clone(), get_str_thing(&entity.id).unwrap())
         .await
         .unwrap();
 
@@ -50,7 +69,7 @@ test_with_server!(test_get_by_tag, |server, ctx_state, config| {
         order_by: None,
         order_dir: None,
     };
-    let results: Vec<LocalUser> = ctx_state
+    let results: Vec<Post> = ctx_state
         .db
         .tags
         .get_by_tag("frontend", pagination)
@@ -59,7 +78,7 @@ test_with_server!(test_get_by_tag, |server, ctx_state, config| {
 
     assert_eq!(results.len(), 1);
     let result = results.first().unwrap();
-    assert_eq!(result.id.as_ref().unwrap().to_raw(), entity.to_raw());
+    assert_eq!(result.id.as_ref().unwrap().to_raw(), entity.id);
 });
 
 test_with_server!(test_get_tags_empty, |_server, ctx_state, config| {
@@ -82,14 +101,24 @@ test_with_server!(test_get_tags_empty, |_server, ctx_state, config| {
 
 test_with_server!(filter_tags_by_start_with, |server, ctx_state, config| {
     let (_, user, _, _) = create_fake_login_test_user(&server).await;
-    let entity = user.id.unwrap();
+    let entity = create_fake_post(
+        &server,
+        &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
+        None,
+        None,
+    )
+    .await;
     let tags = vec![
         "rust".to_string(),
         "backend".to_string(),
         "java".to_string(),
         "javascript".to_string(),
     ];
-    let result = ctx_state.db.tags.create_with_relate(tags, entity).await;
+    let result = ctx_state
+        .db
+        .tags
+        .create_with_relate(tags.clone(), get_str_thing(&entity.id).unwrap())
+        .await;
 
     assert!(result.is_ok());
 
