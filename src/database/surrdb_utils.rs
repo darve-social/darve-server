@@ -258,7 +258,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
 fn create_db_qry(
     db: &Db,
     query_string: QryBindingsVal<String>,
-) -> Query<surrealdb::engine::any::Any> {
+) -> Query<'_, surrealdb::engine::any::Any> {
     // let qry = db.query(query_string.0);
     // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
     //     acc.bind(name_value)
@@ -284,9 +284,9 @@ pub async fn exists_entity(
             let mut res = qry.await?;
             let res = res.take::<Option<RecordWithId>>(0)?;
             match res {
-                None =>Err(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
-            rid: ident.to_string(),
-        })),
+                None => Err(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
+                    rid: ident.to_string(),
+                })),
                 Some(rec) => Ok(rec.id),
             }
         }
@@ -352,11 +352,10 @@ pub async fn record_exist_all(
     Ok(things)
 }
 
-pub async fn count_records(
-    db: &Db,
-table_name: &str) -> Result<u64, surrealdb::Error> {
+pub async fn count_records(db: &Db, table_name: &str) -> Result<u64, surrealdb::Error> {
     let query = "(SELECT count() as count FROM ONLY $table_name GROUP ALL).count;";
-    let mut res = db.query(query)
+    let mut res = db
+        .query(query)
         .bind(("table_name", table_name.to_string()))
         .await?;
     let res: Option<u64> = res.take(0)?;
@@ -364,7 +363,7 @@ table_name: &str) -> Result<u64, surrealdb::Error> {
         surrealdb::error::Db::TbNotFound {
             name: format!("table {}", table_name),
         }
-            .into(),
+        .into(),
     )
 }
 

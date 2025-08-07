@@ -20,7 +20,6 @@ use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
 
-use super::reply_entity::Reply;
 use super::{discussion_entity, discussion_topic_entity};
 
 /// Post belongs_to discussion.
@@ -49,8 +48,6 @@ pub struct Post {
     pub r_created: Option<String>,
     // #[serde(skip_serializing)]
     pub r_updated: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_replies: Option<Vec<Reply>>,
     pub replies_nr: i64,
     pub likes_nr: i64,
     pub tags: Option<Vec<String>>,

@@ -2,14 +2,11 @@ use std::sync::Arc;
 
 use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
-use axum::extract::{FromRef, FromRequest, Request, State};
-use axum::http::StatusCode;
+use axum::extract::{Request, State};
 use axum::response::Response;
 use axum::routing::post;
-use axum::{async_trait, Router};
+use axum::Router;
 use gateway_transaction_entity::GatewayTransactionDbService;
-use serde::Serialize;
-use stripe::Event;
 use surrealdb::sql::Thing;
 use wallet_entity::CurrencySymbol;
 
@@ -25,45 +22,6 @@ use middleware::error::CtxResult;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new().route("/__stripe/webhook", post(handle_webhook))
-}
-
-#[derive(Debug, Serialize)]
-struct StripeEvent(Event);
-
-#[async_trait]
-impl<S> FromRequest<S> for StripeEvent
-where
-    String: FromRequest<S>,
-    S: Send + Sync,
-    CtxState: FromRef<S>,
-{
-    type Rejection = Response;
-
-    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
-        let signature = if let Some(sig) = req.headers().get("stripe-signature") {
-            sig.to_owned()
-        } else {
-            return Err(StatusCode::BAD_REQUEST.into_response());
-        };
-
-        let payload = String::from_request(req, state)
-            .await
-            .map_err(IntoResponse::into_response)?;
-
-        let state = CtxState::from_ref(state);
-        let wh_secret = state.stripe_wh_secret;
-
-        let event =
-            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &wh_secret);
-
-        match event {
-            Ok(e) => Ok(Self(e)),
-            Err(e) => {
-                println!("Error constructing Stripe webhook event: {:?}", e);
-                Err(StatusCode::BAD_REQUEST.into_response())
-            }
-        }
-    }
 }
 
 async fn handle_webhook(

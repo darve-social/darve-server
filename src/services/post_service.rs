@@ -277,7 +277,6 @@ where
                 r_created: None,
                 created_by: user.id.clone().unwrap(),
                 r_updated: None,
-                r_replies: None,
                 likes_nr: 0,
                 replies_nr: 0,
                 tags: if data.tags.is_empty() {
