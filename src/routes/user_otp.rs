@@ -2,7 +2,7 @@ use crate::{
     middleware::{
         auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
     },
-    models::view::UserView,
+    models::view::user::UserView,
     utils::totp::{Totp, TotpResposne},
 };
 use axum::{

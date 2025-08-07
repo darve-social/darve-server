@@ -146,8 +146,8 @@ pub struct UsernameIdent(pub String);
 pub struct Pagination {
     pub order_by: Option<String>,
     pub order_dir: Option<QryOrder>,
-    pub count: i8,
-    pub start: i32,
+    pub count: u16,
+    pub start: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

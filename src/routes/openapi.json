@@ -453,7 +453,50 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["PENDING", "ACCEPTED", "REJECTED", "COMPLETED"]
+              "enum": ["Requested", "Accepted", "Rejected", "Delivered"]
+            }
+          },
+          {
+            "name": "is_ended",
+            "in": "query",
+            "description": "Filter by task end status",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "order_dir",
+            "in": "query",
+            "description": "Order direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ASC", "DESC"],
+              "default": "DESC"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of tasks to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
             }
           }
         ],
@@ -1371,7 +1414,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskRequest"
+                  "$ref": "#/components/schemas/TaskRequestView"
                 }
               }
             }
@@ -1761,7 +1804,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskRequest"
+                  "$ref": "#/components/schemas/TaskRequestView"
                 }
               }
             }
@@ -2662,6 +2705,7 @@
             "items": {
               "$ref": "#/components/schemas/TaskRequestViewParticipant"
             },
+            "nullable": true,
             "description": "Task participants"
           },
           "request_txt": {
@@ -2675,11 +2719,28 @@
             },
             "description": "Task donors"
           },
-          "reward_type": {
-            "$ref": "#/components/schemas/RewardType"
-          },
           "currency": {
             "$ref": "#/components/schemas/CurrencySymbol"
+          },
+          "acceptance_period": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Acceptance period in hours"
+          },
+          "delivery_period": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Delivery period in hours"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Task due date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Task creation timestamp"
           },
           "wallet_id": {
             "type": "string",
@@ -2695,6 +2756,14 @@
           },
           "status": {
             "$ref": "#/components/schemas/TaskParticipantStatus"
+          },
+          "timelines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskParticipantTimeline"
+            },
+            "nullable": true,
+            "description": "Timeline of status changes for this participant"
           }
         }
       },
@@ -2776,9 +2845,20 @@
         "enum": ["Requested", "Rejected", "Accepted", "Delivered"],
         "description": "Status of task participant"
       },
-      "RewardType": {
-        "type": "string",
-        "description": "Type of reward for the task"
+      "TaskParticipantTimeline": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TaskParticipantStatus"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when this status change occurred"
+          }
+        },
+        "required": ["status", "date"],
+        "description": "Timeline entry tracking status changes for a task participant"
       },
       "CurrencySymbol": {
         "type": "string",
@@ -3217,38 +3297,6 @@
           }
         }
       },
-      "TaskRequest": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Task request ID"
-          },
-          "created_by": {
-            "type": "string",
-            "description": "User ID who created the task"
-          },
-          "request_txt": {
-            "type": "string",
-            "description": "Task request description"
-          },
-          "reward_type": {
-            "$ref": "#/components/schemas/RewardType"
-          },
-          "currency": {
-            "$ref": "#/components/schemas/CurrencySymbol"
-          },
-          "wallet_id": {
-            "type": "string",
-            "description": "Wallet ID"
-          },
-          "r_created": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          }
-        }
-      },
       "WithdrawData": {
         "type": "object",
         "required": ["amount"],
@@ -3376,42 +3424,6 @@
           "has_view_access": {
             "type": "boolean",
             "description": "Whether the current user has view access to this post"
-          }
-        }
-      },
-      "ConsentInput": {
-        "type": "object",
-        "required": ["consent_type"],
-        "properties": {
-          "consent_type": {
-            "type": "string",
-            "enum": [
-              "data_processing",
-              "marketing",
-              "analytics",
-              "third_party_sharing"
-            ],
-            "description": "Type of consent being granted"
-          },
-          "purpose": {
-            "type": "string",
-            "description": "Specific purpose for the consent"
-          }
-        }
-      },
-      "ConsentRevokeInput": {
-        "type": "object",
-        "required": ["consent_type"],
-        "properties": {
-          "consent_type": {
-            "type": "string",
-            "enum": [
-              "data_processing",
-              "marketing",
-              "analytics",
-              "third_party_sharing"
-            ],
-            "description": "Type of consent being revoked"
           }
         }
       }

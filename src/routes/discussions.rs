@@ -9,8 +9,8 @@ use crate::entities::user_auth::{access_right_entity, authorization_entity, loca
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
+use crate::models::view::task::TaskRequestView;
 use crate::routes::community::discussion_routes::DiscussionPostView;
-use crate::routes::tasks::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::services::post_service::{PostInput, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};

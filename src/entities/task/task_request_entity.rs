@@ -4,7 +4,7 @@ use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity::{self};
 use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::middleware;
-use crate::middleware::utils::db_utils::get_entity_view;
+use crate::middleware::utils::db_utils::{get_entity_view, QryOrder};
 use chrono::{DateTime, TimeDelta, Utc};
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
@@ -204,22 +204,38 @@ impl<'a> TaskRequestDbService<'a> {
         &self,
         user: &Thing,
         status: Option<TaskParticipantStatus>,
+        is_ended: Option<bool>,
+        pagination: Pagination,
     ) -> CtxResult<Vec<T>> {
-        let status_query = match &status {
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+
+        let date_condition = match is_ended {
+            Some(value) => match value {
+                true => "AND due_at <= time::now()",
+                false => "AND due_at > time::now()",
+            },
+            None => "",
+        };
+        let status_condition = match &status {
             Some(_) => "AND $status IN ->task_participant.status",
             None => "",
         };
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_participant.out {};",
+            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_participant.out {} {}
+             ORDER BY created_at {order_dir} LIMIT $limit START $start;",
             &T::get_select_query_fields(),
-            status_query
+            date_condition,
+            status_condition
         );
         let mut res = self
             .db
             .query(query)
             .bind(("user", user.clone()))
             .bind(("status", status))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
             .await?;
+
         Ok(res.take::<Vec<T>>(0)?)
     }
 
