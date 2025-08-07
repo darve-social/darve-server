@@ -129,7 +129,7 @@ impl<T: Serialize + 'static + Clone> QryBindingsVal<T> {
     pub fn get_bindings(&self) -> HashMap<String, T> {
         self.1.clone()
     }
-    pub fn into_query(self, db: &Db) -> Query<SurDb> {
+    pub fn into_query(self, db: &Db) -> Query<'_, SurDb> {
         self.1
             .into_iter()
             .fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
@@ -375,7 +375,7 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
 pub fn create_db_qry(
     db: &Db,
     query_string: QryBindingsVal<String>,
-) -> Query<surrealdb::engine::any::Any> {
+) -> Query<'_, surrealdb::engine::any::Any> {
     // let qry = db.query(query_string.0);
     // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
     //     acc.bind(name_value)
