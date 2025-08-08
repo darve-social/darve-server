@@ -86,8 +86,8 @@ impl<'a> ReplyDbService<'a> {
     pub async fn get_by_post_desc_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         post_id: Thing,
-        from: i32,
-        count: i8,
+        from: u32,
+        count: u16,
     ) -> CtxResult<Vec<T>> {
         get_entity_list_view::<T>(
             self.db,
@@ -100,8 +100,8 @@ impl<'a> ReplyDbService<'a> {
             Some(Pagination {
                 order_by: Option::from("r_created".to_string()),
                 order_dir: Some(QryOrder::DESC),
-                count,
                 start: from,
+                count,
             }),
         )
         .await

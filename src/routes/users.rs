@@ -1,6 +1,6 @@
 use crate::{
     middleware::{auth_with_login_access::AuthWithLoginAccess, utils::db_utils::IdentIdName},
-    models::view::UserView,
+    models::view::user::UserView,
     utils::validate_utils::validate_social_links,
 };
 use axum::{

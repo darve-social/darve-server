@@ -14,7 +14,7 @@ use darve_server::{
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
-    routes::tasks::TaskRequestView,
+    models::view::task::TaskRequestView,
 };
 
 use fake::{faker, Fake};
@@ -80,10 +80,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let first = tasks.first().unwrap();
     assert_eq!(first.donors.len(), 1);
     let participator = first.donors.first().unwrap();
-    assert_eq!(
-        participator.user.as_ref().unwrap().id,
-        user1.id.as_ref().unwrap().clone()
-    );
+    assert_eq!(participator.user.id, user1.id.as_ref().unwrap().clone());
     assert_eq!(participator.amount, 100);
 });
 
@@ -1378,4 +1375,75 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
         .await;
     participate_response.assert_status_failure();
     participate_response.assert_status(StatusCode::FORBIDDEN);
+});
+
+test_with_server!(get_expired_tasks, |server, state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let disc_id = Thing::from((
+        DiscussionDbService::get_table_name().as_ref(),
+        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+    ));
+    let post = create_fake_post(server, &disc_id, None, None).await;
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user1.id.as_ref().unwrap().to_raw(),
+            1000
+        ))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let task_request = server
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
+        .json(&json!({
+            "offer_amount": Some(100),
+            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+
+    task_request.assert_status_success();
+    let task_id = task_request.json::<TaskRequest>().id.unwrap();
+
+    let task_request = server
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
+        .json(&json!({
+            "offer_amount": Some(100),
+            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+
+    let _ = state
+        .db
+        .client
+        .query("UPDATE $id SET due_at=time::now();")
+        .bind(("id", task_id))
+        .await;
+
+    let get_response = server
+        .get("/api/tasks/received")
+        .add_header("Cookie", format!("jwt={token0}"))
+        .await;
+    get_response.assert_status_success();
+    let tasks = get_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 2);
+    let get_response = server
+        .get("/api/tasks/received?is_ended=true")
+        .add_header("Cookie", format!("jwt={token0}"))
+        .await;
+    get_response.assert_status_success();
+    let tasks = get_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 1);
 });

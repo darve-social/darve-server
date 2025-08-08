@@ -1,28 +1,23 @@
 use crate::entities::task::task_request_entity::{self};
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::utils::db_utils::ViewRelateField;
-use crate::models::web::{TaskRequestDonorView, UserView};
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::models::view::task::TaskRequestView;
 use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{DateTime, Utc};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::ViewFieldSelector;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use surrealdb::sql::Thing;
-use task_request_entity::{RewardType, TaskRequestDbService};
+use task_request_entity::TaskRequestDbService;
 use validator::Validate;
-use wallet_entity::CurrencySymbol;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
@@ -45,58 +40,13 @@ pub struct DeliverTaskRequestInput {
     pub post_id: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TaskRequestViewParticipant {
-    pub user: UserView,
-    pub status: TaskParticipantStatus,
-}
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TaskRequestView {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    pub created_by: UserView,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub participants: Option<Vec<TaskRequestViewParticipant>>,
-    pub request_txt: String,
-    pub donors: Vec<TaskRequestDonorView>,
-    pub reward_type: RewardType,
-    pub currency: CurrencySymbol,
-    pub wallet_id: Thing,
-    pub due_at: DateTime<Utc>,
-}
-
-impl ViewFieldSelector for TaskRequestView {
-    fn get_select_query_fields() -> String {
-        "id,
-        due_at,
-        created_by.{id, username, full_name} as created_by,
-        ->task_participant.{ user: out.{id, username, full_name},status} as participants,
-        request_txt,
-        ->task_donor.{id, user: out.{id, username, full_name}, amount: transaction.amount_out} as donors,
-        reward_type,
-        currency,
-        wallet_id
-        ".to_string()
-    }
-}
-
-impl ViewRelateField for TaskRequestView {
-    fn get_fields() -> &'static str {
-        "id,
-        due_at,
-        created_by:created_by.{id, username, full_name},
-        participants:->task_participant.{ user: out.{id, username, full_name},status},
-        request_txt,
-        donors:->task_donor.{id, user: out.{id, username, full_name}, amount: transaction.amount_out},
-        reward_type,
-        currency,
-        wallet_id"
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct GetTaskByToUserQuery {
     status: Option<TaskParticipantStatus>,
+    is_ended: Option<bool>,
+    order_dir: Option<QryOrder>,
+    start: Option<u32>,
+    count: Option<u16>,
 }
 async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
@@ -114,7 +64,17 @@ async fn user_requests_received(
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_by_user::<TaskRequestView>(&to_user, query.status)
+    .get_by_user::<TaskRequestView>(
+        &to_user,
+        query.status,
+        query.is_ended,
+        Pagination {
+            order_by: None,
+            order_dir: query.order_dir,
+            count: query.count.unwrap_or(20),
+            start: query.start.unwrap_or(0),
+        },
+    )
     .await?;
     Ok(Json(list))
 }
@@ -136,7 +96,6 @@ async fn user_requests_given(
     }
     .get_by_creator::<TaskRequestView>(from_user, None)
     .await?;
-
     Ok(Json(list))
 }
 

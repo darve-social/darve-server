@@ -21,7 +21,7 @@ use crate::{
         mw_ctx::{CtxState, JWT_KEY},
         utils::extractor_utils::JsonOrFormValidated,
     },
-    models::view::UserView,
+    models::view::user::UserView,
     services::{
         auth_service::{
             AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
