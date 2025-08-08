@@ -40,8 +40,8 @@ async fn get_tags(
             Pagination {
                 order_by: None,
                 order_dir: query.order_dir,
-                count: query.start.unwrap_or(20) as i8,
-                start: query.count.unwrap_or(0) as i32,
+                count: query.count.unwrap_or(20),
+                start: query.start.unwrap_or(0),
             },
         )
         .await?;
