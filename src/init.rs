@@ -19,7 +19,6 @@ use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
-use entities::community::reply_entity::ReplyDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
 use entities::user_auth::access_gain_action_entity::AccessGainActionDbService;
 use entities::user_auth::access_right_entity::AccessRightDbService;
@@ -96,7 +95,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
-    ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }

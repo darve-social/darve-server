@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::database::repositories::reply::RepliesRepository;
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
 use crate::database::repositories::task_relates::TaskRelatesRepository;
@@ -32,6 +33,7 @@ pub struct Database {
     pub task_donors: TaskDonorsRepository,
     pub task_participants: TaskParticipantsRepository,
     pub task_relates: TaskRelatesRepository,
+    pub replies: RepliesRepository,
 }
 
 impl Database {
@@ -66,6 +68,7 @@ impl Database {
             task_donors: TaskDonorsRepository::new(client.clone()),
             task_participants: TaskParticipantsRepository::new(client.clone()),
             task_relates: TaskRelatesRepository::new(client.clone()),
+            replies: RepliesRepository::new(client.clone()),
         }
     }
 
@@ -75,6 +78,7 @@ impl Database {
         self.task_donors.mutate_db().await?;
         self.task_participants.mutate_db().await?;
         self.task_relates.mutate_db().await?;
+        self.replies.mutate_db().await?;
         Ok(())
     }
 }

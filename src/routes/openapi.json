@@ -956,7 +956,6 @@
         }
       }
     },
-
     "/api/users/current/set_password/start": {
       "post": {
         "tags": ["Users"],
@@ -1582,7 +1581,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Reply"
+                  "$ref": "#/components/schemas/ReplyView"
                 }
               }
             }
@@ -1610,6 +1609,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of reply to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
           }
         ],
         "responses": {
@@ -1620,7 +1639,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PostReplyView"
+                    "$ref": "#/components/schemas/ReplyView"
                   }
                 }
               }
@@ -3088,15 +3107,6 @@
         "type": "object",
         "required": ["title", "content"],
         "properties": {
-          "id": {
-            "type": "string",
-            "description": "Reply ID (optional)"
-          },
-          "title": {
-            "type": "string",
-            "minLength": 5,
-            "description": "Reply title (minimum 5 characters)"
-          },
           "content": {
             "type": "string",
             "minLength": 5,
@@ -3104,46 +3114,7 @@
           }
         }
       },
-      "Reply": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Reply ID"
-          },
-          "discussion": {
-            "type": "string",
-            "description": "Discussion ID"
-          },
-          "belongs_to": {
-            "type": "string",
-            "description": "Post ID this reply belongs to"
-          },
-          "created_by": {
-            "type": "string",
-            "description": "User ID who created the reply"
-          },
-          "title": {
-            "type": "string",
-            "description": "Reply title"
-          },
-          "content": {
-            "type": "string",
-            "description": "Reply content"
-          },
-          "r_created": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "r_updated": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last update timestamp"
-          }
-        }
-      },
-      "PostReplyView": {
+      "ReplyView": {
         "type": "object",
         "properties": {
           "id": {
@@ -3153,18 +3124,19 @@
           "created_by": {
             "$ref": "#/components/schemas/UserView"
           },
-          "title": {
-            "type": "string",
-            "description": "Reply title"
-          },
           "content": {
             "type": "string",
             "description": "Reply content"
           },
-          "r_created": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp"
           }
         }
       },
