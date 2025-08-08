@@ -4,7 +4,7 @@ use axum_test::{
     multipart::{MultipartForm, Part},
     TestResponse, TestServer,
 };
-use darve_server::{models::view::UserView, routes::users::SearchInput};
+use darve_server::{models::view::user::UserView, routes::users::SearchInput};
 
 #[allow(dead_code)]
 pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<UserView> {
