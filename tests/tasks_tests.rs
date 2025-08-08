@@ -139,7 +139,7 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
 });
 
 test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
-    let (server, user, _, token) = create_fake_login_test_user(&server).await;
+    let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
