@@ -26,9 +26,7 @@
 
             <h2 class="font-display md:text-2xl lg:text-3xl card-title line-clamp-1 relative mb-3 md:mb-6">
                 {{title|truncate(300)}}</h2>
-            <div class="text-gray-500  line-clamp-4 sm:line-clamp-3 md:line-clamp-2 relative top-[-1em]">
-                {{content|truncate(500)}}
-            </div>
+
             <div class="card-actions w-full flex-col flex">
                 <div class="sm:divider flex flex-row text-neutral-content !sm:gap-12">
 
@@ -95,14 +93,13 @@
             <dialog id="m_{{modal_id}}" class="modal">
                 <div class="modal-box h-full max-w-2xl">
                     <h3 class="text-lg font-bold">{{title}}</h3>
-                    <p class="py-4">{{content}}</p>
                     <div hx-ext="response-targets">
                         <h5>new reply</h5>
                         <form>
                             <input name="title"></input>
                             <textarea name="content"></textarea>
                             <div id="e_{{modal_id}}"></div>
-                            <button hx-post="/api/discussion/{{belongs_to_id}}/post/{{r_title_uri|display_some}}/reply"
+                            <button hx-post="/api/discussion/{{belongs_to_id}}/post/{{title}}/reply"
                                 hx-target="#e_{{modal_id}}" hx-target-*="#e_{{modal_id}}" hx-swap="innerHTML"
                                 class="btn btn-active btn-primary btn-block max-w-[200px]">
                                 Create

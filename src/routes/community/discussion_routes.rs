@@ -20,6 +20,7 @@ use axum::response::sse::Event;
 use axum::response::Sse;
 use axum::routing::get;
 use axum::Router;
+use chrono::{DateTime, Utc};
 use discussion_entity::DiscussionDbService;
 use discussion_topic_routes::{
     DiscussionTopicItemForm, DiscussionTopicItemsEdit, DiscussionTopicView,
@@ -119,10 +120,11 @@ pub struct DiscussionPostView {
     pub belongs_to_uri: Option<String>,
     pub belongs_to_id: Thing,
     pub title: String,
-    pub r_title_uri: Option<String>,
-    pub content: String,
+    pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
-    pub r_created: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub likes_nr: i64,
     pub replies_nr: i64,
     pub topic: Option<DiscussionTopicView>,
     pub access_rule: Option<AccessRule>,
@@ -133,7 +135,7 @@ pub struct DiscussionPostView {
 impl ViewFieldSelector for DiscussionPostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
-        "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
+        "id, created_by.username as created_by_name, title, content, media_links, likes_nr, created_at,updated_at, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
     }
 }
 
@@ -143,14 +145,14 @@ impl ViewRelateField for DiscussionPostView {
         "id,
         created_by_name: created_by.username, 
         title, 
-        r_title_uri, 
         content,
         media_links, 
-        r_created, 
+        created_at, 
+        updated_at,
         belongs_to_uri: belongs_to.name_uri, 
         belongs_to_id: belongs_to.id,
         replies_nr, 
-        topic: discussion_topic.{id, title}, 
+        likes_nr,
         access_rule: discussion_topic.access_rule.*, 
         viewer_access_rights: [], 
         has_view_access: false"

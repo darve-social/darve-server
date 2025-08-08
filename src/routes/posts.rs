@@ -44,7 +44,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
 
 #[derive(Debug, Deserialize)]
 pub struct GetPostsQuery {
-    pub tag: Option<String>,
+    pub tag: String,
     pub order_dir: Option<QryOrder>,
     pub start: Option<u32>,
     pub count: Option<u16>,
@@ -128,7 +128,8 @@ async fn get_posts(
         count: query.count.unwrap_or(100),
         start: query.start.unwrap_or_default(),
     };
-    let posts = post_db_service.get_by_tag(query.tag, pagination).await?;
+    let posts = post_db_service.get_by_tag(&query.tag, pagination).await?;
+
     Ok(Json(posts))
 }
 
@@ -150,6 +151,7 @@ async fn like(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
     )
     .like(&post_id, &user_id, body)
     .await?;
@@ -168,6 +170,7 @@ async fn unlike(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
     )
     .unlike(&post_id, &auth_data.user_thing_id())
     .await?;
@@ -206,8 +209,6 @@ async fn get_replies(
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct PostReplyInput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
@@ -270,7 +271,7 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &reply.discussion.clone(),
             &reply_comm_view.render().unwrap(),
-            &post.discussion_topic.clone(),
+            &None,
         )
         .await?;
 
@@ -280,7 +281,7 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &reply.discussion.clone(),
             &post.replies_nr.to_string(),
-            &post.discussion_topic.clone(),
+            &None,
         )
         .await?;
 

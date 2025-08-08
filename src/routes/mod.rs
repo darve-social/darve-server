@@ -5,6 +5,7 @@ pub mod follows;
 pub mod notifications;
 pub mod posts;
 pub mod swagger;
+pub mod tags;
 pub mod tasks;
 pub mod user_auth;
 pub mod user_otp;

@@ -6,6 +6,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use axum_typed_multipart::TryFromMultipart;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -110,18 +111,18 @@ pub struct ProfilePostView {
     pub username: Option<String>,
     // belongs_to_id=discussion
     pub belongs_to_id: Thing,
-    pub r_title_uri: Option<String>,
     pub title: String,
-    pub content: String,
+    pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
-    pub r_created: String,
+    pub created_at: DateTime<Utc>,
     pub replies_nr: i64,
+    pub likes_nr: i64,
 }
 
 impl ViewFieldSelector for ProfilePostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
-        "id, created_by.username as username, r_title_uri, title, content, media_links, r_created, belongs_to.id as belongs_to_id, replies_nr".to_string()
+        "id, created_by.username as username,  title, content, media_links, created_at, belongs_to.id as belongs_to_id, replies_nr, likes_nr".to_string()
     }
 }
 

@@ -3,28 +3,28 @@ use crate::{
     entities::{
         community::{
             discussion_entity::DiscussionDbService,
-            post_entity::{Post, PostDbService},
+            post_entity::{CreatePost, Post, PostDbService},
             post_stream_entity::PostStreamDbService,
         },
         user_auth::{
             access_right_entity::AccessRightDbService,
-            access_rule_entity::AccessRule,
             authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER},
             local_user_entity::LocalUserDbService,
         },
     },
     interfaces::{
         file_storage::FileStorageInterface,
-        repositories::user_notifications::UserNotificationsInterface,
+        repositories::{
+            tags::TagsRepositoryInterface, user_notifications::UserNotificationsInterface,
+        },
     },
     middleware::{
         ctx::Ctx,
         error::{AppError, CtxResult},
         mw_ctx::AppEvent,
         utils::{
-            db_utils::{ViewFieldSelector, ViewRelateField},
+            db_utils::{Pagination, ViewFieldSelector, ViewRelateField},
             extractor_utils::DiscussionParams,
-            string_utils::get_string_thing,
         },
     },
     services::notification_service::NotificationService,
@@ -32,6 +32,7 @@ use crate::{
 };
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
+use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -50,7 +51,6 @@ pub struct PostInput {
     pub title: String,
     #[validate(length(min = 1, message = "Content cannot be empty"))]
     pub content: Option<String>,
-    pub topic_id: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
@@ -64,20 +64,29 @@ pub struct PostView {
     pub belongs_to_uri: Option<String>,
     pub belongs_to_id: Thing,
     pub title: String,
-    pub r_title_uri: Option<String>,
-    pub content: String,
+    pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
-    pub r_created: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
-    pub access_rule: Option<AccessRule>,
-    pub viewer_access_rights: Vec<Authorization>,
-    pub has_view_access: bool,
+    pub likes_nr: u64,
 }
 
 impl ViewFieldSelector for PostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
-        "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
+        "id,
+        created_by.username as created_by_name, 
+        title, 
+        content,
+        media_links, 
+        created_at,
+        updated_at,
+        belongs_to.name_uri as belongs_to_uri, 
+        belongs_to.id as belongs_to_id,
+        replies_nr,
+        likes_nr"
+            .to_string()
     }
 }
 
@@ -86,23 +95,21 @@ impl ViewRelateField for PostView {
         "id,
         created_by_name: created_by.username, 
         title, 
-        r_title_uri, 
         content,
         media_links, 
-        r_created, 
+        created_at,
+        updated_at,
         belongs_to_uri: belongs_to.name_uri, 
         belongs_to_id: belongs_to.id,
-        replies_nr, 
-        topic: discussion_topic.{id, title}, 
-        access_rule: discussion_topic.access_rule.*, 
-        viewer_access_rights: [], 
-        has_view_access: false"
+        replies_nr,
+        likes_nr"
     }
 }
-pub struct PostService<'a, F, N>
+pub struct PostService<'a, F, N, T>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    T: TagsRepositoryInterface,
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
@@ -111,12 +118,14 @@ where
     file_storage: &'a F,
     notification_service: NotificationService<'a, N>,
     streams_repository: PostStreamDbService<'a>,
+    tags_repository: &'a T,
 }
 
-impl<'a, F, N> PostService<'a, F, N>
+impl<'a, F, N, T> PostService<'a, F, N, T>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    T: TagsRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -124,6 +133,7 @@ where
         event_sender: &'a Sender<AppEvent>,
         notification_repository: &'a N,
         file_storage: &'a F,
+        tags_repository: &'a T,
     ) -> Self {
         Self {
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
@@ -136,6 +146,7 @@ where
             ),
             discussions_repository: DiscussionDbService { db: &db, ctx },
             file_storage,
+            tags_repository,
             access_repository: AccessRightDbService { db: &db, ctx },
             streams_repository: PostStreamDbService { db: &db, ctx },
         }
@@ -187,12 +198,25 @@ where
         user_id: &str,
         query: DiscussionParams,
     ) -> CtxResult<Vec<PostView>> {
-        let _ = self.users_repository.get_by_id(&user_id).await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
+
+        if !disc.is_profile() && !disc.is_member(&user.id.as_ref().unwrap()) {
+            return Err(AppError::Forbidden.into());
+        }
 
         let items = self
             .posts_repository
-            .get_by_discussion_desc_view::<PostView>(disc.id.as_ref().unwrap().clone(), query)
+            .get_by_query(
+                &user.id.as_ref().unwrap().id.to_raw(),
+                &disc.id.as_ref().unwrap().id.to_raw(),
+                Pagination {
+                    order_by: None,
+                    order_dir: None,
+                    count: query.count.unwrap_or(20),
+                    start: query.start.unwrap_or(0),
+                },
+            )
             .await?;
         Ok(items)
     }
@@ -247,63 +271,48 @@ where
                 .await
                 .map_err(|e| AppError::Generic { description: e })?;
 
-            vec![result]
+            Some(vec![result])
         } else {
-            vec![]
-        };
-
-        let topic_val: Option<Thing> = match data.topic_id {
-            Some(v) => Some(get_string_thing(v).map_err(|_| AppError::Generic {
-                description: "Topic id is invalid".to_string(),
-            })?),
-            None => None,
+            None
         };
 
         let post_res = self
             .posts_repository
-            .create_update(Post {
-                id: Some(new_post_id),
+            .create(CreatePost {
                 belongs_to: disc.id.clone().unwrap(),
-                discussion_topic: topic_val.clone(),
                 title: data.title,
-                r_title_uri: None,
                 content: data.content,
-                media_links: if media_links.is_empty() {
-                    None
-                } else {
-                    Some(media_links.clone())
-                },
-                metadata: None,
-                r_created: None,
-                created_by: user.id.clone().unwrap(),
-                r_updated: None,
-                r_replies: None,
-                likes_nr: 0,
-                replies_nr: 0,
-                tags: if data.tags.is_empty() {
-                    None
-                } else {
-                    Some(data.tags)
-                },
+                media_links: media_links.clone(),
+                created_by: user.id.as_ref().unwrap().clone(),
+                id: new_post_id,
             })
             .await;
 
         let post = match post_res {
             Ok(value) => value,
             Err(err) => {
-                let futures = media_links.into_iter().map(|link| {
-                    let file_storage = self.file_storage;
-                    async move {
-                        if let Some(filename) = link.split('/').last() {
-                            let _ = file_storage.delete(Some("posts"), filename).await;
+                if let Some(links) = &media_links {
+                    let futures = links.into_iter().map(|link| {
+                        let file_storage = self.file_storage;
+                        async move {
+                            if let Some(filename) = link.split('/').last() {
+                                let _ = file_storage.delete(Some("posts"), filename).await;
+                            }
                         }
-                    }
-                });
+                    });
 
-                join_all(futures).await;
+                    join_all(futures).await;
+                }
                 return Err(err);
             }
         };
+
+        if !data.tags.is_empty() {
+            let _ = self
+                .tags_repository
+                .create_with_relate(data.tags, post.id.as_ref().unwrap().clone())
+                .await?;
+        }
         // set latest post
         self.discussions_repository
             .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())

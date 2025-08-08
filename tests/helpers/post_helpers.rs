@@ -23,34 +23,19 @@ pub async fn create_post(
 }
 
 #[allow(dead_code)]
-pub async fn get_posts(server: &TestServer, query: Option<GetPostsQuery>) -> TestResponse {
-    let params = match query {
-        Some(query) => {
-            let mut params = Vec::new();
+pub async fn get_posts(server: &TestServer, query: GetPostsQuery) -> TestResponse {
+    let mut params = vec![format!("tag={}", query.tag)];
 
-            if let Some(tag) = query.tag {
-                params.push(format!("tag={}", tag));
-            }
+    if let Some(start) = query.start {
+        params.push(format!("start={}", start));
+    }
 
-            if let Some(start) = query.start {
-                params.push(format!("start={}", start));
-            }
-
-            if let Some(count) = query.count {
-                params.push(format!("count={}", count));
-            }
-
-            if params.is_empty() {
-                String::new()
-            } else {
-                format!("?{}", params.join("&"))
-            }
-        }
-        None => String::new(),
-    };
+    if let Some(count) = query.count {
+        params.push(format!("count={}", count));
+    }
 
     server
-        .get(format!("/api/posts{params}").as_str())
+        .get(format!("/api/posts?{}", params.join("&")).as_str())
         .add_header("Accept", "application/json")
         .await
 }

@@ -19,7 +19,7 @@ services:
     container_name: surrealdb
     ports:
       - "8000:8000"
-    command: start --user ${DB_USERNAME} --pass ${DB_PASSWORD} --log trace --bind 0.0.0.0:8000 rocksdb:///data/database
+    command: start --user ${DB_USERNAME} --pass ${DB_PASSWORD} --bind 0.0.0.0:8000 rocksdb:///data/database
     environment:
       - SURREAL_USER=${DB_USERNAME}
       - SURREAL_PASS=${DB_PASSWORD}
