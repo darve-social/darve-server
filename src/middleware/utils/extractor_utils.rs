@@ -172,8 +172,8 @@ pub struct DiscussionParams {
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_option_string_id")]
     pub topic_id: Option<Thing>,
-    pub start: Option<i32>,
-    pub count: Option<i8>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
 }
 
 pub async fn extract_stripe_event(req: Request<Body>, state: &CtxState) -> Result<Event, AppError> {

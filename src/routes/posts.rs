@@ -21,8 +21,8 @@ use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::reply::ReplyView;
+use crate::models::view::task::TaskRequestView;
 use crate::models::view::user::UserView;
-use crate::routes::tasks::TaskRequestView;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{PostLikeData, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
@@ -93,6 +93,7 @@ async fn get_post_tasks(
         .task_relates
         .get_tasks_by_id::<TaskRequestView>(&post.id.as_ref().unwrap())
         .await?;
+
     Ok(Json(tasks))
 }
 
@@ -108,8 +109,8 @@ async fn get_posts(
     let pagination = Pagination {
         order_by: Some("id".to_string()),
         order_dir: query.order_dir,
-        count: query.count.unwrap_or(100) as i8,
-        start: query.start.unwrap_or_default() as i32,
+        count: query.count.unwrap_or(100),
+        start: query.start.unwrap_or_default(),
     };
     let posts = post_db_service.get_by_tag(query.tag, pagination).await?;
     Ok(Json(posts))
@@ -191,8 +192,8 @@ async fn get_replies(
             Pagination {
                 order_by: None,
                 order_dir: None,
-                count: query.count.unwrap_or(50) as i8,
-                start: query.start.unwrap_or(0) as i32,
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
             },
         )
         .await?;
