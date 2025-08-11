@@ -2,7 +2,7 @@ mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
-    entities::user_auth::local_user_entity::LocalUserDbService,
+    entities::user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     middleware::ctx::Ctx,
     utils::totp::{Totp, TotpResposne},
 };
@@ -34,8 +34,54 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
         .await
         .unwrap();
 
-    assert!(updated_user.is_otp_enabled);
+    assert!(updated_user.otp_secret.is_some());
+    assert_eq!(updated_user.is_otp_enabled, false);
 });
+
+test_with_server!(
+    test_otp_verification_success,
+    |server, ctx_state, config| {
+        let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
+
+        // Enable OTP
+        let response = server
+            .post("/api/users/current/otp/enable")
+            .add_header("Cookie", &format!("jwt={}", token))
+            .await;
+
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+
+        response.assert_status_success();
+
+        // Verify user's OTP is enabled in database
+        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+        let user_db_service = LocalUserDbService {
+            db: &ctx_state.db.client,
+            ctx: &ctx,
+        };
+
+        let updated_user = user_db_service
+            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .await
+            .unwrap();
+
+        assert!(updated_user.otp_secret.is_some());
+        assert_eq!(updated_user.is_otp_enabled, true);
+    }
+);
 
 test_with_server!(test_otp_enable_unauthorized, |server, ctx_state, config| {
     // Try to enable OTP without authentication
@@ -80,7 +126,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        assert!(updated_user.is_otp_enabled);
+        assert!(!updated_user.is_otp_enabled);
     }
 );
 
@@ -88,12 +134,26 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
     let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
 
     // First enable OTP
-    let enable_response = server
+    let response = server
         .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
-    enable_response.assert_status_success();
 
+    response.assert_status_success();
+    let otp = response.json::<TotpResposne>();
+    assert!(otp.url.starts_with("otpauth://totp/"));
+    assert!(otp.url.contains("Darve"));
+
+    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp_response = totp.generate();
+    // Verification OTP
+    let response = server
+        .post("/api/users/current/otp/verification")
+        .add_header("Cookie", &format!("jwt={}", token))
+        .json(&json!({ "token": totp_response.token}))
+        .await;
+
+    response.assert_status_success();
     // Verify OTP is enabled
     let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
     let user_db_service = LocalUserDbService {
@@ -167,11 +227,27 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
     let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
 
     // First enable OTP
-    let enable_response = server
+    let response = server
         .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", token))
         .await;
-    enable_response.assert_status_success();
+
+    response.assert_status_success();
+    let otp = response.json::<TotpResposne>();
+    assert!(otp.url.starts_with("otpauth://totp/"));
+    assert!(otp.url.contains("Darve"));
+
+    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp_response = totp.generate();
+
+    // Verification OTP
+    let response = server
+        .post("/api/users/current/otp/verification")
+        .add_header("Cookie", &format!("jwt={}", token))
+        .json(&json!({ "token": totp_response.token }))
+        .await;
+
+    response.assert_status_success();
 
     // Generate a valid OTP token
     let user_db_service = LocalUserDbService {
@@ -281,11 +357,25 @@ test_with_server!(
         let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
 
         // First enable OTP
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
-        enable_response.assert_status_success();
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         let user_id = user.id.as_ref().unwrap().id.to_raw();
 
@@ -314,11 +404,25 @@ test_with_server!(
         let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
 
         // First enable OTP
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
-        enable_response.assert_status_success();
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         let user_id = user.id.as_ref().unwrap().id.to_raw();
 
@@ -354,13 +458,25 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     let (_server, user, _password, login_token) = create_fake_login_test_user(&server).await;
 
     // Step 1: Enable OTP
-    let enable_response = server
+    let response = server
         .post("/api/users/current/otp/enable")
         .add_header("Cookie", &format!("jwt={}", login_token))
         .await;
-    enable_response.assert_status_success();
-    let otp_url = enable_response.json::<TotpResposne>().url;
-    assert!(otp_url.starts_with("otpauth://totp/"));
+    response.assert_status_success();
+    let otp = response.json::<TotpResposne>();
+    assert!(otp.url.starts_with("otpauth://totp/"));
+    assert!(otp.url.contains("Darve"));
+
+    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp_response = totp.generate();
+
+    // Verification OTP
+    let response = server
+        .post("/api/users/current/otp/verification")
+        .add_header("Cookie", &format!("jwt={}", login_token))
+        .json(&json!({ "token": totp_response.token}))
+        .await;
+    response.assert_status_success();
 
     // Step 2: Verify OTP is enabled in database
     let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
@@ -421,11 +537,26 @@ test_with_server!(
         let (_server, user, _password, token) = create_fake_login_test_user(&server).await;
 
         // First enable OTP
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
-        enable_response.assert_status_success();
+        response.assert_status_success();
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         let user_id = user.id.as_ref().unwrap().id.to_raw();
 
@@ -487,14 +618,26 @@ test_with_server!(
         assert!(!login_token.is_empty());
 
         // Step 2: Enable OTP while logged in
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
 
-        enable_response.assert_status_success();
-        let otp_url = enable_response.json::<TotpResposne>().url;
-        assert!(otp_url.starts_with("otpauth://totp/"));
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", login_token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         // Verify OTP is enabled in database
         let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
@@ -597,11 +740,26 @@ test_with_server!(
         let login_json = login_response.json::<serde_json::Value>();
         let login_token = login_json["token"].as_str().unwrap();
 
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
-        enable_response.assert_status_success();
+
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", login_token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         // Step 2: Login again (should get OTP token)
         let login_again_response = server
@@ -645,11 +803,25 @@ test_with_server!(
         let login_json = login_response.json::<serde_json::Value>();
         let login_token = login_json["token"].as_str().unwrap();
 
-        let enable_response = server
+        let response = server
             .post("/api/users/current/otp/enable")
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
-        enable_response.assert_status_success();
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp_response = totp.generate();
+
+        // Verification OTP
+        let response = server
+            .post("/api/users/current/otp/verification")
+            .add_header("Cookie", &format!("jwt={}", login_token))
+            .json(&json!({ "token": totp_response.token}))
+            .await;
+        response.assert_status_success();
 
         // Step 2: Create an expired OTP token manually
         let user_id = user.id.as_ref().unwrap().id.to_raw();
@@ -714,5 +886,53 @@ test_with_server!(
             .await;
 
         test_response.assert_status_success();
+    }
+);
+test_with_server!(
+    test_otp_login_without_verification,
+    |server, ctx_state, config| {
+        let (_server, user, password, _initial_token) = create_fake_login_test_user(&server).await;
+
+        // Step 1: Enable OTP
+        let login_response = server
+            .post("/api/login")
+            .json(&json!({
+                "username": user.username,
+                "password": password
+            }))
+            .await;
+        login_response.assert_status_success();
+        let login_json = login_response.json::<serde_json::Value>();
+        let login_token = login_json["token"].as_str().unwrap();
+
+        let response = server
+            .post("/api/users/current/otp/enable")
+            .add_header("Cookie", &format!("jwt={}", login_token))
+            .await;
+
+        response.assert_status_success();
+        let otp = response.json::<TotpResposne>();
+        assert!(otp.url.starts_with("otpauth://totp/"));
+        assert!(otp.url.contains("Darve"));
+
+        // Step 2: Login again (should get OTP token)
+        let login_again_response = server
+            .post("/api/login")
+            .json(&json!({
+                "username": user.username,
+                "password": password
+            }))
+            .await;
+        login_again_response.assert_status_success();
+        let login_again_json = login_again_response.json::<serde_json::Value>();
+        let user = serde_json::from_value::<LocalUser>(login_again_json["user"].clone()).unwrap();
+        let token = login_again_json["token"].as_str().unwrap();
+
+        let res = ctx_state
+            .jwt
+            .decode_by_type(token, darve_server::utils::jwt::TokenType::Login);
+
+        assert!(res.is_ok());
+        assert!(!user.is_otp_enabled);
     }
 );

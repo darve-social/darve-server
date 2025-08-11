@@ -30,6 +30,39 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/users/current/otp/enable", post(otp_enable))
         .route("/api/users/current/otp/disable", post(otp_disable))
         .route("/api/users/current/otp/validate", post(otp_validate))
+        .route(
+            "/api/users/current/otp/verification",
+            post(otp_verification),
+        )
+}
+
+async fn otp_verification(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Json(data): Json<OtpVerificationData>,
+) -> CtxResult<Json<bool>> {
+    let user_id = auth_data.user_thing_id();
+    let local_user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &Ctx::new(Ok(auth_data.user_id.clone()), false),
+    };
+
+    let mut user = local_user_db_service.get_by_id(&user_id).await?;
+
+    if user.otp_secret.is_none() || user.is_otp_enabled {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let totp = Totp::new(&user_id, user.otp_secret.clone());
+    if !totp.is_valid(&data.token) {
+        return Err(AppError::Generic {
+            description: "Token is invalid".to_string(),
+        }
+        .into());
+    };
+    user.is_otp_enabled = true;
+    local_user_db_service.update(user).await?;
+    Ok(Json(true))
 }
 
 async fn otp_disable(
@@ -66,7 +99,6 @@ async fn otp_enable(
     let totp = Totp::new(&user_id, user.otp_secret.clone());
     let res = totp.generate();
 
-    user.is_otp_enabled = true;
     user.otp_secret = Some(res.secret.clone());
     local_user_db_service.update(user).await?;
 
