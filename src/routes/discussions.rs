@@ -10,9 +10,8 @@ use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::models::view::task::TaskRequestView;
-use crate::routes::community::discussion_routes::DiscussionPostView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
-use crate::services::post_service::{PostInput, PostService};
+use crate::services::post_service::{PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
@@ -167,7 +166,7 @@ pub async fn discussion_sse(
                 Err(_) => None,
                 Ok(msg) => match msg.event {
                         AppEventType::DiscussionPostAdded => {
-                            match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
+                            match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
                                 Ok(mut dpv) => {
                                     dpv.viewer_access_rights = user_auth.clone();
                                     dpv.has_view_access = match &dpv.access_rule {
@@ -181,20 +180,7 @@ pub async fn discussion_sse(
                                                 .unwrap_or(false)
                                         }
                                     };
-
-                                    match ctx.to_htmx_or_json(dpv) {
-                                        Ok(post_html) => Some(
-                                            Event::default().event("DiscussionPostAdded").data(post_html.0),
-                                        ),
-                                        Err(err) => {
-                                            let msg = "ERROR rendering DiscussionPostView";
-                                            println!("{} ERR={}", &msg, err.error);
-                                            Some(
-                                                Event::default()
-                                                    .data(&serde_json::to_string(&msg).unwrap())
-                                            )
-                                        }
-                                    }
+                                    Some(Event::default().data(&serde_json::to_string(&dpv).unwrap()))
                                 }
                                 Err(err) => {
                                     let msg =

@@ -285,6 +285,7 @@ where
                 } else {
                     Some(data.tags)
                 },
+                deny_rules: None,
             })
             .await;
 
@@ -332,7 +333,24 @@ where
 
         let _ = self
             .notification_service
-            .on_discussion_post(&user.id.as_ref().unwrap(), &post)
+            .on_discussion_post(
+                &user.id.as_ref().unwrap(),
+                &PostView {
+                    id: post.id.clone().unwrap(),
+                    created_by_name: user.username.clone(),
+                    belongs_to_uri: None,
+                    belongs_to_id: post.belongs_to.clone(),
+                    title: post.title.clone(),
+                    r_title_uri: post.r_title_uri.clone(),
+                    content: post.content.clone().unwrap_or_default(),
+                    media_links: post.media_links.clone(),
+                    r_created: post.r_created.clone().unwrap_or_default(),
+                    replies_nr: post.replies_nr,
+                    access_rule: None,
+                    viewer_access_rights: vec![],
+                    has_view_access: true,
+                },
+            )
             .await?;
 
         Ok(post)

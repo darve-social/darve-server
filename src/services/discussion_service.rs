@@ -278,6 +278,7 @@ impl<'a> DiscussionService<'a> {
                 r_created: None,
                 created_by: user_thing.clone(),
                 private_discussion_users_final: data.private_discussion_users_final,
+                deny_rules: None,
             })
             .await?;
 

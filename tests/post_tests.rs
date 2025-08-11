@@ -2,22 +2,15 @@ mod helpers;
 
 use crate::helpers::post_helpers::create_post;
 use crate::helpers::{create_fake_login_test_user, post_helpers};
-use axum::extract::Query;
-use axum::extract::{Path, State};
 use axum_test::multipart::MultipartForm;
-use community_entity::CommunityDbService;
-use community_routes::get_community;
-use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
-use darve_server::routes::community::community_routes;
 use darve_server::routes::posts::GetPostsQuery;
 use helpers::community_helpers;
-use helpers::community_helpers::create_fake_community;
 use helpers::community_helpers::get_profile_discussion_id;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
@@ -26,63 +19,28 @@ use helpers::post_helpers::{
 use middleware::ctx::Ctx;
 use middleware::utils::extractor_utils::DiscussionParams;
 
-test_with_server!(create_post_test, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
-
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-
-    let ctx = Ctx::new(Ok(user_ident), false);
-
-    let _ = create_fake_post(server, &result.default_discussion, None, None).await;
-    let _ = create_fake_post(server, &result.default_discussion, None, None).await;
-    let _ = create_fake_post(server, &result.default_discussion, None, None).await;
-    let _ = create_fake_post(server, &result.default_discussion, None, None).await;
-
-    let comm_view = get_community(
-        State(ctx_state.clone()),
-        ctx,
-        Path(result.name),
-        Query(DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        }),
-    )
-    .await
-    .expect("community page");
-    let posts = comm_view
-        .community_view
-        .unwrap()
-        .discussion_view
-        .unwrap()
-        .posts;
-    assert_eq!(posts.len(), 4);
-});
-
 test_with_server!(
     create_post_with_the_same_name,
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
         let user_ident = user.id.as_ref().unwrap().to_raw();
 
-        let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+        let result =
+            DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
 
         let title = "TEST_TEST";
         let data = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content");
 
-        let response =
-            helpers::post_helpers::create_post(server, &result.default_discussion, data).await;
+        let response = helpers::post_helpers::create_post(server, &result, data).await;
 
         response.assert_status_success();
 
         let data_1 = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content");
-        let response_1 =
-            helpers::post_helpers::create_post(server, &result.default_discussion, data_1).await;
+        let response_1 = helpers::post_helpers::create_post(server, &result, data_1).await;
 
         response_1.assert_status_bad_request();
     }
@@ -116,19 +74,12 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let _ = create_fake_post(server, &default_discussion, None, None).await;
 
-    let profile_comm = CommunityDbService {
-        ctx: &ctx,
-        db: &ctx_state.db.client,
-    }
-    .get_profile_community(user_thing_id)
-    .await;
-    let discussion_id = profile_comm.unwrap().default_discussion.unwrap();
     let result = PostDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
     .get_by_discussion_desc_view::<RecordWithId>(
-        discussion_id.clone(),
+        default_discussion.clone(),
         DiscussionParams {
             topic_id: None,
             start: Some(0),
@@ -144,7 +95,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         ctx: &ctx,
     }
     .get_by_discussion_desc_view::<RecordWithId>(
-        discussion_id.clone(),
+        default_discussion.clone(),
         DiscussionParams {
             topic_id: None,
             start: Some(0),
@@ -159,7 +110,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         ctx: &ctx,
     }
     .get_by_discussion_desc_view::<RecordWithId>(
-        discussion_id.clone(),
+        default_discussion.clone(),
         DiscussionParams {
             topic_id: None,
             start: Some(0),

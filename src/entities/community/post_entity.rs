@@ -23,6 +23,11 @@ use crate::middleware::utils::string_utils::get_str_thing;
 use super::reply_entity::Reply;
 use super::{discussion_entity, discussion_topic_entity};
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum PostDenyRule {
+    CreateTask,
+}
+
 /// Post belongs_to discussion.
 /// It is created_by user. Since user can create posts in different
 /// discussions we have to filter by discussion and user to get user's posts
@@ -54,6 +59,7 @@ pub struct Post {
     pub replies_nr: i64,
     pub likes_nr: i64,
     pub tags: Option<Vec<String>>,
+    pub deny_rules: Option<Vec<PostDenyRule>>,
 }
 
 pub struct PostDbService<'a> {
@@ -94,6 +100,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>
         ASSERT {{ IF type::is::array($value) AND array::len($value) < 6 {{ RETURN true }}ELSE{{ IF type::is::none($value){{RETURN true}}ELSE{{THROW \"Maxi nr of tags is 5\"}} }} }};
     DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;

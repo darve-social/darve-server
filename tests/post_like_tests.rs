@@ -1,16 +1,19 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
-use darve_server::routes::posts::PostLikeResponse;
-use helpers::community_helpers::create_fake_community;
+use darve_server::{
+    entities::community::discussion_entity::DiscussionDbService,
+    middleware::utils::string_utils::get_string_thing, routes::posts::PostLikeResponse,
+};
 use helpers::post_helpers::{self, create_fake_post};
 
 test_with_server!(create_post_like, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+    let result =
+        DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
 
-    let result = create_fake_post(server, &result.default_discussion, None, None).await;
+    let result = create_fake_post(server, &result, None, None).await;
 
     // check like and number
     let response = post_helpers::create_post_like(&server, &result.id, None).await;
@@ -32,9 +35,10 @@ test_with_server!(create_post_like, |server, ctx_state, config| {
 test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+    let result =
+        DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
 
-    let result = create_fake_post(server, &result.default_discussion, None, None).await;
+    let result = create_fake_post(server, &result, None, None).await;
 
     // check like and number
     let response = post_helpers::create_post_like(&server, &result.id, Some(4)).await;
@@ -46,8 +50,9 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
 test_with_server!(udpate_likes, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
-    let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-    let result = create_fake_post(server, &result.default_discussion, None, None).await;
+    let result =
+        DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
+    let result = create_fake_post(server, &result, None, None).await;
 
     let response = post_helpers::create_post_like(&server, &result.id, None).await;
     response.assert_status_ok();

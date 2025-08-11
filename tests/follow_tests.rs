@@ -12,10 +12,7 @@ use darve_server::{
     },
     middleware,
     routes::{
-        community::{
-            discussion_routes::DiscussionPostView,
-            profile_routes::{self},
-        },
+        community::profile_routes::{self},
         follows::UserItemView,
         user_auth::login_routes,
     },
@@ -172,7 +169,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
 
     // login user1
@@ -231,7 +228,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
 
-    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
 
     // login user1
@@ -280,7 +277,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
 
     // user3 unfollow user1
@@ -356,7 +353,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
         .await;
-    let posts = &create_response.json::<Vec<DiscussionPostView>>();
+    let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
 
     let notifications_response = server

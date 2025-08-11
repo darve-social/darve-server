@@ -30,9 +30,6 @@ use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
-use routes::community::{
-    community_routes, discussion_routes, discussion_topic_routes, stripe_routes,
-};
 use routes::tasks;
 use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
 use routes::user_auth::{
@@ -131,13 +128,9 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())
-        .merge(discussion_routes::routes())
-        .merge(discussion_topic_routes::routes())
-        .merge(community_routes::routes())
         .merge(access_rule_routes::routes())
         .merge(posts::routes(ctx_state.upload_max_size_mb))
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
-        .merge(stripe_routes::routes())
         .merge(access_gain_action_routes::routes())
         .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
         .merge(tasks::routes())
