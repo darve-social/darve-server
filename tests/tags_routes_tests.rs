@@ -22,7 +22,7 @@ test_with_server!(
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
         let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-
+        // Create multiple posts with different tags
         let tags1 = vec!["rust".to_string(), "programming".to_string()];
         let _ = create_fake_post(server, &result, None, Some(tags1)).await;
 
@@ -33,6 +33,7 @@ test_with_server!(
         let _ = create_fake_post(server, &result, None, Some(tags3)).await;
 
         let response = server.get("/api/tags").await;
+
         response.assert_status_success();
         let tags = response.json::<Vec<String>>();
 
