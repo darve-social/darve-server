@@ -8,6 +8,7 @@ pub struct Reply {
     pub belongs_to: Thing,
     pub created_by: Thing,
     pub content: String,
+    pub likes_nr: u32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

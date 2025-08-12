@@ -134,6 +134,7 @@ async fn like(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.likes,
     )
     .like(&post_id, &user_id, body)
     .await?;
@@ -152,6 +153,7 @@ async fn unlike(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.likes,
     )
     .unlike(&post_id, &auth_data.user_thing_id())
     .await?;
@@ -265,6 +267,7 @@ async fn create_reply(
     Ok(Json(ReplyView {
         id: reply.id,
         user: UserView::from(user),
+        likes_nr: reply.likes_nr,
         content: reply.content,
         created_at: reply.created_at,
         updated_at: reply.updated_at,

@@ -6,7 +6,7 @@ use crate::{
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
         self, auth_routes, community::profile_routes, discussions, follows, notifications, posts,
-        swagger, user_otp, users, wallet, webhooks::paypal,
+        reply, swagger, user_otp, users, wallet, webhooks::paypal,
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -147,6 +147,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(swagger::routes())
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
+        .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
 }

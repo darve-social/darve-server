@@ -393,6 +393,7 @@ async fn create_post(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.likes,
     );
 
     let post = post_service

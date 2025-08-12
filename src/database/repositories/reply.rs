@@ -19,19 +19,18 @@ impl RepliesRepository {
     }
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-     DEFINE TABLE IF NOT EXISTS reply SCHEMAFULL;
+    DEFINE TABLE IF NOT EXISTS reply SCHEMAFULL;
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE reply TYPE record<{POST_TABLE_NAME}>;
     DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE reply COLUMNS belongs_to;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE reply TYPE record<{USER_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS content ON TABLE reply TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE reply TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE reply TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE reply  TYPE datetime DEFAULT time::now() VALUE time::now();
     ");
         let mutation = self.client.query(sql).await?;
 
-        mutation
-            .check()
-            .expect("should mutate taskRequestParticipation");
+        mutation.check().expect("should mutate RepliesRepository");
 
         Ok(())
     }
@@ -62,5 +61,12 @@ impl RepliesRepository {
             .take::<Vec<ReplyView>>(0)?;
 
         Ok(data)
+    }
+
+    pub async fn get_by_id(&self, reply_id: &str) -> AppResult<Reply> {
+        let data: Option<Reply> = self.client.select(("reply", reply_id)).await?;
+        Ok(data.ok_or(AppError::EntityFailIdNotFound {
+            ident: reply_id.to_string(),
+        })?)
     }
 }
