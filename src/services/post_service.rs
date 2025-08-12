@@ -15,7 +15,9 @@ use crate::{
     },
     interfaces::{
         file_storage::FileStorageInterface,
-        repositories::user_notifications::UserNotificationsInterface,
+        repositories::{
+            like::LikesRepositoryInterface, user_notifications::UserNotificationsInterface,
+        },
     },
     middleware::{
         ctx::Ctx,
@@ -99,24 +101,27 @@ impl ViewRelateField for PostView {
         has_view_access: false"
     }
 }
-pub struct PostService<'a, F, N>
+pub struct PostService<'a, F, N, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    L: LikesRepositoryInterface,
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
     access_repository: AccessRightDbService<'a>,
     posts_repository: PostDbService<'a>,
     file_storage: &'a F,
+    likes_repository: &'a L,
     notification_service: NotificationService<'a, N>,
     streams_repository: PostStreamDbService<'a>,
 }
 
-impl<'a, F, N> PostService<'a, F, N>
+impl<'a, F, N, L> PostService<'a, F, N, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    L: LikesRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -124,6 +129,7 @@ where
         event_sender: &'a Sender<AppEvent>,
         notification_repository: &'a N,
         file_storage: &'a F,
+        likes_repository: &'a L,
     ) -> Self {
         Self {
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
@@ -136,6 +142,7 @@ where
             ),
             discussions_repository: DiscussionDbService { db: &db, ctx },
             file_storage,
+            likes_repository,
             access_repository: AccessRightDbService { db: &db, ctx },
             streams_repository: PostStreamDbService { db: &db, ctx },
         }
@@ -147,7 +154,7 @@ where
 
         let count = data.count.unwrap_or(1);
         let likes_count = self
-            .posts_repository
+            .likes_repository
             .like(
                 user.id.as_ref().unwrap().clone(),
                 post.id.as_ref().unwrap().clone(),
@@ -171,7 +178,7 @@ where
         let post = self.posts_repository.get_by_id(post_id).await?;
 
         let likes_count = self
-            .posts_repository
+            .likes_repository
             .unlike(
                 user.id.as_ref().unwrap().clone(),
                 post.id.as_ref().unwrap().clone(),
@@ -277,7 +284,6 @@ where
                 r_created: None,
                 created_by: user.id.clone().unwrap(),
                 r_updated: None,
-                r_replies: None,
                 likes_nr: 0,
                 replies_nr: 0,
                 tags: if data.tags.is_empty() {
