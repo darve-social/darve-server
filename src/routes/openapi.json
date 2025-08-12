@@ -508,7 +508,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/TaskRequestView"
+                    "$ref": "#/components/schemas/TaskViewForParticipant"
                   }
                 }
               }
@@ -2905,7 +2905,69 @@
       },
       "CurrencySymbol": {
         "type": "string",
+        "enum": ["USD", "REEF", "ETH"],
         "description": "Currency symbol"
+      },
+      "TaskViewForParticipant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Task request ID"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserView"
+          },
+          "request_txt": {
+            "type": "string",
+            "description": "Task request description"
+          },
+          "total_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total amount from all donors"
+          },
+          "donors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskRequestDonorView"
+            },
+            "description": "Task donors"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencySymbol"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Task end date (due date)"
+          },
+          "accept_by": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Deadline to accept the task"
+          },
+          "deliver_by": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Deadline to deliver the task (only set if task is accepted)"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskRequestViewParticipant"
+            },
+            "description": "Task participants (filtered to current user)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Task creation timestamp"
+          }
+        },
+        "required": ["id", "created_by", "request_txt", "total_amount", "donors", "currency", "end_at", "accept_by", "participants", "created_at"],
+        "description": "Task view specifically for participants, containing computed fields and filtered data"
       },
       "EmailVerificationStartInput": {
         "type": "object",

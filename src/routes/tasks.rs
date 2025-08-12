@@ -4,7 +4,7 @@ use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
-use crate::models::view::task::TaskRequestView;
+use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
@@ -52,30 +52,33 @@ async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Query(query): Query<GetTaskByToUserQuery>,
-) -> CtxResult<Json<Vec<TaskRequestView>>> {
-    let to_user = LocalUserDbService {
+) -> CtxResult<Json<Vec<TaskViewForParticipant>>> {
+    let user_id = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
     .get_ctx_user_thing()
     .await?;
 
-    let list = TaskRequestDbService {
+    let task_service = TaskRequestDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
-    }
-    .get_by_user::<TaskRequestView>(
-        &to_user,
-        query.status,
-        query.is_ended,
-        Pagination {
-            order_by: None,
-            order_dir: query.order_dir,
-            count: query.count.unwrap_or(20),
-            start: query.start.unwrap_or(0),
-        },
-    )
-    .await?;
+    };
+
+    let pagination = Pagination {
+        order_by: None,
+        order_dir: query.order_dir,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
+    };
+
+    let list = task_service
+        .get_by_user::<TaskRequestView>(&user_id, query.status, query.is_ended, pagination)
+        .await?
+        .into_iter()
+        .map(|view| TaskViewForParticipant::from_view(view, &user_id))
+        .collect::<Vec<TaskViewForParticipant>>();
+
     Ok(Json(list))
 }
 
