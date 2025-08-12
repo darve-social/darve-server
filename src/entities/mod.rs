@@ -1,4 +1,5 @@
 pub mod community;
+pub mod reply;
 pub mod task;
 pub mod task_donor;
 pub mod task_request_user;

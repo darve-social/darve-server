@@ -6,7 +6,7 @@ use crate::{
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
         self, auth_routes, community::profile_routes, discussions, follows, notifications, posts,
-        swagger, user_otp, users, wallet, webhooks::paypal,
+        reply, swagger, user_otp, users, wallet, webhooks::paypal,
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -19,7 +19,6 @@ use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
-use entities::community::reply_entity::ReplyDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
 use entities::user_auth::access_gain_action_entity::AccessGainActionDbService;
 use entities::user_auth::access_right_entity::AccessRightDbService;
@@ -93,7 +92,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
-    ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }
@@ -142,6 +140,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(swagger::routes())
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
+        .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
 }
