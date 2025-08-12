@@ -35,12 +35,11 @@ async fn like(
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<LikeData>,
 ) -> CtxResult<Json<LikeResponse>> {
-    let user_id = auth_data.user_thing_id();
-    let user = LocalUserDbService {
+    let user_id = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_by_id(&user_id)
+    .get_ctx_user_thing()
     .await?;
     let reply_thing = get_str_thing(&reply_id)?;
     let reply = ctx_state
@@ -54,7 +53,7 @@ async fn like(
         .db
         .likes
         .like(
-            user.id.as_ref().unwrap().clone(),
+            user_id,
             reply.id,
             body.count.unwrap_or(1),
         )
