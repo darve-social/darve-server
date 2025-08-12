@@ -11,12 +11,11 @@ use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::task::TaskRequestView;
-use crate::routes::community::discussion_routes::DiscussionPostView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::services::post_service::{PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use access_right_entity::AccessRightDbService;
-use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
+use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
@@ -133,7 +132,7 @@ pub async fn discussion_sse(
     .await?;
     let discussion_id = discussion.id.expect("disc id");
 
-    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
+    let (_is_user_chat_discussion, _user_auth) = is_user_chat_discussion_user_auths(
         &ctx_state.db.client,
         &ctx,
         &discussion_id,
@@ -169,35 +168,14 @@ pub async fn discussion_sse(
                 Err(_) => None,
                 Ok(msg) => match msg.event {
                         AppEventType::DiscussionPostAdded => {
-                            match serde_json::from_str::<DiscussionPostView>(&msg.content.clone().unwrap()) {
-                                Ok(mut dpv) => {
-                                    dpv.viewer_access_rights = user_auth.clone();
-                                    dpv.has_view_access = match &dpv.access_rule {
-                                        None => true,
-                                        Some(ar) => {
-                                            is_user_chat_discussion
-                                                || is_any_ge_in_list(
-                                                    &ar.authorization_required,
-                                                    &dpv.viewer_access_rights,
-                                                )
-                                                .unwrap_or(false)
-                                        }
-                                    };
-
-                                    match ctx.to_htmx_or_json(dpv) {
-                                        Ok(post_html) => Some(
-                                            Event::default().event("DiscussionPostAdded").data(post_html.0),
-                                        ),
-                                        Err(err) => {
-                                            let msg = "ERROR rendering DiscussionPostView";
-                                            println!("{} ERR={}", &msg, err.error);
-                                            Some(
-                                                Event::default()
-                                                    .data(&serde_json::to_string(&msg).unwrap())
-                                            )
-                                        }
+                            match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
+                                Ok(_) => Some(
+                                    if ctx.is_htmx {
+                                       Event::default().event("DiscussionPostAdded").data(msg.content.unwrap())
+                                    } else {
+                                      Event::default().data(&serde_json::to_string(&msg).unwrap())
                                     }
-                                }
+                                ),
                                 Err(err) => {
                                     let msg =
                                     "ERROR converting NotificationEvent content to DiscussionPostView";

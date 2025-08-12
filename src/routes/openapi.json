@@ -3088,17 +3088,13 @@
             "type": "string",
             "description": "Post ID"
           },
-          "created_by_name": {
-            "type": "string",
-            "description": "Username of post creator"
+          "created_by": {
+            "$ref": "#/components/schemas/UserView",
+            "description": "User who created the post"
           },
-          "belongs_to_uri": {
+          "belongs_to": {
             "type": "string",
-            "description": "URI of the discussion this post belongs to"
-          },
-          "belongs_to_id": {
-            "type": "string",
-            "description": "ID of the discussion this post belongs to"
+            "description": "Discussion ID this post belongs to"
           },
           "title": {
             "type": "string",
@@ -3106,6 +3102,7 @@
           },
           "content": {
             "type": "string",
+            "nullable": true,
             "description": "Post content"
           },
           "media_links": {
@@ -3113,11 +3110,8 @@
             "items": {
               "type": "string"
             },
-            "description": "Media links"
-          },
-          "replies_nr": {
-            "type": "integer",
-            "description": "Number of replies"
+            "nullable": true,
+            "description": "Media links attached to the post"
           },
           "created_at": {
             "type": "string",
@@ -3125,8 +3119,19 @@
             "description": "Creation timestamp"
           },
           "updated_at": {
-            "type": "boolean",
-            "description": "Whether the viewer has access to this post"
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp"
+          },
+          "replies_nr": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of replies"
+          },
+          "likes_nr": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of likes"
           }
         }
       },

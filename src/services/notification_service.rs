@@ -6,6 +6,7 @@ use crate::entities::community::post_entity::Post;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
+use crate::services::post_service::PostView;
 use crate::{
     entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
     middleware::{
@@ -416,7 +417,7 @@ where
         Ok(())
     }
 
-    pub async fn on_discussion_post(&self, user_id: &Thing, post: &Post) -> CtxResult<()> {
+    pub async fn on_discussion_post(&self, user_id: &Thing, post: &PostView) -> CtxResult<()> {
         let receivers = vec![user_id.to_raw()];
 
         let post_json = serde_json::to_string(&post).map_err(|_| {
@@ -427,7 +428,7 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(post.belongs_to.clone()),
-            post_id: Some(post.id.clone().unwrap()),
+            post_id: Some(post.id.clone()),
             topic_id: None,
         };
 

@@ -27,6 +27,7 @@ use crate::{
             extractor_utils::DiscussionParams,
         },
     },
+    models::view::user::UserView,
     services::notification_service::NotificationService,
     utils::file::convert::convert_field_file_data,
 };
@@ -60,30 +61,28 @@ pub struct PostInput {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PostView {
     pub id: Thing,
-    pub created_by_name: String,
-    pub belongs_to_uri: Option<String>,
-    pub belongs_to_id: Thing,
+    pub created_by: UserView,
+    pub belongs_to: Thing,
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
-    pub likes_nr: u64,
+    pub likes_nr: i64,
 }
 
 impl ViewFieldSelector for PostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
         "id,
-        created_by.username as created_by_name, 
+        created_by.* as created_by, 
         title, 
         content,
         media_links, 
         created_at,
         updated_at,
-        belongs_to.name_uri as belongs_to_uri, 
-        belongs_to.id as belongs_to_id,
+        belongs_to,
         replies_nr,
         likes_nr"
             .to_string()
@@ -93,14 +92,13 @@ impl ViewFieldSelector for PostView {
 impl ViewRelateField for PostView {
     fn get_fields() -> &'static str {
         "id,
-        created_by_name: created_by.username, 
+        created_by: created_by.*, 
         title, 
         content,
         media_links, 
         created_at,
         updated_at,
-        belongs_to_uri: belongs_to.name_uri, 
-        belongs_to_id: belongs_to.id,
+        belongs_to,
         replies_nr,
         likes_nr"
     }
@@ -341,7 +339,21 @@ where
 
         let _ = self
             .notification_service
-            .on_discussion_post(&user.id.as_ref().unwrap(), &post)
+            .on_discussion_post(
+                &user.id.as_ref().unwrap(),
+                &PostView {
+                    id: post.id.as_ref().unwrap().clone(),
+                    created_by: UserView::from(user.clone()),
+                    belongs_to: post.belongs_to.clone(),
+                    title: post.title.clone(),
+                    content: post.content.clone(),
+                    media_links: post.media_links.clone(),
+                    created_at: post.created_at,
+                    updated_at: post.updated_at,
+                    replies_nr: post.replies_nr,
+                    likes_nr: post.likes_nr,
+                },
+            )
             .await?;
 
         Ok(post)
