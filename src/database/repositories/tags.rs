@@ -36,8 +36,10 @@ impl TagsRepositoryInterface for TagsRepository {
     async fn create_with_relate(&self, tags: Vec<String>, thing: Thing) -> AppResult<()> {
         let _ = self
             .client
+            .query("BEGIN TRANSACTION;")
             .query("LET $ids = UPSERT $tags.map(|$v| type::thing('tags', $v));")
             .query("RELATE $ids->tag->$entity;")
+            .query("COMMIT TRANSACTION;")
             .query("RETURN $ids;")
             .bind(("tags", tags))
             .bind(("entity", thing))
