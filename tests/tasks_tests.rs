@@ -14,7 +14,7 @@ use darve_server::{
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
-    models::view::task::TaskRequestView,
+    models::view::task::{TaskRequestView, TaskViewForParticipant},
 };
 
 use fake::{faker, Fake};
@@ -60,13 +60,13 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let tasks = task_request.json::<Vec<TaskRequestView>>();
+    let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.due_at > Utc::now());
-    assert!(first.participants.is_some());
-    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
-    let task_user = first.participants.as_ref().unwrap().first().unwrap();
+    assert!(first.end_at > Utc::now());
+    assert_eq!(first.total_amount, 100);
+    assert_eq!(first.participants.len(), 1);
+    let task_user = first.participants.first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskParticipantStatus::Requested);
     let task_request = server
@@ -129,18 +129,17 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let tasks = task_request.json::<Vec<TaskRequestView>>();
+    let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.participants.is_some());
-    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
-    let task_user = first.participants.as_ref().unwrap().first().unwrap();
+    assert_eq!(first.participants.len(), 1);
+    let task_user = first.participants.first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskParticipantStatus::Accepted);
 });
 
 test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
-    let (server, user, _, token) = create_fake_login_test_user(&server).await;
+    let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = Thing::from((
@@ -198,25 +197,18 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let tasks = task_request.json::<Vec<TaskRequestView>>();
+    let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.participants.is_some());
-    assert_eq!(first.participants.as_ref().unwrap().len(), 2);
-    let task_users = first.participants.as_ref().unwrap();
-    assert_eq!(task_users.len(), 2);
+    assert_eq!(first.participants.len(), 1);
+    let task_users = &first.participants;
+    assert_eq!(task_users.len(), 1);
     let task_user0 = task_users
         .iter()
         .find(|t| &t.user.id == user0.id.as_ref().unwrap())
         .unwrap();
     assert_eq!(task_user0.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user0.status, TaskParticipantStatus::Accepted);
-    let task_user = task_users
-        .iter()
-        .find(|t| &t.user.id == user.id.as_ref().unwrap())
-        .unwrap();
-    assert_eq!(task_user.user.id, user.id.as_ref().unwrap().clone());
-    assert_eq!(task_user.status, TaskParticipantStatus::Accepted);
 });
 
 test_with_server!(
@@ -509,12 +501,11 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let tasks = task_request.json::<Vec<TaskRequestView>>();
+    let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.participants.is_some());
-    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
-    let task_user = first.participants.as_ref().unwrap().first().unwrap();
+    assert_eq!(first.participants.len(), 1);
+    let task_user = first.participants.first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskParticipantStatus::Rejected);
 });
@@ -697,12 +688,11 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let tasks = task_request.json::<Vec<TaskRequestView>>();
+    let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let first = tasks.first().unwrap();
-    assert!(first.participants.is_some());
-    assert_eq!(first.participants.as_ref().unwrap().len(), 1);
-    let task_user = first.participants.as_ref().unwrap().first().unwrap();
+    assert_eq!(first.participants.len(), 1);
+    let task_user = first.participants.first().unwrap();
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
 });
@@ -989,7 +979,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received")
@@ -998,7 +988,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 0);
     let response = server
         .get("/api/tasks/received?status=Accepted")
@@ -1006,7 +996,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
 
     let response = server
@@ -1015,7 +1005,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 3);
     let response = server
         .get("/api/tasks/received")
@@ -1024,7 +1014,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received?status=Requested")
@@ -1032,7 +1022,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received?status=Accepted")
@@ -1040,7 +1030,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let tasks = response.json::<Vec<TaskRequestView>>();
+    let tasks = response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
 });
 
@@ -1437,13 +1427,13 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .add_header("Cookie", format!("jwt={token0}"))
         .await;
     get_response.assert_status_success();
-    let tasks = get_response.json::<Vec<TaskRequestView>>();
+    let tasks = get_response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 2);
     let get_response = server
         .get("/api/tasks/received?is_ended=true")
         .add_header("Cookie", format!("jwt={token0}"))
         .await;
     get_response.assert_status_success();
-    let tasks = get_response.json::<Vec<TaskRequestView>>();
+    let tasks = get_response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
 });
