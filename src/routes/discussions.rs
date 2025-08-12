@@ -374,6 +374,7 @@ async fn create_post(
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
         &ctx_state.db.tags,
+        &ctx_state.db.likes,
     );
 
     let post = post_service
@@ -398,6 +399,7 @@ async fn get_posts(
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
         &ctx_state.db.tags,
+        &ctx_state.db.likes,
     );
 
     let posts = post_service

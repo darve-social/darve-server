@@ -4,6 +4,7 @@ pub mod discussions;
 pub mod follows;
 pub mod notifications;
 pub mod posts;
+pub mod reply;
 pub mod swagger;
 pub mod tags;
 pub mod tasks;

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use askama_axum::Template;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
@@ -8,23 +7,22 @@ use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::IdentIdName;
 use post_entity::{Post, PostDbService};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
 use validator::Validate;
 
 use crate::entities::community::post_entity;
-use crate::entities::community::reply_entity::{Reply, ReplyDbService};
 use crate::entities::task::task_request_entity::TaskRequest;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::models::view::reply::ReplyView;
 use crate::models::view::task::TaskRequestView;
+use crate::models::view::user::UserView;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{PostLikeData, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
@@ -48,20 +46,6 @@ pub struct GetPostsQuery {
     pub order_dir: Option<QryOrder>,
     pub start: Option<u32>,
     pub count: Option<u16>,
-}
-#[derive(Template, Serialize, Deserialize, Debug)]
-#[template(path = "nera2/post-reply-1.html")]
-pub struct PostReplyView {
-    pub id: Thing,
-    pub username: String,
-    pub title: String,
-    pub content: String,
-    pub r_created: String,
-}
-impl ViewFieldSelector for PostReplyView {
-    fn get_select_query_fields() -> String {
-        "id, title, content, r_created, created_by.username as username".to_string()
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -152,6 +136,7 @@ async fn like(
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
         &ctx_state.db.tags,
+        &ctx_state.db.likes,
     )
     .like(&post_id, &user_id, body)
     .await?;
@@ -171,6 +156,7 @@ async fn unlike(
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
         &ctx_state.db.tags,
+        &ctx_state.db.likes,
     )
     .unlike(&post_id, &auth_data.user_thing_id())
     .await?;
@@ -178,11 +164,17 @@ async fn unlike(
     Ok(Json(PostLikeResponse { likes_count: count }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GetRepliesQuery {
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+}
 async fn get_replies(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
-) -> CtxResult<Json<Vec<PostReplyView>>> {
+    Query(query): Query<GetRepliesQuery>,
+) -> CtxResult<Json<Vec<ReplyView>>> {
     let _ = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -197,20 +189,25 @@ async fn get_replies(
     .get_by_id(&post_id)
     .await?;
 
-    let replies = ReplyDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    }
-    .get_by_post_desc_view::<PostReplyView>(post.id.as_ref().unwrap().clone(), 0, 120)
-    .await?;
+    let replies = state
+        .db
+        .replies
+        .get(
+            post.id.as_ref().unwrap().id.to_raw().as_ref(),
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
+            },
+        )
+        .await?;
 
     Ok(Json(replies))
 }
 
 #[derive(Deserialize, Serialize, Validate)]
 pub struct PostReplyInput {
-    #[validate(length(min = 5, message = "Min 5 characters"))]
-    pub title: String,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub content: String,
 }
@@ -220,43 +217,28 @@ async fn create_reply(
     auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
-) -> CtxResult<Json<Reply>> {
+) -> CtxResult<Json<ReplyView>> {
     let user = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
     .get_by_id(&auth_data.user_thing_id())
     .await?;
-    let created_by = user.id.as_ref().unwrap();
+    let created_by = user.id.as_ref().unwrap().clone();
     let post_db_service = PostDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     };
     let post = post_db_service.get_by_id(&post_id).await?;
 
-    let reply_db_service = ReplyDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    };
-
-    let reply = reply_db_service
-        .create(Reply {
-            id: None,
-            discussion: post.belongs_to,
-            belongs_to: post.id.as_ref().unwrap().clone(),
-            created_by: created_by.clone(),
-            title: reply_input.title,
-            content: reply_input.content,
-            r_created: None,
-            r_updated: None,
-        })
-        .await?;
-    let reply_comm_view = reply_db_service
-        .get_view::<PostReplyView>(&IdentIdName::Id(reply.id.clone().unwrap()))
-        .await?;
-
-    let post = post_db_service
-        .increase_replies_nr(post.id.as_ref().unwrap().clone())
+    let reply = state
+        .db
+        .replies
+        .create(
+            post.id.as_ref().unwrap().id.to_raw().as_ref(),
+            user.id.as_ref().unwrap().id.to_raw().as_ref(),
+            &reply_input.content,
+        )
         .await?;
 
     let n_service = NotificationService::new(
@@ -265,12 +247,22 @@ async fn create_reply(
         &state.event_sender,
         &state.db.user_notifications,
     );
+
+    let reply_view = ReplyView {
+        id: reply.id,
+        user: UserView::from(user),
+        likes_nr: reply.likes_nr,
+        content: reply.content,
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+    };
+
     n_service
         .on_discussion_post_reply(
             &created_by,
             &post.id.as_ref().unwrap(),
-            &reply.discussion.clone(),
-            &reply_comm_view.render().unwrap(),
+            &post.belongs_to.clone(),
+            &reply_view,
             &None,
         )
         .await?;
@@ -279,11 +271,11 @@ async fn create_reply(
         .on_discussion_post_reply_nr_increased(
             &created_by,
             &post.id.as_ref().unwrap(),
-            &reply.discussion.clone(),
+            &post.belongs_to.clone(),
             &post.replies_nr.to_string(),
             &None,
         )
         .await?;
 
-    Ok(Json(reply))
+    Ok(Json(reply_view))
 }

@@ -1,3 +1,5 @@
+pub mod like;
+pub mod reply;
 pub mod tags;
 pub mod task_donors;
 pub mod task_participants;

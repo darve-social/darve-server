@@ -5,8 +5,19 @@ use crate::{
     },
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
-        self, auth_routes, community::profile_routes, discussions, follows, notifications, posts,
-        swagger, tags, user_otp, users, wallet, webhooks::paypal,
+        auth_routes,
+        community::{
+            community_routes, discussion_routes, discussion_topic_routes, profile_routes,
+            stripe_routes,
+        },
+        discussions, follows, notifications, posts, reply, swagger, tags, tasks,
+        user_auth::{
+            access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
+            register_routes,
+            webauthn::webauthn_routes::{self, WebauthnConfig},
+        },
+        user_otp, users, wallet,
+        webhooks::paypal,
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -19,7 +30,6 @@ use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
-use entities::community::reply_entity::ReplyDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
 use entities::user_auth::access_gain_action_entity::AccessGainActionDbService;
 use entities::user_auth::access_right_entity::AccessRightDbService;
@@ -30,15 +40,6 @@ use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
-use routes::community::{
-    community_routes, discussion_routes, discussion_topic_routes, stripe_routes,
-};
-use routes::tasks;
-use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
-use routes::user_auth::{
-    access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
-    register_routes,
-};
 use std::sync::Arc;
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
@@ -96,7 +97,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
-    ReplyDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRightDbService { db: &db, ctx: &c }
@@ -150,6 +150,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
         .merge(tags::routes())
+        .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
 }

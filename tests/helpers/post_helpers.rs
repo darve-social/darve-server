@@ -3,6 +3,7 @@ use axum_test::TestResponse;
 use axum_test::{multipart::Part, TestServer};
 use darve_server::entities::community::post_entity::Post;
 use darve_server::middleware::mw_ctx::CtxState;
+use darve_server::models::view::reply::ReplyView;
 use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
 use serde_json::json;
@@ -82,6 +83,18 @@ pub async fn create_fake_post(
 }
 
 #[allow(dead_code)]
+pub async fn create_fake_reply(server: &TestServer, post_id: &str) -> ReplyView {
+    let content = faker::lorem::en::Sentence(7..20).fake::<String>();
+    let reply = server
+        .post(format!("/api/posts/{post_id}/replies").as_str())
+        .add_header("Accept", "application/json")
+        .json(&json!({ "content": content  }))
+        .await;
+    reply.assert_status_success();
+    reply.json::<ReplyView>()
+}
+
+#[allow(dead_code)]
 pub async fn create_fake_post_with_large_file(
     server: &TestServer,
     _: &CtxState,
@@ -135,6 +148,27 @@ pub async fn create_post_like(
 pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestResponse {
     server
         .delete(format!("/api/posts/{post_id}/unlike").as_str())
+        .add_header("Accept", "application/json")
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn create_reply_like(
+    server: &TestServer,
+    reply_id: &str,
+    count: Option<u8>,
+) -> TestResponse {
+    server
+        .post(format!("/api/replies/{reply_id}/like").as_str())
+        .add_header("Accept", "application/json")
+        .json(&json!({ "count": count }))
+        .await
+}
+
+#[allow(dead_code)]
+pub async fn delete_reply_like(server: &TestServer, reply_id: &str) -> TestResponse {
+    server
+        .delete(format!("/api/replies/{reply_id}/unlike").as_str())
         .add_header("Accept", "application/json")
         .await
 }

@@ -9,7 +9,7 @@ use darve_server::entities::user_notification::{UserNotification, UserNotificati
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::middleware::utils::request_utils::CreatedResponse;
-use darve_server::models::view::task::TaskRequestView;
+use darve_server::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use darve_server::routes::community::community_routes;
 use darve_server::routes::tasks::TaskRequestOfferInput;
 use darve_server::routes::user_auth::login_routes;
@@ -276,7 +276,7 @@ test_with_server!(
             .await;
 
         received_post_tasks_req.assert_status_success();
-        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskViewForParticipant>>();
 
         assert_eq!(received_post_tasks.len(), 1);
         let received_task = received_post_tasks.get(0).unwrap();
@@ -297,7 +297,7 @@ test_with_server!(
             .await;
 
         received_post_tasks_req.assert_status_success();
-        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskViewForParticipant>>();
 
         assert_eq!(received_post_tasks.len(), 1);
         // let received_task = received_post_tasks.get(0).unwrap();
@@ -334,7 +334,7 @@ test_with_server!(
             .await;
 
         received_post_tasks_req.assert_status_success();
-        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskRequestView>>();
+        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskViewForParticipant>>();
         let _task = received_post_tasks.get(0).unwrap();
         // assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
 

@@ -62,7 +62,6 @@ pub struct PostDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "post";
-pub const TABLE_LIKE: &str = "like";
 
 // origin
 const TABLE_COL_DISCUSSION: &str = discussion_entity::TABLE_NAME;
@@ -91,12 +90,6 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
-
-    DEFINE TABLE IF NOT EXISTS {TABLE_LIKE} TYPE RELATION IN {TABLE_COL_USER} OUT {TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-    DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {TABLE_LIKE} FIELDS in, out UNIQUE;
-    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_LIKE} TYPE datetime DEFAULT time::now();
-    DEFINE FIELD IF NOT EXISTS count ON TABLE {TABLE_LIKE} TYPE number;
-
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -264,64 +257,6 @@ impl<'a> PostDbService<'a> {
                 _ => CtxError::from(self.ctx)(e),
             })
             .map(|v: Option<Post>| v.unwrap())
-    }
-
-    // not used currently
-    // pub async fn set_media_url(&self, post_id: &Thing, url: &str) -> CtxResult<Post> {
-    //     // TODO add index para to change particular url
-    //     let res: Option<Post> = self
-    //         .db
-    //         .update((post_id.tb.clone(), post_id.id.clone().to_string()))
-    //         .patch(PatchOp::add("/media_links", [url]))
-    //         .await
-    //         .map_err(CtxError::from(self.ctx))?;
-    //     res.ok_or_else(|| {
-    //         self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-    //             ident: post_id.to_raw(),
-    //         })
-    //     })
-    // }
-
-    pub async fn like(&self, user: Thing, post: Thing, count: u16) -> CtxResult<u32> {
-        let mut res = self
-            .db
-            .query("BEGIN TRANSACTION;")
-            .query("LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id")
-            .query(
-                "IF $id THEN
-                    UPDATE $id SET count=$count
-                 ELSE
-                    RELATE $in->like->$out SET count=$count
-                 END;",
-            )
-            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
-            .query("UPDATE $out SET likes_nr=$count;")
-            .query("RETURN $count;")
-            .query("COMMIT TRANSACTION;")
-            .bind(("in", user))
-            .bind(("out", post))
-            .bind(("count", count))
-            .await?;
-
-        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
-        Ok(count)
-    }
-
-    pub async fn unlike(&self, user: Thing, post: Thing) -> CtxResult<u32> {
-        let mut res = self
-            .db
-            .query("BEGIN TRANSACTION;")
-            .query("DELETE $in->like WHERE out=$out;")
-            .query("LET $count = math::sum(SELECT VALUE <-like.count[0] ?? 0 FROM $out);")
-            .query("UPDATE $out SET likes_nr=$count;")
-            .query("RETURN $count;")
-            .query("COMMIT TRANSACTION;")
-            .bind(("in", user))
-            .bind(("out", post))
-            .await?;
-
-        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
-        Ok(count)
     }
 
     pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
