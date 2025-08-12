@@ -15,6 +15,8 @@ use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 
+use super::repositories::tags::TagsRepository;
+
 pub type Db = Surreal<Any>;
 
 #[derive(Debug)]
@@ -34,6 +36,7 @@ pub struct Database {
     pub task_donors: TaskDonorsRepository,
     pub task_participants: TaskParticipantsRepository,
     pub task_relates: TaskRelatesRepository,
+    pub tags: TagsRepository,
     pub replies: RepliesRepository,
     pub likes: LikesRepository,
 }
@@ -70,6 +73,7 @@ impl Database {
             task_donors: TaskDonorsRepository::new(client.clone()),
             task_participants: TaskParticipantsRepository::new(client.clone()),
             task_relates: TaskRelatesRepository::new(client.clone()),
+            tags: TagsRepository::new(client.clone()),
             replies: RepliesRepository::new(client.clone()),
             likes: LikesRepository::new(client),
         }
@@ -81,6 +85,7 @@ impl Database {
         self.task_donors.mutate_db().await?;
         self.task_participants.mutate_db().await?;
         self.task_relates.mutate_db().await?;
+        self.tags.mutate_db().await?;
         self.replies.mutate_db().await?;
         self.likes.mutate_db().await?;
         Ok(())

@@ -3,12 +3,11 @@ use crate::{
     entities::{
         community::{
             discussion_entity::DiscussionDbService,
-            post_entity::{Post, PostDbService},
+            post_entity::{CreatePost, Post, PostDbService},
             post_stream_entity::PostStreamDbService,
         },
         user_auth::{
             access_right_entity::AccessRightDbService,
-            access_rule_entity::AccessRule,
             authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER},
             local_user_entity::LocalUserDbService,
         },
@@ -16,7 +15,8 @@ use crate::{
     interfaces::{
         file_storage::FileStorageInterface,
         repositories::{
-            like::LikesRepositoryInterface, user_notifications::UserNotificationsInterface,
+            like::LikesRepositoryInterface, tags::TagsRepositoryInterface,
+            user_notifications::UserNotificationsInterface,
         },
     },
     middleware::{
@@ -24,16 +24,17 @@ use crate::{
         error::{AppError, CtxResult},
         mw_ctx::AppEvent,
         utils::{
-            db_utils::{ViewFieldSelector, ViewRelateField},
+            db_utils::{Pagination, ViewFieldSelector, ViewRelateField},
             extractor_utils::DiscussionParams,
-            string_utils::get_string_thing,
         },
     },
+    models::view::user::UserView,
     services::notification_service::NotificationService,
     utils::file::convert::convert_field_file_data,
 };
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
+use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -52,7 +53,6 @@ pub struct PostInput {
     pub title: String,
     #[validate(length(min = 1, message = "Content cannot be empty"))]
     pub content: Option<String>,
-    pub topic_id: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
@@ -62,49 +62,53 @@ pub struct PostInput {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PostView {
     pub id: Thing,
-    pub created_by_name: String,
-    pub belongs_to_uri: Option<String>,
-    pub belongs_to_id: Thing,
+    pub created_by: UserView,
+    pub belongs_to: Thing,
     pub title: String,
-    pub r_title_uri: Option<String>,
-    pub content: String,
+    pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
-    pub r_created: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
-    pub access_rule: Option<AccessRule>,
-    pub viewer_access_rights: Vec<Authorization>,
-    pub has_view_access: bool,
+    pub likes_nr: i64,
 }
 
 impl ViewFieldSelector for PostView {
     // post fields selct qry for view
     fn get_select_query_fields() -> String {
-        "id, created_by.username as created_by_name, title, r_title_uri, content, media_links, r_created, belongs_to.name_uri as belongs_to_uri, belongs_to.id as belongs_to_id, replies_nr, discussion_topic.{id, title} as topic, discussion_topic.access_rule.* as access_rule, [] as viewer_access_rights, false as has_view_access".to_string()
+        "id,
+        created_by.* as created_by, 
+        title, 
+        content,
+        media_links, 
+        created_at,
+        updated_at,
+        belongs_to,
+        replies_nr,
+        likes_nr"
+            .to_string()
     }
 }
 
 impl ViewRelateField for PostView {
     fn get_fields() -> &'static str {
         "id,
-        created_by_name: created_by.username, 
+        created_by: created_by.*, 
         title, 
-        r_title_uri, 
         content,
         media_links, 
-        r_created, 
-        belongs_to_uri: belongs_to.name_uri, 
-        belongs_to_id: belongs_to.id,
-        replies_nr, 
-        topic: discussion_topic.{id, title}, 
-        access_rule: discussion_topic.access_rule.*, 
-        viewer_access_rights: [], 
-        has_view_access: false"
+        created_at,
+        updated_at,
+        belongs_to,
+        replies_nr,
+        likes_nr"
     }
 }
-pub struct PostService<'a, F, N, L>
+pub struct PostService<'a, F, N, T, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
 {
     users_repository: LocalUserDbService<'a>,
@@ -115,12 +119,14 @@ where
     likes_repository: &'a L,
     notification_service: NotificationService<'a, N>,
     streams_repository: PostStreamDbService<'a>,
+    tags_repository: &'a T,
 }
 
-impl<'a, F, N, L> PostService<'a, F, N, L>
+impl<'a, F, N, T, L> PostService<'a, F, N, T, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
+    T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
 {
     pub fn new(
@@ -129,6 +135,7 @@ where
         event_sender: &'a Sender<AppEvent>,
         notification_repository: &'a N,
         file_storage: &'a F,
+        tags_repository: &'a T,
         likes_repository: &'a L,
     ) -> Self {
         Self {
@@ -142,6 +149,7 @@ where
             ),
             discussions_repository: DiscussionDbService { db: &db, ctx },
             file_storage,
+            tags_repository,
             likes_repository,
             access_repository: AccessRightDbService { db: &db, ctx },
             streams_repository: PostStreamDbService { db: &db, ctx },
@@ -194,12 +202,25 @@ where
         user_id: &str,
         query: DiscussionParams,
     ) -> CtxResult<Vec<PostView>> {
-        let _ = self.users_repository.get_by_id(&user_id).await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
+
+        if !disc.is_profile() && !disc.is_member(&user.id.as_ref().unwrap()) {
+            return Err(AppError::Forbidden.into());
+        }
 
         let items = self
             .posts_repository
-            .get_by_discussion_desc_view::<PostView>(disc.id.as_ref().unwrap().clone(), query)
+            .get_by_query(
+                &user.id.as_ref().unwrap().id.to_raw(),
+                &disc.id.as_ref().unwrap().id.to_raw(),
+                Pagination {
+                    order_by: None,
+                    order_dir: None,
+                    count: query.count.unwrap_or(20),
+                    start: query.start.unwrap_or(0),
+                },
+            )
             .await?;
         Ok(items)
     }
@@ -254,62 +275,48 @@ where
                 .await
                 .map_err(|e| AppError::Generic { description: e })?;
 
-            vec![result]
+            Some(vec![result])
         } else {
-            vec![]
-        };
-
-        let topic_val: Option<Thing> = match data.topic_id {
-            Some(v) => Some(get_string_thing(v).map_err(|_| AppError::Generic {
-                description: "Topic id is invalid".to_string(),
-            })?),
-            None => None,
+            None
         };
 
         let post_res = self
             .posts_repository
-            .create_update(Post {
-                id: Some(new_post_id),
+            .create(CreatePost {
                 belongs_to: disc.id.clone().unwrap(),
-                discussion_topic: topic_val.clone(),
                 title: data.title,
-                r_title_uri: None,
                 content: data.content,
-                media_links: if media_links.is_empty() {
-                    None
-                } else {
-                    Some(media_links.clone())
-                },
-                metadata: None,
-                r_created: None,
-                created_by: user.id.clone().unwrap(),
-                r_updated: None,
-                likes_nr: 0,
-                replies_nr: 0,
-                tags: if data.tags.is_empty() {
-                    None
-                } else {
-                    Some(data.tags)
-                },
+                media_links: media_links.clone(),
+                created_by: user.id.as_ref().unwrap().clone(),
+                id: new_post_id,
             })
             .await;
 
         let post = match post_res {
             Ok(value) => value,
             Err(err) => {
-                let futures = media_links.into_iter().map(|link| {
-                    let file_storage = self.file_storage;
-                    async move {
-                        if let Some(filename) = link.split('/').last() {
-                            let _ = file_storage.delete(Some("posts"), filename).await;
+                if let Some(links) = &media_links {
+                    let futures = links.into_iter().map(|link| {
+                        let file_storage = self.file_storage;
+                        async move {
+                            if let Some(filename) = link.split('/').last() {
+                                let _ = file_storage.delete(Some("posts"), filename).await;
+                            }
                         }
-                    }
-                });
+                    });
 
-                join_all(futures).await;
+                    join_all(futures).await;
+                }
                 return Err(err);
             }
         };
+
+        if !data.tags.is_empty() {
+            let _ = self
+                .tags_repository
+                .create_with_relate(data.tags, post.id.as_ref().unwrap().clone())
+                .await?;
+        }
         // set latest post
         self.discussions_repository
             .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
@@ -338,7 +345,21 @@ where
 
         let _ = self
             .notification_service
-            .on_discussion_post(&user.id.as_ref().unwrap(), &post)
+            .on_discussion_post(
+                &user.id.as_ref().unwrap(),
+                &PostView {
+                    id: post.id.as_ref().unwrap().clone(),
+                    created_by: UserView::from(user.clone()),
+                    belongs_to: post.belongs_to.clone(),
+                    title: post.title.clone(),
+                    content: post.content.clone(),
+                    media_links: post.media_links.clone(),
+                    created_at: post.created_at,
+                    updated_at: post.updated_at,
+                    replies_nr: post.replies_nr,
+                    likes_nr: post.likes_nr,
+                },
+            )
             .await?;
 
         Ok(post)

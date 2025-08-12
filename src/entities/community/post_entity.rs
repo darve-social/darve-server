@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::err::Error::IndexExists;
 use surrealdb::opt::PatchOp;
@@ -19,6 +20,7 @@ use crate::database::client::Db;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::services::post_service::PostView;
 
 use super::{discussion_entity, discussion_topic_entity};
 
@@ -35,22 +37,23 @@ pub struct Post {
     pub belongs_to: Thing,
     pub created_by: Thing,
     pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub discussion_topic: Option<Thing>,
-    // #[serde(skip_serializing)]
-    pub r_title_uri: Option<String>,
     pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media_links: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Vec<String>>,
-    // #[serde(skip_serializing)]
-    pub r_created: Option<String>,
-    // #[serde(skip_serializing)]
-    pub r_updated: Option<String>,
+    #[serde(default)]
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
     pub likes_nr: i64,
-    pub tags: Option<Vec<String>>,
+}
+#[derive(Debug, Serialize)]
+pub struct CreatePost {
+    pub id: Thing,
+    pub belongs_to: Thing,
+    pub created_by: Thing,
+    pub title: String,
+    pub content: Option<String>,
+    pub media_links: Option<Vec<String>>,
 }
 
 pub struct PostDbService<'a> {
@@ -80,21 +83,13 @@ impl<'a> PostDbService<'a> {
     DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO} ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_BELONGS_TO};
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD IF NOT EXISTS r_title_uri ON TABLE {TABLE_NAME} VALUE string::slug($this.title);
-    DEFINE INDEX IF NOT EXISTS {INDEX_BELONGS_TO_URI} ON TABLE {TABLE_NAME} COLUMNS belongs_to, r_title_uri UNIQUE;
-    DEFINE FIELD IF NOT EXISTS {TABLE_COL_TOPIC} ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_COL_TOPIC}>>
-        ASSERT $value INSIDE (SELECT topics FROM ONLY $this.{TABLE_COL_BELONGS_TO}).topics;
-    DEFINE INDEX IF NOT EXISTS {TABLE_COL_TOPIC}_idx ON TABLE {TABLE_NAME} COLUMNS {TABLE_COL_TOPIC};
     DEFINE FIELD IF NOT EXISTS content ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS media_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
-    DEFINE FIELD IF NOT EXISTS tags ON TABLE {TABLE_NAME} TYPE option<array<string>>
-        ASSERT {{ IF type::is::array($value) AND array::len($value) < 6 {{ RETURN true }}ELSE{{ IF type::is::none($value){{RETURN true}}ELSE{{THROW \"Maxi nr of tags is 5\"}} }} }};
-    DEFINE INDEX IF NOT EXISTS tags_idx ON TABLE {TABLE_NAME} COLUMNS tags;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -133,6 +128,35 @@ impl<'a> PostDbService<'a> {
                                 )).await
     }*/
 
+    pub async fn get_by_query(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        pag: Pagination,
+    ) -> CtxResult<Vec<PostView>> {
+        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+
+        let query = format!(
+            "SELECT {} FROM {TABLE_NAME}
+                WHERE belongs_to == $disc
+                ORDER BY id {order_dir} LIMIT $limit START $start;",
+            PostView::get_select_query_fields()
+        );
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("limit", pag.count))
+            .bind(("start", pag.start))
+            .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .await?;
+
+        let posts = res.take::<Vec<PostView>>(0)?;
+
+        Ok(posts)
+    }
+
     pub async fn get_by_discussion_desc_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         discussion_id: Thing,
@@ -166,31 +190,25 @@ impl<'a> PostDbService<'a> {
         )
     }
 
-    pub async fn get_by_tag(&self, tag: Option<String>, pag: Pagination) -> CtxResult<Vec<Post>> {
-        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+    pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<Post>> {
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
-        let query_str = format!(
-            "SELECT * FROM {TABLE_NAME}
-                WHERE {} {}
-                ORDER BY id {order_dir} LIMIT $limit START $start;",
-            self.get_access_query(),
-            if tag.is_some() {
-                "AND tags CONTAINS $tag"
-            } else {
-                ""
-            }
+        let query = format!(
+            "SELECT *, out.* AS entity FROM $tag->tag
+             WHERE record::id(out.belongs_to)=record::id(out.created_by)
+             ORDER BY out.{} {} LIMIT $limit START $start;",
+            order_by, order_dir
         );
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("tag", Thing::from(("tags", tag))))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
+            .await?;
 
-        let mut query = self.db.query(&query_str);
-
-        query = query.bind(("limit", pag.count)).bind(("start", pag.start));
-
-        if let Some(tag_value) = tag {
-            query = query.bind(("tag", tag_value));
-        }
-
-        let posts = query.await?.take::<Vec<Post>>(0)?;
-
+        let posts = res.take::<Vec<Post>>((0, "entity"))?;
         Ok(posts)
     }
 
@@ -199,7 +217,6 @@ impl<'a> PostDbService<'a> {
         AND record::exists(type::record(string::concat('access_rule:',record::id($this.id))) )=false
         AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to))) )=false
         AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to.belongs_to))) )=false
-        AND not($this.discussion_topic.*.access_rule)=true
         ".to_string()
     }
 
@@ -223,12 +240,10 @@ impl<'a> PostDbService<'a> {
         filter_by
     }
 
-    pub async fn create_update(&self, record: Post) -> CtxResult<Post> {
-        let resource = record.id.clone().unwrap_or(Self::get_new_post_thing());
-
+    pub async fn create(&self, data: CreatePost) -> CtxResult<Post> {
         self.db
-            .upsert((resource.tb, resource.id.to_raw()))
-            .content(record)
+            .create(TABLE_NAME)
+            .content(data)
             .await
             .map_err(|e| match e {
                 ErrorSrl::Db(err) => match err {

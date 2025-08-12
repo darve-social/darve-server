@@ -6,6 +6,8 @@ use crate::entities::community::post_entity::Post;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
+use crate::models::view::reply::ReplyView;
+use crate::services::post_service::PostView;
 use crate::{
     entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
     middleware::{
@@ -353,7 +355,7 @@ where
         user_id: &Thing,
         post_id: &Thing,
         discussion_id: &Thing,
-        content: &String,
+        content: &ReplyView,
         topic_id: &Option<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
@@ -371,7 +373,11 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers: follower_ids.iter().map(|id| id.to_raw()).collect(),
             user_id: user_id_str,
-            content: Some(content.clone()),
+            content: Some(serde_json::to_string(&content).map_err(|_| {
+                self.ctx.to_ctx_error(AppError::Generic {
+                    description: "Reply to json error for notification event".to_string(),
+                })
+            })?),
             metadata: Some(metadata.clone()),
             event: AppEventType::DiscussionPostReplyAdded,
         });
@@ -416,7 +422,7 @@ where
         Ok(())
     }
 
-    pub async fn on_discussion_post(&self, user_id: &Thing, post: &Post) -> CtxResult<()> {
+    pub async fn on_discussion_post(&self, user_id: &Thing, post: &PostView) -> CtxResult<()> {
         let receivers = vec![user_id.to_raw()];
 
         let post_json = serde_json::to_string(&post).map_err(|_| {
@@ -427,8 +433,8 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(post.belongs_to.clone()),
-            topic_id: post.discussion_topic.clone(),
-            post_id: Some(post.id.clone().unwrap()),
+            post_id: Some(post.id.clone()),
+            topic_id: None,
         };
 
         let _ = self.event_sender.send(AppEvent {

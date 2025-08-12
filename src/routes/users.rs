@@ -35,7 +35,6 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
-    routes::community::discussion_routes::DiscussionPostView,
     services::{
         post_service::{PostInput, PostService, PostView},
         user_service::UserService,
@@ -279,7 +278,7 @@ async fn email_verification_confirm(
 async fn get_following_posts(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
-) -> CtxResult<Json<Vec<DiscussionPostView>>> {
+) -> CtxResult<Json<Vec<PostView>>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -291,9 +290,8 @@ async fn get_following_posts(
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_posts::<DiscussionPostView>(user.id.as_ref().unwrap().clone())
+    .get_posts::<PostView>(user.id.as_ref().unwrap().clone())
     .await?;
-
     Ok(Json(data))
 }
 
@@ -521,6 +519,7 @@ async fn create_post(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     );
 
@@ -545,6 +544,7 @@ async fn get_posts(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     );
 
