@@ -6,10 +6,8 @@ use crate::{
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
         auth_routes,
-        community::{
-            community_routes, discussion_routes, discussion_topic_routes, profile_routes,
-            stripe_routes,
-        },
+        community::profile_routes,
+        community::{community_routes, discussion_routes, discussion_topic_routes, stripe_routes},
         discussions, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
             access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
