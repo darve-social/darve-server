@@ -130,7 +130,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(posts::routes(ctx_state.upload_max_size_mb))
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
         .merge(access_gain_action_routes::routes())
-        .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
+        .merge(profile_routes::routes())
         .merge(tasks::routes())
         .merge(notifications::routes())
         .merge(users::routes(ctx_state.upload_max_size_mb))

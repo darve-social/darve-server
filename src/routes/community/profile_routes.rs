@@ -28,7 +28,7 @@ use middleware::utils::string_utils::get_string_thing;
 use post_entity::PostDbService;
 use utils::askama_filter_util::filters;
 
-pub fn routes(_upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new().route("/u/:username_or_id", get(display_profile))
 }
 

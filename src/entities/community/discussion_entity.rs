@@ -88,7 +88,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
-    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<array<string>>;
+    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
     DEFINE INDEX IF NOT EXISTS idx_private_discussion_users_final ON TABLE {TABLE_NAME} COLUMNS private_discussion_users_final;
