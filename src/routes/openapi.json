@@ -1224,6 +1224,49 @@
         }
       }
     },
+    "/api/users/current/otp/verification": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Verify OTP setup",
+        "description": "Verify OTP token during setup process to enable two-factor authentication",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpValidationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verification successful, 2FA enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - OTP already enabled or invalid token"
+          },
+          "400": {
+            "description": "Bad request - Token is invalid"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/users/current/otp/validate": {
       "post": {
         "tags": ["Users"],
