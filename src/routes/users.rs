@@ -292,7 +292,6 @@ async fn get_following_posts(
     }
     .get_posts::<PostView>(user.id.as_ref().unwrap().clone())
     .await?;
-
     Ok(Json(data))
 }
 
@@ -520,6 +519,7 @@ async fn create_post(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     );
 
@@ -544,6 +544,7 @@ async fn get_posts(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     );
 

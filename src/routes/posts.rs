@@ -42,7 +42,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
 
 #[derive(Debug, Deserialize)]
 pub struct GetPostsQuery {
-    pub tag: Option<String>,
+    pub tag: String,
     pub order_dir: Option<QryOrder>,
     pub start: Option<u32>,
     pub count: Option<u16>,
@@ -112,7 +112,8 @@ async fn get_posts(
         count: query.count.unwrap_or(100),
         start: query.start.unwrap_or_default(),
     };
-    let posts = post_db_service.get_by_tag(query.tag, pagination).await?;
+    let posts = post_db_service.get_by_tag(&query.tag, pagination).await?;
+
     Ok(Json(posts))
 }
 
@@ -134,6 +135,7 @@ async fn like(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     )
     .like(&post_id, &user_id, body)
@@ -153,6 +155,7 @@ async fn unlike(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     )
     .unlike(&post_id, &auth_data.user_thing_id())
@@ -221,7 +224,7 @@ async fn create_reply(
     }
     .get_by_id(&auth_data.user_thing_id())
     .await?;
-    let created_by = user.id.as_ref().unwrap();
+    let created_by = user.id.as_ref().unwrap().clone();
     let post_db_service = PostDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -244,13 +247,23 @@ async fn create_reply(
         &state.event_sender,
         &state.db.user_notifications,
     );
+
+    let reply_view = ReplyView {
+        id: reply.id,
+        user: UserView::from(user),
+        likes_nr: reply.likes_nr,
+        content: reply.content,
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+    };
+
     n_service
         .on_discussion_post_reply(
             &created_by,
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
-            &reply_input.content,
-            &post.discussion_topic.clone(),
+            &reply_view,
+            &None,
         )
         .await?;
 
@@ -260,16 +273,9 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
             &post.replies_nr.to_string(),
-            &post.discussion_topic.clone(),
+            &None,
         )
         .await?;
 
-    Ok(Json(ReplyView {
-        id: reply.id,
-        user: UserView::from(user),
-        likes_nr: reply.likes_nr,
-        content: reply.content,
-        created_at: reply.created_at,
-        updated_at: reply.updated_at,
-    }))
+    Ok(Json(reply_view))
 }

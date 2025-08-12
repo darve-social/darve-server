@@ -9,12 +9,13 @@ use crate::entities::user_auth::{access_right_entity, authorization_entity, loca
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
+use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::services::post_service::{PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use access_right_entity::AccessRightDbService;
-use authorization_entity::{is_any_ge_in_list, Authorization, AUTH_ACTIVITY_OWNER};
+use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
@@ -55,6 +56,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         )
         .route("/api/discussions/:discussion_id/sse", get(discussion_sse))
         .route("/api/discussions/:discussion_id/posts", post(create_post))
+        .route("/api/discussions/:discussion_id/posts", get(get_posts))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -130,7 +132,7 @@ pub async fn discussion_sse(
     .await?;
     let discussion_id = discussion.id.expect("disc id");
 
-    let (is_user_chat_discussion, user_auth) = is_user_chat_discussion_user_auths(
+    let (_is_user_chat_discussion, _user_auth) = is_user_chat_discussion_user_auths(
         &ctx_state.db.client,
         &ctx,
         &discussion_id,
@@ -167,21 +169,13 @@ pub async fn discussion_sse(
                 Ok(msg) => match msg.event {
                         AppEventType::DiscussionPostAdded => {
                             match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
-                                Ok(mut dpv) => {
-                                    dpv.viewer_access_rights = user_auth.clone();
-                                    dpv.has_view_access = match &dpv.access_rule {
-                                        None => true,
-                                        Some(ar) => {
-                                            is_user_chat_discussion
-                                                || is_any_ge_in_list(
-                                                    &ar.authorization_required,
-                                                    &dpv.viewer_access_rights,
-                                                )
-                                                .unwrap_or(false)
-                                        }
-                                    };
-                                    Some(Event::default().data(&serde_json::to_string(&dpv).unwrap()))
-                                }
+                                Ok(_) => Some(
+                                    if ctx.is_htmx {
+                                       Event::default().event("DiscussionPostAdded").data(msg.content.unwrap())
+                                    } else {
+                                      Event::default().data(&serde_json::to_string(&msg).unwrap())
+                                    }
+                                ),
                                 Err(err) => {
                                     let msg =
                                     "ERROR converting NotificationEvent content to DiscussionPostView";
@@ -379,6 +373,7 @@ async fn create_post(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
         &ctx_state.file_storage,
+        &ctx_state.db.tags,
         &ctx_state.db.likes,
     );
 
@@ -387,4 +382,29 @@ async fn create_post(
         .await?;
 
     Ok(Json(post))
+}
+
+async fn get_posts(
+    auth_data: AuthWithLoginAccess,
+    State(ctx_state): State<Arc<CtxState>>,
+    Path(disc_id): Path<String>,
+    Query(query): Query<DiscussionParams>,
+) -> CtxResult<Json<Vec<PostView>>> {
+    let user_thing = get_str_thing(&auth_data.user_id)?;
+
+    let post_service = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+        &ctx_state.db.tags,
+        &ctx_state.db.likes,
+    );
+
+    let posts = post_service
+        .get_by_query(&disc_id, &user_thing.id.to_raw(), query)
+        .await?;
+
+    Ok(Json(posts))
 }

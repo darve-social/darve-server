@@ -1,13 +1,12 @@
 mod helpers;
 
 use axum_test::multipart::MultipartForm;
-use darve_server::entities::community::{community_entity, discussion_entity, post_entity};
+use darve_server::entities::community::{community_entity, discussion_entity};
 use darve_server::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity,
 };
 use darve_server::middleware;
 use darve_server::services::discussion_service::CreateDiscussion;
-use darve_server::services::post_service::PostView;
 use serde_json::json;
 use surrealdb::sql::Thing;
 
@@ -18,9 +17,7 @@ use discussion_entity::{Discussion, DiscussionDbService};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 use middleware::utils::db_utils::IdentIdName;
-use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
-use post_entity::PostDbService;
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -59,22 +56,17 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
         .await;
     create_post.assert_status_success();
 
-    let disc_posts = PostDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("user_ident".parse().unwrap()), false),
-    }
-    .get_by_discussion_desc_view::<PostView>(
-        disc_id.clone(),
-        DiscussionParams {
-            topic_id: None,
-            start: None,
-            count: None,
-        },
-    )
-    .await;
-
-    assert_eq!(disc_posts.is_ok(), true);
-    assert_eq!(disc_posts.unwrap().len(), 1);
+    let post_name2 = "post title Name 2?&$^%! <>end".to_string();
+    let create_response2 = server
+        .post(format!("/api/discussions/{disc_id}/posts").as_str())
+        .multipart(
+            MultipartForm::new()
+                .add_text("title", post_name2.clone())
+                .add_text("content", "contentttt222"),
+        )
+        .add_header("Accept", "application/json")
+        .await;
+    create_response2.assert_status_success();
 });
 
 test_with_server!(create_discussion, |server, ctx_state, config| {

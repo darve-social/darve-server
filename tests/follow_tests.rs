@@ -207,7 +207,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let posts = response.json::<Vec<PostView>>();
 
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].created_by_name, username1);
+    assert_eq!(posts[0].created_by.username, username1);
 
     // login user3
     server.get("/logout").await;

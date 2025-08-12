@@ -6,6 +6,7 @@ use crate::entities::community::post_entity::Post;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
+use crate::models::view::reply::ReplyView;
 use crate::services::post_service::PostView;
 use crate::{
     entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
@@ -354,7 +355,7 @@ where
         user_id: &Thing,
         post_id: &Thing,
         discussion_id: &Thing,
-        content: &String,
+        content: &ReplyView,
         topic_id: &Option<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
@@ -372,7 +373,11 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers: follower_ids.iter().map(|id| id.to_raw()).collect(),
             user_id: user_id_str,
-            content: Some(content.clone()),
+            content: Some(serde_json::to_string(&content).map_err(|_| {
+                self.ctx.to_ctx_error(AppError::Generic {
+                    description: "Reply to json error for notification event".to_string(),
+                })
+            })?),
             metadata: Some(metadata.clone()),
             event: AppEventType::DiscussionPostReplyAdded,
         });
@@ -427,7 +432,7 @@ where
         })?;
 
         let metadata = AppEventMetadata {
-            discussion_id: Some(post.belongs_to_id.clone()),
+            discussion_id: Some(post.belongs_to.clone()),
             topic_id: None,
             post_id: Some(post.id.clone()),
         };

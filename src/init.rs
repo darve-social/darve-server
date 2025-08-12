@@ -5,8 +5,16 @@ use crate::{
     },
     middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
-        self, auth_routes, community::profile_routes, discussions, follows, notifications, posts,
-        reply, swagger, user_otp, users, wallet, webhooks::paypal,
+        auth_routes,
+        community::profile_routes,
+        discussions, follows, notifications, posts, reply, swagger, tags, tasks,
+        user_auth::{
+            access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
+            register_routes,
+            webauthn::webauthn_routes::{self, WebauthnConfig},
+        },
+        user_otp, users, wallet,
+        webhooks::paypal,
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -29,12 +37,6 @@ use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
-use routes::tasks;
-use routes::user_auth::webauthn::webauthn_routes::{self, WebauthnConfig};
-use routes::user_auth::{
-    access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
-    register_routes,
-};
 use std::sync::Arc;
 use tower_cookies::CookieManagerLayer;
 use tower_http::services::ServeDir;
@@ -140,6 +142,7 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(swagger::routes())
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
+        .merge(tags::routes())
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
