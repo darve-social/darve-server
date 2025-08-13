@@ -156,8 +156,8 @@ impl<'a> DiscussionDbService<'a> {
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
                 private_discussion_user_ids != NONE
-                AND deny_rules IS NOT NULL
-                AND $members_rule IN deny_rules
+                AND deny_rules != NONE
+                AND array::sort(deny_rules) = array::sort($rules)
                 AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
         );
 
@@ -165,7 +165,10 @@ impl<'a> DiscussionDbService<'a> {
             .db
             .query(query)
             .bind(("user_ids", user_things))
-            .bind(("members_rule", "ManageMember".to_string()))
+            .bind((
+                "rules",
+                DiscussionDenyRule::private_fixed().unwrap_or_default(),
+            ))
             .await?;
 
         let data = res.take::<Option<Discussion>>(0)?;

@@ -71,7 +71,7 @@ async fn create_task(
     );
 
     let task = task_service
-        .create(&auth_data.user_id, body, Some(post_thing.clone()))
+        .create(&auth_data.user_thing_id(), body, Some(post_thing.clone()))
         .await?;
 
     Ok(Json(task))
