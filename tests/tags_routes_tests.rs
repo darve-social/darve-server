@@ -1,6 +1,5 @@
 mod helpers;
 
-use crate::helpers::community_helpers::create_fake_community;
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
@@ -21,19 +20,17 @@ test_with_server!(
     get_tags_after_creating_posts_with_tags,
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
-        let user_ident = user.id.as_ref().unwrap().to_raw();
 
-        let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
-
+        let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
         // Create multiple posts with different tags
         let tags1 = vec!["rust".to_string(), "programming".to_string()];
-        let _ = create_fake_post(server, &result.default_discussion, None, Some(tags1)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags1)).await;
 
         let tags2 = vec!["javascript".to_string(), "web".to_string()];
-        let _ = create_fake_post(server, &result.default_discussion, None, Some(tags2)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags2)).await;
 
         let tags3 = vec!["rust".to_string(), "backend".to_string()];
-        let _ = create_fake_post(server, &result.default_discussion, None, Some(tags3)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags3)).await;
 
         let response = server.get("/api/tags").await;
 
@@ -80,9 +77,8 @@ test_with_server!(
     get_tags_with_special_characters,
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
-        let user_ident = user.id.as_ref().unwrap().to_raw();
 
-        let result = create_fake_community(server, &ctx_state, user_ident.clone()).await;
+        let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
         // Create post with tags containing special characters
         let tags = vec![
@@ -91,7 +87,7 @@ test_with_server!(
             "tag123".to_string(),
             "UPPERCASE".to_string(),
         ];
-        let _ = create_fake_post(server, &result.default_discussion, None, Some(tags)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags)).await;
 
         let response = server.get("/api/tags").await;
 
@@ -110,22 +106,14 @@ test_with_server!(
     get_tags_after_multiple_users,
     |server, ctx_state, config| {
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-        let user1_ident = user1.id.as_ref().unwrap().to_raw();
+        let result1 = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
+        let tags1 = vec!["user1tag".to_string(), "shared".to_string()];
+        let _ = create_fake_post(server, &result1, None, Some(tags1)).await;
 
         let (server, user2, _, _) = create_fake_login_test_user(&server).await;
-        let user2_ident = user2.id.as_ref().unwrap().to_raw();
-
-        // Create communities for both users
-        let result1 = create_fake_community(server, &ctx_state, user1_ident.clone()).await;
-        let result2 = create_fake_community(server, &ctx_state, user2_ident.clone()).await;
-
-        // User 1 creates posts with tags
-        let tags1 = vec!["user1tag".to_string(), "shared".to_string()];
-        let _ = create_fake_post(server, &result1.default_discussion, None, Some(tags1)).await;
-
-        // User 2 creates posts with tags
+        let result2 = DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
         let tags2 = vec!["user2tag".to_string(), "shared".to_string()];
-        let _ = create_fake_post(server, &result2.default_discussion, None, Some(tags2)).await;
+        let _ = create_fake_post(server, &result2, None, Some(tags2)).await;
 
         let response = server.get("/api/tags").await;
 

@@ -7,7 +7,6 @@ use crate::{
     routes::{
         auth_routes,
         community::profile_routes,
-        community::{community_routes, discussion_routes, discussion_topic_routes, stripe_routes},
         discussions, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
             access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
@@ -129,15 +128,11 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())
-        .merge(discussion_routes::routes())
-        .merge(discussion_topic_routes::routes())
-        .merge(community_routes::routes())
         .merge(access_rule_routes::routes())
         .merge(posts::routes(ctx_state.upload_max_size_mb))
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
-        .merge(stripe_routes::routes())
         .merge(access_gain_action_routes::routes())
-        .merge(profile_routes::routes(ctx_state.upload_max_size_mb))
+        .merge(profile_routes::routes())
         .merge(tasks::routes())
         .merge(notifications::routes())
         .merge(users::routes(ctx_state.upload_max_size_mb))

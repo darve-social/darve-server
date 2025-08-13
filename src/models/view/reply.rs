@@ -14,6 +14,6 @@ pub struct ReplyView {
 }
 impl ViewFieldSelector for ReplyView {
     fn get_select_query_fields() -> String {
-        "id, content, liker_nr,  ceated_at, updated_at, created_by.* as user".to_string()
+        "id, content, liker_nr, created_at, updated_at, created_by.* as user".to_string()
     }
 }

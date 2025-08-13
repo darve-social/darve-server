@@ -433,8 +433,8 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(post.belongs_to.clone()),
-            post_id: Some(post.id.clone()),
             topic_id: None,
+            post_id: Some(post.id.clone()),
         };
 
         let _ = self.event_sender.send(AppEvent {

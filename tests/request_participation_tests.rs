@@ -3,17 +3,18 @@ use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::community::community_entity;
+use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
-use darve_server::middleware::utils::request_utils::CreatedResponse;
-use darve_server::models::view::task::{TaskRequestView, TaskViewForParticipant};
-use darve_server::routes::community::community_routes;
+use darve_server::models::view::task::TaskRequestView;
+use darve_server::models::view::task::TaskViewForParticipant;
 use darve_server::routes::tasks::TaskRequestOfferInput;
 use darve_server::routes::user_auth::login_routes;
 use darve_server::routes::wallet::CurrencyTransactionHistoryView;
+use darve_server::services::discussion_service::CreateDiscussion;
 use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use serde_json::json;
@@ -21,8 +22,7 @@ use std::i64;
 use surrealdb::sql::Thing;
 
 use crate::helpers::{create_fake_login_test_user, create_login_test_user};
-use community_entity::{Community, CommunityDbService};
-use community_routes::CommunityInput;
+use community_entity::CommunityDbService;
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
@@ -48,33 +48,24 @@ test_with_server!(
 
         // create community
         let create_response = server
-            .post("/api/community")
-            .json(&CommunityInput {
-                id: "".to_string(),
-                name_uri: "comm-naMMe1".to_lowercase(),
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
                 title: "The Community Test".to_string(),
+                community_id: CommunityDbService::get_profile_community_id(
+                    &user0.id.as_ref().unwrap(),
+                )
+                .to_raw(),
+                image_uri: None,
+                chat_user_ids: None,
+                private_discussion_users_final: false,
             })
             .add_header("Accept", "application/json")
             .await;
-        let created = &create_response.json::<CreatedResponse>();
-
-        let comm_id = Thing::try_from(created.id.clone()).unwrap();
-        let comm_name = created.uri.clone().unwrap();
         create_response.assert_status_success();
+        let created = &create_response.json::<Discussion>();
 
         let ctx = Ctx::new(Ok(user_ident0.clone()), false);
-        let community_db_service = CommunityDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        };
-        let community: Community = community_db_service
-            .db
-            .select((&comm_id.tb, comm_id.id.to_raw()))
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(comm_name, community.name_uri.clone());
-        let community_discussion_id = community.default_discussion.clone().unwrap();
+        let community_discussion_id = created.id.as_ref().unwrap().clone();
 
         let post_name = "post title Name 1".to_string();
         let create_post = server

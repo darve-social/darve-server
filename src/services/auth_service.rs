@@ -1,4 +1,5 @@
 use super::verification_code_service::VerificationCodeService;
+use crate::entities::community::discussion_entity::DiscussionDenyRule;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::utils;
 use crate::{
@@ -498,7 +499,10 @@ where
         let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
 
         self.community_repository
-            .create_profile(user.id.as_ref().unwrap().clone())
+            .create_profile(
+                user.id.as_ref().unwrap().clone(),
+                Some(DiscussionDenyRule::profile()),
+            )
             .await?;
 
         Ok((token, user))

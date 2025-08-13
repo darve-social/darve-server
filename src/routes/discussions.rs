@@ -142,13 +142,15 @@ pub async fn discussion_sse(
 
     let rx = ctx_state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx)
-        .filter(move|msg| {
-            if msg.is_err()  {
+        .filter(move |msg| {
+            if msg.is_err() {
                 return false;
             }
 
             let _ = match msg.as_ref().unwrap().clone().event {
-                AppEventType::DiscussionPostAdded | AppEventType::DiscussionPostReplyAdded | AppEventType::DiscussionPostReplyNrIncreased => (),
+                AppEventType::DiscussionPostAdded
+                | AppEventType::DiscussionPostReplyAdded
+                | AppEventType::DiscussionPostReplyNrIncreased => (),
                 _ => return false,
             };
 
@@ -167,50 +169,41 @@ pub async fn discussion_sse(
             let event_opt = match msg {
                 Err(_) => None,
                 Ok(msg) => match msg.event {
-                        AppEventType::DiscussionPostAdded => {
-                            match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
-                                Ok(_) => Some(
-                                    if ctx.is_htmx {
-                                       Event::default().event("DiscussionPostAdded").data(msg.content.unwrap())
-                                    } else {
-                                      Event::default().data(&serde_json::to_string(&msg).unwrap())
-                                    }
-                                ),
-                                Err(err) => {
-                                    let msg =
-                                    "ERROR converting NotificationEvent content to DiscussionPostView";
-                                    println!("{} ERR={err}", &msg);
-                                    Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
-                                }
+                    AppEventType::DiscussionPostAdded => {
+                        match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
+                            Ok(_) => Some(if ctx.is_htmx {
+                                Event::default()
+                                    .event("DiscussionPostAdded")
+                                    .data(msg.content.unwrap())
+                            } else {
+                                Event::default().data(&serde_json::to_string(&msg).unwrap())
+                            }),
+                            Err(err) => {
+                                let msg = "ERROR converting NotificationEvent content to PostView";
+                                println!("{} ERR={err}", &msg);
+                                Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
                             }
                         }
-                        AppEventType::DiscussionPostReplyNrIncreased => Some(
-                            if ctx.is_htmx {
-                                let metadata = msg.metadata.as_ref().unwrap();
-                                let post_id = metadata.post_id.as_ref().unwrap().to_raw();
-                                let id = format!("DiscussionPostReplyNrIncreased_{}",post_id);
-                                    Event::default().event(id).data(&msg.content.unwrap())
-                            } else {
-                                Event::default()
-                                .data(&serde_json::to_string(&msg).unwrap())
-                            }
-                        ),
-                        AppEventType::DiscussionPostReplyAdded => Some(
-                          if ctx.is_htmx {
-                                Event::default().event("DiscussionPostReplyAdded") 
-                                .data(&msg.content.unwrap())
-                            } else {
-                                Event::default()
-                                .data(&serde_json::to_string(&msg).unwrap())
-                            }
-                        ),
-                        _ => None,
-                    },
+                    }
+                    AppEventType::DiscussionPostReplyNrIncreased => Some(if ctx.is_htmx {
+                        let metadata = msg.metadata.as_ref().unwrap();
+                        let post_id = metadata.post_id.as_ref().unwrap().to_raw();
+                        let id = format!("DiscussionPostReplyNrIncreased_{}", post_id);
+                        Event::default().event(id).data(&msg.content.unwrap())
+                    } else {
+                        Event::default().data(&serde_json::to_string(&msg).unwrap())
+                    }),
+                    AppEventType::DiscussionPostReplyAdded => Some(if ctx.is_htmx {
+                        Event::default()
+                            .event("DiscussionPostReplyAdded")
+                            .data(&msg.content.unwrap())
+                    } else {
+                        Event::default().data(&serde_json::to_string(&msg).unwrap())
+                    }),
+                    _ => None,
+                },
             };
-            Ok(event_opt.unwrap_or_else(|| {
-                Event::default()
-                    .data("No event".to_string())
-            }))
+            Ok(event_opt.unwrap_or_else(|| Event::default().data("No event".to_string())))
         });
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))

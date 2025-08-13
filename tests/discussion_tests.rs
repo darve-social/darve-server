@@ -6,7 +6,6 @@ use darve_server::entities::user_auth::{
     access_right_entity, authorization_entity, local_user_entity,
 };
 use darve_server::middleware;
-use darve_server::routes::community::{community_routes, discussion_topic_routes};
 use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 use surrealdb::sql::Thing;
@@ -14,40 +13,18 @@ use surrealdb::sql::Thing;
 use access_right_entity::AccessRightDbService;
 use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use community_entity::CommunityDbService;
-use community_routes::CommunityInput;
 use discussion_entity::{Discussion, DiscussionDbService};
-use discussion_topic_routes::TopicInput;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
-use middleware::error::CtxResult;
 use middleware::utils::db_utils::IdentIdName;
-use middleware::utils::request_utils::CreatedResponse;
 use middleware::utils::string_utils::get_string_thing;
 
 use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(get_discussion_view, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
-    let disc_name = "discName1".to_lowercase();
 
-    let create_response = server
-        .post("/api/community")
-        .json(&CommunityInput {
-            id: "".to_string(),
-            name_uri: disc_name.clone(),
-            title: "The Community Test".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-
-    let created = create_response.json::<CreatedResponse>();
-    // dbg!(&created);
-
-    let comm_id = Thing::try_from(created.id.clone()).unwrap();
-    let _ = created.uri.clone().unwrap();
-
-    create_response.assert_status_success();
+    let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
 
     let create_response = server
         .post("/api/discussions")
@@ -67,35 +44,6 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
     let disc_id = created.id.as_ref().unwrap();
     create_response.assert_status_success();
 
-    let topic_resp = server
-        .post(
-            format!(
-                "/api/discussion/{}/topic",
-                created.id.as_ref().unwrap().to_raw()
-            )
-            .as_str(),
-        )
-        .json(&TopicInput {
-            id: "".to_string(),
-            title: "topic1".to_string(),
-            hidden: None,
-            access_rule_id: "".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    dbg!(&topic_resp);
-    topic_resp.assert_status_success();
-
-    let disc_rec = DiscussionDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok(user_ident), false),
-    }
-    .get(IdentIdName::Id(disc_id.clone()))
-    .await;
-    assert_eq!(disc_rec.clone().unwrap().topics.unwrap().len(), 1);
-    let topics = disc_rec.unwrap().topics.unwrap();
-    let topic_id = topics[0].clone();
-
     let post_name = "post title Name 1".to_string();
     let create_post = server
         .post(format!("/api/discussions/{disc_id}/posts").as_str())
@@ -114,8 +62,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name2.clone())
-                .add_text("content", "contentttt222")
-                .add_text("topic_id", topic_id.clone().to_raw()),
+                .add_text("content", "contentttt222"),
         )
         .add_header("Accept", "application/json")
         .await;
@@ -126,22 +73,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
 
-    let comm_name_uri = "CommName1".to_lowercase();
-
-    let create_response = server
-        .post("/api/community")
-        .json(&CommunityInput {
-            id: "".to_string(),
-            name_uri: comm_name_uri.clone(),
-            title: "The Community Test".to_string(),
-        })
-        .add_header("Accept", "application/json")
-        .await;
-    let created = &create_response.json::<CreatedResponse>();
-
-    let comm_id = Thing::try_from(created.id.clone()).unwrap();
-
-    create_response.assert_status_success();
+    let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
 
     let create_response = server
         .post("/api/discussions")
@@ -173,29 +105,19 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
     // let disc2_id = created2.id.clone();
 
     let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), false);
-    let comm_db = CommunityDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-    let comm = comm_db.get(IdentIdName::Id(comm_id.clone())).await;
-    let comm_disc_id = comm.unwrap().default_discussion.unwrap();
 
     let disc_db = DiscussionDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
-    let disc = disc_db
+    let discussion = disc_db
         .get(IdentIdName::Id(created.id.as_ref().unwrap().clone()).into())
-        .await;
-    let comm_disc: CtxResult<Discussion> = disc_db.get(IdentIdName::Id(comm_disc_id)).await;
-    assert_eq!(comm_disc.unwrap().belongs_to.eq(&comm_id.clone()), true);
-    // let disc_by_uri = disc_db.get(IdentIdName::ColumnIdent { column: "name_uri".to_string(), val: disc_name.to_string(), rec: false}).await;
-    let discussion = disc.unwrap();
-    // let discussion_by_uri = disc_by_uri.unwrap();
-    assert_eq!(discussion.clone().topics, None);
-    // assert_eq!(discussion.clone().name_uri.unwrap(), disc_name.clone());
-    // assert_eq!(discussion_by_uri.clone().name_uri.unwrap(), disc_name.clone());
+        .await
+        .unwrap();
+
+    assert_eq!(discussion.belongs_to.eq(&comm_id.clone()), true);
+    assert_eq!(discussion.topics, None);
 
     let db_service = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -210,12 +132,12 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
         .await;
 
     let smaller_auth = Authorization {
-        authorize_record_id: discussion.clone().id.unwrap(),
+        authorize_record_id: discussion.id.as_ref().unwrap().clone(),
         authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
         authorize_height: 98,
     };
     let higher_auth = Authorization {
-        authorize_record_id: discussion.id.unwrap(),
+        authorize_record_id: discussion.id.unwrap().clone(),
         authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
         authorize_height: 100,
     };
@@ -239,7 +161,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
             found.push(v);
         }
     }
-    assert_eq!(found.len(), 2);
+    assert_eq!(found.len(), 1);
 
     let mut found: Vec<Authorization> = vec![];
     for v in user_auth.clone() {

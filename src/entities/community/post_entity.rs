@@ -6,6 +6,7 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
+use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
     IdentIdName, Pagination, QryOrder, ViewFieldSelector,
@@ -23,6 +24,11 @@ use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::post_service::PostView;
 
 use super::{discussion_entity, discussion_topic_entity};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum PostDenyRule {
+    CreateTask,
+}
 
 /// Post belongs_to discussion.
 /// It is created_by user. Since user can create posts in different
@@ -45,6 +51,8 @@ pub struct Post {
     pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
     pub likes_nr: i64,
+    pub tags: Option<Vec<String>>,
+    pub deny_rules: Option<Vec<PostDenyRule>>,
 }
 #[derive(Debug, Serialize)]
 pub struct CreatePost {
@@ -88,6 +96,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
 ");
@@ -195,7 +204,7 @@ impl<'a> PostDbService<'a> {
         let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
         let query = format!(
-            "SELECT *, out.* AS entity FROM $tag->tag
+            "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
              WHERE record::id(out.belongs_to)=record::id(out.created_by)
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
@@ -203,7 +212,7 @@ impl<'a> PostDbService<'a> {
         let mut res = self
             .db
             .query(query)
-            .bind(("tag", Thing::from(("tags", tag))))
+            .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .await?;
