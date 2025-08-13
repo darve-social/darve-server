@@ -251,7 +251,6 @@ async fn add_latest_posts(
         .get_by_discussion_desc_view::<RecordWithId>(
             follow_profile_discussion_id,
             DiscussionParams {
-                topic_id: None,
                 start: Some(0),
                 count: Some(3),
             },

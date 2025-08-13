@@ -263,7 +263,6 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
             &reply_view,
-            &None,
         )
         .await?;
 
@@ -273,7 +272,6 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
             &post.replies_nr.to_string(),
-            &None,
         )
         .await?;
 

@@ -108,7 +108,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(2),
         },
@@ -124,7 +123,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(3),
         },
@@ -139,7 +137,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(1),
         },

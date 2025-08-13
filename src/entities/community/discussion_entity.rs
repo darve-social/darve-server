@@ -1,5 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{Id, Thing};
+use surrealdb::sql::Thing;
 use validator::Validate;
 
 use middleware::utils::db_utils::{
@@ -17,22 +18,27 @@ use crate::entities::user_auth::{self, local_user_entity};
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
 
-use super::discussion_topic_entity::{self, DiscussionTopic};
 use super::{community_entity, post_entity};
 
-// limit discussion rules
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DiscussionDenyRule {
     CreateTask,
     ManageMember,
 }
 
 impl DiscussionDenyRule {
-    pub fn profile() -> Vec<DiscussionDenyRule> {
-        vec![
+    pub fn public() -> Option<Vec<DiscussionDenyRule>> {
+        Some(vec![
             DiscussionDenyRule::CreateTask,
             DiscussionDenyRule::ManageMember,
-        ]
+        ])
+    }
+    pub fn private() -> Option<Vec<DiscussionDenyRule>> {
+        None
+    }
+
+    pub fn private_fixed() -> Option<Vec<DiscussionDenyRule>> {
+        Some(vec![DiscussionDenyRule::ManageMember])
     }
 }
 
@@ -40,22 +46,16 @@ impl DiscussionDenyRule {
 pub struct Discussion {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    // belongs_to=community
     pub belongs_to: Thing,
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub topics: Option<Vec<Thing>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub private_discussion_user_ids: Option<Vec<Thing>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub latest_post_id: Option<Thing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub created_by: Thing,
-    pub private_discussion_users_final: bool,
     pub deny_rules: Option<Vec<DiscussionDenyRule>>,
 }
 
@@ -71,6 +71,19 @@ impl Discussion {
             None => false,
         }
     }
+
+    pub fn is_owner(&self, user: &Thing) -> bool {
+        self.created_by == *user
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateDiscussionEntity {
+    pub belongs_to: Thing,
+    pub title: String,
+    pub image_uri: Option<String>,
+    pub private_discussion_user_ids: Option<Vec<Thing>>,
+    pub created_by: Thing,
+    pub deny_rules: Option<Vec<DiscussionDenyRule>>,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -79,7 +92,6 @@ pub struct DiscussionDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "discussion";
-pub const DISCUSSION_TOPIC_TABLE_NAME: &str = discussion_topic_entity::TABLE_NAME;
 pub const COMMUNITY_TABLE_NAME: &str = community_entity::TABLE_NAME;
 pub const POST_TABLE_NAME: &str = post_entity::TABLE_NAME;
 pub const USER_TABLE_NAME: &str = local_user_entity::TABLE_NAME;
@@ -94,18 +106,13 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS private_discussion_users_final ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
-    DEFINE FIELD IF NOT EXISTS topics ON TABLE {TABLE_NAME} TYPE option<set<record<{DISCUSSION_TOPIC_TABLE_NAME}>, 25>>;
     DEFINE FIELD IF NOT EXISTS private_discussion_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
-        // ASSERT record::exists($value);
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
-    DEFINE FIELD IF NOT EXISTS latest_post_id ON TABLE {TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
-    DEFINE INDEX IF NOT EXISTS idx_private_discussion_users_final ON TABLE {TABLE_NAME} COLUMNS private_discussion_users_final;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -148,12 +155,18 @@ impl<'a> DiscussionDbService<'a> {
 
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
-                private_discussion_users_final = true
-                AND private_discussion_user_ids != NONE
+                private_discussion_user_ids != NONE
+                AND deny_rules IS NOT NULL
+                AND $members_rule IN deny_rules
                 AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
         );
 
-        let mut res = self.db.query(query).bind(("user_ids", user_things)).await?;
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user_ids", user_things))
+            .bind(("members_rule", "ManageMember".to_string()))
+            .await?;
 
         let data = res.take::<Option<Discussion>>(0)?;
         match data {
@@ -192,17 +205,11 @@ impl<'a> DiscussionDbService<'a> {
         Ok(())
     }
 
-    pub async fn create_update(&self, mut record: Discussion) -> CtxResult<Discussion> {
-        let resource = record
-            .id
-            .clone()
-            .unwrap_or(Thing::from((TABLE_NAME.to_string(), Id::ulid())));
-
-        record.r_created = None;
+    pub async fn create(&self, data: CreateDiscussionEntity) -> CtxResult<Discussion> {
         let disc: Option<Discussion> = self
             .db
-            .upsert((resource.tb, resource.id.to_raw()))
-            .content(record)
+            .create(TABLE_NAME)
+            .content(data)
             .await
             .map_err(CtxError::from(self.ctx))?;
         let disc = disc.unwrap();
@@ -222,53 +229,48 @@ impl<'a> DiscussionDbService<'a> {
         Ok(disc)
     }
 
-    pub async fn set_latest_post_id(
-        &self,
-        discussion_id: Thing,
-        post_id: Thing,
-    ) -> CtxResult<Discussion> {
-        let q = "UPDATE $ident SET latest_post_id=$new_last_msg";
-
-        let disc: Option<Discussion> = self
+    pub async fn update(&self, disc_id: &str, title: &str) -> CtxResult<Discussion> {
+        let disc = self
             .db
-            .query(q)
-            .bind(("ident", discussion_id.clone()))
-            .bind(("new_last_msg", post_id))
-            .await?
-            .take(0)?;
-        disc.ok_or(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-            ident: discussion_id.to_raw(),
-        }))
+            .query("UPDATE $disc SET title=$title")
+            .bind(("disc", Thing::from((TABLE_NAME, disc_id))))
+            .bind(("title", title.to_string()))
+            .await
+            .map_err(CtxError::from(self.ctx))?
+            .take::<Option<Discussion>>(0)?;
+
+        Ok(disc.ok_or(AppError::EntityFailIdNotFound {
+            ident: disc_id.to_string(),
+        })?)
     }
 
-    pub async fn add_topic(&self, discussion_id: Thing, topic_id: Thing) -> CtxResult<Discussion> {
-        let q = "UPDATE $ident SET topics+=$new_topic";
-
-        let disc: Option<Discussion> = self
+    pub async fn update_users(
+        &self,
+        disc_id: &str,
+        users: Option<Vec<Thing>>,
+    ) -> CtxResult<Discussion> {
+        let disc = self
             .db
-            .query(q)
-            .bind(("ident", discussion_id.clone()))
-            .bind(("new_topic", topic_id))
-            .await?
-            .take(0)?;
-        disc.ok_or(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-            ident: discussion_id.to_raw(),
-        }))
+            .query("UPDATE $disc SET private_discussion_user_ids=$users")
+            .bind(("disc", Thing::from((TABLE_NAME, disc_id))))
+            .bind(("users", users))
+            .await
+            .map_err(CtxError::from(self.ctx))?
+            .take::<Option<Discussion>>(0)?;
+
+        Ok(disc.ok_or(AppError::EntityFailIdNotFound {
+            ident: disc_id.to_string(),
+        })?)
     }
 
     pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
         Thing::from((TABLE_NAME.to_string(), user_id.id.to_raw()))
     }
 
-    pub async fn get_topics(&self, discussion_id: Thing) -> CtxResult<Vec<DiscussionTopic>> {
-        let q = "SELECT topics.*.* FROM $discussion_id;";
-
-        let disc: Option<Vec<DiscussionTopic>> = self
-            .db
-            .query(q)
-            .bind(("discussion_id", discussion_id.clone()))
-            .await?
-            .take("topics")?;
-        Ok(disc.unwrap_or(vec![]))
+    pub fn get_idea_discussion_id(user_id: &Thing) -> Thing {
+        Thing::from((
+            TABLE_NAME.to_string(),
+            format!("{}_idea", user_id.id.to_raw()),
+        ))
     }
 }

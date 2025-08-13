@@ -1,5 +1,8 @@
-use crate::entities::user_auth::access_right_entity::AccessRightDbService;
-use crate::middleware::utils::db_utils::{record_exist_all, IdentIdName};
+use crate::access::community::CommunityAccess;
+use crate::access::discussion::DiscussionAccess;
+use crate::entities::community::community_entity::CommunityDbService;
+use crate::entities::community::discussion_entity::{CreateDiscussionEntity, DiscussionDenyRule};
+use crate::middleware::utils::db_utils::record_exist_all;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::{
     entities::{
@@ -35,7 +38,7 @@ pub struct DiscussionService<'a> {
     ctx: &'a Ctx,
     user_repository: LocalUserDbService<'a>,
     discussion_repository: DiscussionDbService<'a>,
-    access_right_repository: AccessRightDbService<'a>,
+    community_repository: CommunityDbService<'a>,
 }
 
 impl<'a> DiscussionService<'a> {
@@ -50,7 +53,7 @@ impl<'a> DiscussionService<'a> {
                 db: &state.db.client,
                 ctx: &ctx,
             },
-            access_right_repository: AccessRightDbService {
+            community_repository: CommunityDbService {
                 db: &state.db.client,
                 ctx: &ctx,
             },
@@ -58,10 +61,11 @@ impl<'a> DiscussionService<'a> {
     }
 
     pub async fn delete(&self, user_id: &str, disc_id: &str) -> AppResult<()> {
-        let user_id: Thing = get_str_thing(user_id)?;
-        self.access_right_repository
-            .has_owner_access(&user_id, disc_id)
-            .await?;
+        let user = self.user_repository.get_by_id(&user_id).await?;
+        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        if !DiscussionAccess::new(&disc).can_edit(&user) {
+            return Err(AppError::Forbidden);
+        }
         self.discussion_repository.delete(disc_id).await?;
         Ok(())
     }
@@ -72,18 +76,18 @@ impl<'a> DiscussionService<'a> {
         disc_id: &str,
         data: UpdateDiscussion,
     ) -> AppResult<()> {
-        let user_id: Thing = get_str_thing(user_id)?;
-        let disc_id = self
-            .access_right_repository
-            .has_owner_access(&user_id, disc_id)
-            .await?;
+        let user = self.user_repository.get_by_id(&user_id).await?;
+        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        if !DiscussionAccess::new(&disc).can_edit(&user) {
+            return Err(AppError::Forbidden);
+        }
 
-        let mut disc = self
-            .discussion_repository
-            .get(IdentIdName::Id(disc_id))
+        self.discussion_repository
+            .update(
+                &disc.id.as_ref().unwrap().id.to_raw(),
+                &data.title.unwrap_or("".to_string()),
+            )
             .await?;
-        disc.title = data.title;
-        self.discussion_repository.create_update(disc).await?;
 
         Ok(())
     }
@@ -101,23 +105,11 @@ impl<'a> DiscussionService<'a> {
             .into());
         }
 
-        let user_id: Thing = get_str_thing(user_id)?;
-        let disc_id = self
-            .access_right_repository
-            .has_owner_access(&user_id, disc_id)
-            .await?;
-
-        let mut disc = self
-            .discussion_repository
-            .get(IdentIdName::Id(disc_id))
-            .await?;
-
-        if disc.private_discussion_users_final {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
+        let user = self.user_repository.get_by_id(&user_id).await?;
+        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        if !DiscussionAccess::new(&disc).can_manage_members(&user) {
+            return Err(self.ctx.to_ctx_error(AppError::Forbidden));
+        }
 
         let user_ids = record_exist_all(self.user_repository.db, new_user_ids).await?;
 
@@ -129,19 +121,19 @@ impl<'a> DiscussionService<'a> {
             }
         });
 
-        disc.private_discussion_user_ids = Some(chat_users);
-        let chat_users = self
+        let users = self
             .discussion_repository
-            .create_update(disc)
+            .update_users(&disc.id.as_ref().unwrap().id.to_raw(), Some(chat_users))
             .await?
             .private_discussion_user_ids
             .expect("users are set");
 
-        Ok(chat_users)
+        Ok(users)
     }
 
     pub async fn remove_chat_users(
         &self,
+        user_id: &str,
         disc_id: &str,
         remove_user_ids: Vec<String>,
     ) -> CtxResult<()> {
@@ -150,13 +142,8 @@ impl<'a> DiscussionService<'a> {
                 description: "no users present".to_string(),
             }));
         }
-        let user_id_str = self.ctx.user_id()?;
-        let user_id = get_str_thing(&user_id_str)?;
-
-        let disc_id = self
-            .access_right_repository
-            .has_owner_access(&user_id, disc_id)
-            .await?;
+        let user = self.user_repository.get_by_id(&user_id).await?;
+        let user_id_str = user.id.as_ref().unwrap().to_raw();
 
         if remove_user_ids.contains(&user_id_str) {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
@@ -164,17 +151,11 @@ impl<'a> DiscussionService<'a> {
             }));
         };
 
-        let mut disc = self
-            .discussion_repository
-            .get(IdentIdName::Id(disc_id))
-            .await?;
+        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
 
-        if disc.private_discussion_users_final {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
+        if !DiscussionAccess::new(&disc).can_manage_members(&user) {
+            return Err(self.ctx.to_ctx_error(AppError::Forbidden));
+        }
 
         if disc.private_discussion_user_ids.is_none()
             || disc
@@ -209,8 +190,12 @@ impl<'a> DiscussionService<'a> {
             .filter(|id| !remove_things.contains(id))
             .collect::<Vec<Thing>>();
 
-        disc.private_discussion_user_ids = Some(private_discussion_user_ids);
-        self.discussion_repository.create_update(disc).await?;
+        self.discussion_repository
+            .update_users(
+                &disc.id.as_ref().unwrap().id.to_raw(),
+                Some(private_discussion_user_ids),
+            )
+            .await?;
 
         Ok(())
     }
@@ -221,30 +206,33 @@ impl<'a> DiscussionService<'a> {
             .await
     }
 
-    pub async fn create(&self, data: CreateDiscussion) -> CtxResult<Discussion> {
+    pub async fn create(&self, user_id: &str, data: CreateDiscussion) -> CtxResult<Discussion> {
         data.validate()?;
+        let user = self.user_repository.get_by_id(&user_id).await?;
 
-        let user_id = self.ctx.user_id()?;
-        let user_thing: Thing = get_str_thing(&user_id)?;
-        let comm_id = self
-            .access_right_repository
-            .has_owner_access(&user_thing, &data.community_id)
+        let comm = self
+            .community_repository
+            .get_by_id(&data.community_id)
             .await?;
 
-        if data.private_discussion_users_final && data.chat_user_ids.is_some() {
-            let mut ids = data
-                .chat_user_ids
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|t| t.as_str())
-                .collect::<Vec<&str>>();
+        if !CommunityAccess::new(&comm).can_create_discussion(&user) {
+            return Err(self.ctx.to_ctx_error(AppError::Forbidden));
+        }
 
-            if !ids.contains(&user_id.as_str()) {
-                ids.push(&user_id);
+        if data.private_discussion_users_final && data.chat_user_ids.is_some() {
+            let mut ids = data.chat_user_ids.as_ref().unwrap().clone();
+
+            let user_id = user.id.as_ref().unwrap().to_raw();
+            if !ids.contains(&user_id) {
+                ids.push(user_id.clone());
             };
 
-            let res = self.discussion_repository.get_by_private_users(ids).await;
+            let ids_ref: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+            let res = self
+                .discussion_repository
+                .get_by_private_users(ids_ref)
+                .await;
+            println!("res: {:?}", res);
 
             match res {
                 Ok(value) => {
@@ -257,28 +245,31 @@ impl<'a> DiscussionService<'a> {
         let private_discussion_user_ids = match data.chat_user_ids {
             Some(ids) => {
                 let mut user_ids = record_exist_all(self.user_repository.db, ids).await?;
-                if !user_ids.contains(&user_thing) {
-                    user_ids.push(user_thing.clone());
+                if !user_ids.contains(&user.id.as_ref().unwrap()) {
+                    user_ids.push(user.id.as_ref().unwrap().clone());
                 }
                 Some(user_ids)
             }
             None => None,
         };
 
+        let deny_rules = if data.private_discussion_users_final {
+            DiscussionDenyRule::private_fixed()
+        } else if private_discussion_user_ids.is_some() {
+            DiscussionDenyRule::private()
+        } else {
+            DiscussionDenyRule::public()
+        };
+
         let disc = self
             .discussion_repository
-            .create_update(Discussion {
-                id: None,
-                belongs_to: comm_id,
-                title: Some(data.title.clone()),
+            .create(CreateDiscussionEntity {
+                belongs_to: comm.id.clone(),
+                title: data.title,
                 image_uri: None,
-                topics: None,
                 private_discussion_user_ids,
-                latest_post_id: None,
-                r_created: None,
-                created_by: user_thing.clone(),
-                private_discussion_users_final: data.private_discussion_users_final,
-                deny_rules: None,
+                created_by: user.id.as_ref().unwrap().clone(),
+                deny_rules,
             })
             .await?;
 

@@ -121,7 +121,7 @@ pub async fn discussion_sse(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(disc_id): Path<String>,
-    Query(q_params): Query<DiscussionParams>,
+    Query(_params): Query<DiscussionParams>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let discussion_id = get_string_thing(disc_id.clone())?;
     let discussion = DiscussionDbService {
@@ -160,9 +160,6 @@ pub async fn discussion_sse(
                 return false;
             }
 
-            if q_params.topic_id.is_some() && q_params.topic_id.ne(&metadata.topic_id) {
-                return false;
-            }
             true
         })
         .map(move |msg| {
@@ -210,12 +207,15 @@ pub async fn discussion_sse(
 }
 
 async fn create_discussion(
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
     let disc_service = DiscussionService::new(&state, &ctx);
-    let disc = disc_service.create(data).await?;
+    let disc = disc_service
+        .create(&auth_data.user_thing_id(), data)
+        .await?;
     Ok(Json(disc))
 }
 
@@ -229,7 +229,7 @@ async fn get_discussions(
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let disc_service = DiscussionService::new(&state, &ctx);
-    let discussions = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
+    let discussions: Vec<Discussion> = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
     Ok(Json(discussions))
 }
 
@@ -246,7 +246,7 @@ async fn add_discussion_users(
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
-        .add_chat_users(&auth_data.user_id, &discussion_id, data.user_ids)
+        .add_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
     Ok(())
 }
@@ -259,7 +259,7 @@ async fn delete_discussion_users(
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
-        .remove_chat_users(&discussion_id, data.user_ids)
+        .remove_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
     Ok(())
 }
@@ -271,7 +271,7 @@ async fn delete_discussion(
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
-        .delete(&auth_data.user_id, &discussion_id)
+        .delete(&auth_data.user_thing_id(), &discussion_id)
         .await?;
     Ok(())
 }
@@ -284,7 +284,7 @@ async fn update_discussion(
 ) -> CtxResult<()> {
     let disc_service = DiscussionService::new(&state, &auth_data.ctx);
     disc_service
-        .update(&auth_data.user_id, &discussion_id, data)
+        .update(&auth_data.user_thing_id(), &discussion_id, data)
         .await?;
 
     Ok(())
