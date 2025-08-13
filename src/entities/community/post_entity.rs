@@ -6,6 +6,7 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
+use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
     IdentIdName, Pagination, QryOrder, ViewFieldSelector,
@@ -203,7 +204,7 @@ impl<'a> PostDbService<'a> {
         let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
         let query = format!(
-            "SELECT *, out.* AS entity FROM $tag->tag
+            "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
              WHERE record::id(out.belongs_to)=record::id(out.created_by)
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
@@ -211,7 +212,7 @@ impl<'a> PostDbService<'a> {
         let mut res = self
             .db
             .query(query)
-            .bind(("tag", Thing::from(("tags", tag))))
+            .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .await?;

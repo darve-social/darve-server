@@ -1,4 +1,5 @@
 use crate::database::client::Db;
+use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::interfaces::repositories::tags::TagsRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -18,10 +19,8 @@ impl TagsRepository {
     }
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
-            "
-        DEFINE TABLE IF NOT EXISTS tag TYPE RELATION IN tags ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE TABLE IF NOT EXISTS tags SCHEMAFULL;
-    "
+            "DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+            DEFINE TABLE IF NOT EXISTS {TAG_TABLE_NAME} SCHEMAFULL;"
         );
         let mutation = self.client.query(sql).await?;
 
@@ -37,8 +36,10 @@ impl TagsRepositoryInterface for TagsRepository {
         let _ = self
             .client
             .query("BEGIN TRANSACTION;")
-            .query("LET $ids = UPSERT $tags.map(|$v| type::thing('tags', $v));")
-            .query("RELATE $ids->tag->$entity;")
+            .query(format!(
+                "LET $ids = UPSERT $tags.map(|$v| type::thing('{TAG_TABLE_NAME}', $v));",
+            ))
+            .query(format!("RELATE $ids->{TAG_REL_TABLE_NAME}->$entity;"))
             .query("COMMIT TRANSACTION;")
             .query("RETURN $ids;")
             .bind(("tags", tags))
@@ -55,14 +56,14 @@ impl TagsRepositoryInterface for TagsRepository {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pag.order_by.unwrap_or("id".to_string()).to_string();
         let query = format!(
-            "SELECT *, out.* AS entity FROM $tag->tag ORDER BY out.{} {} LIMIT $limit START $start;",
+            "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME} ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by,
             order_dir
         );
         let mut res = self
             .client
             .query(query)
-            .bind(("tag", Thing::from(("tags", tag))))
+            .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .await?;
@@ -80,7 +81,7 @@ impl TagsRepositoryInterface for TagsRepository {
             ""
         };
         let query = format!(
-            "SELECT record::id(id) as tag, math::sum(->tag.out.likes_nr) AS count FROM tags
+            "SELECT record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
             {where_condition}
             ORDER BY count {dir}, tag ASC LIMIT $limit START $start;",
         );
