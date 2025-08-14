@@ -121,7 +121,6 @@ pub async fn discussion_sse(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(disc_id): Path<String>,
-    Query(_params): Query<DiscussionParams>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let discussion_id = get_string_thing(disc_id.clone())?;
     let discussion = DiscussionDbService {

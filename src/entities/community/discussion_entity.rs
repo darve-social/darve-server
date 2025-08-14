@@ -111,6 +111,7 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE INDEX IF NOT EXISTS idx_deny_rules ON TABLE {TABLE_NAME} COLUMNS deny_rules;
     DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
 ");
@@ -153,6 +154,7 @@ impl<'a> DiscussionDbService<'a> {
             res
         });
 
+        // TODO we sort on record write and on bind so it's not run for every record in query
         let query = format!(
             "SELECT * FROM {TABLE_NAME} WHERE 
                 private_discussion_user_ids != NONE
@@ -267,13 +269,13 @@ impl<'a> DiscussionDbService<'a> {
     }
 
     pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
-        Thing::from((TABLE_NAME.to_string(), user_id.id.to_raw()))
+        Thing::from((TABLE_NAME.to_string(), format!("{}_p", user_id.id.to_raw())))
     }
 
     pub fn get_idea_discussion_id(user_id: &Thing) -> Thing {
         Thing::from((
             TABLE_NAME.to_string(),
-            format!("{}_idea", user_id.id.to_raw()),
+            format!("{}_i", user_id.id.to_raw()),
         ))
     }
 }

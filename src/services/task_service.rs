@@ -198,6 +198,7 @@ where
         if let Some(amount) = data.offer_amount {
             let wallet_from = WalletDbService::get_user_wallet_id(&user_thing);
 
+            // TODO in db transaction
             let response = self
                 .transactions_repository
                 .transfer_currency(
