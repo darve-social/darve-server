@@ -1,7 +1,7 @@
 use crate::database::client::Db;
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity::{self};
+use crate::entities::wallet::wallet_entity::{self, TRANSACTION_HEAD_F};
 use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::middleware;
 use crate::middleware::utils::db_utils::{get_entity_view, QryOrder};
@@ -16,7 +16,7 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-use surrealdb::sql::{Datetime, Thing};
+use surrealdb::sql::{Datetime, Id, Thing};
 use wallet_entity::CurrencySymbol;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,10 +147,11 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
         let hours = (record.delivery_period + record.acceptance_period) as i64;
         let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
+        
         let mut res = self
             .db
             .query("BEGIN TRANSACTION")
-            .query("LET $wallet_id=(CREATE wallet SET transaction_head = {{}} RETURN id)[0].id;")
+            .query(format!("LET $wallet_id=(CREATE only wallet:$w_id SET {TRANSACTION_HEAD_F} = {{{{}}}} RETURN id).id;"))
             .query(format!(
                 "CREATE {TABLE_NAME} SET
                 delivery_period=$delivery_period,
@@ -176,6 +177,7 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("acceptance_period", record.acceptance_period))
             .bind(("status", TaskRequestStatus::InProgress))
             .bind(("due_at", Datetime::from(due_at.unwrap())))
+            .bind(("w_id", format!("{}_t",Id::rand())))
             .await
             .map_err(CtxError::from(self.ctx))?;
         let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;
