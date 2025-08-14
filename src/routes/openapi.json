@@ -1149,97 +1149,6 @@
         }
       }
     },
-    "/api/users/current/posts": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Create post for current user",
-        "description": "Create a new post for the current user",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/PostInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Post created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Post"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Get current user posts",
-        "description": "Get posts created by the current user",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "start",
-            "in": "query",
-            "description": "Pagination start index",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 0
-            }
-          },
-          {
-            "name": "count",
-            "in": "query",
-            "description": "Number of posts to return",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User posts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PostView"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
     "/api/users/current/otp/enable": {
       "post": {
         "tags": [
@@ -1418,6 +1327,69 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/u/{username_or_id}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get user profile by username or id",
+        "description": "Get detailed user profile information by username or user ID, including posts, followers, and other profile data",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "username_or_id",
+            "in": "path",
+            "required": true,
+            "description": "Username or user ID of the user whose profile to retrieve",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index for posts",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of posts to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile data with posts and follower information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
           }
         }
       }
@@ -3831,6 +3803,105 @@
             "description": "Updated total likes count for the reply"
           }
         }
+      },
+      "ProfileView": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "username",
+          "followers_nr",
+          "following_nr",
+          "posts"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User ID"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username"
+          },
+          "full_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Full name"
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true,
+            "description": "User biography"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email address (only visible to profile owner)"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Birth date"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Phone number"
+          },
+          "image_uri": {
+            "type": "string",
+            "nullable": true,
+            "description": "Profile image URI"
+          },
+          "is_otp_enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether user has OTP enabled"
+          },
+          "social_links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true,
+            "description": "Social media links"
+          },
+          "community": {
+            "type": "string",
+            "nullable": true,
+            "description": "User's community ID"
+          },
+          "profile_discussion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Profile discussion ID"
+          },
+          "idea_discussion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Idea discussion ID"
+          },
+          "followers_nr": {
+            "type": "integer",
+            "format": "int64",
+            "default": 0,
+            "description": "Number of followers"
+          },
+          "following_nr": {
+            "type": "integer",
+            "format": "int64",
+            "default": 0,
+            "description": "Number of users being followed"
+          },
+          "posts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostView"
+            },
+            "description": "User's posts"
+          }
+        },
+        "description": "Complete user profile view with posts, followers, and profile information"
       }
     }
   },

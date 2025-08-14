@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -24,6 +26,15 @@ use super::{community_entity, post_entity};
 pub enum DiscussionDenyRule {
     CreateTask,
     ManageMember,
+}
+
+impl Display for DiscussionDenyRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DiscussionDenyRule::CreateTask => write!(f, "CreateTask"),
+            DiscussionDenyRule::ManageMember => write!(f, "ManageMember"),
+        }
+    }
 }
 
 impl DiscussionDenyRule {
@@ -61,9 +72,10 @@ pub struct Discussion {
 
 impl Discussion {
     pub fn is_profile(&self) -> bool {
-        self.id
-            .as_ref()
-            .map_or(false, |id| id.id == self.created_by.id)
+        self.id.as_ref().map_or(false, |id| {
+            id == &DiscussionDbService::get_profile_discussion_id(&self.created_by)
+                || id == &DiscussionDbService::get_idea_discussion_id(&self.created_by)
+        })
     }
     pub fn is_member(&self, user_id: &Thing) -> bool {
         match self.private_discussion_user_ids {
@@ -273,9 +285,6 @@ impl<'a> DiscussionDbService<'a> {
     }
 
     pub fn get_idea_discussion_id(user_id: &Thing) -> Thing {
-        Thing::from((
-            TABLE_NAME.to_string(),
-            format!("{}_i", user_id.id.to_raw()),
-        ))
+        Thing::from((TABLE_NAME.to_string(), format!("{}_i", user_id.id.to_raw())))
     }
 }

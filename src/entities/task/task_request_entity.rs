@@ -147,24 +147,26 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
         let hours = (record.delivery_period + record.acceptance_period) as i64;
         let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
-        
+        let id = Id::rand().to_raw();
         let mut res = self
             .db
             .query("BEGIN TRANSACTION")
-            .query(format!("LET $wallet_id=(CREATE only wallet:$w_id SET {TRANSACTION_HEAD_F} = {{{{}}}} RETURN id).id;"))
             .query(format!(
-                "CREATE {TABLE_NAME} SET
-                delivery_period=$delivery_period,
-                wallet_id=$wallet_id,
-                created_by=$created_by,
-                deliverable_type=$deliverable_type,
-                request_txt=$request_txt,
-                reward_type=$reward_type,
-                currency=$currency,
-                type=$type,
-                acceptance_period=$acceptance_period,
-                due_at=$due_at,
-                status=$status;"
+                "CREATE ONLY $wallet SET {TRANSACTION_HEAD_F} = {{{{}}}};"
+            ))
+            .query(format!(
+                "CREATE $task SET
+                    delivery_period=$delivery_period,
+                    wallet_id=$wallet,
+                    created_by=$created_by,
+                    deliverable_type=$deliverable_type,
+                    request_txt=$request_txt,
+                    reward_type=$reward_type,
+                    currency=$currency,
+                    type=$type,
+                    acceptance_period=$acceptance_period,
+                    due_at=$due_at,
+                    status=$status;"
             ))
             .query("COMMIT TRANSACTION")
             .bind(("delivery_period", record.delivery_period))
@@ -177,7 +179,8 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("acceptance_period", record.acceptance_period))
             .bind(("status", TaskRequestStatus::InProgress))
             .bind(("due_at", Datetime::from(due_at.unwrap())))
-            .bind(("w_id", format!("{}_t",Id::rand())))
+            .bind(("wallet", Thing::from((WALLET_TABLE_NAME, id.as_str()))))
+            .bind(("task", Thing::from((TABLE_NAME, id.as_str()))))
             .await
             .map_err(CtxError::from(self.ctx))?;
         let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;

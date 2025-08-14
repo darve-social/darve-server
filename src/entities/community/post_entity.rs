@@ -7,6 +7,7 @@ use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
 use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
+use crate::entities::community::discussion_entity::DiscussionDenyRule;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
     IdentIdName, Pagination, QryOrder, ViewFieldSelector,
@@ -181,10 +182,19 @@ impl<'a> PostDbService<'a> {
     pub async fn get_by_id_with_access(&self, post_id: &str) -> CtxResult<Post> {
         let mut res = self
             .db
-            .query("SELECT * FROM $id WHERE $access_rule;")
+            .query("SELECT * FROM $id WHERE array::join(belongs_to.deny_rules ?? [],'') = $rule;")
             .bind(("id", get_str_thing(post_id)?))
-            .bind(("access_rule", self.get_access_query()))
+            .bind((
+                "rule",
+                DiscussionDenyRule::public().map_or("".to_string(), |r| {
+                    r.iter()
+                        .map(|rule| rule.to_string())
+                        .collect::<Vec<String>>()
+                        .join("")
+                }),
+            ))
             .await?;
+
         let post = res.take::<Option<Post>>(0)?;
 
         post.ok_or(
@@ -201,7 +211,7 @@ impl<'a> PostDbService<'a> {
 
         let query = format!(
             "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
-             WHERE record::id(out.belongs_to)=record::id(out.created_by)
+             WHERE array::join(out.belongs_to.deny_rules ?? [], '') = $rule
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
         );
@@ -211,18 +221,19 @@ impl<'a> PostDbService<'a> {
             .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
+            .bind((
+                "rule",
+                DiscussionDenyRule::public().map_or("".to_string(), |r| {
+                    r.iter()
+                        .map(|rule| rule.to_string())
+                        .collect::<Vec<String>>()
+                        .join("")
+                }),
+            ))
             .await?;
 
         let posts = res.take::<Vec<Post>>((0, "entity"))?;
         Ok(posts)
-    }
-
-    fn get_access_query(&self) -> String {
-        "record::id($this.belongs_to)=record::id($this.created_by)
-        AND record::exists(type::record(string::concat('access_rule:',record::id($this.id))) )=false
-        AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to))) )=false
-        AND record::exists(type::record(string::concat('access_rule:',record::id($this.belongs_to.belongs_to))) )=false
-        ".to_string()
     }
 
     pub async fn create(&self, data: CreatePost) -> CtxResult<Post> {

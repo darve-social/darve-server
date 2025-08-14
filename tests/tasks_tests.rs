@@ -21,15 +21,11 @@ use fake::{faker, Fake};
 use helpers::post_helpers::{build_fake_post, create_fake_post};
 use reqwest::StatusCode;
 use serde_json::json;
-use surrealdb::sql::Thing;
 
 test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -87,10 +83,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
 test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -142,10 +135,7 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -216,10 +206,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -266,10 +253,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -301,10 +285,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
@@ -337,10 +318,7 @@ test_with_server!(
         let (server, _user, _, _token) = create_fake_login_test_user(&server).await;
         let (server, _user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -381,10 +359,7 @@ test_with_server!(
         let (server, _user, _, token) = create_fake_login_test_user(&server).await;
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -423,10 +398,7 @@ test_with_server!(
 test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -515,10 +487,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -550,10 +519,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
@@ -586,10 +552,7 @@ test_with_server!(
         let (server, _user, _, token) = create_fake_login_test_user(&server).await;
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -628,10 +591,7 @@ test_with_server!(
 test_with_server!(delivered_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -663,10 +623,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
     let deliver_post = server
         .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
         .multipart(build_fake_post(None, None))
@@ -702,10 +659,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -737,10 +691,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
@@ -765,10 +716,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -793,11 +741,7 @@ test_with_server!(
             .await;
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
-
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
@@ -823,10 +767,7 @@ test_with_server!(
         let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
 
         let endow_user_response = server
@@ -852,10 +793,7 @@ test_with_server!(
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
             .multipart(build_fake_post(None, None))
@@ -879,10 +817,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let post1 = create_fake_post(server, &disc_id, None, None).await;
@@ -1037,10 +972,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
 test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
@@ -1089,17 +1021,11 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
 
 test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
     let deliver_post = create_fake_post(server, &disc, None, None).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let disc = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+    let post = create_fake_post(server, &disc, None, None).await;
 
     let endow_user_response = server
         .get(&format!(
@@ -1154,10 +1080,7 @@ test_with_server!(
     try_to_add_task_donor_without_balance,
     |server, state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let endow_user_response = server
@@ -1370,10 +1293,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
 test_with_server!(get_expired_tasks, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let disc_id = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server

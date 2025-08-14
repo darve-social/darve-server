@@ -12,9 +12,7 @@ use darve_server::{
     },
     middleware,
     routes::{
-        community::profile_routes::{self},
-        follows::UserItemView,
-        user_auth::login_routes,
+        community::profile_routes::ProfileView, follows::UserItemView, user_auth::login_routes,
     },
     services::post_service::PostView,
 };
@@ -23,7 +21,6 @@ use helpers::{fake_username_min_len, post_helpers::create_fake_post};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
-use profile_routes::ProfilePage;
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
     let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
@@ -56,8 +53,8 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .add_header("Accept", "application/json")
         .await;
-    let created = profile1_response.json::<ProfilePage>();
-    assert_eq!(created.profile_view.unwrap().followers_nr, 0);
+    let created = profile1_response.json::<ProfileView>();
+    assert_eq!(created.followers_nr, 0);
 
     // logged in as username2
     // follow user_ident1
@@ -100,8 +97,8 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .add_header("Accept", "application/json")
         .await;
-    let created = profile1_response.json::<ProfilePage>();
-    assert_eq!(created.profile_view.unwrap().followers_nr, 1);
+    let created = profile1_response.json::<ProfileView>();
+    assert_eq!(created.followers_nr, 1);
 
     //login as username3
     let (server, user3, user3_pwd, _) = create_fake_login_test_user(server).await;
@@ -134,8 +131,8 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get(format!("/u/{}", username1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = profile1_response.json::<ProfilePage>();
-    assert_eq!(created.profile_view.unwrap().followers_nr, 2);
+    let created = profile1_response.json::<ProfileView>();
+    assert_eq!(created.followers_nr, 2);
 
     // check if follows user1
     let create_response = server
@@ -186,9 +183,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     login_response.assert_status_success();
 
     // user1 post
+    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
     let post_name = "post title Name 1".to_string();
     let create_post = server
-        .post("/api/users/current/posts")
+        .post(&format!("/api/discussions/{disc_id}/posts"))
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -200,7 +198,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let _post = create_post.json::<Post>();
 
     let response = server
-        .get("/api/users/current/posts")
+        .get(&format!("/api/discussions/{disc_id}/posts"))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -249,8 +247,9 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user1 post 2
     let post_name = "post title Name 2".to_string();
+    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
     let create_post = server
-        .post("/api/users/current/posts")
+        .post(&format!("/api/discussions/{disc_id}/posts"))
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -292,8 +291,8 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get(format!("/u/{}", username1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
-    let created = profile1_response.json::<ProfilePage>();
-    assert_eq!(created.profile_view.unwrap().followers_nr, 1);
+    let created = profile1_response.json::<ProfileView>();
+    assert_eq!(created.followers_nr, 1);
 
     // check nr of user1 followers
     let create_response = server
@@ -324,8 +323,9 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user1 post 3
     let post_name = "post title Name 3".to_string();
+    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
     let create_post = server
-        .post("/api/users/current/posts")
+        .post(&format!("/api/discussions/{disc_id}/posts"))
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
