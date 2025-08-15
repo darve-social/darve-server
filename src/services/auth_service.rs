@@ -501,7 +501,7 @@ where
         self.community_repository
             .create_profile(
                 user.id.as_ref().unwrap().clone(),
-                Some(DiscussionDenyRule::profile()),
+                DiscussionDenyRule::public(),
             )
             .await?;
 

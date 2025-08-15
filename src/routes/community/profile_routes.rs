@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
-use axum::response::Html;
 use axum::routing::get;
-use axum::Router;
+use axum::{Json, Router};
 use axum_typed_multipart::TryFromMultipart;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -16,10 +14,10 @@ use follow_entity::FollowDbService;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
-use crate::database::client::Db;
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::community::{self, community_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
+use crate::services::post_service::PostView;
 use crate::{middleware, utils};
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
@@ -42,7 +40,7 @@ pub struct ProfileSettingsForm {
     pub image_url: String,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
+#[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/profile_page.html")]
 pub struct ProfilePage {
     theme_name: String,
@@ -53,7 +51,7 @@ pub struct ProfilePage {
     pub profile_view: Option<ProfileView>,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
+#[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/profile_view_1.html")]
 pub struct ProfileView {
     pub user_id: Thing,
@@ -68,12 +66,14 @@ pub struct ProfileView {
     pub is_otp_enabled: bool,
     pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
-    pub default_discussion: Option<Thing>,
+    pub profile_discussion: Option<Thing>,
+    pub idea_discussion: Option<Thing>,
     #[serde(default)]
     pub followers_nr: i64,
     #[serde(default)]
     pub following_nr: i64,
-    pub default_discussion_view: Option<ProfileDiscussionView>,
+    #[serde(default)]
+    pub posts: Vec<PostView>,
 }
 
 impl ViewFieldSelector for ProfileView {
@@ -82,46 +82,12 @@ impl ViewFieldSelector for ProfileView {
     }
 }
 
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
-#[template(path = "nera2/profile_discussion_view_1.html")]
-pub struct ProfileDiscussionView {
-    id: Option<Thing>,
-    pub posts: Vec<ProfilePostView>,
-}
-
-impl ViewFieldSelector for ProfileDiscussionView {
-    fn get_select_query_fields() -> String {
-        "id,  [] as posts".to_string()
-    }
-}
-
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
-#[template(path = "nera2/profile_post-1-popup.html")]
-pub struct ProfilePostView {
-    pub id: Thing,
-    pub username: Option<String>,
-    // belongs_to_id=discussion
-    pub belongs_to_id: Thing,
-    pub title: String,
-    pub content: Option<String>,
-    pub media_links: Option<Vec<String>>,
-    pub created_at: DateTime<Utc>,
-    pub replies_nr: i64,
-    pub likes_nr: i64,
-}
-
-impl ViewFieldSelector for ProfilePostView {
-    fn get_select_query_fields() -> String {
-        "id, created_by.username as username,  title, content, media_links, created_at, belongs_to.id as belongs_to_id, replies_nr, likes_nr".to_string()
-    }
-}
-
 async fn display_profile(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(username_or_id): Path<String>,
     Query(q_params): Query<DiscussionParams>,
-) -> CtxResult<Html<String>> {
+) -> CtxResult<Json<ProfileView>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -144,16 +110,23 @@ async fn display_profile(
     profile_view.community = Some(CommunityDbService::get_profile_community_id(
         &profile_view.user_id,
     ));
-    profile_view.default_discussion = Some(DiscussionDbService::get_profile_discussion_id(
+    profile_view.profile_discussion = Some(DiscussionDbService::get_profile_discussion_id(
         &profile_view.user_id,
     ));
 
-    let disc_id = profile_view.default_discussion.clone().unwrap();
+    profile_view.idea_discussion = Some(DiscussionDbService::get_idea_discussion_id(
+        &profile_view.user_id,
+    ));
 
-    let dis_view =
-        get_profile_discussion_view(&ctx_state.db.client, &ctx, q_params, disc_id).await?;
+    let disc_id = profile_view.profile_discussion.clone().unwrap();
 
-    profile_view.default_discussion_view = Some(dis_view);
+    profile_view.posts = PostDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .get_by_discussion_desc_view::<PostView>(disc_id.clone(), q_params.clone())
+    .await?;
+
     let follow_db_service = FollowDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
@@ -162,35 +135,10 @@ async fn display_profile(
     profile_view.following_nr = follow_db_service
         .user_following_number(profile_view.user_id.clone())
         .await?;
+
     profile_view.followers_nr = follow_db_service
         .user_followers_number(profile_view.user_id.clone())
         .await?;
 
-    ctx.to_htmx_or_json(ProfilePage {
-        theme_name: "emerald".to_string(),
-        window_title: "win win".to_string(),
-        nav_top_title: "navtt".to_string(),
-        header_title: "headddr".to_string(),
-        footer_text: "foooo".to_string(),
-        profile_view: Some(profile_view),
-    })
-}
-
-async fn get_profile_discussion_view(
-    db: &Db,
-    ctx: &Ctx,
-    q_params: DiscussionParams,
-    disc_id: Thing,
-) -> CtxResult<ProfileDiscussionView> {
-    // let mut dis_view = DiscussionDbService { db: &ctx_state.db.client, ctx: &ctx }.get_view::<ProfileDiscussionView>(IdentIdName::Id(disc_id.clone())).await?;
-    let mut dis_view = ProfileDiscussionView {
-        id: Some(disc_id.clone()),
-        posts: vec![],
-    };
-
-    let discussion_posts = PostDbService { db, ctx }
-        .get_by_discussion_desc_view::<ProfilePostView>(disc_id.clone(), q_params.clone())
-        .await?;
-    dis_view.posts = discussion_posts;
-    Ok(dis_view)
+    Ok(Json(profile_view))
 }

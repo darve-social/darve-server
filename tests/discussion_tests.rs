@@ -117,7 +117,6 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
         .unwrap();
 
     assert_eq!(discussion.belongs_to.eq(&comm_id.clone()), true);
-    assert_eq!(discussion.topics, None);
 
     let db_service = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -833,8 +832,7 @@ test_with_server!(try_update_by_not_owner, |server, ctx_state, config| {
         .json(&json!({ "title": "Hello "}))
         .await;
 
-    create_response.assert_status_failure();
-    assert!(create_response.text().contains("not authorized"));
+    create_response.assert_status_forbidden();
 });
 
 test_with_server!(update, |server, ctx_state, config| {
@@ -918,10 +916,7 @@ test_with_server!(delete_read_only, |server, ctx_state, config| {
 
     let disc_id = result.id.as_ref().unwrap();
     let create_response = server
-        .delete(&format!(
-            "/api/discussions/{}",
-            disc_id.to_raw().replace(":", "%3A")
-        ))
+        .delete(&format!("/api/discussions/{}", disc_id.to_raw()))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -973,8 +968,7 @@ test_with_server!(try_delete_by_not_owner, |server, ctx_state, config| {
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
         .await;
-    create_response.assert_status_failure();
-    assert!(create_response.text().contains("not authorized"));
+    create_response.assert_status_forbidden();
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions")
         .add_header("Accept", "application/json")

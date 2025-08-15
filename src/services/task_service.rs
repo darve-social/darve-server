@@ -1,4 +1,5 @@
 use crate::{
+    access::discussion::DiscussionAccess,
     database::client::Db,
     entities::{
         community::{
@@ -11,7 +12,7 @@ use crate::{
         },
         task_donor::TaskDonor,
         task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
-        user_auth::local_user_entity::LocalUserDbService,
+        user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
             balance_transaction_entity::BalanceTransactionDbService,
             wallet_entity::{CurrencySymbol, WalletDbService},
@@ -154,22 +155,19 @@ where
     ) -> CtxResult<TaskRequest> {
         data.validate()?;
 
-        let user_thing = get_str_thing(&user_id)?;
-        let _ = self
-            .users_repository
-            .exists(IdentIdName::Id(user_thing.clone()))
-            .await?;
+        let user = self.users_repository.get_by_id(user_id).await?;
+        let user_thing = user.id.as_ref().unwrap().clone();
 
-        let _ = self.check_access(&user_thing, &related_to).await?;
+        let _ = self.check_access(&user, &related_to).await?;
 
         let (to_user, task_type) = match data.participant {
             Some(ref participant) if !participant.is_empty() => {
                 let to_user_thing = get_str_thing(&participant)?;
                 let user = self
                     .users_repository
-                    .get(IdentIdName::Id(to_user_thing.clone()))
+                    .get_by_id(&to_user_thing.id.to_raw())
                     .await?;
-                let _ = self.check_access(&to_user_thing, &related_to).await?;
+                let _ = self.check_access(&user, &related_to).await?;
                 (Some(user), TaskRequestType::Close)
             }
             _ => (None, TaskRequestType::Open),
@@ -180,7 +178,7 @@ where
         let task = self
             .tasks_repository
             .create(TaskRequestCreate {
-                from_user: user_thing.clone(),
+                from_user: user.id.as_ref().unwrap().clone(),
                 r#type: task_type,
                 request_txt: data.content,
                 deliverable_type: DeliverableType::PublicPost,
@@ -200,6 +198,7 @@ where
         if let Some(amount) = data.offer_amount {
             let wallet_from = WalletDbService::get_user_wallet_id(&user_thing);
 
+            // TODO in db transaction
             let response = self
                 .transactions_repository
                 .transfer_currency(
@@ -214,7 +213,7 @@ where
                 .task_donors_repository
                 .create(
                     &task.id.as_ref().unwrap().id.to_raw(),
-                    &user_thing.id.to_raw(),
+                    &user_id,
                     &response.tx_out_id.id.to_raw(),
                     amount as u64,
                     &offer_currency.to_string(),
@@ -280,9 +279,9 @@ where
 
         let donor_thing = get_str_thing(&donor_id)?;
 
-        let _ = self
+        let donor = self
             .users_repository
-            .exists(IdentIdName::Id(donor_thing.clone()))
+            .get_by_id(&donor_thing.id.to_raw())
             .await?;
 
         if data.amount <= 0 {
@@ -298,7 +297,7 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        let _ = self.check_access(&donor_thing, &task.related_to).await?;
+        let _ = self.check_access(&donor, &task.related_to).await?;
 
         let participant = task.donors.iter().find(|p| p.user == donor_thing);
         let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
@@ -382,11 +381,7 @@ where
     }
 
     pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<()> {
-        let user_thing = get_str_thing(&user_id)?;
-        let _ = self
-            .users_repository
-            .exists(IdentIdName::Id(user_thing.clone()))
-            .await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task_thing = get_str_thing(&task_id)?;
         let task = self
@@ -394,8 +389,7 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        let user_id_id = user_thing.id.to_raw();
-        let task_user = task.participants.iter().find(|v| v.user == user_id_id);
+        let task_user = task.participants.iter().find(|v| v.user == user_id);
 
         let allow = task_user.map_or(false, |v| {
             v.status == TaskParticipantStatus::Requested
@@ -406,7 +400,7 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        let _ = self.check_access(&user_thing, &task.related_to).await?;
+        let _ = self.check_access(&user, &task.related_to).await?;
 
         self.task_participants_repository
             .update(
@@ -422,12 +416,8 @@ where
     }
 
     pub async fn accept(&self, user_id: &str, task_id: &str) -> AppResult<()> {
-        let user_thing = get_str_thing(&user_id)?;
         let task_thing = get_str_thing(&task_id)?;
-        let _ = self
-            .users_repository
-            .exists(IdentIdName::Id(user_thing.clone()))
-            .await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task = self
             .tasks_repository
@@ -441,14 +431,17 @@ where
             .into());
         }
 
-        let _ = self.check_access(&user_thing, &task.related_to).await?;
+        let _ = self.check_access(&user, &task.related_to).await?;
 
-        if task.donors.iter().any(|t| t.user == user_thing) {
+        if task
+            .donors
+            .iter()
+            .any(|t| t.user == *user.id.as_ref().unwrap())
+        {
             return Err(AppError::Forbidden.into());
         }
 
-        let user_id_id = user_thing.id.to_raw();
-        let task_user = task.participants.iter().find(|v| v.user == user_id_id);
+        let task_user = task.participants.iter().find(|v| v.user == user_id);
 
         match task.r#type {
             TaskRequestType::Open => {
@@ -460,7 +453,7 @@ where
                     .task_participants_repository
                     .create(
                         &task.id.id.to_raw(),
-                        &user_id_id,
+                        &user_id,
                         TaskParticipantStatus::Accepted.as_str(),
                     )
                     .await
@@ -495,23 +488,18 @@ where
         task_id: &str,
         data: TaskDeliveryData,
     ) -> AppResult<()> {
-        let user_thing = get_str_thing(&user_id)?;
         let task_thing = get_str_thing(&task_id)?;
-        let _ = self
-            .users_repository
-            .exists(IdentIdName::Id(user_thing.clone()))
-            .await?;
+        let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task = self
             .tasks_repository
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        let user_id_id = user_thing.id.to_raw();
         let task_user = task
             .participants
             .iter()
-            .find(|v| v.user == user_id_id && v.status == TaskParticipantStatus::Accepted);
+            .find(|v| v.user == user_id && v.status == TaskParticipantStatus::Accepted);
 
         if task_user.is_none() {
             return Err(AppError::Forbidden.into());
@@ -557,7 +545,11 @@ where
             .collect::<Vec<Thing>>();
 
         self.notification_service
-            .on_deliver_task(&user_thing, task_thing.clone(), &participant_ids)
+            .on_deliver_task(
+                &user.id.as_ref().unwrap(),
+                task_thing.clone(),
+                &participant_ids,
+            )
             .await?;
 
         Ok(())
@@ -644,10 +636,10 @@ where
         }
     }
 
-    async fn check_access(&self, user_id: &Thing, related_to: &Option<Thing>) -> AppResult<()> {
+    async fn check_access(&self, user: &LocalUser, related_to: &Option<Thing>) -> AppResult<()> {
         match related_to {
             Some(ref thing) => match thing.tb.as_str() {
-                DISC_TB_NAME => self.check_disc_access(user_id, &thing).await,
+                DISC_TB_NAME => self.check_disc_access(user, &thing).await,
                 POST_TB_NAME => self.check_post_access(&thing).await,
                 _ => Err(AppError::Forbidden),
             },
@@ -655,7 +647,7 @@ where
         }
     }
 
-    async fn check_disc_access(&self, user_id: &Thing, disc_id: &Thing) -> AppResult<()> {
+    async fn check_disc_access(&self, user: &LocalUser, disc_id: &Thing) -> AppResult<()> {
         let disc = self
             .discussions_repository
             .get_by_id(&disc_id.to_raw())
@@ -663,13 +655,11 @@ where
             .map_err(|_| AppError::Generic {
                 description: "Forbidden".to_string(),
             })?;
-        if !disc
-            .private_discussion_user_ids
-            .unwrap_or_default()
-            .contains(&user_id)
-        {
-            return Err(AppError::Forbidden);
+
+        if !DiscussionAccess::new(&disc).can_create_task(&user) {
+            return Err(AppError::Forbidden.into());
         }
+
         Ok(())
     }
     async fn check_post_access(&self, post_id: &Thing) -> AppResult<()> {

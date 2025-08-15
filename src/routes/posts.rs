@@ -71,7 +71,7 @@ async fn create_task(
     );
 
     let task = task_service
-        .create(&auth_data.user_id, body, Some(post_thing.clone()))
+        .create(&auth_data.user_thing_id(), body, Some(post_thing.clone()))
         .await?;
 
     Ok(Json(task))
@@ -263,7 +263,6 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
             &reply_view,
-            &None,
         )
         .await?;
 
@@ -273,7 +272,6 @@ async fn create_reply(
             &post.id.as_ref().unwrap(),
             &post.belongs_to.clone(),
             &post.replies_nr.to_string(),
-            &None,
         )
         .await?;
 

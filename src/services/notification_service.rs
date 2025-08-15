@@ -356,7 +356,6 @@ where
         post_id: &Thing,
         discussion_id: &Thing,
         content: &ReplyView,
-        topic_id: &Option<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
 
@@ -367,7 +366,6 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(discussion_id.clone()),
-            topic_id: topic_id.clone(),
             post_id: Some(post_id.clone()),
         };
         let _ = self.event_sender.send(AppEvent {
@@ -391,7 +389,6 @@ where
         post_id: &Thing,
         discussion_id: &Thing,
         content: &String,
-        topic_id: &Option<Thing>,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
 
@@ -402,7 +399,6 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(discussion_id.clone()),
-            topic_id: topic_id.clone(),
             post_id: Some(post_id.clone()),
         };
 
@@ -433,7 +429,6 @@ where
 
         let metadata = AppEventMetadata {
             discussion_id: Some(post.belongs_to.clone()),
-            topic_id: None,
             post_id: Some(post.id.clone()),
         };
 

@@ -21,7 +21,6 @@ pub enum AppEventType {
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEventMetadata {
     pub discussion_id: Option<Thing>,
-    pub topic_id: Option<Thing>,
     pub post_id: Option<Thing>,
 }
 #[derive(Debug, Clone, Serialize)]

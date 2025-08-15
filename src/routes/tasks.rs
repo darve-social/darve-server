@@ -117,7 +117,9 @@ async fn reject_task_request(
         &state.db.task_relates,
     );
 
-    task_service.reject(&auth_data.user_id, &task_id).await?;
+    task_service
+        .reject(&auth_data.user_thing_id(), &task_id)
+        .await?;
 
     Ok(())
 }
@@ -137,20 +139,22 @@ async fn accept_task_request(
         &state.db.task_relates,
     );
 
-    task_service.accept(&auth_data.user_id, &task_id).await?;
+    task_service
+        .accept(&auth_data.user_thing_id(), &task_id)
+        .await?;
 
     Ok(())
 }
 
 async fn deliver_task_request(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
     Json(input): Json<DeliverTaskRequestInput>,
 ) -> CtxResult<()> {
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
         &state.event_sender,
         &state.db.user_notifications,
         &state.db.task_donors,
@@ -160,7 +164,7 @@ async fn deliver_task_request(
 
     task_service
         .deliver(
-            &ctx.user_id()?,
+            &auth_data.user_thing_id(),
             &task_id,
             TaskDeliveryData {
                 post_id: input.post_id,

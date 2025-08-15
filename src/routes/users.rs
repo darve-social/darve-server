@@ -1,5 +1,9 @@
 use crate::{
-    middleware::{auth_with_login_access::AuthWithLoginAccess, utils::db_utils::IdentIdName},
+    entities::community::post_stream_entity::PostStreamDbService,
+    middleware::{
+        auth_with_login_access::AuthWithLoginAccess,
+        utils::{db_utils::IdentIdName, string_utils::get_str_thing},
+    },
     models::view::user::UserView,
     utils::validate_utils::validate_social_links,
 };
@@ -9,7 +13,6 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
-use axum_typed_multipart::TypedMultipart;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -17,28 +20,16 @@ use std::{path::Path, sync::Arc};
 use validator::Validate;
 
 use crate::{
-    entities::{
-        community::{
-            discussion_entity::DiscussionDbService, post_entity::Post,
-            post_stream_entity::PostStreamDbService,
-        },
-        user_auth::{
-            authentication_entity::AuthenticationDbService, local_user_entity::LocalUserDbService,
-        },
+    entities::user_auth::{
+        authentication_entity::AuthenticationDbService, local_user_entity::LocalUserDbService,
     },
     interfaces::file_storage::FileStorageInterface,
     middleware::{
         error::{AppError, CtxResult},
         mw_ctx::CtxState,
-        utils::{
-            extractor_utils::{DiscussionParams, JsonOrFormValidated},
-            string_utils::get_str_thing,
-        },
+        utils::extractor_utils::JsonOrFormValidated,
     },
-    services::{
-        post_service::{PostInput, PostService, PostView},
-        user_service::UserService,
-    },
+    services::{post_service::PostView, user_service::UserService},
     utils::{self, file::convert::FileUpload},
 };
 
@@ -78,8 +69,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         )
         .route("/api/users/current", patch(update_user))
         .route("/api/users/current", get(get_user))
-        .route("/api/users/current/posts", post(create_post))
-        .route("/api/users/current/posts", get(get_posts))
         .route("/api/users", get(search_users))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
@@ -503,56 +492,6 @@ async fn update_user(
     };
     let user = local_user_db_service.update(user).await?;
     Ok(Json(UserView::from(user)))
-}
-
-async fn create_post(
-    auth_data: AuthWithLoginAccess,
-    State(ctx_state): State<Arc<CtxState>>,
-    TypedMultipart(input_value): TypedMultipart<PostInput>,
-) -> CtxResult<Json<Post>> {
-    let user_thing = get_str_thing(&auth_data.user_id)?;
-    let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
-
-    let post_service = PostService::new(
-        &ctx_state.db.client,
-        &auth_data.ctx,
-        &ctx_state.event_sender,
-        &ctx_state.db.user_notifications,
-        &ctx_state.file_storage,
-        &ctx_state.db.tags,
-        &ctx_state.db.likes,
-    );
-
-    let post = post_service
-        .create(&user_thing.id.to_raw(), &disc_id.to_raw(), input_value)
-        .await?;
-
-    Ok(Json(post))
-}
-
-async fn get_posts(
-    auth_data: AuthWithLoginAccess,
-    State(ctx_state): State<Arc<CtxState>>,
-    Query(query): Query<DiscussionParams>,
-) -> CtxResult<Json<Vec<PostView>>> {
-    let user_thing = get_str_thing(&auth_data.user_id)?;
-    let disc_id = DiscussionDbService::get_profile_discussion_id(&user_thing);
-
-    let post_service = PostService::new(
-        &ctx_state.db.client,
-        &auth_data.ctx,
-        &ctx_state.event_sender,
-        &ctx_state.db.user_notifications,
-        &ctx_state.file_storage,
-        &ctx_state.db.tags,
-        &ctx_state.db.likes,
-    );
-
-    let posts = post_service
-        .get_by_query(&disc_id.to_raw(), &user_thing.id.to_raw(), query)
-        .await?;
-
-    Ok(Json(posts))
 }
 
 #[derive(Deserialize, Serialize, Validate, Debug)]

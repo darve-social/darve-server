@@ -1,4 +1,5 @@
 use crate::{
+    access::discussion::DiscussionAccess,
     database::client::Db,
     entities::{
         community::{
@@ -6,11 +7,7 @@ use crate::{
             post_entity::{CreatePost, Post, PostDbService},
             post_stream_entity::PostStreamDbService,
         },
-        user_auth::{
-            access_right_entity::AccessRightDbService,
-            authorization_entity::{Authorization, AUTH_ACTIVITY_MEMBER},
-            local_user_entity::LocalUserDbService,
-        },
+        user_auth::local_user_entity::LocalUserDbService,
     },
     interfaces::{
         file_storage::FileStorageInterface,
@@ -113,7 +110,6 @@ where
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
-    access_repository: AccessRightDbService<'a>,
     posts_repository: PostDbService<'a>,
     file_storage: &'a F,
     likes_repository: &'a L,
@@ -151,7 +147,6 @@ where
             file_storage,
             tags_repository,
             likes_repository,
-            access_repository: AccessRightDbService { db: &db, ctx },
             streams_repository: PostStreamDbService { db: &db, ctx },
         }
     }
@@ -238,20 +233,8 @@ where
         let user = self.users_repository.get_by_id(user_id).await?;
         let disc = self.discussions_repository.get_by_id(disc_id).await?;
 
-        let is_user_chat = match disc.private_discussion_user_ids {
-            Some(ref ids) => ids.contains(&user.id.as_ref().unwrap()),
-            None => false,
-        };
-
-        if !is_user_chat {
-            let min_authorization = Authorization {
-                authorize_record_id: disc.id.clone().unwrap().clone(),
-                authorize_activity: AUTH_ACTIVITY_MEMBER.to_string(),
-                authorize_height: 0,
-            };
-            self.access_repository
-                .is_authorized(&user.id.as_ref().unwrap(), &min_authorization)
-                .await?;
+        if !DiscussionAccess::new(&disc).can_create_post(&user) {
+            return Err(AppError::Forbidden.into());
         }
 
         let new_post_id = PostDbService::get_new_post_thing();
@@ -317,12 +300,8 @@ where
                 .create_with_relate(data.tags, post.id.as_ref().unwrap().clone())
                 .await?;
         }
-        // set latest post
-        self.discussions_repository
-            .set_latest_post_id(disc.id.clone().unwrap(), post.id.clone().unwrap())
-            .await?;
 
-        if is_user_chat {
+        if disc.private_discussion_user_ids.is_some() {
             self.notification_service
                 .on_chat_message(
                     &user.id.as_ref().unwrap(),

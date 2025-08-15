@@ -13,8 +13,6 @@ use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
 use darve_server::routes::posts::GetPostsQuery;
 use darve_server::services::post_service::PostView;
-use helpers::community_helpers;
-use helpers::community_helpers::get_profile_discussion_id;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
     create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
@@ -73,9 +71,7 @@ test_with_server!(
 
 test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
-
-    let result = get_profile_discussion_id(server, user_ident.clone()).await;
+    let result = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
     let _ = create_fake_post_with_large_file(server, &ctx_state, &result).await;
     let _ = create_fake_post_with_file(server, &ctx_state, &result).await;
 
@@ -108,7 +104,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(2),
         },
@@ -124,7 +119,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(3),
         },
@@ -139,7 +133,6 @@ test_with_server!(get_latest, |server, ctx_state, config| {
     .get_by_discussion_desc_view::<RecordWithId>(
         default_discussion.clone(),
         DiscussionParams {
-            topic_id: None,
             start: Some(0),
             count: Some(1),
         },
@@ -151,10 +144,8 @@ test_with_server!(get_latest, |server, ctx_state, config| {
 
 test_with_server!(create_post_with_tags, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
-
     let default_discussion =
-        community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
     let _ = create_fake_post(server, &default_discussion, None, None).await;
     let tags = vec![
@@ -206,9 +197,8 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
 
 test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
-    let user_ident = user.id.as_ref().unwrap().to_raw();
     let default_discussion =
-        community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
     let tags = vec!["tag".to_string(), "tag1".to_string()];
 
     let _ = create_fake_post(server, &default_discussion, None, None).await;
@@ -296,10 +286,8 @@ test_with_server!(
     try_to_create_without_content_and_file,
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
-        let user_ident = user.id.as_ref().unwrap().to_raw();
         let default_discussion =
-            community_helpers::get_profile_discussion_id(server, user_ident.clone()).await;
-
+            DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
         let data = MultipartForm::new().add_text("title", "Hello");
         let response = create_post(server, &default_discussion, data).await;
 

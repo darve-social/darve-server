@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use chrono::DateTime;
 use darve_server::entities::community::community_entity;
-use darve_server::entities::community::discussion_entity::Discussion;
+use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
@@ -19,7 +19,6 @@ use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use serde_json::json;
 use std::i64;
-use surrealdb::sql::Thing;
 
 use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use community_entity::CommunityDbService;
@@ -296,10 +295,12 @@ test_with_server!(
 
         //////// deliver task
 
+        let disc_id =
+            DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap()).to_raw();
         // create post on own profile for task delivery
         let post_name = "delivery post".to_string();
         let create_post = server
-            .post("/api/users/current/posts")
+            .post(&format!("/api/discussions/{disc_id}/posts"))
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
@@ -426,10 +427,7 @@ test_with_server!(
 test_with_server!(get_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = Thing::from((
-        "discussion".to_string(),
-        user1.id.as_ref().unwrap().id.to_raw(),
-    ));
+    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
 
     let create_response = server
         .post(&format!(
@@ -491,10 +489,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 test_with_server!(set_read_notification, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = Thing::from((
-        "discussion".to_string(),
-        user1.id.as_ref().unwrap().id.to_raw(),
-    ));
+    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
             "/api/followers/{}",
@@ -540,10 +535,7 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
 test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = Thing::from((
-        "discussion".to_string(),
-        user1.id.as_ref().unwrap().id.to_raw(),
-    ));
+    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
 
     let create_response = server
         .post(&format!(
@@ -591,10 +583,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = Thing::from((
-        "discussion".to_string(),
-        user1.id.as_ref().unwrap().id.to_raw(),
-    ));
+    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
             "/api/followers/{}",

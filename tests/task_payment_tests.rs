@@ -51,10 +51,7 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let endow_user_response = server
@@ -88,10 +85,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
@@ -108,10 +102,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user2.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user2.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
@@ -129,10 +120,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user3.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user3.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
@@ -187,10 +175,7 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let endow_user_response = server
@@ -224,10 +209,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
@@ -244,10 +226,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user2.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user2.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
@@ -307,10 +286,7 @@ test_with_server!(
 test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        user0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let start_wallet_amount = 1000;
     let endow_user_response = server
@@ -378,10 +354,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
 test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        donor0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let donor0_amount = 1000;
     let endow_user_response = server
@@ -480,10 +453,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
 test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = Thing::from((
-        DiscussionDbService::get_table_name().as_ref(),
-        donor0.id.as_ref().unwrap().id.to_raw().as_ref(),
-    ));
+    let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let donor0_amount = 1000;
     let endow_user_response = server
@@ -676,10 +646,7 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            donor0.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
         let donor0_amount = 1000;
         let endow_user_response = server
@@ -735,10 +702,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = Thing::from((
-            DiscussionDbService::get_table_name().as_ref(),
-            user1.id.as_ref().unwrap().id.to_raw().as_ref(),
-        ));
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server

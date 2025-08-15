@@ -48,15 +48,12 @@ pub struct CreateFakePostResponse {
 }
 
 #[allow(dead_code)]
-pub fn build_fake_post(topic_id: Option<Thing>, tags: Option<Vec<String>>) -> MultipartForm {
+pub fn build_fake_post(_topic_id: Option<Thing>, tags: Option<Vec<String>>) -> MultipartForm {
     let post_name = faker::name::en::Name().fake::<String>();
     let content = faker::lorem::en::Sentence(7..20).fake::<String>();
     let mut data = MultipartForm::new();
     data = data.add_text("title", post_name.clone());
     data = data.add_text("content", content);
-    if topic_id.is_some() {
-        data = data.add_text("topic_id", topic_id.unwrap());
-    };
     let tags = tags.unwrap_or(vec![]);
     for tag in tags.into_iter() {
         data = data.add_text("tags", tag);

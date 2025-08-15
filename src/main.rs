@@ -9,6 +9,7 @@ use middleware::mw_ctx::{self};
 use routes::user_auth::webauthn::webauthn_routes::{self};
 use sentry::{ClientInitGuard, ClientOptions};
 
+pub mod access;
 pub mod config;
 pub mod database;
 pub mod entities;

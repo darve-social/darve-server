@@ -24,7 +24,6 @@ use axum::{
     Router,
 };
 use entities::community::discussion_entity::DiscussionDbService;
-use entities::community::discussion_topic_entity::DiscussionTopicDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
@@ -90,9 +89,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .mutate_db()
         .await?;
     DiscussionDbService { db: &db, ctx: &c }.mutate_db().await?;
-    DiscussionTopicDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;

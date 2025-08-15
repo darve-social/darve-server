@@ -11,10 +11,7 @@ use darve_server::{
     },
     interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
     middleware::{self, utils::db_utils::UsernameIdent},
-    routes::{
-        community::profile_routes::{self},
-        users::SearchInput,
-    },
+    routes::{community::profile_routes::ProfileView, users::SearchInput},
 };
 use helpers::{
     create_fake_login_test_user, create_login_test_user,
@@ -295,10 +292,8 @@ test_with_server!(update_user_avatar, |server, ctx_state, config| {
     let get_response = get_user(&server, local_user.id.unwrap().to_raw().as_str()).await;
     get_response.assert_status_success();
 
-    let user = get_response.json::<profile_routes::ProfilePage>();
+    let user = get_response.json::<ProfileView>();
     assert!(user
-        .profile_view
-        .unwrap()
         .image_uri
         .as_ref()
         .unwrap()

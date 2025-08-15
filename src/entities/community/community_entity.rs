@@ -5,14 +5,13 @@ use validator::Validate;
 
 use crate::database::client::Db;
 use crate::entities::community::discussion_entity::DiscussionDenyRule;
-use crate::{entities::user_auth, middleware};
+use crate::middleware;
+use crate::middleware::utils::string_utils::get_str_thing;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
-use user_auth::access_right_entity::AccessRightDbService;
-use user_auth::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
 use super::discussion_entity::DiscussionDbService;
 
@@ -51,6 +50,13 @@ impl<'a> CommunityDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
+    pub async fn get_by_id(&self, id: &str) -> CtxResult<Community> {
+        let ident = get_str_thing(id)?;
+        let ident_id_name = IdentIdName::Id(ident);
+        let opt = get_entity::<Community>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
+        with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
+    }
+
     pub async fn create_profile(
         &self,
         user_id: Thing,
@@ -58,10 +64,14 @@ impl<'a> CommunityDbService<'a> {
     ) -> CtxResult<Community> {
         let community_id = CommunityDbService::get_profile_community_id(&user_id);
         let disc_id = DiscussionDbService::get_profile_discussion_id(&user_id);
+        let idea_id = DiscussionDbService::get_idea_discussion_id(&user_id);
 
         let mut result = self
             .db
             .query("BEGIN TRANSACTION;")
+            .query(
+                "CREATE $idea SET belongs_to=$community, created_by=$user, deny_rules=$deny_rules;",
+            )
             .query(
                 "CREATE $disc SET belongs_to=$community, created_by=$user, deny_rules=$deny_rules;",
             )
@@ -69,27 +79,14 @@ impl<'a> CommunityDbService<'a> {
             .query("COMMIT TRANSACTION;")
             .bind(("user", user_id))
             .bind(("disc", disc_id.clone()))
+            .bind(("idea", idea_id.clone()))
             .bind(("community", community_id.clone()))
             .bind(("deny_rules", disc_deny_rules))
             .await?;
         let comm = result.take::<Option<Community>>(0)?;
-        let comm = comm.unwrap();
-        let auth1 = Authorization {
-            authorize_record_id: community_id,
-            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-            authorize_height: 99,
-        };
-
-        let aright_db = AccessRightDbService {
-            db: &self.db,
-            ctx: &self.ctx,
-        };
-
-        aright_db
-            .authorize(comm.created_by.clone(), auth1, None)
-            .await?;
-
-        Ok(comm)
+        Ok(comm.ok_or(AppError::EntityFailIdNotFound {
+            ident: community_id.to_raw(),
+        })?)
     }
 
     pub fn get_profile_community_id(user_id: &Thing) -> Thing {

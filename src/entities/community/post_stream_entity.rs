@@ -40,18 +40,6 @@ impl<'a> PostStreamDbService<'a> {
         Ok(())
     }
 
-    /*pub async fn add_to_stream(&self, user: Thing, post: Thing) -> CtxResult<bool> {
-        let qry = format!("RELATE $in->{TABLE_NAME}->$out");
-        let res = self
-            .db
-            .query(qry)
-            .bind(("in", user))
-            .bind(("out", post))
-            .await?;
-        res.check()?;
-        Ok(true)
-    }*/
-
     pub async fn add_to_users_stream(&self, user_ids: Vec<Thing>, post: &Thing) -> AppResult<()> {
         let qry: Vec<QryBindingsVal<String>> = user_ids
             .into_iter()
