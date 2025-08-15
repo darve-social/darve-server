@@ -3,7 +3,7 @@ use crate::entities::community::post_entity::TABLE_NAME as POST_TABLE_NAME;
 use crate::entities::reply::Reply;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::middleware::error::{AppError, AppResult};
-use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
 use crate::models::view::reply::ReplyView;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
@@ -53,7 +53,7 @@ impl RepliesRepository {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let data = self
             .client
-            .query(format!("SELECT * FROM reply WHERE belongs_to=$post ORDER BY created_at {order_dir} LIMIT $limit START $start;"))
+            .query(format!("SELECT {} FROM reply WHERE belongs_to=$post ORDER BY created_at {order_dir} LIMIT $limit START $start;", ReplyView::get_select_query_fields()))
             .bind(("post", Thing::from((POST_TABLE_NAME, post_id))))  
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
