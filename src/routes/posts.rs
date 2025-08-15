@@ -202,7 +202,6 @@ async fn get_replies(
             },
         )
         .await?;
-
     Ok(Json(replies))
 }
 
