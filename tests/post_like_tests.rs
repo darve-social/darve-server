@@ -47,7 +47,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     assert_eq!(likes_nr, 4);
 });
 
-test_with_server!(udpate_likes, |server, ctx_state, config| {
+test_with_server!(update_likes, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let result =

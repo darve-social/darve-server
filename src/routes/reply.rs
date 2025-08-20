@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
+use crate::access::post::PostAccess;
+use crate::entities::community::post_entity::PostDbService;
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::like::LikesRepositoryInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::error::AppError;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::models::view::access::PostAccessView;
 use axum::extract::{Path, State};
 use axum::routing::{delete, post};
 use axum::{Json, Router};
@@ -35,25 +39,39 @@ async fn like(
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<LikeData>,
 ) -> CtxResult<Json<LikeResponse>> {
-    let user_id = LocalUserDbService {
+    let user = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_ctx_user_thing()
+    .get_ctx_user()
     .await?;
+
     let reply_thing = get_str_thing(&reply_id)?;
+
     let reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
 
-    // TODO check access to the reply
+    let post_db_service = PostDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let post = post_db_service
+        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw())
+        .await?;
+
+    if !PostAccess::new(&post).can_like(&user) {
+        return Err(AppError::Forbidden.into());
+    }
+
     let count = ctx_state
         .db
         .likes
         .like(
-            user_id,
+            user.id.as_ref().unwrap().clone(),
             reply.id,
             body.count.unwrap_or(1),
         )
@@ -75,13 +93,25 @@ async fn unlike(
     .get_by_id(&user_id)
     .await?;
     let reply_thing = get_str_thing(&reply_id)?;
+
     let reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
 
-    // TODO check access to the reply
+    let post_db_service = PostDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let post = post_db_service
+        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw())
+        .await?;
+
+    if !PostAccess::new(&post).can_like(&user) {
+        return Err(AppError::Forbidden.into());
+    }
 
     let count = ctx_state
         .db

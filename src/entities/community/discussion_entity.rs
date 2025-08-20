@@ -1,9 +1,6 @@
-use std::fmt::Display;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use validator::Validate;
 
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -23,79 +20,39 @@ use crate::middleware::utils::string_utils::get_str_thing;
 use super::{community_entity, post_entity};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum DiscussionDenyRule {
-    CreateTask,
-    ManageMember,
+pub enum DiscussionType {
+    Private,
+    Fixed,
+    Public,
 }
 
-impl Display for DiscussionDenyRule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DiscussionDenyRule::CreateTask => write!(f, "CreateTask"),
-            DiscussionDenyRule::ManageMember => write!(f, "ManageMember"),
-        }
-    }
-}
-
-impl DiscussionDenyRule {
-    pub fn public() -> Option<Vec<DiscussionDenyRule>> {
-        Some(vec![
-            DiscussionDenyRule::CreateTask,
-            DiscussionDenyRule::ManageMember,
-        ])
-    }
-    pub fn private() -> Option<Vec<DiscussionDenyRule>> {
-        None
-    }
-
-    pub fn private_fixed() -> Option<Vec<DiscussionDenyRule>> {
-        Some(vec![DiscussionDenyRule::ManageMember])
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Discussion {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
+    pub id: Thing,
     pub belongs_to: Thing,
-    #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub private_discussion_user_ids: Option<Vec<Thing>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub created_by: Thing,
-    pub deny_rules: Option<Vec<DiscussionDenyRule>>,
+    pub r#type: DiscussionType,
 }
 
 impl Discussion {
     pub fn is_profile(&self) -> bool {
-        self.id.as_ref().map_or(false, |id| {
-            id == &DiscussionDbService::get_profile_discussion_id(&self.created_by)
-                || id == &DiscussionDbService::get_idea_discussion_id(&self.created_by)
-        })
-    }
-    pub fn is_member(&self, user_id: &Thing) -> bool {
-        match self.private_discussion_user_ids {
-            Some(ref ids) => ids.contains(&user_id),
-            None => false,
-        }
-    }
-
-    pub fn is_owner(&self, user: &Thing) -> bool {
-        self.created_by == *user
+        self.id == DiscussionDbService::get_profile_discussion_id(&self.created_by)
+            || self.id == DiscussionDbService::get_idea_discussion_id(&self.created_by)
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateDiscussionEntity {
+    pub id: Option<Thing>,
     pub belongs_to: Thing,
     pub title: String,
     pub image_uri: Option<String>,
-    pub private_discussion_user_ids: Option<Vec<Thing>>,
     pub created_by: Thing,
-    pub deny_rules: Option<Vec<DiscussionDenyRule>>,
+    pub r#type: DiscussionType,
 }
 
 pub struct DiscussionDbService<'a> {
@@ -118,13 +75,11 @@ impl<'a> DiscussionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{COMMUNITY_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS title ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS private_discussion_user_ids ON TABLE {TABLE_NAME} TYPE option<set<record<{USER_TABLE_NAME}>, 125>>;
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
-    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
-    DEFINE INDEX IF NOT EXISTS idx_deny_rules ON TABLE {TABLE_NAME} COLUMNS deny_rules;
-    DEFINE INDEX IF NOT EXISTS idx_private_discussion_user_ids ON TABLE {TABLE_NAME} COLUMNS private_discussion_user_ids;
+    DEFINE INDEX IF NOT EXISTS idx_type ON TABLE {TABLE_NAME} COLUMNS type;
     DEFINE INDEX IF NOT EXISTS idx_title ON TABLE {TABLE_NAME} COLUMNS title;
 ");
         let mutation = self.db.query(sql).await?;
@@ -149,6 +104,15 @@ impl<'a> DiscussionDbService<'a> {
         self.get(ident).await
     }
 
+    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        id: &str,
+    ) -> CtxResult<T> {
+        let thing = get_str_thing(id)?;
+        let ident = IdentIdName::Id(thing);
+        self.get_view(ident).await
+    }
+
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,
@@ -157,51 +121,14 @@ impl<'a> DiscussionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_by_private_users(&self, user_ids: Vec<&str>) -> CtxResult<Discussion> {
-        let user_things = user_ids.iter().fold(vec![], |mut res, id| {
-            match Thing::try_from(*id) {
-                Ok(v) => res.push(v),
-                Err(_) => (),
-            };
-            res
-        });
-
-        // TODO we sort on record write and on bind so it's not run for every record in query
-        let query = format!(
-            "SELECT * FROM {TABLE_NAME} WHERE 
-                private_discussion_user_ids != NONE
-                AND deny_rules != NONE
-                AND array::sort(deny_rules) = array::sort($rules)
-                AND array::sort(private_discussion_user_ids) = array::sort($user_ids);",
-        );
-
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("user_ids", user_things))
-            .bind((
-                "rules",
-                DiscussionDenyRule::private_fixed().unwrap_or_default(),
-            ))
-            .await?;
-
-        let data = res.take::<Option<Discussion>>(0)?;
-        match data {
-            Some(v) => Ok(v),
-            None => Err(AppError::EntityFailIdNotFound {
-                ident: user_ids.join(",").to_string(),
-            }
-            .into()),
-        }
-    }
-
     pub async fn get_by_chat_room_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
         let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
             description: "error parse into Thing".to_string(),
         })?;
 
-        let query =
-            format!("SELECT * FROM {TABLE_NAME} WHERE private_discussion_user_ids CONTAINS $user");
+        let query = format!(
+            "SELECT * FROM {TABLE_NAME} WHERE type != 'Public' AND <-has_access.in CONTAINS $user; "
+        );
         let mut res = self.db.query(query).bind(("user", user_thing)).await?;
         let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
         Ok(data)
@@ -231,7 +158,7 @@ impl<'a> DiscussionDbService<'a> {
             .map_err(CtxError::from(self.ctx))?;
         let disc = disc.unwrap();
         let auth = Authorization {
-            authorize_record_id: disc.id.clone().unwrap(),
+            authorize_record_id: disc.id.clone(),
             authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
             authorize_height: 99,
         };

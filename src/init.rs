@@ -53,6 +53,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         &ctx_state.db.verification_code,
+        &ctx_state.db.access,
     );
 
     let _ = auth_service

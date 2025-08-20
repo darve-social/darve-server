@@ -1,9 +1,14 @@
+use crate::access::base::role::Role;
 use crate::access::community::CommunityAccess;
 use crate::access::discussion::DiscussionAccess;
 use crate::entities::community::community_entity::CommunityDbService;
-use crate::entities::community::discussion_entity::{CreateDiscussionEntity, DiscussionDenyRule};
+use crate::entities::community::discussion_entity::{
+    CreateDiscussionEntity, DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
+};
+use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::middleware::utils::db_utils::record_exist_all;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::models::view::access::DiscussionAccessView;
 use crate::{
     entities::{
         community::discussion_entity::{Discussion, DiscussionDbService},
@@ -34,15 +39,22 @@ pub struct UpdateDiscussion {
     pub title: Option<String>,
 }
 
-pub struct DiscussionService<'a> {
+pub struct DiscussionService<'a, A>
+where
+    A: AccessRepositoryInterface,
+{
     ctx: &'a Ctx,
     user_repository: LocalUserDbService<'a>,
     discussion_repository: DiscussionDbService<'a>,
     community_repository: CommunityDbService<'a>,
+    access_repository: &'a A,
 }
 
-impl<'a> DiscussionService<'a> {
-    pub fn new(state: &'a CtxState, ctx: &'a Ctx) -> Self {
+impl<'a, A> DiscussionService<'a, A>
+where
+    A: AccessRepositoryInterface,
+{
+    pub fn new(state: &'a CtxState, ctx: &'a Ctx, access_repository: &'a A) -> Self {
         Self {
             ctx,
             user_repository: LocalUserDbService {
@@ -57,12 +69,16 @@ impl<'a> DiscussionService<'a> {
                 db: &state.db.client,
                 ctx: &ctx,
             },
+            access_repository,
         }
     }
 
     pub async fn delete(&self, user_id: &str, disc_id: &str) -> AppResult<()> {
         let user = self.user_repository.get_by_id(&user_id).await?;
-        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
         if !DiscussionAccess::new(&disc).can_edit(&user) {
             return Err(AppError::Forbidden);
         }
@@ -77,16 +93,17 @@ impl<'a> DiscussionService<'a> {
         data: UpdateDiscussion,
     ) -> AppResult<()> {
         let user = self.user_repository.get_by_id(&user_id).await?;
-        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
+
         if !DiscussionAccess::new(&disc).can_edit(&user) {
             return Err(AppError::Forbidden);
         }
 
         self.discussion_repository
-            .update(
-                &disc.id.as_ref().unwrap().id.to_raw(),
-                &data.title.unwrap_or("".to_string()),
-            )
+            .update(&disc.id.id.to_raw(), &data.title.unwrap_or("".to_string()))
             .await?;
 
         Ok(())
@@ -106,29 +123,32 @@ impl<'a> DiscussionService<'a> {
         }
 
         let user = self.user_repository.get_by_id(&user_id).await?;
-        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
-        if !DiscussionAccess::new(&disc).can_manage_members(&user) {
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
+
+        if !DiscussionAccess::new(&disc).can_add_member(&user) {
             return Err(self.ctx.to_ctx_error(AppError::Forbidden));
         }
 
         let user_ids = record_exist_all(self.user_repository.db, new_user_ids).await?;
+        let disc_user_ids = disc
+            .users
+            .into_iter()
+            .map(|u| u.user)
+            .collect::<Vec<Thing>>();
 
-        let mut chat_users = disc.private_discussion_user_ids.unwrap_or(vec![]);
+        let new_users = user_ids
+            .into_iter()
+            .filter(|id| !disc_user_ids.contains(id))
+            .collect::<Vec<Thing>>();
 
-        user_ids.into_iter().for_each(|id| {
-            if !chat_users.contains(&id) {
-                chat_users.push(id);
-            }
-        });
+        self.access_repository
+            .add(new_users.clone(), vec![disc.id], Role::Member.to_string())
+            .await?;
 
-        let users = self
-            .discussion_repository
-            .update_users(&disc.id.as_ref().unwrap().id.to_raw(), Some(chat_users))
-            .await?
-            .private_discussion_user_ids
-            .expect("users are set");
-
-        Ok(users)
+        Ok(new_users)
     }
 
     pub async fn remove_chat_users(
@@ -151,50 +171,21 @@ impl<'a> DiscussionService<'a> {
             }));
         };
 
-        let disc = self.discussion_repository.get_by_id(&disc_id).await?;
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
 
-        if !DiscussionAccess::new(&disc).can_manage_members(&user) {
+        if !DiscussionAccess::new(&disc).can_remove_member(&user) {
             return Err(self.ctx.to_ctx_error(AppError::Forbidden));
         }
-
-        if disc.private_discussion_user_ids.is_none()
-            || disc
-                .private_discussion_user_ids
-                .as_ref()
-                .unwrap()
-                .is_empty()
-        {
-            return Err(AppError::Generic {
-                description: "Forbidden".to_string(),
-            }
-            .into());
-        };
-
-        let mut remove_things = Vec::with_capacity(remove_user_ids.len());
-        for id in remove_user_ids {
-            match get_str_thing(&id) {
-                Ok(v) => remove_things.push(v),
-                Err(_) => {
-                    return Err(AppError::Generic {
-                        description: "Invalid user id".to_string(),
-                    }
-                    .into())
-                }
-            };
-        }
-
-        let private_discussion_user_ids = disc
-            .private_discussion_user_ids
-            .unwrap()
-            .into_iter()
-            .filter(|id| !remove_things.contains(id))
+        let user_things = remove_user_ids
+            .iter()
+            .filter_map(|u| get_str_thing(u).ok())
             .collect::<Vec<Thing>>();
 
-        self.discussion_repository
-            .update_users(
-                &disc.id.as_ref().unwrap().id.to_raw(),
-                Some(private_discussion_user_ids),
-            )
+        self.access_repository
+            .remove_by_entity(disc.id, user_things)
             .await?;
 
         Ok(())
@@ -215,64 +206,84 @@ impl<'a> DiscussionService<'a> {
             .get_by_id(&data.community_id)
             .await?;
 
-        if !CommunityAccess::new(&comm).can_create_discussion(&user) {
+        if !CommunityAccess::can_create_discussion(&user) {
             return Err(self.ctx.to_ctx_error(AppError::Forbidden));
         }
 
-        if data.private_discussion_users_final && data.chat_user_ids.is_some() {
-            let mut ids = data.chat_user_ids.as_ref().unwrap().clone();
-
-            let user_id = user.id.as_ref().unwrap().to_raw();
-            if !ids.contains(&user_id) {
-                ids.push(user_id.clone());
-            };
-
-            let ids_ref: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
-            let res = self
-                .discussion_repository
-                .get_by_private_users(ids_ref)
-                .await;
-            println!("res: {:?}", res);
-
-            match res {
-                Ok(value) => {
-                    return Ok(value);
-                }
-                Err(_) => (),
-            }
-        };
-
         let private_discussion_user_ids = match data.chat_user_ids {
-            Some(ids) => {
-                let mut user_ids = record_exist_all(self.user_repository.db, ids).await?;
-                if !user_ids.contains(&user.id.as_ref().unwrap()) {
-                    user_ids.push(user.id.as_ref().unwrap().clone());
-                }
-                Some(user_ids)
-            }
+            Some(ids) => Some(record_exist_all(self.user_repository.db, ids).await?),
             None => None,
         };
 
-        let deny_rules = if data.private_discussion_users_final {
-            DiscussionDenyRule::private_fixed()
+        let disc_id =
+            if data.private_discussion_users_final && private_discussion_user_ids.is_some() {
+                let mut ids = private_discussion_user_ids
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|id| id.id.to_raw())
+                    .collect::<Vec<String>>();
+
+                let user_id = user.id.as_ref().unwrap().id.to_raw();
+                if !ids.contains(&user_id) {
+                    ids.push(user_id.clone());
+                };
+
+                ids.sort();
+
+                let id = Thing::from((DISC_TABLE_NAME, ids.join("_").as_str()));
+                let res = self
+                    .discussion_repository
+                    .get_view_by_id::<DiscussionAccessView>(&id.to_raw())
+                    .await;
+
+                if let Ok(disc) = res {
+                    if !DiscussionAccess::new(&disc).can_view(&user) {
+                        return Err(self.ctx.to_ctx_error(AppError::Forbidden));
+                    }
+                }
+                Some(id)
+            } else {
+                None
+            };
+
+        let disc_type = if data.private_discussion_users_final {
+            DiscussionType::Fixed
         } else if private_discussion_user_ids.is_some() {
-            DiscussionDenyRule::private()
+            DiscussionType::Private
         } else {
-            DiscussionDenyRule::public()
+            DiscussionType::Public
         };
 
         let disc = self
             .discussion_repository
             .create(CreateDiscussionEntity {
+                id: disc_id,
                 belongs_to: comm.id.clone(),
                 title: data.title,
                 image_uri: None,
-                private_discussion_user_ids,
                 created_by: user.id.as_ref().unwrap().clone(),
-                deny_rules,
+                r#type: disc_type,
             })
             .await?;
 
+        self.access_repository
+            .add(
+                [user.id.as_ref().unwrap().clone()].to_vec(),
+                [disc.id.clone()].to_vec(),
+                Role::Owner.to_string(),
+            )
+            .await?;
+
+        if let Some(user_ids) = private_discussion_user_ids {
+            self.access_repository
+                .add(
+                    user_ids,
+                    [disc.id.clone()].to_vec(),
+                    Role::Member.to_string(),
+                )
+                .await?;
+        }
         Ok(disc)
     }
 }

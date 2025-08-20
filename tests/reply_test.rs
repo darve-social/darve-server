@@ -29,7 +29,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
     create_response.assert_status_success();
     let created = &create_response.json::<Discussion>();
 
-    let comm_disc_thing = created.id.as_ref().unwrap().clone();
+    let comm_disc_thing = created.id.clone();
     let comm_discussion_id = comm_disc_thing.to_raw();
     assert_eq!(comm_discussion_id.len() > 0, true);
 
