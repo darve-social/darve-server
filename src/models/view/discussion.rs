@@ -1,7 +1,8 @@
 use crate::database::table_names::ACCESS_TABLE_NAME;
+use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::wallet::wallet_entity::UserView;
-use crate::entities::{access_user::AccessUser, community::discussion_entity::DiscussionType};
 use crate::middleware::utils::db_utils::ViewFieldSelector;
+use crate::models::view::access_user::AccessUserView;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -10,7 +11,7 @@ use surrealdb::sql::Thing;
 pub struct DiscussionView {
     pub id: Thing,
     pub r#type: DiscussionType,
-    pub users: Vec<AccessUser>,
+    pub users: Vec<AccessUserView>,
     pub belongs_to: Thing,
     pub title: Option<String>,
     pub image_uri: Option<String>,

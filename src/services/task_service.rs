@@ -57,6 +57,7 @@ impl ViewFieldSelector for TaskView {
     fn get_select_query_fields() -> String {
         "id, 
         reward_type,
+        type,
         acceptance_period,
         delivery_period,
         currency,
@@ -104,7 +105,6 @@ where
     transactions_repository: BalanceTransactionDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
     task_donors_repository: &'a P,
-    // task_relates_repository: &'a R,
     task_participants_repository: &'a T,
     default_period_hours: u16,
     access_repository: &'a A,
@@ -124,7 +124,7 @@ where
         notification_repository: &'a N,
         task_donors_repository: &'a P,
         task_participants_repository: &'a T,
-        access_repository: &'a A, // task_relates_repository: &'a R,
+        access_repository: &'a A,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
@@ -141,7 +141,7 @@ where
             task_participants_repository,
             discussions_repository: DiscussionDbService { db: &db, ctx },
             default_period_hours: 48,
-            access_repository, // task_relates_repository,
+            access_repository,
         }
     }
 
