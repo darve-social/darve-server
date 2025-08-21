@@ -71,10 +71,10 @@ pub struct PostView {
     pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
     pub likes_nr: i64,
+    pub liked_by: Option<Vec<Thing>>,
 }
 
 impl ViewFieldSelector for PostView {
-    // post fields selct qry for view
     fn get_select_query_fields() -> String {
         "id,
         created_by.* as created_by, 
@@ -85,7 +85,8 @@ impl ViewFieldSelector for PostView {
         updated_at,
         belongs_to,
         replies_nr,
-        likes_nr"
+        likes_nr,
+        <-like[WHERE in=$user].in as liked_by"
             .to_string()
     }
 }
@@ -101,7 +102,8 @@ impl ViewRelateField for PostView {
         updated_at,
         belongs_to,
         replies_nr,
-        likes_nr"
+        likes_nr,
+        liked_by: <-like[WHERE in=$user].in"
     }
 }
 pub struct PostService<'a, F, N, T, L, A>
@@ -372,6 +374,7 @@ where
                     updated_at: post.updated_at,
                     replies_nr: post.replies_nr,
                     likes_nr: post.likes_nr,
+                    liked_by: None,
                 },
             )
             .await?;
