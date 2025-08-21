@@ -133,14 +133,14 @@ test_with_server!(create_chat_discussion, |server, ctx_state, config| {
     let owner = disc
         .users
         .iter()
-        .find(|u| &u.user == user2.id.as_ref().unwrap());
+        .find(|u| &u.user.id == user2.id.as_ref().unwrap());
 
     assert!(owner.is_some());
     assert_eq!(owner.unwrap().role, Role::Owner.to_string());
     let member = disc
         .users
         .iter()
-        .find(|u| &u.user == user1.id.as_ref().unwrap());
+        .find(|u| &u.user.id == user1.id.as_ref().unwrap());
 
     assert!(member.is_some());
     assert_eq!(member.unwrap().role, Role::Member.to_string());
@@ -458,12 +458,12 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
     assert!(result[0]
         .users
         .iter()
-        .find(|u| &u.user == user1.id.as_ref().unwrap())
+        .find(|u| &u.user.id == user1.id.as_ref().unwrap())
         .is_some());
     assert!(result[0]
         .users
         .iter()
-        .find(|u| &u.user == user.id.as_ref().unwrap())
+        .find(|u| &u.user.id == user.id.as_ref().unwrap())
         .is_none());
 });
 
@@ -601,7 +601,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
     assert!(result[0]
         .users
         .iter()
-        .find(|u| &u.user == user1.id.as_ref().unwrap())
+        .find(|u| &u.user.id == user1.id.as_ref().unwrap())
         .is_some());
 });
 
@@ -656,7 +656,7 @@ test_with_server!(
         assert!(result[0]
             .users
             .iter()
-            .find(|u| &u.user == user1.id.as_ref().unwrap())
+            .find(|u| &u.user.id == user1.id.as_ref().unwrap())
             .is_some());
     }
 );

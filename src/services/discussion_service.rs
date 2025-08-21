@@ -1,6 +1,7 @@
 use crate::access::base::role::Role;
 use crate::access::community::CommunityAccess;
 use crate::access::discussion::DiscussionAccess;
+use crate::entities::access_user::AccessUser;
 use crate::entities::community::community_entity::CommunityDbService;
 use crate::entities::community::discussion_entity::{
     CreateDiscussionEntity, DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
@@ -242,7 +243,15 @@ where
                     let access_view = DiscussionAccessView {
                         id: disc.id.clone(),
                         r#type: disc.r#type.clone(),
-                        users: disc.users,
+                        users: disc
+                            .users
+                            .into_iter()
+                            .map(|v| AccessUser {
+                                role: v.role,
+                                user: v.user.id,
+                                created_at: v.created_at,
+                            })
+                            .collect::<Vec<AccessUser>>(),
                     };
                     if !DiscussionAccess::new(&access_view).can_view(&user) {
                         return Err(self.ctx.to_ctx_error(AppError::Forbidden));

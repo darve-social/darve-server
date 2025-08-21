@@ -22,6 +22,6 @@ pub struct DiscussionView {
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields() -> String {
-        format!("*, created_by.* as created_by, <-{ACCESS_TABLE_NAME}.* as users")
+        format!("*, created_by.* as created_by, <-{ACCESS_TABLE_NAME}.{{ user: in.*, role, created_at }} as users")
     }
 }
