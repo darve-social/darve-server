@@ -1769,6 +1769,64 @@
             "cookieAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Discussion type",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Private",
+                "Fixed",
+                "Public"
+              ]
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of discussions to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "Field to order by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_dir",
+            "in": "query",
+            "description": "Order direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "List of discussions",
@@ -1777,7 +1835,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Discussion"
+                    "$ref": "#/components/schemas/DiscussionView"
                   }
                 }
               }
@@ -3596,17 +3654,55 @@
             "type": "string",
             "description": "User ID who created the discussion"
           },
-          "private_discussion_user_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "User IDs for private discussions"
-          },
-          "r_created": {
+          "created_at": {
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          }
+        }
+      },
+      "DiscussionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Discussion ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Private",
+              "Fixed",
+              "Public"
+            ]
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessUserView"
+            }
+          },
+          "belongs_to": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "image_uri": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserView"
           }
         }
       },
@@ -3788,6 +3884,21 @@
             "minimum": 1,
             "nullable": true,
             "description": "Number of likes to add (optional, defaults to 1)"
+          }
+        }
+      },
+      "AccessUserView": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserView"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

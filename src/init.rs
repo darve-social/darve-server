@@ -9,7 +9,7 @@ use crate::{
         community::profile_routes,
         discussions, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
-            init_server_routes, login_routes, register_routes,
+            login_routes, register_routes,
             webauthn::webauthn_routes::{self, WebauthnConfig},
         },
         user_otp, users, wallet,
@@ -110,7 +110,6 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
     Router::new()
         .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("assets"))
-        .merge(init_server_routes::routes())
         .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())

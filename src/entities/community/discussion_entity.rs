@@ -12,8 +12,9 @@ use middleware::{
 
 use crate::database::client::Db;
 use crate::database::table_names::ACCESS_TABLE_NAME;
-use crate::entities::user_auth::local_user_entity;
+use crate::entities::user_auth::local_user_entity::{ TABLE_NAME as USER_TABLE_NAME};
 use crate::middleware;
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::string_utils::get_str_thing;
 
 use super::{community_entity, post_entity};
@@ -62,7 +63,6 @@ pub struct DiscussionDbService<'a> {
 pub const TABLE_NAME: &str = "discussion";
 pub const COMMUNITY_TABLE_NAME: &str = community_entity::TABLE_NAME;
 pub const POST_TABLE_NAME: &str = post_entity::TABLE_NAME;
-pub const USER_TABLE_NAME: &str = local_user_entity::TABLE_NAME;
 
 impl<'a> DiscussionDbService<'a> {
     pub fn get_table_name() -> &'static str {
@@ -120,22 +120,35 @@ impl<'a> DiscussionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_by_chat_room_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_by_type<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user_id: &str,
+        types: Vec<DiscussionType>,
+        pagination: Pagination,
     ) -> CtxResult<Vec<T>> {
-        let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
-            description: "error parse into Thing".to_string(),
-        })?;
+
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let order_by = pagination.order_by.unwrap_or("created_at".to_string());
+
+        let query_by_type = if types.is_empty() {
+            ""
+        }else {
+            "type IN $types AND"
+        };
+        let fields = T::get_select_query_fields();
 
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE type != $disc_type AND <-{ACCESS_TABLE_NAME}.in CONTAINS $user;", T::get_select_query_fields()
+            "SELECT {fields} FROM {TABLE_NAME} WHERE {query_by_type} <-{ACCESS_TABLE_NAME}.in CONTAINS $user
+                 ORDER BY {order_by} {order_dir} LIMIT $limit START $start;",
+            
         );
         let mut res = self
             .db
             .query(query)
-            .bind(("user", user_thing))
-            .bind(("disc_type", DiscussionType::Public))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("types", types))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
             .await?;
         let data = res.take::<Vec<T>>(0)?;
         Ok(data)
@@ -182,24 +195,6 @@ impl<'a> DiscussionDbService<'a> {
         })?)
     }
 
-    pub async fn update_users(
-        &self,
-        disc_id: &str,
-        users: Option<Vec<Thing>>,
-    ) -> CtxResult<Discussion> {
-        let disc = self
-            .db
-            .query("UPDATE $disc SET private_discussion_user_ids=$users")
-            .bind(("disc", Thing::from((TABLE_NAME, disc_id))))
-            .bind(("users", users))
-            .await
-            .map_err(CtxError::from(self.ctx))?
-            .take::<Option<Discussion>>(0)?;
-
-        Ok(disc.ok_or(AppError::EntityFailIdNotFound {
-            ident: disc_id.to_string(),
-        })?)
-    }
 
     pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
         Thing::from((TABLE_NAME.to_string(), format!("{}_p", user_id.id.to_raw())))

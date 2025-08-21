@@ -316,7 +316,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     create_response.assert_status_ok();
 
     let create_response = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token2))
         .await;
@@ -326,7 +326,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     assert_eq!(result.len(), 2);
 
     let create_response = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;
@@ -336,7 +336,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     assert_eq!(result.len(), 2);
 
     let create_response = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token3))
         .await;
@@ -447,7 +447,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
     create_response.assert_status_ok();
 
     let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;
@@ -590,7 +590,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
     create_response.assert_status_ok();
 
     let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;
@@ -645,7 +645,7 @@ test_with_server!(
             .contains("Owner of the discussion can not remove yourself"));
 
         let create_response: axum_test::TestResponse = server
-            .get("/api/discussions")
+            .get("/api/discussions?type=Private")
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token1))
             .await;
@@ -767,7 +767,7 @@ test_with_server!(update, |server, ctx_state, config| {
 
     create_response.assert_status_ok();
     let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;
@@ -811,7 +811,7 @@ test_with_server!(delete_read_only, |server, ctx_state, config| {
     create_response.assert_status_ok();
 
     let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;
@@ -853,7 +853,7 @@ test_with_server!(try_delete_by_not_owner, |server, ctx_state, config| {
         .await;
     create_response.assert_status_forbidden();
     let create_response: axum_test::TestResponse = server
-        .get("/api/discussions")
+        .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
         .await;

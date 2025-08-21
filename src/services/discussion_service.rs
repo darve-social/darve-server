@@ -7,7 +7,7 @@ use crate::entities::community::discussion_entity::{
     CreateDiscussionEntity, DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
 };
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
-use crate::middleware::utils::db_utils::record_exist_all;
+use crate::middleware::utils::db_utils::{record_exist_all, Pagination};
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
@@ -193,9 +193,21 @@ where
         Ok(())
     }
 
-    pub async fn get_by_chat_user(&self, user_id: &str) -> CtxResult<Vec<DiscussionView>> {
+    pub async fn get(
+        &self,
+        user_id: &str,
+        disc_type: Option<DiscussionType>,
+        pag: Pagination,
+    ) -> CtxResult<Vec<DiscussionView>> {
+        let _ = self.user_repository.get_by_id(&user_id).await?;
+
+        let types = disc_type.map_or(vec![], |v| match v {
+            DiscussionType::Private => vec![v, DiscussionType::Fixed],
+            _ => vec![v],
+        });
+
         self.discussion_repository
-            .get_by_chat_room_user(user_id)
+            .get_by_type(user_id, types, pag)
             .await
     }
 

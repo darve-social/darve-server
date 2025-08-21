@@ -2,13 +2,14 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use crate::access::discussion::DiscussionAccess;
-use crate::entities::community::discussion_entity;
+use crate::entities::community::discussion_entity::{self, DiscussionType};
 use crate::entities::community::post_entity::Post;
 use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
 use crate::models::view::task::TaskRequestView;
@@ -161,17 +162,30 @@ async fn create_discussion(
     Ok(Json(disc))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GetDiscussionsQuery {
+    r#type: Option<DiscussionType>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+    pub order_by: Option<String>,
+    pub order_dir: Option<QryOrder>,
+}
+
 async fn get_discussions(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
+    Query(query): Query<GetDiscussionsQuery>,
 ) -> CtxResult<Json<Vec<DiscussionView>>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
     let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
-    let discussions = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
+    let pagination = Pagination {
+        order_by: query.order_by,
+        order_dir: query.order_dir,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
+    };
+    let discussions = disc_service
+        .get(&auth_data.user_thing_id(), query.r#type, pagination)
+        .await?;
     Ok(Json(discussions))
 }
 
