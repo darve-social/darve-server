@@ -9,6 +9,7 @@ use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::middleware::utils::db_utils::record_exist_all;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::DiscussionAccessView;
+use crate::models::view::discussion::DiscussionView;
 use crate::{
     entities::{
         community::discussion_entity::{Discussion, DiscussionDbService},
@@ -191,7 +192,7 @@ where
         Ok(())
     }
 
-    pub async fn get_by_chat_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
+    pub async fn get_by_chat_user(&self, user_id: &str) -> CtxResult<Vec<DiscussionView>> {
         self.discussion_repository
             .get_by_chat_room_user(user_id)
             .await
@@ -206,7 +207,7 @@ where
             .get_by_id(&data.community_id)
             .await?;
 
-        if !CommunityAccess::can_create_discussion(&user) {
+        if !CommunityAccess::new(&comm).can_create_discussion(&user) {
             return Err(self.ctx.to_ctx_error(AppError::Forbidden));
         }
 
@@ -234,13 +235,29 @@ where
                 let id = Thing::from((DISC_TABLE_NAME, ids.join("_").as_str()));
                 let res = self
                     .discussion_repository
-                    .get_view_by_id::<DiscussionAccessView>(&id.to_raw())
+                    .get_view_by_id::<DiscussionView>(&id.to_raw())
                     .await;
 
                 if let Ok(disc) = res {
-                    if !DiscussionAccess::new(&disc).can_view(&user) {
+                    let access_view = DiscussionAccessView {
+                        id: disc.id.clone(),
+                        r#type: disc.r#type.clone(),
+                        users: disc.users,
+                    };
+                    if !DiscussionAccess::new(&access_view).can_view(&user) {
                         return Err(self.ctx.to_ctx_error(AppError::Forbidden));
                     }
+
+                    return Ok(Discussion {
+                        id: disc.id,
+                        belongs_to: disc.belongs_to,
+                        title: disc.title,
+                        image_uri: disc.image_uri,
+                        created_at: disc.created_at,
+                        updated_at: disc.updated_at,
+                        created_by: disc.created_by.id,
+                        r#type: disc.r#type,
+                    });
                 }
                 Some(id)
             } else {

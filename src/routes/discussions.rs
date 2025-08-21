@@ -10,6 +10,7 @@ use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::models::view::access::DiscussionAccessView;
+use crate::models::view::discussion::DiscussionView;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::services::post_service::{PostInput, PostService, PostView};
@@ -161,16 +162,16 @@ async fn create_discussion(
 }
 
 async fn get_discussions(
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-) -> CtxResult<Json<Vec<Discussion>>> {
+) -> CtxResult<Json<Vec<DiscussionView>>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     };
     let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let disc_service = DiscussionService::new(&state, &ctx, &state.db.access);
-    let discussions: Vec<Discussion> = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let discussions = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
     Ok(Json(discussions))
 }
 

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::database::client::Db;
 use crate::middleware::mw_ctx::CtxState;
-use crate::middleware::utils::string_utils::get_string_thing;
 use crate::routes::user_auth::register_routes::register_user;
 
 use askama::Template;
@@ -13,17 +12,14 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use validator::Validate;
 
-use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
+use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::services::auth_service::AuthRegisterInput;
 use crate::utils::template_utils::ProfileFormPage;
-use access_right_entity::AccessRightDbService;
-use authorization_entity::{get_root_auth_rec_name, Authorization, AUTH_ACTIVITY_OWNER};
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
@@ -114,17 +110,7 @@ async fn post_init_form(
     };
 
     let created_user = register_user(&state, &ctx, reg_input).await?;
-    let auth_thing = Thing::from((get_root_auth_rec_name(), "0".to_string()));
-    let authorization = Authorization::new(auth_thing.into(), AUTH_ACTIVITY_OWNER.to_string(), 99)?;
 
-    let aright_db_service = &AccessRightDbService {
-        db: &state.db.client,
-        ctx: &ctx,
-    };
-    let user_rec_id = get_string_thing(created_user.clone().id)?;
-    aright_db_service
-        .authorize(user_rec_id, authorization, None)
-        .await?;
     ctx.to_htmx_or_json(&created_user)
 }
 

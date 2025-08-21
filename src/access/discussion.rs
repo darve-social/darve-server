@@ -32,7 +32,7 @@ impl AccessPath {
             next: Some(Box::new(AccessPath {
                 name: match disc.r#type {
                     DiscussionType::Private => Resource::DiscussionPrivate,
-                    DiscussionType::Fixed => Resource::DiscussionPrivate,
+                    DiscussionType::Fixed => Resource::DiscussionFixed,
                     DiscussionType::Public => Resource::DiscussionPublic,
                 },
                 role: disc_role,

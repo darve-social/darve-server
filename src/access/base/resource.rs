@@ -6,6 +6,7 @@ pub enum Resource {
     App,
     DiscussionPublic,
     DiscussionPrivate,
+    DiscussionFixed,
     TaskPrivate,
     TaskPublic,
     PostPublic,
@@ -22,6 +23,7 @@ impl Display for Resource {
             Resource::TaskPublic => write!(f, "TASK:PUBLIC"),
             Resource::PostPublic => write!(f, "POST:PUBLIC"),
             Resource::PostPrivate => write!(f, "POST:PRIVATE"),
+            Resource::DiscussionFixed => write!(f, "DISCUSSION:FIXED"),
         }
     }
 }
@@ -32,6 +34,7 @@ impl From<&str> for Resource {
             "APP" => Resource::App,
             "DISCUSSION:PUBLIC" => Resource::DiscussionPublic,
             "DISCUSSION:PRIVATE" => Resource::DiscussionPrivate,
+            "DISCUSSION:FIXED" => Resource::DiscussionFixed,
             "TASK:PRIVATE" => Resource::TaskPrivate,
             "TASK:PUBLIC" => Resource::TaskPublic,
             "POST:PUBLIC" => Resource::PostPublic,

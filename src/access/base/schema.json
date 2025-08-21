@@ -501,6 +501,207 @@
             }
           }
         }
+      },
+      "DISCUSSION:FIXED": {
+        "OWNER": {
+          "permissions": [
+            "VIEW",
+            "EDIT",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_PUBLIC_TASK",
+            "CREATE_PRIVATE_TASK"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            }
+          },
+          "TASK:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "CANDIDATE": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK",
+                "REJECT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          },
+          "TASK:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          }
+        },
+        "MEMBER": {
+          "permissions": [
+            "VIEW",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_PUBLIC_TASK",
+            "CREATE_PRIVATE_TASK"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE_POST"
+              ]
+            }
+          },
+          "TASK:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "CANDIDATE": {
+              "permissions": [
+                "VIEW",
+                "REJECT_TASK",
+                "ACCEPT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "DELIVER_TASK",
+                "VIEW"
+              ]
+            }
+          },
+          "TASK:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          }
+        }
       }
     }
   }

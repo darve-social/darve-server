@@ -9,17 +9,16 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use user_auth::access_right_entity::AccessRightDbService;
-use user_auth::authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 
 use crate::database::client::Db;
-use crate::entities::user_auth::{self, local_user_entity};
+use crate::database::table_names::ACCESS_TABLE_NAME;
+use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
 
 use super::{community_entity, post_entity};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DiscussionType {
     Private,
     Fixed,
@@ -121,16 +120,24 @@ impl<'a> DiscussionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_by_chat_room_user(&self, user_id: &str) -> CtxResult<Vec<Discussion>> {
+    pub async fn get_by_chat_room_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        user_id: &str,
+    ) -> CtxResult<Vec<T>> {
         let user_thing = Thing::try_from(user_id).map_err(|_| AppError::Generic {
             description: "error parse into Thing".to_string(),
         })?;
 
         let query = format!(
-            "SELECT * FROM {TABLE_NAME} WHERE type != 'Public' AND <-has_access.in CONTAINS $user; "
+            "SELECT {} FROM {TABLE_NAME} WHERE type != $disc_type AND <-{ACCESS_TABLE_NAME}.in CONTAINS $user;", T::get_select_query_fields()
         );
-        let mut res = self.db.query(query).bind(("user", user_thing)).await?;
-        let data: Vec<Discussion> = res.take::<Vec<Discussion>>(0)?;
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", user_thing))
+            .bind(("disc_type", DiscussionType::Public))
+            .await?;
+        let data = res.take::<Vec<T>>(0)?;
         Ok(data)
     }
 
@@ -157,19 +164,6 @@ impl<'a> DiscussionDbService<'a> {
             .await
             .map_err(CtxError::from(self.ctx))?;
         let disc = disc.unwrap();
-        let auth = Authorization {
-            authorize_record_id: disc.id.clone(),
-            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-            authorize_height: 99,
-        };
-        let aright_db = AccessRightDbService {
-            db: &self.db,
-            ctx: &self.ctx,
-        };
-        // TODO in transaction
-        aright_db
-            .authorize(disc.created_by.clone(), auth, None)
-            .await?;
         Ok(disc)
     }
 
