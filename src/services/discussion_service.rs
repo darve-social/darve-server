@@ -1,3 +1,5 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use crate::access::base::role::Role;
 use crate::access::community::CommunityAccess;
 use crate::access::discussion::DiscussionAccess;
@@ -245,7 +247,11 @@ where
 
                 ids.sort();
 
-                let id = Thing::from((DISC_TABLE_NAME, ids.join("_").as_str()));
+                let mut hasher = DefaultHasher::new();
+                ids.join("").hash(&mut hasher);
+                let hash_id = hasher.finish();
+
+                let id = Thing::from((DISC_TABLE_NAME, format!("{:x}", hash_id).as_str()));
                 let res = self
                     .discussion_repository
                     .get_view_by_id::<DiscussionView>(&id.to_raw())
