@@ -505,21 +505,16 @@ where
             .await?;
         let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
         let disc_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-        let idea_id = DiscussionDbService::get_idea_discussion_id(&user.id.as_ref().unwrap());
         let _ = self
             .community_repository
-            .create_profile(
-                disc_id.clone(),
-                idea_id.clone(),
-                user.id.as_ref().unwrap().clone(),
-            )
+            .create_profile(disc_id.clone(), user.id.as_ref().unwrap().clone())
             .await?;
 
         let _ = self
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                [disc_id, idea_id].to_vec(),
+                [disc_id].to_vec(),
                 Role::Owner.to_string(),
             )
             .await?;

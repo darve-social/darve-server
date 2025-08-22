@@ -2,13 +2,12 @@ use std::sync::Arc;
 use std::vec;
 
 use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::post_entity::PostDbService;
+use crate::entities::community::post_entity::{PostDbService, PostType};
 use crate::entities::community::post_stream_entity::PostStreamDbService;
 use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::utils::db_utils::RecordWithId;
-use crate::middleware::utils::extractor_utils::DiscussionParams;
+use crate::middleware::utils::db_utils::Pagination;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
@@ -248,11 +247,15 @@ async fn add_latest_posts(
     };
 
     let latest_posts = match post_db_service
-        .get_by_discussion_desc_view::<RecordWithId>(
-            follow_profile_discussion_id,
-            DiscussionParams {
-                start: Some(0),
-                count: Some(3),
+        .get_by_query(
+            &ctx_user_id.id.to_raw(),
+            &follow_profile_discussion_id.id.to_raw(),
+            Some(PostType::Public),
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                start: 0,
+                count: 3,
             },
         )
         .await

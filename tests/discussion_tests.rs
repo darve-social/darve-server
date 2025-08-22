@@ -136,7 +136,7 @@ test_with_server!(create_chat_discussion, |server, ctx_state, config| {
         .find(|u| &u.user.id == user2.id.as_ref().unwrap());
 
     assert!(owner.is_some());
-    assert_eq!(owner.unwrap().role, Role::Owner.to_string());
+    assert_eq!(owner.unwrap().role, Role::Editor.to_string());
     let member = disc
         .users
         .iter()

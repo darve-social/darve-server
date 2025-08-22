@@ -22,7 +22,6 @@ use super::{community_entity, post_entity};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DiscussionType {
     Private,
-    Fixed,
     Public,
 }
 
@@ -42,7 +41,6 @@ pub struct Discussion {
 impl Discussion {
     pub fn is_profile(&self) -> bool {
         self.id == DiscussionDbService::get_profile_discussion_id(&self.created_by)
-            || self.id == DiscussionDbService::get_idea_discussion_id(&self.created_by)
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,18 +121,18 @@ impl<'a> DiscussionDbService<'a> {
     pub async fn get_by_type<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user_id: &str,
-        types: Vec<DiscussionType>,
+        disc_type: Option<DiscussionType>,
         pagination: Pagination,
     ) -> CtxResult<Vec<T>> {
 
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pagination.order_by.unwrap_or("created_at".to_string());
 
-        let query_by_type = if types.is_empty() {
-            ""
-        }else {
-            "type IN $types AND"
+        let query_by_type = match disc_type {
+            Some(_) => "type=$disc_type AND ",
+            None => ""
         };
+        
         let fields = T::get_select_query_fields();
 
         let query = format!(
@@ -146,7 +144,7 @@ impl<'a> DiscussionDbService<'a> {
             .db
             .query(query)
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("types", types))
+            .bind(("disc_type", disc_type))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .await?;
@@ -200,7 +198,5 @@ impl<'a> DiscussionDbService<'a> {
         Thing::from((TABLE_NAME.to_string(), format!("{}_p", user_id.id.to_raw())))
     }
 
-    pub fn get_idea_discussion_id(user_id: &Thing) -> Thing {
-        Thing::from((TABLE_NAME.to_string(), format!("{}_i", user_id.id.to_raw())))
-    }
+  
 }

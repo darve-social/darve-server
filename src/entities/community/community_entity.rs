@@ -55,24 +55,17 @@ impl<'a> CommunityDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn create_profile(
-        &self,
-        disc_id: Thing,
-        idea_id: Thing,
-        user_id: Thing,
-    ) -> CtxResult<Community> {
+    pub async fn create_profile(&self, disc_id: Thing, user_id: Thing) -> CtxResult<Community> {
         let community_id = CommunityDbService::get_profile_community_id(&user_id);
 
         let mut result = self
             .db
             .query("BEGIN TRANSACTION;")
-            .query("CREATE $idea SET belongs_to=$community, created_by=$user, type=$type")
             .query("CREATE $disc SET belongs_to=$community, created_by=$user, type=$type")
             .query("RETURN CREATE $community SET created_by=$user;")
             .query("COMMIT TRANSACTION;")
             .bind(("user", user_id))
             .bind(("disc", disc_id))
-            .bind(("idea", idea_id))
             .bind(("type", DiscussionType::Public))
             .bind(("community", community_id.clone()))
             .await?;

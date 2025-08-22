@@ -2292,7 +2292,10 @@
             "description": "Order direction",
             "schema": {
               "type": "string",
-              "enum": ["asc", "desc"]
+              "enum": [
+                "asc",
+                "desc"
+              ]
             }
           }
         ],
@@ -4072,11 +4075,6 @@
             "type": "string",
             "nullable": true,
             "description": "Profile discussion ID"
-          },
-          "idea_discussion": {
-            "type": "string",
-            "nullable": true,
-            "description": "Idea discussion ID"
           },
           "followers_nr": {
             "type": "integer",

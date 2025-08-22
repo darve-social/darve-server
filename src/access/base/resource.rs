@@ -11,6 +11,7 @@ pub enum Resource {
     TaskPublic,
     PostPublic,
     PostPrivate,
+    PostIdea,
 }
 
 impl Display for Resource {
@@ -23,6 +24,7 @@ impl Display for Resource {
             Resource::TaskPublic => write!(f, "TASK:PUBLIC"),
             Resource::PostPublic => write!(f, "POST:PUBLIC"),
             Resource::PostPrivate => write!(f, "POST:PRIVATE"),
+            Resource::PostIdea => write!(f, "POST:IDEA"),
             Resource::DiscussionFixed => write!(f, "DISCUSSION:FIXED"),
         }
     }
@@ -39,6 +41,7 @@ impl From<&str> for Resource {
             "TASK:PUBLIC" => Resource::TaskPublic,
             "POST:PUBLIC" => Resource::PostPublic,
             "POST:PRIVATE" => Resource::PostPrivate,
+            "POST:IDEA" => Resource::PostIdea,
             _ => panic!("Unknown resource: {}", value),
         }
     }

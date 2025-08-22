@@ -15,8 +15,10 @@ use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
 use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::community::post_entity::PostType;
 use crate::entities::community::{self, community_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
+use crate::middleware::utils::db_utils::Pagination;
 use crate::services::post_service::PostView;
 use crate::{middleware, utils};
 use middleware::error::CtxResult;
@@ -67,7 +69,6 @@ pub struct ProfileView {
     pub social_links: Option<Vec<String>>,
     pub community: Option<Thing>,
     pub profile_discussion: Option<Thing>,
-    pub idea_discussion: Option<Thing>,
     #[serde(default)]
     pub followers_nr: i64,
     #[serde(default)]
@@ -86,7 +87,7 @@ async fn display_profile(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(username_or_id): Path<String>,
-    Query(q_params): Query<DiscussionParams>,
+    Query(_params): Query<DiscussionParams>,
 ) -> CtxResult<Json<ProfileView>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
@@ -114,17 +115,26 @@ async fn display_profile(
         &profile_view.user_id,
     ));
 
-    profile_view.idea_discussion = Some(DiscussionDbService::get_idea_discussion_id(
-        &profile_view.user_id,
-    ));
-
-    let disc_id = profile_view.profile_discussion.clone().unwrap();
-
     profile_view.posts = PostDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_discussion_desc_view::<PostView>(disc_id.clone(), q_params.clone())
+    .get_by_query(
+        &profile_view.user_id.id.to_raw(),
+        &profile_view
+            .profile_discussion
+            .as_ref()
+            .unwrap()
+            .id
+            .to_raw(),
+        Some(PostType::Public),
+        Pagination {
+            order_by: None,
+            order_dir: None,
+            start: 0,
+            count: 20,
+        },
+    )
     .await?;
 
     let follow_db_service = FollowDbService {

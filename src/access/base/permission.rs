@@ -7,6 +7,7 @@ pub enum Permission {
     Edit,
     CreatePublicPost,
     CreatePrivatePost,
+    CreateIdeaPost,
     CreatePublicTask,
     CreatePrivateTask,
     CreateDiscussion,
@@ -16,5 +17,6 @@ pub enum Permission {
     RejectTask,
     DeliverTask,
     CreateReply,
-    LikePost,
+    Like,
+    Donate,
 }

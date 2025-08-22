@@ -32,7 +32,6 @@ impl AccessPath {
             next: Some(Box::new(AccessPath {
                 name: match disc.r#type {
                     DiscussionType::Private => Resource::DiscussionPrivate,
-                    DiscussionType::Fixed => Resource::DiscussionFixed,
                     DiscussionType::Public => Resource::DiscussionPublic,
                 },
                 role: disc_role,
@@ -77,13 +76,21 @@ impl<'a> DiscussionAccess<'a> {
         self.access_control.can(&path, &Permission::View)
     }
 
-    pub fn can_create_post(&self, user: &LocalUser) -> bool {
+    pub fn can_create_public_post(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
         self.access_control
             .can(&path, &Permission::CreatePublicPost)
-            || self
-                .access_control
-                .can(&path, &Permission::CreatePrivatePost)
+    }
+
+    pub fn can_create_private_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePrivatePost)
+    }
+
+    pub fn can_idea_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control.can(&path, &Permission::CreateIdeaPost)
     }
 
     pub fn can_create_private_task(&self, user: &LocalUser) -> bool {
@@ -92,7 +99,7 @@ impl<'a> DiscussionAccess<'a> {
             .can(&path, &Permission::CreatePrivateTask)
     }
 
-    pub fn can_create_public_post(&self, user: &LocalUser) -> bool {
+    pub fn can_create_public_task(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
         self.access_control
             .can(&path, &Permission::CreatePublicTask)

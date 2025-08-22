@@ -2,6 +2,7 @@ use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
     database::client::Db,
     entities::{
+        access_user::AccessUser,
         community::{discussion_entity::DiscussionDbService, post_entity::PostDbService},
         task::task_request_entity::{
             DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
@@ -174,8 +175,26 @@ where
             }
         }
 
-        self.create(&user, participant, r#type, data, post.id.clone())
-            .await
+        let post_id = post.id.clone();
+        if data.offer_amount.unwrap_or_default() > 0 {
+            let task = TaskAccessView {
+                id: user.id.as_ref().unwrap().clone(),
+                r#type: r#type.clone(),
+                post: Some(post),
+                discussion: None,
+                users: vec![AccessUser {
+                    role: Role::Owner.to_string(),
+                    user: user.id.as_ref().unwrap().clone(),
+                    created_at: Utc::now(),
+                }],
+            };
+
+            if !TaskAccess::new(&task).can_donate(&user) {
+                return Err(AppError::Forbidden.into());
+            }
+        }
+
+        self.create(&user, participant, r#type, data, post_id).await
     }
 
     pub async fn create_for_disc(
@@ -202,13 +221,31 @@ where
                 return Err(AppError::Forbidden.into());
             }
         } else {
-            if !DiscussionAccess::new(&discussion).can_create_public_post(&user) {
+            if !DiscussionAccess::new(&discussion).can_create_public_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
         }
 
-        self.create(&user, participant, r#type, data, discussion.id.clone())
-            .await
+        let disc_id = discussion.id.clone();
+        if data.offer_amount.unwrap_or_default() > 0 {
+            let task = TaskAccessView {
+                id: user.id.as_ref().unwrap().clone(),
+                r#type: r#type.clone(),
+                post: None,
+                discussion: Some(discussion),
+                users: vec![AccessUser {
+                    role: Role::Owner.to_string(),
+                    user: user.id.as_ref().unwrap().clone(),
+                    created_at: Utc::now(),
+                }],
+            };
+
+            if !TaskAccess::new(&task).can_donate(&user) {
+                return Err(AppError::Forbidden.into());
+            }
+        }
+
+        self.create(&user, participant, r#type, data, disc_id).await
     }
 
     pub async fn upsert_donor(
@@ -228,7 +265,7 @@ where
             .get_by_id(&donor_thing.id.to_raw())
             .await?;
 
-        if !TaskAccess::new(&task).can_view(&donor) {
+        if !TaskAccess::new(&task).can_donate(&donor) {
             return Err(AppError::Forbidden);
         }
 
@@ -297,6 +334,7 @@ where
                 p.id.as_ref().unwrap().to_raw()
             }
             None => {
+                // can_donate
                 let response = self
                     .transactions_repository
                     .transfer_currency(

@@ -57,6 +57,11 @@ impl<'a> TaskAccess<'a> {
         self.access_control.can(&path, &Permission::Edit)
     }
 
+    pub fn can_donate(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_task(self.task, Some(&user));
+        self.access_control.can(&path, &Permission::Donate)
+    }
+
     pub fn can_accept(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_task(self.task, Some(&user));
 

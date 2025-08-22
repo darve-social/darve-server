@@ -20,10 +20,7 @@ use crate::{
         ctx::Ctx,
         error::{AppError, CtxResult},
         mw_ctx::AppEvent,
-        utils::{
-            db_utils::{Pagination, ViewFieldSelector, ViewRelateField},
-            extractor_utils::DiscussionParams,
-        },
+        utils::db_utils::{Pagination, QryOrder, ViewFieldSelector, ViewRelateField},
     },
     models::view::{
         access::{DiscussionAccessView, PostAccessView},
@@ -43,6 +40,14 @@ use tokio::sync::broadcast::Sender;
 use validator::Validate;
 
 #[derive(Debug, Deserialize)]
+pub struct GetPostsParams {
+    pub filter_by_type: Option<PostType>,
+    pub order_dir: Option<QryOrder>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PostLikeData {
     pub count: Option<u16>,
 }
@@ -57,6 +62,7 @@ pub struct PostInput {
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
+    pub is_idea: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -210,7 +216,7 @@ where
         &self,
         disc_id: &str,
         user_id: &str,
-        query: DiscussionParams,
+        query: GetPostsParams,
     ) -> CtxResult<Vec<PostView>> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let disc = self
@@ -222,19 +228,23 @@ where
             return Err(AppError::Forbidden.into());
         }
 
+        let pagination = Pagination {
+            order_by: None,
+            order_dir: None,
+            count: query.count.unwrap_or(20),
+            start: query.start.unwrap_or(0),
+        };
+
         let items = self
             .posts_repository
             .get_by_query(
                 &user.id.as_ref().unwrap().id.to_raw(),
                 &disc.id.id.to_raw(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: query.count.unwrap_or(20),
-                    start: query.start.unwrap_or(0),
-                },
+                query.filter_by_type,
+                pagination,
             )
             .await?;
+
         Ok(items)
     }
 
@@ -254,12 +264,23 @@ where
             .get_view_by_id::<DiscussionAccessView>(disc_id)
             .await?;
 
-        if !DiscussionAccess::new(&disc).can_create_post(&user) {
+        let post_type = if data.is_idea.unwrap_or_default() {
+            PostType::Idea
+        } else {
+            PostType::Public
+        };
+
+        let has_access = match post_type {
+            PostType::Public => DiscussionAccess::new(&disc).can_create_public_post(&user),
+            PostType::Private => DiscussionAccess::new(&disc).can_create_private_post(&user),
+            PostType::Idea => DiscussionAccess::new(&disc).can_idea_post(&user),
+        };
+
+        if !has_access {
             return Err(AppError::Forbidden.into());
         }
 
         let new_post_id = PostDbService::get_new_post_thing();
-
         let media_links = if let Some(uploaded_file) = data.file_1 {
             let file = convert_field_file_data(uploaded_file)?;
 
@@ -278,7 +299,6 @@ where
                 )
                 .await
                 .map_err(|e| AppError::Generic { description: e })?;
-
             Some(vec![result])
         } else {
             None
@@ -293,7 +313,7 @@ where
                 media_links: media_links.clone(),
                 created_by: user.id.as_ref().unwrap().clone(),
                 id: new_post_id,
-                r#type: PostType::Public,
+                r#type: post_type,
             })
             .await;
 
@@ -332,7 +352,7 @@ where
                 .await?;
         }
 
-        if disc.r#type != DiscussionType::Public {
+        if disc.r#type == DiscussionType::Private {
             self.notification_service
                 .on_chat_message(
                     &user.id.as_ref().unwrap(),

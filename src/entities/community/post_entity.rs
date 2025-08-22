@@ -9,10 +9,9 @@ use validator::Validate;
 use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
-    IdentIdName, Pagination, QryOrder, ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
+    QryOrder, ViewFieldSelector,
 };
-use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -26,10 +25,11 @@ use crate::services::post_service::PostView;
 
 use super::discussion_entity;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum PostType {
     Public,
     Private,
+    Idea,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -51,6 +51,7 @@ pub struct Post {
     pub tags: Option<Vec<String>>,
     pub r#type: PostType,
 }
+
 #[derive(Debug, Serialize)]
 pub struct CreatePost {
     pub id: Thing,
@@ -141,16 +142,20 @@ impl<'a> PostDbService<'a> {
         &self,
         user_id: &str,
         disc_id: &str,
+        filter_by_type: Option<PostType>,
         pag: Pagination,
     ) -> CtxResult<Vec<PostView>> {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let query_by_type = match filter_by_type {
+            Some(_) => "AND type=$filter_by_type",
+            None => "",
+        };
+        let fields = PostView::get_select_query_fields();
+
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME}
-            WHERE belongs_to == $disc 
-                AND (type = $post_type OR $user IN {ACCESS_TABLE_NAME}<-{TABLE_NAME}.in ) 
-                AND (belongs_to.type = $disc_type OR $user IN belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in)
-            ORDER BY id {order_dir} LIMIT $limit START $start;",
-            PostView::get_select_query_fields()
+            "SELECT {fields} FROM {TABLE_NAME}
+            WHERE belongs_to=$disc {query_by_type} AND (type IN $public_types OR $user IN {ACCESS_TABLE_NAME}<-{TABLE_NAME}.in)
+            ORDER BY id {order_dir} LIMIT $limit START $start;"
         );
 
         let mut res = self
@@ -158,8 +163,8 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
-            .bind(("disc_type", DiscussionType::Public))
-            .bind(("post_type", PostType::Public))
+            .bind(("filter_by_type", filter_by_type))
+            .bind(("public_types", vec![PostType::Public, PostType::Idea]))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .await?;
@@ -169,33 +174,13 @@ impl<'a> PostDbService<'a> {
         Ok(posts)
     }
 
-    pub async fn get_by_discussion_desc_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
-        &self,
-        discussion_id: Thing,
-        params: DiscussionParams,
-    ) -> CtxResult<Vec<T>> {
-        let filter_by = IdentIdName::ColumnIdent {
-            column: TABLE_COL_BELONGS_TO.to_string(),
-            val: discussion_id.to_raw(),
-            rec: true,
-        };
-        let pagination = Some(Pagination {
-            // id is ULID so can be ordered by time
-            order_by: Some("id".to_string()),
-            order_dir: Some(QryOrder::DESC),
-            count: params.count.unwrap_or(20),
-            start: params.start.unwrap_or(0),
-        });
-        get_entity_list_view::<T>(self.db, TABLE_NAME.to_string(), &filter_by, pagination).await
-    }
-
     pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<Post>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
         let query = format!(
             "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
-             WHERE out.type = $post_type AND out.belongs_to.type = $disc_type
+             WHERE out.type IN $public_types AND out.belongs_to.type = $disc_type
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
         );
@@ -203,6 +188,7 @@ impl<'a> PostDbService<'a> {
             .db
             .query(query)
             .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
+            .bind(("public_types", vec![PostType::Public, PostType::Idea]))
             .bind(("post_type", PostType::Public))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))

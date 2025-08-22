@@ -183,7 +183,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     login_response.assert_status_success();
 
     // user1 post
-    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
+    let disc_id = DiscussionDbService::get_profile_discussion_id(&user1_id).to_raw();
     let post_name = "post title Name 1".to_string();
     let create_post = server
         .post(&format!("/api/discussions/{disc_id}/posts"))
@@ -247,7 +247,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user1 post 2
     let post_name = "post title Name 2".to_string();
-    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
+    let disc_id = DiscussionDbService::get_profile_discussion_id(&user1_id).to_raw();
     let create_post = server
         .post(&format!("/api/discussions/{disc_id}/posts"))
         .multipart(
@@ -323,7 +323,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user1 post 3
     let post_name = "post title Name 3".to_string();
-    let disc_id = DiscussionDbService::get_idea_discussion_id(&user1_id).to_raw();
+    let disc_id = DiscussionDbService::get_profile_discussion_id(&user1_id).to_raw();
     let create_post = server
         .post(&format!("/api/discussions/{disc_id}/posts"))
         .multipart(
