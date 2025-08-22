@@ -154,7 +154,7 @@ impl<'a> PostDbService<'a> {
 
         let query = format!(
             "SELECT {fields} FROM {TABLE_NAME}
-            WHERE belongs_to=$disc {query_by_type} AND (type IN $public_types OR $user IN {ACCESS_TABLE_NAME}<-{TABLE_NAME}.in)
+            WHERE belongs_to=$disc {query_by_type}  
             ORDER BY id {order_dir} LIMIT $limit START $start;"
         );
 
@@ -164,7 +164,6 @@ impl<'a> PostDbService<'a> {
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .bind(("filter_by_type", filter_by_type))
-            .bind(("public_types", vec![PostType::Public, PostType::Idea]))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .await?;
