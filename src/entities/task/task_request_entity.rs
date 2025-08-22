@@ -144,6 +144,7 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE INDEX IF NOT EXISTS idx_due_at ON TABLE {TABLE_NAME} COLUMNS due_at;
     DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE {TABLE_NAME} COLUMNS belongs_to;
+    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TABLE_NAME} COLUMNS created_by;
     ");
         let mutation = self.db.query(sql).await?;
 
