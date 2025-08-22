@@ -39,7 +39,7 @@ impl RepliesRepository {
     pub async fn create(&self, post_id: &str, user_id: &str, content: &str) -> AppResult<Reply> {
         let mut res = self
             .client
-            .query(format!("INSERT INTO {REPLY_TABLE_NAME} {{ belongs_to: $post, created_by: $user, content: $content }}"))
+           .query(format!("INSERT INTO {REPLY_TABLE_NAME}:ulid() {{ belongs_to: $post, created_by: $user, content: $content }}"))
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("post", Thing::from((POST_TABLE_NAME, post_id))))
             .bind(("content", content.to_string()))
@@ -64,7 +64,7 @@ impl RepliesRepository {
                 format!(
                     "SELECT {fields} FROM {REPLY_TABLE_NAME}
                             WHERE belongs_to=$post
-                            ORDER BY created_at {order_dir} LIMIT $limit START $start;"
+                            ORDER BY id {order_dir} LIMIT $limit START $start;"
                 )
                 .as_str(),
             )
