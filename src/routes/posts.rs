@@ -218,6 +218,7 @@ async fn get_replies(
         .db
         .replies
         .get(
+            &auth_data.user_thing_id(),
             post.id.id.to_raw().as_ref(),
             Pagination {
                 order_by: None,
@@ -285,6 +286,7 @@ async fn create_reply(
         content: reply.content,
         created_at: reply.created_at,
         updated_at: reply.updated_at,
+        liked_by: None,
     };
 
     n_service
