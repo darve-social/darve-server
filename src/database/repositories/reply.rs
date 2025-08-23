@@ -39,10 +39,9 @@ impl RepliesRepository {
     pub async fn create(&self, post_id: &str, user_id: &str, content: &str) -> AppResult<Reply> {
         let mut res = self
             .client
-           .query(format!("INSERT INTO $new_id {{ belongs_to: $post, created_by: $user, content: $content }}"))
+           .query(format!("INSERT INTO {REPLY_TABLE_NAME} {{id:rand::ulid(), belongs_to: $post, created_by: $user, content: $content }}"))
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("post", Thing::from((POST_TABLE_NAME, post_id))))
-            .bind(("new_id", Thing::from((REPLY_TABLE_NAME, Id::ulid()))))
             .bind(("content", content.to_string()))
             .await?;
 
