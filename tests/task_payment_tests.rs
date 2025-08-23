@@ -56,17 +56,17 @@ test_with_server!(
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
         let p1_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant1.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant1.id.as_ref().unwrap());
         let p1_post = create_fake_post(server, &p1_disc, None, None).await;
 
         let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
         let p2_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant2.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant2.id.as_ref().unwrap());
         let p2_post = create_fake_post(server, &p2_disc, None, None).await;
 
         let (server, participant3, _, p3_token) = create_fake_login_test_user(&server).await;
         let p3_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant3.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant3.id.as_ref().unwrap());
         let p3_post = create_fake_post(server, &p3_disc, None, None).await;
 
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
@@ -208,17 +208,17 @@ test_with_server!(
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
         let p1_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant1.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant1.id.as_ref().unwrap());
         let p1_post = create_fake_post(server, &p1_disc, None, None).await;
 
         let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
         let p2_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant2.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant2.id.as_ref().unwrap());
         let p2_post = create_fake_post(server, &p2_disc, None, None).await;
 
         let (server, participant3, _, _) = create_fake_login_test_user(&server).await;
         let p3_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant3.id.as_ref().unwrap());
+            DiscussionDbService::get_profile_discussion_id(&participant3.id.as_ref().unwrap());
         let _p3_post = create_fake_post(server, &p3_disc, None, None).await;
 
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
@@ -341,7 +341,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
+    let disc = DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let start_wallet_amount = 1000;
     let endow_user_response = server
@@ -410,7 +410,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
+    let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let donor0_amount = 1000;
     let endow_user_response = server
@@ -510,7 +510,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
+    let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
     let donor0_amount = 1000;
     let endow_user_response = server
@@ -703,11 +703,12 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
-        let p_disc = DiscussionDbService::get_idea_discussion_id(&participant.id.as_ref().unwrap());
+        let p_disc =
+            DiscussionDbService::get_profile_discussion_id(&participant.id.as_ref().unwrap());
         let p_post = create_fake_post(server, &p_disc, None, None).await;
 
         let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
-        let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
+        let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
         let donor0_amount = 1000;
         let endow_user_response = server

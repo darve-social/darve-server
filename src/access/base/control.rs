@@ -124,7 +124,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
         assert!(permissions.contains(&Permission::CreatePrivatePost));
-        assert_eq!(permissions.len(), 4);
+        assert!(permissions.contains(&Permission::CreateIdeaPost));
+        assert_eq!(permissions.len(), 5);
     }
 
     #[test]
@@ -158,7 +159,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 6);
     }
 
@@ -172,7 +173,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 5);
     }
 
@@ -186,7 +187,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 5);
     }
 
@@ -199,7 +200,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 4);
     }
 
@@ -211,7 +212,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert_eq!(permissions.len(), 4);
     }
@@ -487,7 +488,8 @@ mod schema_variant_tests {
         );
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 1);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -545,7 +547,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
 
         assert_eq!(permissions.len(), 4);
     }
@@ -558,7 +560,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 3);
     }
 
@@ -571,7 +573,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 3);
     }
 
@@ -584,7 +586,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 4);
     }
 
@@ -596,7 +598,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 3);
     }
 
@@ -608,7 +610,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::LikePost));
+        assert!(permissions.contains(&Permission::Like));
         assert_eq!(permissions.len(), 3);
     }
 
@@ -621,7 +623,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -631,7 +634,8 @@ mod schema_variant_tests {
         let path = AccessPath::from("APP->MEMBER->DISCUSSION:PRIVATE->OWNER->TASK:PRIVATE->GUEST");
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 1);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -692,7 +696,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -703,7 +708,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::AcceptTask));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -806,17 +812,27 @@ mod schema_variant_tests {
     #[test]
     fn test_who_can_edit_comprehensive() {
         let ac = access_control();
-
         let paths = ac.who_can(&Permission::Edit);
-
-        // Should only include OWNER roles
         let path_strings: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
-
         for path_str in path_strings {
             assert!(
-                path_str.contains("OWNER"),
+                path_str.contains("OWNER") || path_str.contains("EDITOR"),
                 "Non-owner role found with edit permission: {}",
                 path_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_who_can_donate_comprehensive() {
+        let ac = access_control();
+        let paths = ac.who_can(&Permission::Donate);
+        let path_strings: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
+        for path_str in path_strings {
+            assert!(
+                path_str.contains("OWNER")
+                    || path_str.contains("GUEST")
+                    || path_str.contains("DONOR")
             );
         }
     }
@@ -839,20 +855,13 @@ mod schema_variant_tests {
             Permission::AcceptTask,
             Permission::RejectTask,
             Permission::DeliverTask,
-            Permission::LikePost,
+            Permission::Like,
             Permission::CreateReply,
+            Permission::Donate,
         ];
 
         for permission in all_permissions {
             let paths = ac.who_can(&permission);
-            // Each permission should have at least one path (except maybe some edge cases)
-            if permission == Permission::CreateDiscussion
-                || permission == Permission::AddDiscussionMember
-                || permission == Permission::RemoveDiscussionMember
-            {
-                // These might be more restricted
-                continue;
-            }
             assert!(
                 !paths.is_empty(),
                 "No paths found for permission: {:?}",

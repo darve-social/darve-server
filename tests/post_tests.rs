@@ -3,22 +3,25 @@ mod helpers;
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_post;
 use axum_test::multipart::MultipartForm;
+use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
+use darve_server::entities::community::post_entity::PostType;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
-use darve_server::middleware::utils::db_utils::RecordWithId;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
 use darve_server::routes::posts::GetPostsQuery;
+use darve_server::services::discussion_service::CreateDiscussion;
 use darve_server::services::post_service::PostView;
+use fake::faker;
+use fake::Fake;
 use helpers::post_helpers::get_posts;
 use helpers::post_helpers::{
     create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
 };
 use middleware::ctx::Ctx;
-use middleware::utils::extractor_utils::DiscussionParams;
 
 test_with_server!(create_post_test, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
@@ -101,14 +104,19 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_discussion_desc_view::<RecordWithId>(
-        default_discussion.clone(),
-        DiscussionParams {
-            start: Some(0),
-            count: Some(2),
+    .get_by_query(
+        &user.id.as_ref().unwrap().id.to_raw(),
+        &default_discussion.id.to_raw(),
+        Some(PostType::Public),
+        Pagination {
+            order_by: None,
+            order_dir: None,
+            count: 2,
+            start: 0,
         },
     )
     .await;
+
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 2);
 
@@ -116,11 +124,15 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_discussion_desc_view::<RecordWithId>(
-        default_discussion.clone(),
-        DiscussionParams {
-            start: Some(0),
-            count: Some(3),
+    .get_by_query(
+        &user.id.as_ref().unwrap().id.to_raw(),
+        &default_discussion.id.to_raw(),
+        Some(PostType::Public),
+        Pagination {
+            order_by: None,
+            order_dir: None,
+            count: 3,
+            start: 0,
         },
     )
     .await;
@@ -130,11 +142,15 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_discussion_desc_view::<RecordWithId>(
-        default_discussion.clone(),
-        DiscussionParams {
-            start: Some(0),
-            count: Some(1),
+    .get_by_query(
+        &user.id.as_ref().unwrap().id.to_raw(),
+        &default_discussion.id.to_raw(),
+        Some(PostType::Public),
+        Pagination {
+            order_by: None,
+            order_dir: None,
+            count: 1,
+            start: 0,
         },
     )
     .await;
@@ -295,3 +311,160 @@ test_with_server!(
         assert!(response.text().contains("Empty content and missing file"))
     }
 );
+
+test_with_server!(create_post_idea_test, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+
+    let default_discussion =
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+    let data = MultipartForm::new()
+        .add_text("title", "Hello")
+        .add_text("is_idea", true)
+        .add_text("content", "Sadasdas");
+
+    let res = create_post(server, &default_discussion, data).await;
+    res.assert_status_ok();
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts?filter_by_type=Idea",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 1);
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts?filter_by_type=Public",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 0);
+});
+
+test_with_server!(
+    try_to_create_post_idea_in_private_disc,
+    |server, ctx_state, config| {
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
+
+        let comm_id = format!("community:{}", user.id.as_ref().unwrap().id.to_string());
+        let create_response = server
+            .post("/api/discussions")
+            .add_header("Cookie", format!("jwt={}", token))
+            .json(&CreateDiscussion {
+                community_id: comm_id.clone(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: vec![user.id.as_ref().unwrap().to_raw()].into(),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+
+        create_response.assert_status_success();
+        let disc = create_response.json::<Discussion>();
+        let data = MultipartForm::new()
+            .add_text("title", "Hello")
+            .add_text("is_idea", true)
+            .add_text("content", "Sadasdas");
+
+        let res = create_post(server, &disc.id, data).await;
+        res.assert_status_forbidden();
+    }
+);
+
+test_with_server!(
+    try_to_create_post_idea_by_other_user,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let user_disc_id =
+            DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+        let (server, _, _, _) = create_fake_login_test_user(&server).await;
+
+        let data = MultipartForm::new()
+            .add_text("title", "Hello")
+            .add_text("is_idea", true)
+            .add_text("content", "Sadasdas");
+
+        let res = create_post(server, &user_disc_id, data).await;
+        res.assert_status_forbidden();
+    }
+);
+
+test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+
+    let default_discussion =
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None).await;
+
+    let data = MultipartForm::new()
+        .add_text("title", faker::name::en::Name().fake::<String>())
+        .add_text("is_idea", true)
+        .add_text(
+            "content",
+            faker::lorem::en::Sentence(7..20).fake::<String>(),
+        );
+
+    let _ = create_post(server, &default_discussion, data).await;
+
+    let data = MultipartForm::new()
+        .add_text("title", faker::name::en::Name().fake::<String>())
+        .add_text("is_idea", true)
+        .add_text(
+            "content",
+            faker::lorem::en::Sentence(7..20).fake::<String>(),
+        );
+
+    let _ = create_post(server, &default_discussion, data).await;
+
+    let data = MultipartForm::new()
+        .add_text("title", faker::name::en::Name().fake::<String>())
+        .add_text("is_idea", true)
+        .add_text(
+            "content",
+            faker::lorem::en::Sentence(7..20).fake::<String>(),
+        );
+
+    let _ = create_post(server, &default_discussion, data).await;
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 7);
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts?filter_by_type=Public",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 4);
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts?filter_by_type=Idea",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+
+    assert_eq!(posts.len(), 3);
+});

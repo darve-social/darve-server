@@ -14,7 +14,7 @@ use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
-use crate::services::post_service::{PostInput, PostService, PostView};
+use crate::services::post_service::{GetPostsParams, PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
@@ -29,7 +29,7 @@ use middleware::ctx::Ctx;
 
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
+use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::Deserialize;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use validator::Validate;
@@ -334,7 +334,7 @@ async fn get_posts(
     auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     Path(disc_id): Path<String>,
-    Query(query): Query<DiscussionParams>,
+    Query(query): Query<GetPostsParams>,
 ) -> CtxResult<Json<Vec<PostView>>> {
     let post_service = PostService::new(
         &ctx_state.db.client,

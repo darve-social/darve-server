@@ -26,6 +26,7 @@ impl AccessPath {
             name: match post.r#type {
                 PostType::Private => Resource::PostPrivate,
                 PostType::Public => Resource::PostPublic,
+                PostType::Idea => Resource::PostIdea,
             },
             role,
             next,
@@ -60,7 +61,7 @@ impl<'a> PostAccess<'a> {
 
     pub fn can_like(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
-        self.access_control.can(&path, &Permission::LikePost)
+        self.access_control.can(&path, &Permission::Like)
     }
 
     pub fn can_create_reply(&self, user: &LocalUser) -> bool {
@@ -76,6 +77,7 @@ impl<'a> PostAccess<'a> {
 
     pub fn can_create_private_task(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
+        println!(">>>>{:?}", path.to_string());
         self.access_control
             .can(&path, &Permission::CreatePrivateTask)
     }

@@ -203,13 +203,8 @@ where
     ) -> CtxResult<Vec<DiscussionView>> {
         let _ = self.user_repository.get_by_id(&user_id).await?;
 
-        let types = disc_type.map_or(vec![], |v| match v {
-            DiscussionType::Private => vec![v, DiscussionType::Fixed],
-            _ => vec![v],
-        });
-
         self.discussion_repository
-            .get_by_type(user_id, types, pag)
+            .get_by_type(user_id, disc_type, pag)
             .await
     }
 
@@ -231,7 +226,7 @@ where
             None => None,
         };
 
-        let disc_id =
+        let (disc_id, disc_type, owner_role) =
             if data.private_discussion_users_final && private_discussion_user_ids.is_some() {
                 let mut ids = private_discussion_user_ids
                     .as_ref()
@@ -286,18 +281,18 @@ where
                         r#type: disc.r#type,
                     });
                 }
-                Some(id)
+                (Some(id), DiscussionType::Private, Role::Editor)
             } else {
-                None
+                (
+                    None,
+                    if private_discussion_user_ids.is_some() {
+                        DiscussionType::Private
+                    } else {
+                        DiscussionType::Public
+                    },
+                    Role::Owner,
+                )
             };
-
-        let disc_type = if data.private_discussion_users_final {
-            DiscussionType::Fixed
-        } else if private_discussion_user_ids.is_some() {
-            DiscussionType::Private
-        } else {
-            DiscussionType::Public
-        };
 
         let disc = self
             .discussion_repository
@@ -315,7 +310,7 @@ where
             .add(
                 [user.id.as_ref().unwrap().clone()].to_vec(),
                 [disc.id.clone()].to_vec(),
-                Role::Owner.to_string(),
+                owner_role.to_string(),
             )
             .await?;
 

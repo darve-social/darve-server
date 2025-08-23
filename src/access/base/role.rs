@@ -9,6 +9,7 @@ pub enum Role {
     Donor,
     Candidate,
     Participant,
+    Editor,
 }
 
 impl Display for Role {
@@ -20,6 +21,7 @@ impl Display for Role {
             Role::Candidate => write!(f, "CANDIDATE"),
             Role::Participant => write!(f, "PARTICIPANT"),
             Role::Donor => write!(f, "DONOR"),
+            Role::Editor => write!(f, "EDITOR"),
         }
     }
 }
@@ -33,6 +35,7 @@ impl From<&str> for Role {
             "CANDIDATE" => Role::Candidate,
             "PARTICIPANT" => Role::Participant,
             "DONOR" => Role::Donor,
+            "EDITOR" => Role::Editor,
             _ => panic!("Unknown role: {}", value),
         }
     }

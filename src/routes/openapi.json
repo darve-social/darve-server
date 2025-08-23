@@ -2137,35 +2137,12 @@
             }
           },
           {
-            "name": "start",
+            "name": "filter_by_type",
             "in": "query",
             "required": false,
-            "description": "Starting offset for pagination",
+            "description": "Filter by post type",
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
-          },
-          {
-            "name": "count",
-            "in": "query",
-            "required": false,
-            "description": "Number of posts to return",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          },
-          {
-            "name": "order_by",
-            "in": "query",
-            "required": false,
-            "description": "Field to order by",
-            "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/PostType"
             }
           },
           {
@@ -2174,8 +2151,25 @@
             "required": false,
             "description": "Order direction",
             "schema": {
-              "type": "string",
-              "enum": ["asc", "desc"]
+              "$ref": "#/components/schemas/QryOrder"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "Pagination start index",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "description": "Number of posts to return",
+            "schema": {
+              "type": "integer"
             }
           }
         ],
@@ -3286,6 +3280,55 @@
           }
         }
       },
+      "GetPostsParams": {
+        "type": "object",
+        "properties": {
+          "filter_by_type": {
+            "type": "string",
+            "enum": [
+              "Public",
+              "Private",
+              "Idea"
+            ],
+            "nullable": true,
+            "description": "Filter by post type"
+          },
+          "order_dir": {
+            "type": "string",
+            "enum": [
+              "ASC",
+              "DESC"
+            ],
+            "nullable": true,
+            "description": "Order direction"
+          },
+          "start": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Pagination start index"
+          },
+          "count": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Number of posts to return"
+          }
+        }
+      },
+      "PostType": {
+        "type": "string",
+        "enum": [
+          "Public",
+          "Private",
+          "Idea"
+        ]
+      },
+      "QryOrder": {
+        "type": "string",
+        "enum": [
+          "ASC",
+          "DESC"
+        ]
+      },
       "ProfileSettingsFormInput": {
         "type": "object",
         "properties": {
@@ -3356,6 +3399,11 @@
             "type": "string",
             "format": "binary",
             "description": "Optional file attachment"
+          },
+          "is_idea": {
+            "nullable": true,
+            "type": "boolean",
+            "description": "Indicates whether the post is an idea (optional)"
           }
         }
       },
@@ -3868,11 +3916,6 @@
             "type": "string",
             "nullable": true,
             "description": "Profile discussion ID"
-          },
-          "idea_discussion": {
-            "type": "string",
-            "nullable": true,
-            "description": "Idea discussion ID"
           },
           "followers_nr": {
             "type": "integer",
