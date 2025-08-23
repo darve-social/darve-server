@@ -1,21 +1,21 @@
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use crate::database::client::Db;
-use crate::entities::community::discussion_entity;
+use crate::access::discussion::DiscussionAccess;
+use crate::entities::community::discussion_entity::{self, DiscussionType};
 use crate::entities::community::post_entity::Post;
-use crate::entities::task::task_request_entity::TaskRequest;
-use crate::entities::user_auth::{access_right_entity, authorization_entity, local_user_entity};
+use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
+use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
-use crate::middleware::utils::string_utils::get_str_thing;
+use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::models::view::access::DiscussionAccessView;
+use crate::models::view::discussion::DiscussionView;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
 use crate::services::post_service::{PostInput, PostService, PostView};
 use crate::services::task_service::{TaskRequestInput, TaskService};
-use access_right_entity::AccessRightDbService;
-use authorization_entity::{Authorization, AUTH_ACTIVITY_OWNER};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
@@ -27,13 +27,10 @@ use futures::Stream;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
-use middleware::error::{AppError, CtxError, CtxResult};
+use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::extractor_utils::{DiscussionParams, JsonOrFormValidated};
-use middleware::utils::string_utils::get_string_thing;
 use serde::Deserialize;
-use surrealdb::sql::Thing;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use validator::Validate;
 
@@ -60,84 +57,31 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
-async fn is_user_chat_discussion_user_auths(
-    db: &Db,
-    ctx: &Ctx,
-    discussion_id: &Thing,
-    discussion_private_discussion_user_ids: Option<Vec<Thing>>,
-) -> CtxResult<(bool, Vec<Authorization>)> {
-    let is_chat_disc = is_user_chat_discussion(ctx, &discussion_private_discussion_user_ids)?;
-
-    let user_auth = if is_chat_disc {
-        vec![Authorization {
-            authorize_record_id: discussion_id.clone(),
-            authorize_activity: AUTH_ACTIVITY_OWNER.to_string(),
-            authorize_height: 99,
-        }]
-    } else {
-        get_user_discussion_auths(db, &ctx).await?
-    };
-
-    Ok((is_chat_disc, user_auth))
-}
-
-pub fn is_user_chat_discussion(
-    ctx: &Ctx,
-    discussion_private_discussion_user_ids: &Option<Vec<Thing>>,
-) -> CtxResult<bool> {
-    match discussion_private_discussion_user_ids {
-        Some(chat_user_ids) => {
-            let user_id = ctx.user_id()?;
-            let is_in_chat_group =
-                chat_user_ids.contains(&get_string_thing(user_id).expect("user id ok"));
-            if !is_in_chat_group {
-                return Err(ctx.to_ctx_error(AppError::AuthorizationFail {
-                    required: "Is chat participant".to_string(),
-                }));
-            }
-            Ok::<bool, CtxError>(true)
-        }
-        None => Ok(false),
-    }
-}
-
-async fn get_user_discussion_auths(_db: &Db, ctx: &Ctx) -> CtxResult<Vec<Authorization>> {
-    let user_auth = match ctx.user_id() {
-        Ok(user_id) => {
-            let user_id = get_string_thing(user_id)?;
-            AccessRightDbService {
-                db: &_db,
-                ctx: &ctx,
-            }
-            .get_authorizations(&user_id)
-            .await?
-        }
-        Err(_) => vec![],
-    };
-    Ok(user_auth)
-}
-
 pub async fn discussion_sse(
+    auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
     Path(disc_id): Path<String>,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
-    let discussion_id = get_string_thing(disc_id.clone())?;
+    let user = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+
     let discussion = DiscussionDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get(IdentIdName::Id(discussion_id))
+    .get_view_by_id::<DiscussionAccessView>(&disc_id)
     .await?;
-    let discussion_id = discussion.id.expect("disc id");
 
-    let (_is_user_chat_discussion, _user_auth) = is_user_chat_discussion_user_auths(
-        &ctx_state.db.client,
-        &ctx,
-        &discussion_id,
-        discussion.private_discussion_user_ids,
-    )
-    .await?;
+    if !DiscussionAccess::new(&discussion).can_view(&user) {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let discussion_id = discussion.id;
 
     let rx = ctx_state.event_sender.subscribe();
     let stream = BroadcastStream::new(rx)
@@ -211,24 +155,37 @@ async fn create_discussion(
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
-    let disc_service = DiscussionService::new(&state, &ctx);
+    let disc_service = DiscussionService::new(&state, &ctx, &state.db.access);
     let disc = disc_service
         .create(&auth_data.user_thing_id(), data)
         .await?;
     Ok(Json(disc))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GetDiscussionsQuery {
+    r#type: Option<DiscussionType>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+    pub order_by: Option<String>,
+    pub order_dir: Option<QryOrder>,
+}
+
 async fn get_discussions(
+    auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
-) -> CtxResult<Json<Vec<Discussion>>> {
-    let local_user_db_service = LocalUserDbService {
-        db: &state.db.client,
-        ctx: &ctx,
+    Query(query): Query<GetDiscussionsQuery>,
+) -> CtxResult<Json<Vec<DiscussionView>>> {
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let pagination = Pagination {
+        order_by: query.order_by,
+        order_dir: query.order_dir,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
     };
-    let user_id = local_user_db_service.get_ctx_user_thing().await?;
-    let disc_service = DiscussionService::new(&state, &ctx);
-    let discussions: Vec<Discussion> = disc_service.get_by_chat_user(&user_id.to_raw()).await?;
+    let discussions = disc_service
+        .get(&auth_data.user_thing_id(), query.r#type, pagination)
+        .await?;
     Ok(Json(discussions))
 }
 
@@ -243,7 +200,7 @@ async fn add_discussion_users(
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
     disc_service
         .add_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
@@ -256,7 +213,7 @@ async fn delete_discussion_users(
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
     disc_service
         .remove_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
@@ -268,7 +225,7 @@ async fn delete_discussion(
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
     disc_service
         .delete(&auth_data.user_thing_id(), &discussion_id)
         .await?;
@@ -281,7 +238,7 @@ async fn update_discussion(
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateDiscussion>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx);
+    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
     disc_service
         .update(&auth_data.user_thing_id(), &discussion_id, data)
         .await?;
@@ -295,34 +252,32 @@ async fn get_tasks(
     Path(discussion_id): Path<String>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let user = LocalUserDbService {
-        db: &state.db.client,
         ctx: &auth_data.ctx,
+        db: &state.db.client,
     }
     .get_by_id(&auth_data.user_thing_id())
     .await?;
 
     let disc_db_service = DiscussionDbService {
-        db: &state.db.client,
         ctx: &auth_data.ctx,
+        db: &state.db.client,
     };
 
-    let disc = disc_db_service.get_by_id(&discussion_id).await?;
+    let disc = disc_db_service
+        .get_view_by_id::<DiscussionAccessView>(&discussion_id)
+        .await?;
 
-    let is_allow = match disc.private_discussion_user_ids {
-        Some(user_ids) => user_ids.contains(user.id.as_ref().unwrap()),
-        None => false,
+    if !DiscussionAccess::new(&disc).can_view(&user) {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let task_db_service = TaskRequestDbService {
+        ctx: &auth_data.ctx,
+        db: &state.db.client,
     };
 
-    if !is_allow {
-        return Err(AppError::Generic {
-            description: "Forbidden".to_string(),
-        }
-        .into());
-    };
-    let tasks = state
-        .db
-        .task_relates
-        .get_tasks_by_id::<TaskRequestView>(&disc.id.as_ref().unwrap())
+    let tasks: Vec<_> = task_db_service
+        .get_by_disc(disc.id, user.id.as_ref().unwrap().clone())
         .await?;
 
     Ok(Json(tasks))
@@ -334,8 +289,6 @@ async fn create_task(
     Path(discussion_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
 ) -> CtxResult<Json<TaskRequest>> {
-    let disc_thing = get_string_thing(discussion_id)?;
-
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
@@ -343,11 +296,11 @@ async fn create_task(
         &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
-        &state.db.task_relates,
+        &state.db.access,
     );
 
     let task = task_service
-        .create(&auth_data.user_thing_id(), body, Some(disc_thing.clone()))
+        .create_for_disc(&auth_data.user_thing_id(), &discussion_id, body)
         .await?;
 
     Ok(Json(task))
@@ -367,6 +320,7 @@ async fn create_post(
         &ctx_state.file_storage,
         &ctx_state.db.tags,
         &ctx_state.db.likes,
+        &ctx_state.db.access,
     );
 
     let post = post_service
@@ -382,8 +336,6 @@ async fn get_posts(
     Path(disc_id): Path<String>,
     Query(query): Query<DiscussionParams>,
 ) -> CtxResult<Json<Vec<PostView>>> {
-    let user_thing = get_str_thing(&auth_data.user_id)?;
-
     let post_service = PostService::new(
         &ctx_state.db.client,
         &auth_data.ctx,
@@ -392,10 +344,11 @@ async fn get_posts(
         &ctx_state.file_storage,
         &ctx_state.db.tags,
         &ctx_state.db.likes,
+        &ctx_state.db.access,
     );
 
     let posts = post_service
-        .get_by_query(&disc_id, &user_thing.id.to_raw(), query)
+        .get_by_query(&disc_id, &auth_data.user_thing_id(), query)
         .await?;
 
     Ok(Json(posts))

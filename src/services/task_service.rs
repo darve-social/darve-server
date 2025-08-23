@@ -1,11 +1,8 @@
 use crate::{
-    access::discussion::DiscussionAccess,
+    access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
     database::client::Db,
     entities::{
-        community::{
-            discussion_entity::{DiscussionDbService, TABLE_NAME as DISC_TB_NAME},
-            post_entity::{PostDbService, TABLE_NAME as POST_TB_NAME},
-        },
+        community::{discussion_entity::DiscussionDbService, post_entity::PostDbService},
         task::task_request_entity::{
             DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
             TaskRequestDbService, TaskRequestStatus, TaskRequestType,
@@ -19,9 +16,8 @@ use crate::{
         },
     },
     interfaces::repositories::{
-        task_donors::TaskDonorsRepositoryInterface,
+        access::AccessRepositoryInterface, task_donors::TaskDonorsRepositoryInterface,
         task_participants::TaskParticipantsRepositoryInterface,
-        task_relates::TaskRelatesRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
     middleware::{
@@ -33,6 +29,7 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
+    models::view::access::{DiscussionAccessView, PostAccessView, TaskAccessView},
     services::notification_service::NotificationService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
@@ -60,6 +57,7 @@ impl ViewFieldSelector for TaskView {
     fn get_select_query_fields() -> String {
         "id, 
         reward_type,
+        type,
         acceptance_period,
         delivery_period,
         currency,
@@ -93,12 +91,12 @@ pub struct TaskRequestInput {
     pub delivery_period: Option<u16>,
 }
 
-pub struct TaskService<'a, T, N, P, R>
+pub struct TaskService<'a, T, N, P, A>
 where
     T: TaskParticipantsRepositoryInterface,
     P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
-    R: TaskRelatesRepositoryInterface,
+    A: AccessRepositoryInterface,
 {
     tasks_repository: TaskRequestDbService<'a>,
     users_repository: LocalUserDbService<'a>,
@@ -107,17 +105,17 @@ where
     transactions_repository: BalanceTransactionDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
     task_donors_repository: &'a P,
-    task_relates_repository: &'a R,
     task_participants_repository: &'a T,
     default_period_hours: u16,
+    access_repository: &'a A,
 }
 
-impl<'a, T, N, P, R> TaskService<'a, T, N, P, R>
+impl<'a, T, N, P, A> TaskService<'a, T, N, P, A>
 where
     T: TaskParticipantsRepositoryInterface,
     N: UserNotificationsInterface,
     P: TaskDonorsRepositoryInterface,
-    R: TaskRelatesRepositoryInterface,
+    A: AccessRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -126,7 +124,7 @@ where
         notification_repository: &'a N,
         task_donors_repository: &'a P,
         task_participants_repository: &'a T,
-        task_relates_repository: &'a R,
+        access_repository: &'a A,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
@@ -143,126 +141,74 @@ where
             task_participants_repository,
             discussions_repository: DiscussionDbService { db: &db, ctx },
             default_period_hours: 48,
-            task_relates_repository,
+            access_repository,
         }
     }
 
-    pub async fn create(
+    pub async fn create_for_post(
         self,
         user_id: &str,
+        post_id: &str,
         data: TaskRequestInput,
-        related_to: Option<Thing>,
     ) -> CtxResult<TaskRequest> {
         data.validate()?;
 
         let user = self.users_repository.get_by_id(user_id).await?;
-        let user_thing = user.id.as_ref().unwrap().clone();
 
-        let _ = self.check_access(&user, &related_to).await?;
-
-        let (to_user, task_type) = match data.participant {
-            Some(ref participant) if !participant.is_empty() => {
-                let to_user_thing = get_str_thing(&participant)?;
-                let user = self
-                    .users_repository
-                    .get_by_id(&to_user_thing.id.to_raw())
-                    .await?;
-                let _ = self.check_access(&user, &related_to).await?;
-                (Some(user), TaskRequestType::Close)
-            }
-            _ => (None, TaskRequestType::Open),
-        };
-
-        let offer_currency = CurrencySymbol::USD;
-
-        let task = self
-            .tasks_repository
-            .create(TaskRequestCreate {
-                from_user: user.id.as_ref().unwrap().clone(),
-                r#type: task_type,
-                request_txt: data.content,
-                deliverable_type: DeliverableType::PublicPost,
-                reward_type: RewardType::OnDelivery,
-                currency: offer_currency.clone(),
-                acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
-                delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
-            })
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id)
             .await?;
 
-        if let Some(id) = related_to {
-            self.task_relates_repository
-                .create(&task.id.as_ref().unwrap(), &id)
-                .await?;
+        let (participant, r#type) = self.get_participant_and_type(&data).await?;
+
+        if let Some(ref participant) = participant {
+            if !PostAccess::new(&post).can_create_private_task(&user)
+                || !PostAccess::new(&post).can_view(participant)
+            {
+                return Err(AppError::Forbidden.into());
+            }
+        } else {
+            if !PostAccess::new(&post).can_create_public_task(&user) {
+                return Err(AppError::Forbidden.into());
+            }
         }
 
-        if let Some(amount) = data.offer_amount {
-            let wallet_from = WalletDbService::get_user_wallet_id(&user_thing);
+        self.create(&user, participant, r#type, data, post.id.clone())
+            .await
+    }
 
-            // TODO in db transaction
-            let response = self
-                .transactions_repository
-                .transfer_currency(
-                    &wallet_from,
-                    &task.wallet_id,
-                    amount as i64,
-                    &offer_currency,
-                )
-                .await?;
+    pub async fn create_for_disc(
+        self,
+        user_id: &str,
+        disc_id: &str,
+        data: TaskRequestInput,
+    ) -> CtxResult<TaskRequest> {
+        data.validate()?;
 
-            let _ = self
-                .task_donors_repository
-                .create(
-                    &task.id.as_ref().unwrap().id.to_raw(),
-                    &user_id,
-                    &response.tx_out_id.id.to_raw(),
-                    amount as u64,
-                    &offer_currency.to_string(),
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb {
-                    source: e.to_string(),
-                })?;
+        let user = self.users_repository.get_by_id(user_id).await?;
+
+        let discussion = self
+            .discussions_repository
+            .get_view_by_id::<DiscussionAccessView>(disc_id)
+            .await?;
+
+        let (participant, r#type) = self.get_participant_and_type(&data).await?;
+
+        if let Some(ref participant) = participant {
+            if !DiscussionAccess::new(&discussion).can_create_private_task(&user)
+                || !DiscussionAccess::new(&discussion).can_view(participant)
+            {
+                return Err(AppError::Forbidden.into());
+            }
+        } else {
+            if !DiscussionAccess::new(&discussion).can_create_public_post(&user) {
+                return Err(AppError::Forbidden.into());
+            }
         }
 
-        if let Some(ref user) = to_user {
-            let _ = self
-                .task_participants_repository
-                .create(
-                    &task.id.as_ref().unwrap().id.to_raw(),
-                    &user.id.as_ref().unwrap().id.to_raw(),
-                    TaskParticipantStatus::Requested.as_str(),
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb {
-                    source: e.to_string(),
-                })?;
-        };
-
-        let _ = self
-            .notification_service
-            .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
-            .await;
-
-        if let Some(ref user) = to_user {
-            let _ = self
-                .notification_service
-                .on_created_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    &user.id.as_ref().unwrap(),
-                )
-                .await?;
-
-            let _ = self
-                .notification_service
-                .on_received_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    user.id.as_ref().unwrap(),
-                )
-                .await?;
-        };
-        Ok(task)
+        self.create(&user, participant, r#type, data, discussion.id.clone())
+            .await
     }
 
     pub async fn upsert_donor(
@@ -274,14 +220,21 @@ where
         let task_thing = get_str_thing(&task_id)?;
         let task = self
             .tasks_repository
-            .get_by_id::<TaskView>(&task_thing)
+            .get_by_id::<TaskAccessView>(&task_thing)
             .await?;
-
         let donor_thing = get_str_thing(&donor_id)?;
-
         let donor = self
             .users_repository
             .get_by_id(&donor_thing.id.to_raw())
+            .await?;
+
+        if !TaskAccess::new(&task).can_view(&donor) {
+            return Err(AppError::Forbidden);
+        }
+
+        let task = self
+            .tasks_repository
+            .get_by_id::<TaskView>(&task_thing)
             .await?;
 
         if data.amount <= 0 {
@@ -297,9 +250,8 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        let _ = self.check_access(&donor, &task.related_to).await?;
+        let participant = task.donors.iter().find(|p| &p.user == &donor_thing);
 
-        let participant = task.donors.iter().find(|p| p.user == donor_thing);
         let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
         let offer_id = match participant {
             Some(p) => {
@@ -369,6 +321,15 @@ where
                         source: e.to_string(),
                     })?;
 
+                let _ = self
+                    .access_repository
+                    .add(
+                        [donor_thing.clone()].to_vec(),
+                        [task.id.clone()].to_vec(),
+                        Role::Donor.to_string(),
+                    )
+                    .await?;
+
                 id
             }
         };
@@ -386,21 +347,19 @@ where
         let task_thing = get_str_thing(&task_id)?;
         let task = self
             .tasks_repository
+            .get_by_id::<TaskAccessView>(&task_thing)
+            .await?;
+
+        if !TaskAccess::new(&task).can_reject(&user) {
+            return Err(AppError::Forbidden);
+        }
+
+        let task = self
+            .tasks_repository
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
         let task_user = task.participants.iter().find(|v| v.user == user_id);
-
-        let allow = task_user.map_or(false, |v| {
-            v.status == TaskParticipantStatus::Requested
-                || v.status == TaskParticipantStatus::Accepted
-        });
-
-        if !allow {
-            return Err(AppError::Forbidden.into());
-        }
-
-        let _ = self.check_access(&user, &task.related_to).await?;
 
         self.task_participants_repository
             .update(
@@ -412,12 +371,29 @@ where
             .map_err(|_| AppError::SurrealDb {
                 source: format!("reject_task"),
             })?;
+
+        self.access_repository
+            .remove_by_user(
+                user.id.as_ref().unwrap().clone(),
+                [task.id.clone()].to_vec(),
+            )
+            .await?;
+
         Ok(())
     }
 
     pub async fn accept(&self, user_id: &str, task_id: &str) -> AppResult<()> {
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
+
+        let task = self
+            .tasks_repository
+            .get_by_id::<TaskAccessView>(&task_thing)
+            .await?;
+
+        if !TaskAccess::new(&task).can_accept(&user) {
+            return Err(AppError::Forbidden);
+        }
 
         let task = self
             .tasks_repository
@@ -431,8 +407,6 @@ where
             .into());
         }
 
-        let _ = self.check_access(&user, &task.related_to).await?;
-
         if task
             .donors
             .iter()
@@ -443,12 +417,26 @@ where
 
         let task_user = task.participants.iter().find(|v| v.user == user_id);
 
-        match task.r#type {
-            TaskRequestType::Open => {
-                if task_user.is_some() {
-                    return Err(AppError::Forbidden.into());
-                };
+        match task_user {
+            Some(value) => {
+                let _ = self
+                    .task_participants_repository
+                    .update(&value.id, TaskParticipantStatus::Accepted.as_str(), None)
+                    .await
+                    .map_err(|e| AppError::SurrealDb {
+                        source: e.to_string(),
+                    })?;
 
+                let _ = self
+                    .access_repository
+                    .update(
+                        user.id.as_ref().unwrap().clone(),
+                        task.id.clone(),
+                        Role::Participant.to_string(),
+                    )
+                    .await;
+            }
+            None => {
                 let _ = self
                     .task_participants_repository
                     .create(
@@ -460,25 +448,17 @@ where
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
                     })?;
-            }
-            TaskRequestType::Close => {
-                if task_user.map_or(true, |v| v.status != TaskParticipantStatus::Requested) {
-                    return Err(AppError::Forbidden.into());
-                }
-
                 let _ = self
-                    .task_participants_repository
-                    .update(
-                        &task_user.as_ref().unwrap().id,
-                        TaskParticipantStatus::Accepted.as_str(),
-                        None,
+                    .access_repository
+                    .add(
+                        [user.id.as_ref().unwrap().clone()].to_vec(),
+                        [task.id.clone()].to_vec(),
+                        Role::Participant.to_string(),
                     )
-                    .await
-                    .map_err(|e| AppError::SurrealDb {
-                        source: e.to_string(),
-                    })?;
+                    .await;
             }
         }
+
         Ok(())
     }
 
@@ -490,6 +470,15 @@ where
     ) -> AppResult<()> {
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
+
+        let task = self
+            .tasks_repository
+            .get_by_id::<TaskAccessView>(&task_thing)
+            .await?;
+
+        if !TaskAccess::new(&task).can_deliver(&user) {
+            return Err(AppError::Forbidden);
+        }
 
         let task = self
             .tasks_repository
@@ -553,6 +542,29 @@ where
             .await?;
 
         Ok(())
+    }
+
+    pub async fn get_by_disc(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+    ) -> AppResult<Vec<TaskAccessView>> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let disc = self
+            .discussions_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
+
+        if !DiscussionAccess::new(&disc).can_view(&user) {
+            return Err(AppError::Forbidden);
+        }
+
+        let tasks = self
+            .tasks_repository
+            .get_by_disc(disc.id, user.id.as_ref().unwrap().clone())
+            .await?;
+
+        Ok(tasks)
     }
 
     pub(crate) async fn distribute_expired_tasks_rewards(&self) -> AppResult<()> {
@@ -624,6 +636,132 @@ where
         Ok(())
     }
 
+    async fn create(
+        self,
+        user: &LocalUser,
+        participant: Option<LocalUser>,
+        r#type: TaskRequestType,
+        data: TaskRequestInput,
+        belongs_to: Thing,
+    ) -> CtxResult<TaskRequest> {
+        let offer_currency = CurrencySymbol::USD;
+        let user_thing = user.id.as_ref().unwrap();
+        let task = self
+            .tasks_repository
+            .create(TaskRequestCreate {
+                belongs_to,
+                r#type,
+                from_user: user_thing.clone(),
+                request_txt: data.content,
+                deliverable_type: DeliverableType::PublicPost,
+                reward_type: RewardType::OnDelivery,
+                currency: offer_currency.clone(),
+                acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
+                delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
+            })
+            .await?;
+
+        if let Some(amount) = data.offer_amount {
+            let wallet_from = WalletDbService::get_user_wallet_id(&user.id.as_ref().unwrap());
+
+            // TODO in db transaction
+            let response = self
+                .transactions_repository
+                .transfer_currency(
+                    &wallet_from,
+                    &task.wallet_id,
+                    amount as i64,
+                    &offer_currency,
+                )
+                .await?;
+
+            let _ = self
+                .task_donors_repository
+                .create(
+                    &task.id.as_ref().unwrap().id.to_raw(),
+                    &user_thing.id.to_raw(),
+                    &response.tx_out_id.id.to_raw(),
+                    amount as u64,
+                    &offer_currency.to_string(),
+                )
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?;
+
+            let _ = self
+                .notification_service
+                .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
+                .await;
+        }
+
+        if let Some(ref user) = participant {
+            let _ = self
+                .task_participants_repository
+                .create(
+                    &task.id.as_ref().unwrap().id.to_raw(),
+                    &user.id.as_ref().unwrap().id.to_raw(),
+                    TaskParticipantStatus::Requested.as_str(),
+                )
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?;
+
+            self.access_repository
+                .add(
+                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Candidate.to_string(),
+                )
+                .await?;
+
+            let _ = self
+                .notification_service
+                .on_created_task(
+                    &user_thing,
+                    &task.id.as_ref().unwrap(),
+                    &user.id.as_ref().unwrap(),
+                )
+                .await?;
+
+            let _ = self
+                .notification_service
+                .on_received_task(
+                    &user_thing,
+                    &task.id.as_ref().unwrap(),
+                    user.id.as_ref().unwrap(),
+                )
+                .await?;
+        };
+
+        self.access_repository
+            .add(
+                [user.id.as_ref().unwrap().clone()].to_vec(),
+                [task.id.as_ref().unwrap().clone()].to_vec(),
+                Role::Owner.to_string(),
+            )
+            .await?;
+        Ok(task)
+    }
+
+    async fn get_participant_and_type(
+        &self,
+        data: &TaskRequestInput,
+    ) -> AppResult<(Option<LocalUser>, TaskRequestType)> {
+        match data.participant {
+            Some(ref participant) if !participant.is_empty() => {
+                let to_user_thing = get_str_thing(&participant)?;
+                let user = self
+                    .users_repository
+                    .get_by_id(&to_user_thing.id.to_raw())
+                    .await?;
+                Ok((Some(user), TaskRequestType::Private))
+            }
+            _ => Ok((None, TaskRequestType::Public)),
+        }
+    }
+
     fn can_still_use(&self, start: DateTime<Utc>, period: Option<u16>) -> bool {
         match period {
             Some(value) => {
@@ -634,39 +772,5 @@ where
             }
             _ => true,
         }
-    }
-
-    async fn check_access(&self, user: &LocalUser, related_to: &Option<Thing>) -> AppResult<()> {
-        match related_to {
-            Some(ref thing) => match thing.tb.as_str() {
-                DISC_TB_NAME => self.check_disc_access(user, &thing).await,
-                POST_TB_NAME => self.check_post_access(&thing).await,
-                _ => Err(AppError::Forbidden),
-            },
-            None => Ok(()),
-        }
-    }
-
-    async fn check_disc_access(&self, user: &LocalUser, disc_id: &Thing) -> AppResult<()> {
-        let disc = self
-            .discussions_repository
-            .get_by_id(&disc_id.to_raw())
-            .await
-            .map_err(|_| AppError::Generic {
-                description: "Forbidden".to_string(),
-            })?;
-
-        if !DiscussionAccess::new(&disc).can_create_task(&user) {
-            return Err(AppError::Forbidden.into());
-        }
-
-        Ok(())
-    }
-    async fn check_post_access(&self, post_id: &Thing) -> AppResult<()> {
-        self.posts_repository
-            .get_by_id_with_access(&post_id.to_raw())
-            .await
-            .map_err(|_| AppError::Forbidden)?;
-        Ok(())
     }
 }
