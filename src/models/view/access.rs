@@ -8,6 +8,7 @@ use crate::entities::{access_user::AccessUser, community::discussion_entity::Dis
 use crate::middleware::utils::db_utils::ViewFieldSelector;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscussionAccessView {
     pub id: Thing,
