@@ -1,0 +1,708 @@
+{
+  "APP": {
+    "GUEST": {
+      "permissions": [],
+      "DISCUSSION:PUBLIC": {
+        "GUEST": {
+          "permissions": [
+            "VIEW"
+          ],
+          "POST:PUBLIC": {
+            "GUEST": {
+              "permissions": [
+                "VIEW"
+              ],
+              "TASK:PUBLIC": {
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                }
+              }
+            }
+          },
+          "POST:IDEA": {
+            "GUEST": {
+              "permissions": [
+                "VIEW"
+              ],
+              "TASK:PUBLIC": {
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "MEMBER": {
+      "permissions": [
+        "CREATE_DISCUSSION"
+      ],
+      "DISCUSSION:PUBLIC": {
+        "OWNER": {
+          "permissions": [
+            "VIEW",
+            "EDIT",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_IDEA_POST"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_PUBLIC_TASK",
+                "CREATE_PRIVATE_TASK",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PUBLIC": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              },
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "REJECT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              }
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_PUBLIC_TASK",
+                "CREATE_PRIVATE_TASK",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PUBLIC": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              },
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "REJECT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              }
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_PRIVATE_TASK",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT",
+                    "DONATE"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "VIEW",
+                    "ACCEPT_TASK",
+                    "REJECT_TASK"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "VIEW",
+                    "DELIVER_TASK"
+                  ]
+                }
+              }
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE",
+                "CREATE_PRIVATE_TASK"
+              ],
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT",
+                    "DONATE"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "VIEW",
+                    "ACCEPT_TASK",
+                    "REJECT_TASK"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "VIEW",
+                    "DELIVER_TASK"
+                  ]
+                }
+              }
+            }
+          },
+          "POST:IDEA": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_PUBLIC_TASK",
+                "CREATE_REPLY",
+                "LIKE",
+                "ACCEPT_TASK"
+              ],
+              "TASK:PUBLIC": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "VIEW",
+                    "DELIVER_TASK"
+                  ]
+                }
+              }
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PUBLIC": {
+                "GUEST": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "GUEST": {
+          "permissions": [
+            "VIEW"
+          ],
+          "POST:PUBLIC": {
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE",
+                "CREATE_PRIVATE_TASK"
+              ],
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT",
+                    "DONATE"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "VIEW",
+                    "ACCEPT_TASK",
+                    "REJECT_TASK"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "VIEW",
+                    "DELIVER_TASK"
+                  ]
+                }
+              }
+            }
+          },
+          "POST:IDEA": {
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PUBLIC": {
+                "GUEST": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "DISCUSSION:PRIVATE": {
+        "EDITOR": {
+          "permissions": [
+            "VIEW",
+            "EDIT",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_PUBLIC_TASK",
+            "CREATE_PRIVATE_TASK"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "TASK:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "DONATE"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "CANDIDATE": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK",
+                "REJECT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          },
+          "TASK:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "DONATE"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK",
+                "DONATE"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          }
+        },
+        "OWNER": {
+          "permissions": [
+            "VIEW",
+            "EDIT",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_PUBLIC_TASK",
+            "CREATE_PRIVATE_TASK",
+            "ADD_DISCUSSION_MEMBER",
+            "REMOVE_DISCUSSION_MEMBER"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "TASK:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "DONATE"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "CANDIDATE": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK",
+                "REJECT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          },
+          "TASK:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "DONATE"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW",
+                "DONATE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK",
+                "DONATE"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          }
+        },
+        "MEMBER": {
+          "permissions": [
+            "VIEW",
+            "CREATE_PUBLIC_POST",
+            "CREATE_PRIVATE_POST",
+            "CREATE_PUBLIC_TASK",
+            "CREATE_PRIVATE_TASK"
+          ],
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "POST:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "CREATE_REPLY",
+                "LIKE"
+              ]
+            }
+          },
+          "TASK:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "CANDIDATE": {
+              "permissions": [
+                "VIEW",
+                "REJECT_TASK",
+                "ACCEPT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "DELIVER_TASK",
+                "VIEW"
+              ]
+            }
+          },
+          "TASK:PUBLIC": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT"
+              ]
+            },
+            "DONOR": {
+              "permissions": [
+                "VIEW"
+              ]
+            },
+            "GUEST": {
+              "permissions": [
+                "VIEW",
+                "ACCEPT_TASK"
+              ]
+            },
+            "PARTICIPANT": {
+              "permissions": [
+                "VIEW",
+                "DELIVER_TASK"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

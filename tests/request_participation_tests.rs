@@ -64,7 +64,7 @@ test_with_server!(
         let created = &create_response.json::<Discussion>();
 
         let ctx = Ctx::new(Ok(user_ident0.clone()), false);
-        let community_discussion_id = created.id.as_ref().unwrap().clone();
+        let community_discussion_id = created.id.clone();
 
         let post_name = "post title Name 1".to_string();
         let create_post = server
@@ -296,7 +296,7 @@ test_with_server!(
         //////// deliver task
 
         let disc_id =
-            DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap()).to_raw();
+            DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap()).to_raw();
         // create post on own profile for task delivery
         let post_name = "delivery post".to_string();
         let create_post = server
@@ -427,7 +427,7 @@ test_with_server!(
 test_with_server!(get_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
 
     let create_response = server
         .post(&format!(
@@ -489,7 +489,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 test_with_server!(set_read_notification, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
             "/api/followers/{}",
@@ -535,7 +535,7 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
 test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
 
     let create_response = server
         .post(&format!(
@@ -583,7 +583,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
             "/api/followers/{}",

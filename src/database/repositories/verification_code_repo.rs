@@ -1,6 +1,6 @@
 use crate::database::repository_impl::Repository;
 use crate::database::repository_traits::RepositoryCore;
-use crate::entities::community::discussion_entity::USER_TABLE_NAME;
+use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::{
     entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
     interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface,

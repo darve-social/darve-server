@@ -9,8 +9,7 @@ use crate::{
         community::profile_routes,
         discussions, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
-            access_gain_action_routes, access_rule_routes, init_server_routes, login_routes,
-            register_routes,
+            login_routes, register_routes,
             webauthn::webauthn_routes::{self, WebauthnConfig},
         },
         user_otp, users, wallet,
@@ -27,9 +26,6 @@ use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::post_entity::PostDbService;
 use entities::community::post_stream_entity::PostStreamDbService;
 use entities::task::task_request_entity::TaskRequestDbService;
-use entities::user_auth::access_gain_action_entity::AccessGainActionDbService;
-use entities::user_auth::access_right_entity::AccessRightDbService;
-use entities::user_auth::access_rule_entity::AccessRuleDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
@@ -53,6 +49,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         &ctx_state.email_sender,
         ctx_state.verification_code_ttl,
         &ctx_state.db.verification_code,
+        &ctx_state.db.access,
     );
 
     let _ = auth_service
@@ -91,13 +88,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
     DiscussionDbService { db: &db, ctx: &c }.mutate_db().await?;
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessRuleDbService { db: &db, ctx: &c }.mutate_db().await?;
-    AccessRightDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
-    AccessGainActionDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
     TaskRequestDbService { db: &db, ctx: &c }
         .mutate_db()
@@ -120,14 +110,11 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
     Router::new()
         .route("/hc", get(get_hc))
         .nest_service("/assets", ServeDir::new("assets"))
-        .merge(init_server_routes::routes())
         .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())
-        .merge(access_rule_routes::routes())
         .merge(posts::routes(ctx_state.upload_max_size_mb))
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
-        .merge(access_gain_action_routes::routes())
         .merge(profile_routes::routes())
         .merge(tasks::routes())
         .merge(notifications::routes())

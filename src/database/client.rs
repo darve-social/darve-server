@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use crate::database::repositories::access::AccessRepository;
 use crate::database::repositories::like::LikesRepository;
 use crate::database::repositories::reply::RepliesRepository;
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
-use crate::database::repositories::task_relates::TaskRelatesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::repository_impl::Repository;
@@ -35,10 +35,10 @@ pub struct Database {
     pub user_notifications: UserNotificationsRepository,
     pub task_donors: TaskDonorsRepository,
     pub task_participants: TaskParticipantsRepository,
-    pub task_relates: TaskRelatesRepository,
     pub tags: TagsRepository,
     pub replies: RepliesRepository,
     pub likes: LikesRepository,
+    pub access: AccessRepository,
 }
 
 impl Database {
@@ -72,10 +72,10 @@ impl Database {
             user_notifications: UserNotificationsRepository::new(client.clone()),
             task_donors: TaskDonorsRepository::new(client.clone()),
             task_participants: TaskParticipantsRepository::new(client.clone()),
-            task_relates: TaskRelatesRepository::new(client.clone()),
             tags: TagsRepository::new(client.clone()),
             replies: RepliesRepository::new(client.clone()),
-            likes: LikesRepository::new(client),
+            likes: LikesRepository::new(client.clone()),
+            access: AccessRepository::new(client),
         }
     }
 
@@ -84,10 +84,10 @@ impl Database {
         self.user_notifications.mutate_db().await?;
         self.task_donors.mutate_db().await?;
         self.task_participants.mutate_db().await?;
-        self.task_relates.mutate_db().await?;
         self.tags.mutate_db().await?;
         self.replies.mutate_db().await?;
         self.likes.mutate_db().await?;
+        self.access.mutate_db().await?;
         Ok(())
     }
 }

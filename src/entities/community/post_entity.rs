@@ -7,12 +7,11 @@ use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
 use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
-use crate::entities::community::discussion_entity::DiscussionDenyRule;
+use crate::entities::community::discussion_entity::DiscussionType;
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_list_view, get_entity_view, with_not_found_err,
-    IdentIdName, Pagination, QryOrder, ViewFieldSelector,
+    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
+    QryOrder, ViewFieldSelector,
 };
-use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -26,16 +25,13 @@ use crate::services::post_service::PostView;
 
 use super::discussion_entity;
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum PostDenyRule {
-    CreateTask,
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub enum PostType {
+    Public,
+    Private,
+    Idea,
 }
 
-/// Post belongs_to discussion.
-/// It is created_by user. Since user can create posts in different
-/// discussions we have to filter by discussion and user to get user's posts
-/// in particular discussion. User profile posts are in profile discussion.
-///
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct Post {
     // id is ULID for sorting by time
@@ -53,8 +49,9 @@ pub struct Post {
     pub replies_nr: i64,
     pub likes_nr: i64,
     pub tags: Option<Vec<String>>,
-    pub deny_rules: Option<Vec<PostDenyRule>>,
+    pub r#type: PostType,
 }
+
 #[derive(Debug, Serialize)]
 pub struct CreatePost {
     pub id: Thing,
@@ -63,6 +60,7 @@ pub struct CreatePost {
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
+    pub r#type: PostType,
 }
 
 pub struct PostDbService<'a> {
@@ -96,9 +94,10 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<set<string>>;
     DEFINE FIELD IF NOT EXISTS replies_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
-    DEFINE FIELD IF NOT EXISTS deny_rules ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS idx_type ON TABLE {TABLE_NAME} COLUMNS type;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -122,6 +121,15 @@ impl<'a> PostDbService<'a> {
         self.get(ident).await
     }
 
+    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        id: &str,
+    ) -> CtxResult<T> {
+        let thing = get_str_thing(id)?;
+        let ident = IdentIdName::Id(thing);
+        self.get_view(ident).await
+    }
+
     pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,
@@ -134,15 +142,20 @@ impl<'a> PostDbService<'a> {
         &self,
         user_id: &str,
         disc_id: &str,
+        filter_by_type: Option<PostType>,
         pag: Pagination,
     ) -> CtxResult<Vec<PostView>> {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let query_by_type = match filter_by_type {
+            Some(_) => "AND type=$filter_by_type",
+            None => "",
+        };
+        let fields = PostView::get_select_query_fields();
 
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME}
-                WHERE belongs_to == $disc
-                ORDER BY id {order_dir} LIMIT $limit START $start;",
-            PostView::get_select_query_fields()
+            "SELECT {fields} FROM {TABLE_NAME}
+            WHERE belongs_to=$disc {query_by_type}  
+            ORDER BY id {order_dir} LIMIT $limit START $start;"
         );
 
         let mut res = self
@@ -150,6 +163,7 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
+            .bind(("filter_by_type", filter_by_type))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .await?;
@@ -159,59 +173,13 @@ impl<'a> PostDbService<'a> {
         Ok(posts)
     }
 
-    pub async fn get_by_discussion_desc_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
-        &self,
-        discussion_id: Thing,
-        params: DiscussionParams,
-    ) -> CtxResult<Vec<T>> {
-        let filter_by = IdentIdName::ColumnIdent {
-            column: TABLE_COL_BELONGS_TO.to_string(),
-            val: discussion_id.to_raw(),
-            rec: true,
-        };
-        let pagination = Some(Pagination {
-            // id is ULID so can be ordered by time
-            order_by: Some("id".to_string()),
-            order_dir: Some(QryOrder::DESC),
-            count: params.count.unwrap_or(20),
-            start: params.start.unwrap_or(0),
-        });
-        get_entity_list_view::<T>(self.db, TABLE_NAME.to_string(), &filter_by, pagination).await
-    }
-
-    pub async fn get_by_id_with_access(&self, post_id: &str) -> CtxResult<Post> {
-        let mut res = self
-            .db
-            .query("SELECT * FROM $id WHERE array::join(belongs_to.deny_rules ?? [],'') = $rule;")
-            .bind(("id", get_str_thing(post_id)?))
-            .bind((
-                "rule",
-                DiscussionDenyRule::public().map_or("".to_string(), |r| {
-                    r.iter()
-                        .map(|rule| rule.to_string())
-                        .collect::<Vec<String>>()
-                        .join("")
-                }),
-            ))
-            .await?;
-
-        let post = res.take::<Option<Post>>(0)?;
-
-        post.ok_or(
-            AppError::EntityFailIdNotFound {
-                ident: post_id.to_string(),
-            }
-            .into(),
-        )
-    }
-
     pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<Post>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
 
         let query = format!(
             "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
-             WHERE array::join(out.belongs_to.deny_rules ?? [], '') = $rule
+             WHERE out.type IN $public_types AND out.belongs_to.type = $disc_type
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
         );
@@ -219,17 +187,11 @@ impl<'a> PostDbService<'a> {
             .db
             .query(query)
             .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
+            .bind(("public_types", vec![PostType::Public, PostType::Idea]))
+            .bind(("post_type", PostType::Public))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
-            .bind((
-                "rule",
-                DiscussionDenyRule::public().map_or("".to_string(), |r| {
-                    r.iter()
-                        .map(|rule| rule.to_string())
-                        .collect::<Vec<String>>()
-                        .join("")
-                }),
-            ))
+            .bind(("disc_type", DiscussionType::Public))
             .await?;
 
         let posts = res.take::<Vec<Post>>((0, "entity"))?;

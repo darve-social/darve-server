@@ -1,54 +1,107 @@
-use crate::entities::{
-    community::discussion_entity::{Discussion, DiscussionDenyRule},
-    user_auth::local_user_entity::LocalUser,
+use crate::{
+    access::base::{
+        access_control, control::AccessControl, path::AccessPath, permission::Permission,
+        resource::Resource, role::Role,
+    },
+    entities::{
+        community::discussion_entity::DiscussionType, user_auth::local_user_entity::LocalUser,
+    },
+    models::view::access::DiscussionAccessView,
 };
 
+impl AccessPath {
+    pub fn from_discussion(
+        disc: &DiscussionAccessView,
+        user: Option<&LocalUser>,
+        next: Option<Box<AccessPath>>,
+    ) -> Self {
+        let (user_role, disc_role) = match user {
+            Some(user) => (
+                Role::Member,
+                disc.users
+                    .iter()
+                    .find(|u| u.user == *user.id.as_ref().unwrap())
+                    .map_or(Role::Guest, |v| Role::from(v.role.as_str())),
+            ),
+            None => (Role::Guest, Role::Guest),
+        };
+
+        AccessPath {
+            name: Resource::App,
+            role: user_role,
+            next: Some(Box::new(AccessPath {
+                name: match disc.r#type {
+                    DiscussionType::Private => Resource::DiscussionPrivate,
+                    DiscussionType::Public => Resource::DiscussionPublic,
+                },
+                role: disc_role,
+                next,
+            })),
+        }
+    }
+}
+
 pub struct DiscussionAccess<'a> {
-    pub discussion: &'a Discussion,
+    discussion: &'a DiscussionAccessView,
+    access_control: &'static AccessControl,
 }
 
 impl<'a> DiscussionAccess<'a> {
-    pub fn new(discussion: &'a Discussion) -> Self {
-        Self { discussion }
-    }
-
-    pub fn can_create_task(&self, user: &LocalUser) -> bool {
-        let is_deny = self.discussion.deny_rules.as_ref().map_or(false, |rules| {
-            rules.contains(&DiscussionDenyRule::CreateTask)
-        });
-
-        if is_deny {
-            return false;
+    pub fn new(discussion: &'a DiscussionAccessView) -> Self {
+        Self {
+            discussion,
+            access_control: access_control(),
         }
-
-        self.discussion.is_owner(&user.id.as_ref().unwrap())
-            || self.discussion.is_member(&user.id.as_ref().unwrap())
-    }
-
-    pub fn can_create_post(&self, user: &LocalUser) -> bool {
-        self.discussion.is_owner(&user.id.as_ref().unwrap())
-            || self.discussion.is_member(&user.id.as_ref().unwrap())
-    }
-
-    pub fn can_manage_members(&self, user: &LocalUser) -> bool {
-        let is_deny = self.discussion.deny_rules.as_ref().map_or(false, |rules| {
-            rules.contains(&DiscussionDenyRule::ManageMember)
-        });
-
-        if is_deny {
-            return false;
-        }
-
-        self.discussion.is_owner(&user.id.as_ref().unwrap())
     }
 
     pub fn can_edit(&self, user: &LocalUser) -> bool {
-        self.discussion.is_owner(&user.id.as_ref().unwrap())
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control.can(&path, &Permission::Edit)
+    }
+
+    pub fn can_add_member(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::AddDiscussionMember)
+    }
+
+    pub fn can_remove_member(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::RemoveDiscussionMember)
     }
 
     pub fn can_view(&self, user: &LocalUser) -> bool {
-        self.discussion.is_profile()
-            || self.discussion.is_owner(&user.id.as_ref().unwrap())
-            || self.discussion.is_member(&user.id.as_ref().unwrap())
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control.can(&path, &Permission::View)
+    }
+
+    pub fn can_create_public_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePublicPost)
+    }
+
+    pub fn can_create_private_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePrivatePost)
+    }
+
+    pub fn can_idea_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control.can(&path, &Permission::CreateIdeaPost)
+    }
+
+    pub fn can_create_private_task(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePrivateTask)
+    }
+
+    pub fn can_create_public_task(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePublicTask)
     }
 }

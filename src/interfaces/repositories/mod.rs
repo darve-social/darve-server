@@ -1,3 +1,4 @@
+pub mod access;
 pub mod like;
 pub mod tags;
 pub mod task_donors;

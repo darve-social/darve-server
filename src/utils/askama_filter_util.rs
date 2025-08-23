@@ -1,10 +1,6 @@
 pub mod filters {
-    use access_rule_entity::AccessRule;
-    use authorization_entity::{is_any_ge_in_list, Authorization};
     use rand::Rng;
     use std::fmt::Display;
-
-    use crate::entities::user_auth::{access_rule_entity, authorization_entity};
 
     const VALUES: [&str; 4] = [
         "This is part of member content, learn more...",
@@ -40,32 +36,6 @@ pub mod filters {
                     let mut rng = rand::thread_rng();
                     let random_string_index: usize = rng.gen_range(0..VALUES.len());
                     Ok(VALUES[random_string_index].to_string())
-                }
-            }
-        }
-    }
-
-    pub fn protected_content_txt(
-        value: &impl Display,
-        replace_with: String,
-        required_access_rule: &Option<AccessRule>,
-        viewer_rights: &Vec<Authorization>,
-    ) -> ::askama::Result<String> {
-        match required_access_rule {
-            None => Ok(format!("{}", value)),
-            Some(ar) => {
-                match is_any_ge_in_list(&ar.authorization_required, &viewer_rights).unwrap_or(false)
-                {
-                    true => Ok(format!("{}", value)),
-                    false => {
-                        if replace_with.len() > 0 {
-                            Ok(format!("{}", replace_with))
-                        } else {
-                            let mut rng = rand::thread_rng();
-                            let random_string_index: usize = rng.gen_range(0..VALUES.len());
-                            Ok(VALUES[random_string_index].to_string())
-                        }
-                    }
                 }
             }
         }

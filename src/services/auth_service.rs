@@ -1,6 +1,8 @@
 use super::verification_code_service::VerificationCodeService;
-use crate::entities::community::discussion_entity::DiscussionDenyRule;
+use crate::access::base::role::Role;
+use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::verification_code::VerificationCodeFor;
+use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::utils;
 use crate::{
     database::client::Db,
@@ -77,10 +79,11 @@ pub struct ResetPasswordInput {
     pub email_or_username: String,
 }
 
-pub struct AuthService<'a, V, S>
+pub struct AuthService<'a, V, S, A>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
     S: SendEmailInterface + Send + Sync,
+    A: AccessRepositoryInterface,
 {
     ctx: &'a Ctx,
     jwt: &'a JWT,
@@ -88,12 +91,14 @@ where
     auth_repository: AuthenticationDbService<'a>,
     community_repository: CommunityDbService<'a>,
     verification_code_service: VerificationCodeService<'a, V, S>,
+    access_repository: &'a A,
 }
 
-impl<'a, V, S> AuthService<'a, V, S>
+impl<'a, V, S, A> AuthService<'a, V, S, A>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
     S: SendEmailInterface + Send + Sync,
+    A: AccessRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -102,7 +107,8 @@ where
         email_sender: &'a S,
         code_ttl: Duration,
         verification_code_repository: &'a V,
-    ) -> AuthService<'a, V, S> {
+        access_repository: &'a A,
+    ) -> AuthService<'a, V, S, A> {
         AuthService {
             ctx,
             jwt,
@@ -114,6 +120,7 @@ where
                 email_sender,
                 code_ttl,
             ),
+            access_repository,
         }
     }
 
@@ -497,14 +504,20 @@ where
             })
             .await?;
         let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
-
-        self.community_repository
-            .create_profile(
-                user.id.as_ref().unwrap().clone(),
-                DiscussionDenyRule::public(),
-            )
+        let disc_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+        let _ = self
+            .community_repository
+            .create_profile(disc_id.clone(), user.id.as_ref().unwrap().clone())
             .await?;
 
+        let _ = self
+            .access_repository
+            .add(
+                vec![user.id.as_ref().unwrap().clone()],
+                [disc_id].to_vec(),
+                Role::Owner.to_string(),
+            )
+            .await?;
         Ok((token, user))
     }
 }
