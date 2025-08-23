@@ -7,7 +7,7 @@ use crate::middleware::error::{AppError, AppResult};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
 use crate::models::view::reply::ReplyView;
 use std::sync::Arc;
-use surrealdb::sql::{Id, Thing};
+use surrealdb::sql::Thing;
 
 #[derive(Debug)]
 pub struct RepliesRepository {
