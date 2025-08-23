@@ -131,26 +131,6 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     assert_eq!(task_user.status, TaskParticipantStatus::Accepted);
 });
 
-test_with_server!(
-    deny_to_create_public_task_in_public_post,
-    |server, ctx_state, config| {
-        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
-
-        let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id).as_str())
-            .json(&json!({
-                "offer_amount": Some(100),
-                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-            }))
-            .add_header("Cookie", format!("jwt={}", token1))
-            .add_header("Accept", "application/json")
-            .await;
-        task_request.assert_status_forbidden();
-    }
-);
-
 test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
@@ -172,7 +152,6 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -186,7 +165,8 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
-    accept_response.assert_status_forbidden();
+    accept_response.assert_status_failure();
+    assert!(accept_response.text().contains("Forbidden"));
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
@@ -194,13 +174,12 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
-
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
-    accept_response.assert_status_forbidden();
+    accept_response.assert_status_success();
 
     let task_request = server
         .get("/api/tasks/received")
@@ -337,7 +316,7 @@ test_with_server!(
     try_to_accept_task_request_participator,
     |server, ctx_state, config| {
         let (server, _user, _, _token) = create_fake_login_test_user(&server).await;
-        let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, _user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc_id, None, None).await;
@@ -356,7 +335,6 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -836,7 +814,7 @@ test_with_server!(
 );
 
 test_with_server!(get_tasks, |server, ctx_state, config| {
-    let (server, user, _, token) = create_fake_login_test_user(&server).await;
+    let (server, _user, _, token) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
@@ -867,19 +845,21 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     task_request.assert_status_success();
 
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
-    let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    response.assert_status_success();
-
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post1.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-             "participant": Some(user.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+        }))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+
+    let task_request = server
+        .post(format!("/api/posts/{}/tasks", post2.id).as_str())
+        .json(&json!({
+            "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -888,6 +868,13 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     task_request.assert_status_success();
 
     let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+    let response = server
+        .post(&format!("/api/tasks/{}/accept", task_id))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token))
@@ -896,22 +883,9 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     response.assert_status_success();
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post2.id).as_str())
-        .json(&json!({
-            "offer_amount": Some(100),
-            "participant": Some(user.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-        }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
-        .await;
-    task_request.assert_status_success();
-
-    let task_request = server
         .post(format!("/api/posts/{}/tasks", post3.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -919,6 +893,13 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     task_request.assert_status_success();
     let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+    let response = server
+        .post(&format!("/api/tasks/{}/accept", task_id))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
@@ -934,7 +915,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     response.assert_status_success();
     let tasks = response.json::<Vec<TaskViewForParticipant>>();
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received")
         .add_query_param("status", "Rejected")
@@ -960,7 +941,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     response.assert_status_success();
     let tasks = response.json::<Vec<TaskViewForParticipant>>();
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.len(), 3);
     let response = server
         .get("/api/tasks/received")
         .add_query_param("status", "Rejected")
@@ -977,7 +958,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     response.assert_status_success();
     let tasks = response.json::<Vec<TaskViewForParticipant>>();
-    assert_eq!(tasks.len(), 0);
+    assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received?status=Accepted")
         .add_header("Cookie", format!("jwt={}", token0))
@@ -1118,7 +1099,6 @@ test_with_server!(
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
                 "delivery_period": 1,
             }))
             .add_header("Cookie", format!("jwt={}", token0))
@@ -1186,7 +1166,13 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let task_request = server
-            .post(format!("/api/discussions/{}/tasks", created.id.to_raw()).as_str())
+            .post(
+                format!(
+                    "/api/discussions/{}/tasks",
+                    created.id.as_ref().unwrap().to_raw()
+                )
+                .as_str(),
+            )
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
@@ -1275,7 +1261,13 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
     endow_user_response.assert_status_success();
 
     let task_request = server
-        .post(format!("/api/discussions/{}/tasks", created.id.to_raw()).as_str())
+        .post(
+            format!(
+                "/api/discussions/{}/tasks",
+                created.id.as_ref().unwrap().to_raw()
+            )
+            .as_str(),
+        )
         .json(&json!({
             "offer_amount": Some(100),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),

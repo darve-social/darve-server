@@ -1,4 +1,4 @@
-use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
+use crate::entities::community::discussion_entity::USER_TABLE_NAME;
 use chrono::{DateTime, Months, Utc};
 use regex::Regex;
 use reqwest::Url;

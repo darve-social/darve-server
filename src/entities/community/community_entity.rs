@@ -4,7 +4,7 @@ use surrealdb::sql::Thing;
 use validator::Validate;
 
 use crate::database::client::Db;
-use crate::entities::community::discussion_entity::DiscussionType;
+use crate::entities::community::discussion_entity::DiscussionDenyRule;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
@@ -12,6 +12,8 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
+
+use super::discussion_entity::DiscussionDbService;
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct Community {
@@ -57,24 +59,29 @@ impl<'a> CommunityDbService<'a> {
 
     pub async fn create_profile(
         &self,
-        disc_id: Thing,
-        idea_id: Thing,
         user_id: Thing,
+        disc_deny_rules: Option<Vec<DiscussionDenyRule>>,
     ) -> CtxResult<Community> {
         let community_id = CommunityDbService::get_profile_community_id(&user_id);
+        let disc_id = DiscussionDbService::get_profile_discussion_id(&user_id);
+        let idea_id = DiscussionDbService::get_idea_discussion_id(&user_id);
 
         let mut result = self
             .db
             .query("BEGIN TRANSACTION;")
-            .query("CREATE $idea SET belongs_to=$community, created_by=$user, type=$type")
-            .query("CREATE $disc SET belongs_to=$community, created_by=$user, type=$type")
+            .query(
+                "CREATE $idea SET belongs_to=$community, created_by=$user, deny_rules=$deny_rules;",
+            )
+            .query(
+                "CREATE $disc SET belongs_to=$community, created_by=$user, deny_rules=$deny_rules;",
+            )
             .query("RETURN CREATE $community SET created_by=$user;")
             .query("COMMIT TRANSACTION;")
             .bind(("user", user_id))
-            .bind(("disc", disc_id))
-            .bind(("idea", idea_id))
-            .bind(("type", DiscussionType::Public))
+            .bind(("disc", disc_id.clone()))
+            .bind(("idea", idea_id.clone()))
             .bind(("community", community_id.clone()))
+            .bind(("deny_rules", disc_deny_rules))
             .await?;
         let comm = result.take::<Option<Community>>(0)?;
         Ok(comm.ok_or(AppError::EntityFailIdNotFound {

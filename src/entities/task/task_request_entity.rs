@@ -1,9 +1,4 @@
-use std::fmt::Debug;
-
 use crate::database::client::Db;
-use crate::database::table_names::ACCESS_TABLE_NAME;
-use crate::entities::community::discussion_entity::DiscussionType;
-use crate::entities::community::post_entity::PostType;
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity::{self, TRANSACTION_HEAD_F};
@@ -28,7 +23,6 @@ use wallet_entity::CurrencySymbol;
 pub struct TaskRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
-    pub belongs_to: Thing,
     pub created_by: Thing,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
@@ -52,7 +46,6 @@ pub enum TaskRequestStatus {
 #[derive(Debug, Serialize)]
 pub struct TaskRequestCreate {
     pub from_user: Thing,
-    pub belongs_to: Thing,
     pub request_txt: String,
     pub deliverable_type: DeliverableType,
     pub r#type: TaskRequestType,
@@ -88,8 +81,8 @@ pub struct TaskForReward {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub enum TaskRequestType {
-    Public,
-    Private,
+    Open,
+    Close,
 }
 
 #[derive(Display, Clone, Debug, Serialize, Deserialize)]
@@ -124,11 +117,11 @@ impl<'a> TaskRequestDbService<'a> {
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
-        let sql = format!("
 
+        let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TABLE_NAME} COLUMNS created_by;
     DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
     DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
@@ -143,8 +136,6 @@ impl<'a> TaskRequestDbService<'a> {
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TABLE_NAME} COLUMNS status;
     DEFINE INDEX IF NOT EXISTS idx_due_at ON TABLE {TABLE_NAME} COLUMNS due_at;
-    DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE {TABLE_NAME} COLUMNS belongs_to;
-    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TABLE_NAME} COLUMNS created_by;
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -166,7 +157,6 @@ impl<'a> TaskRequestDbService<'a> {
             .query(format!(
                 "CREATE $task SET
                     delivery_period=$delivery_period,
-                    belongs_to=$belongs_to,
                     wallet_id=$wallet,
                     created_by=$created_by,
                     deliverable_type=$deliverable_type,
@@ -180,7 +170,6 @@ impl<'a> TaskRequestDbService<'a> {
             ))
             .query("COMMIT TRANSACTION")
             .bind(("delivery_period", record.delivery_period))
-            .bind(("belongs_to", record.belongs_to))
             .bind(("created_by", record.from_user.clone()))
             .bind(("deliverable_type", record.deliverable_type.clone()))
             .bind(("request_txt", record.request_txt.clone()))
@@ -203,7 +192,7 @@ impl<'a> TaskRequestDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Debug>(
+    pub async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
         &self,
         id: &Thing,
     ) -> CtxResult<T> {
@@ -214,50 +203,6 @@ impl<'a> TaskRequestDbService<'a> {
         )
         .await?;
         with_not_found_err(opt, self.ctx, &id.to_raw())
-    }
-
-    pub async fn get_by_post<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
-        &self,
-        post: Thing,
-        user: Thing,
-    ) -> CtxResult<Vec<T>> {
-        let query = format!("
-            SELECT {} FROM {TABLE_NAME} 
-            WHERE belongs_to = $post
-                AND (belongs_to.type = $post_type OR $user IN belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in) 
-                AND (belongs_to.belongs_to.type = $disc_type OR $user IN belongs_to.belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in)", T::get_select_query_fields());
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("post", post))
-            .bind(("user", user))
-            .bind(("disc_type", DiscussionType::Public))
-            .bind(("post_type", PostType::Public))
-            .await?;
-        Ok(res.take::<Vec<T>>(0)?)
-    }
-
-    pub async fn get_by_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
-        &self,
-        disc: Thing,
-        user: Thing,
-    ) -> CtxResult<Vec<T>> {
-        let query = format!(
-            "
-            SELECT {} FROM {TABLE_NAME} 
-            WHERE belongs_to = $disc 
-                AND belongs_to.type = $disc_type OR $user IN belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in",
-            T::get_select_query_fields()
-        );
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("user", user))
-            .bind(("disc", disc))
-            .bind(("disc_type", DiscussionType::Public))
-            .await?;
-
-        Ok(res.take::<Vec<T>>(0)?)
     }
 
     pub async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(

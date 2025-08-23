@@ -114,7 +114,7 @@ async fn reject_task_request(
         &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
-        &state.db.access,
+        &state.db.task_relates,
     );
 
     task_service
@@ -136,7 +136,7 @@ async fn accept_task_request(
         &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
-        &state.db.access,
+        &state.db.task_relates,
     );
 
     task_service
@@ -159,7 +159,7 @@ async fn deliver_task_request(
         &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
-        &state.db.access,
+        &state.db.task_relates,
     );
 
     task_service
@@ -188,7 +188,7 @@ async fn upsert_donor(
         &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
-        &state.db.access,
+        &state.db.task_relates,
     );
 
     let _ = task_service

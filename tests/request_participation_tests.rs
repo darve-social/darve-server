@@ -64,7 +64,7 @@ test_with_server!(
         let created = &create_response.json::<Discussion>();
 
         let ctx = Ctx::new(Ok(user_ident0.clone()), false);
-        let community_discussion_id = created.id.clone();
+        let community_discussion_id = created.id.as_ref().unwrap().clone();
 
         let post_name = "post title Name 1".to_string();
         let create_post = server

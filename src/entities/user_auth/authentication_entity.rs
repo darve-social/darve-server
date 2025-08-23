@@ -6,9 +6,7 @@ use strum::EnumString;
 use surrealdb::sql::Thing;
 
 use crate::middleware;
-use crate::{
-    database::client::Db, entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
-};
+use crate::{database::client::Db, entities::community::discussion_entity::USER_TABLE_NAME};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},

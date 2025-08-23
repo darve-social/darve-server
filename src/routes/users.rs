@@ -275,7 +275,6 @@ async fn get_following_posts(
     let user = local_user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
-
     let data = PostStreamDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,

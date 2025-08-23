@@ -11,17 +11,9 @@ pub struct ReplyView {
     pub content: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub liked_by: Option<Vec<Thing>>,
 }
 impl ViewFieldSelector for ReplyView {
     fn get_select_query_fields() -> String {
-        "id,
-         content,
-         likes_nr,
-         created_at,
-         updated_at,
-         created_by.* as user,
-         <-like[WHERE in=$user].in as liked_by"
-            .to_string()
+        "id, content, likes_nr, created_at, updated_at, created_by.* as user".to_string()
     }
 }

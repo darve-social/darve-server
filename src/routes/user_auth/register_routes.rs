@@ -88,7 +88,6 @@ pub async fn register_user(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let (_, user) = auth_service.register_password(payload).await?;

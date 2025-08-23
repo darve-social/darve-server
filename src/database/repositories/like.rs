@@ -48,7 +48,7 @@ impl LikesRepositoryInterface for LikesRepository {
                  END;"
             ))
             .query(format!(
-                "LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out;"
+                "LET $count = math::sum(SELECT VALUE <-{LIKE_TABLE_NAME}.count[0] ?? 0 FROM $out);"
             ))
             .query("UPDATE $out SET likes_nr=$count;")
             .query("RETURN $count;")
@@ -68,7 +68,7 @@ impl LikesRepositoryInterface for LikesRepository {
             .query("BEGIN TRANSACTION;")
             .query(format!("DELETE $in->{LIKE_TABLE_NAME} WHERE out=$out;"))
             .query(format!(
-                "LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out;"
+                "LET $count = math::sum(SELECT VALUE <-{LIKE_TABLE_NAME}.count[0] ?? 0 FROM $out);"
             ))
             .query("UPDATE $out SET likes_nr=$count;")
             .query("RETURN $count;")

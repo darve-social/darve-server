@@ -6,16 +6,12 @@ use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     database::client::Db,
     entities::{
-        community::{
-            community_entity::CommunityDbService,
-            discussion_entity::{Discussion, DiscussionDbService},
-        },
+        community::discussion_entity::DiscussionDbService,
         task::task_request_entity::{TaskRequest, TaskRequestStatus},
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     jobs,
     middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
-    services::discussion_service::CreateDiscussion,
 };
 
 use fake::{faker, Fake};
@@ -54,41 +50,9 @@ test_with_server!(
     one_donor_and_all_users_has_delivered,
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
-        let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
-        let p1_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant1.id.as_ref().unwrap());
-        let p1_post = create_fake_post(server, &p1_disc, None, None).await;
-
-        let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
-        let p2_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant2.id.as_ref().unwrap());
-        let p2_post = create_fake_post(server, &p2_disc, None, None).await;
-
-        let (server, participant3, _, p3_token) = create_fake_login_test_user(&server).await;
-        let p3_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant3.id.as_ref().unwrap());
-        let p3_post = create_fake_post(server, &p3_disc, None, None).await;
-
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-
-        let disc_res = server
-            .post("/api/discussions")
-            .json(&CreateDiscussion {
-                community_id: CommunityDbService::get_profile_community_id(
-                    user0.id.as_ref().unwrap(),
-                )
-                .to_raw(),
-                title: "Hello".to_string(),
-                image_uri: None,
-                chat_user_ids: Some(vec![
-                    participant1.id.as_ref().unwrap().to_raw(),
-                    participant2.id.as_ref().unwrap().to_raw(),
-                    participant3.id.as_ref().unwrap().to_raw(),
-                ]),
-                private_discussion_users_final: true,
-            })
-            .await;
-        let disc = disc_res.json::<Discussion>().id;
+        let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let endow_user_response = server
             .get(&format!(
@@ -102,7 +66,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let task_request = server
-            .post(format!("/api/discussions/{}/tasks", disc.to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
@@ -114,56 +78,61 @@ test_with_server!(
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p1_post.id }))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
-
         delivered_response.assert_status_success();
-
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user2.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p2_post.id }))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
-
         delivered_response.assert_status_success();
 
+        let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p3_token))
+            .add_header("Cookie", format!("jwt={}", token3))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user3.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p3_post.id }))
-            .add_header("Cookie", format!("jwt={}", p3_token))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", token3))
             .add_header("Accept", "application/json")
             .await;
-
         delivered_response.assert_status_success();
-
         let task_thing = get_str_thing(&task_id).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
+
         let wallet_service = WalletDbService {
             db: &state.db.client,
             ctx: &Ctx::new(Ok("".to_string()), false),
@@ -172,7 +141,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant1.id.as_ref().unwrap().id.to_raw().as_str(),
+                user1.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
@@ -181,7 +150,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant2.id.as_ref().unwrap().id.to_raw().as_str(),
+                user2.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
@@ -190,12 +159,11 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant3.id.as_ref().unwrap().id.to_raw().as_str(),
+                user3.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 33);
-        let task_thing = get_str_thing(&task_id).unwrap();
         let task = get_task_view(task_thing, &state.db.client).await;
         assert_eq!(task.status, TaskRequestStatus::Completed);
         assert_eq!(task.balance, 1);
@@ -206,41 +174,9 @@ test_with_server!(
     one_donor_and_two_users_have_delivered_and_one_user_has_not,
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
-        let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
-        let p1_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant1.id.as_ref().unwrap());
-        let p1_post = create_fake_post(server, &p1_disc, None, None).await;
-
-        let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
-        let p2_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant2.id.as_ref().unwrap());
-        let p2_post = create_fake_post(server, &p2_disc, None, None).await;
-
-        let (server, participant3, _, _) = create_fake_login_test_user(&server).await;
-        let p3_disc =
-            DiscussionDbService::get_idea_discussion_id(&participant3.id.as_ref().unwrap());
-        let _p3_post = create_fake_post(server, &p3_disc, None, None).await;
-
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-
-        let disc_res = server
-            .post("/api/discussions")
-            .json(&CreateDiscussion {
-                community_id: CommunityDbService::get_profile_community_id(
-                    user0.id.as_ref().unwrap(),
-                )
-                .to_raw(),
-                title: "Hello".to_string(),
-                image_uri: None,
-                chat_user_ids: Some(vec![
-                    participant1.id.as_ref().unwrap().to_raw(),
-                    participant2.id.as_ref().unwrap().to_raw(),
-                    participant3.id.as_ref().unwrap().to_raw(),
-                ]),
-                private_discussion_users_final: true,
-            })
-            .await;
-        let disc = disc_res.json::<Discussion>().id;
+        let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let endow_user_response = server
             .get(&format!(
@@ -254,7 +190,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let task_request = server
-            .post(format!("/api/discussions/{}/tasks", disc.to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
@@ -266,38 +202,48 @@ test_with_server!(
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p1_post.id }))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
-
         delivered_response.assert_status_success();
-
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user2.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p2_post.id }))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", token2))
             .add_header("Accept", "application/json")
             .await;
-
         delivered_response.assert_status_success();
 
+        let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
+        let response = server
+            .post(&format!("/api/tasks/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token3))
+            .add_header("Accept", "application/json")
+            .await;
+        response.assert_status_success();
         let task_thing = get_str_thing(&task_id).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
@@ -308,7 +254,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant1.id.as_ref().unwrap().id.to_raw().as_str(),
+                user1.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
@@ -317,7 +263,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant2.id.as_ref().unwrap().id.to_raw().as_str(),
+                user2.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
@@ -326,7 +272,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant3.id.as_ref().unwrap().id.to_raw().as_str(),
+                user3.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();
@@ -339,7 +285,6 @@ test_with_server!(
 
 test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
-    let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_idea_discussion_id(&user0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
@@ -359,7 +304,6 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -369,9 +313,10 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     task_request.assert_status_success();
     let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
 
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -386,7 +331,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let balance = wallet_service
         .get_balance(&Thing::from((
             "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
+            user1.id.as_ref().unwrap().id.to_raw().as_str(),
         )))
         .await
         .unwrap();
@@ -408,7 +353,6 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
 
 test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
-    let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
@@ -428,7 +372,6 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -460,9 +403,10 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .await;
     participate_response.assert_status_success();
 
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -477,7 +421,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let balance = wallet_service
         .get_balance(&Thing::from((
             "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
+            user1.id.as_ref().unwrap().id.to_raw().as_str(),
         )))
         .await
         .unwrap();
@@ -507,7 +451,6 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
 });
 
 test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
-    let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
@@ -528,7 +471,6 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -625,9 +567,10 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .await;
     participate_response.assert_status_success();
 
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -642,7 +585,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let balance = wallet_service
         .get_balance(&Thing::from((
             "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
+            user1.id.as_ref().unwrap().id.to_raw().as_str(),
         )))
         .await
         .unwrap();
@@ -702,10 +645,6 @@ test_with_server!(
     two_donor_and_one_user_has_delivered,
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
-        let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
-        let p_disc = DiscussionDbService::get_idea_discussion_id(&participant.id.as_ref().unwrap());
-        let p_post = create_fake_post(server, &p_disc, None, None).await;
-
         let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
         let disc = DiscussionDbService::get_idea_discussion_id(&donor0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
@@ -725,7 +664,6 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": donor0_task_amount,
-                "participant": Some(participant.id.as_ref().unwrap().to_raw()),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -757,17 +695,20 @@ test_with_server!(
             .await;
         participate_response.assert_status_success();
 
+        let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", ptoken))
+            .add_header("Cookie", format!("jwt={}", user1_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
+        let disc = DiscussionDbService::get_idea_discussion_id(&user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc, None, None).await;
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p_post.id }))
-            .add_header("Cookie", format!("jwt={}", ptoken))
+            .json(&json!({"post_id": post.id }))
+            .add_header("Cookie", format!("jwt={}", user1_token))
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
@@ -782,7 +723,7 @@ test_with_server!(
         let balance = wallet_service
             .get_balance(&Thing::from((
                 "wallet",
-                participant.id.as_ref().unwrap().id.to_raw().as_str(),
+                user1.id.as_ref().unwrap().id.to_raw().as_str(),
             )))
             .await
             .unwrap();

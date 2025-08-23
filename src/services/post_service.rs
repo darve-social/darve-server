@@ -1,10 +1,10 @@
 use crate::{
-    access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess},
+    access::discussion::DiscussionAccess,
     database::client::Db,
     entities::{
         community::{
-            discussion_entity::{DiscussionDbService, DiscussionType},
-            post_entity::{CreatePost, Post, PostDbService, PostType},
+            discussion_entity::DiscussionDbService,
+            post_entity::{CreatePost, Post, PostDbService},
             post_stream_entity::PostStreamDbService,
         },
         user_auth::local_user_entity::LocalUserDbService,
@@ -12,8 +12,8 @@ use crate::{
     interfaces::{
         file_storage::FileStorageInterface,
         repositories::{
-            access::AccessRepositoryInterface, like::LikesRepositoryInterface,
-            tags::TagsRepositoryInterface, user_notifications::UserNotificationsInterface,
+            like::LikesRepositoryInterface, tags::TagsRepositoryInterface,
+            user_notifications::UserNotificationsInterface,
         },
     },
     middleware::{
@@ -25,10 +25,7 @@ use crate::{
             extractor_utils::DiscussionParams,
         },
     },
-    models::view::{
-        access::{DiscussionAccessView, PostAccessView},
-        user::UserView,
-    },
+    models::view::user::UserView,
     services::notification_service::NotificationService,
     utils::file::convert::convert_field_file_data,
 };
@@ -71,10 +68,10 @@ pub struct PostView {
     pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
     pub likes_nr: i64,
-    pub liked_by: Option<Vec<Thing>>,
 }
 
 impl ViewFieldSelector for PostView {
+    // post fields selct qry for view
     fn get_select_query_fields() -> String {
         "id,
         created_by.* as created_by, 
@@ -85,8 +82,7 @@ impl ViewFieldSelector for PostView {
         updated_at,
         belongs_to,
         replies_nr,
-        likes_nr,
-        <-like[WHERE in=$user].in as liked_by"
+        likes_nr"
             .to_string()
     }
 }
@@ -102,36 +98,32 @@ impl ViewRelateField for PostView {
         updated_at,
         belongs_to,
         replies_nr,
-        likes_nr,
-        liked_by: <-like[WHERE in=$user].in"
+        likes_nr"
     }
 }
-pub struct PostService<'a, F, N, T, L, A>
+pub struct PostService<'a, F, N, T, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
-    A: AccessRepositoryInterface,
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
-    streams_repository: PostStreamDbService<'a>,
     posts_repository: PostDbService<'a>,
     file_storage: &'a F,
     likes_repository: &'a L,
     notification_service: NotificationService<'a, N>,
+    streams_repository: PostStreamDbService<'a>,
     tags_repository: &'a T,
-    access_repository: &'a A,
 }
 
-impl<'a, F, N, T, L, A> PostService<'a, F, N, T, L, A>
+impl<'a, F, N, T, L> PostService<'a, F, N, T, L>
 where
     F: FileStorageInterface,
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
-    A: AccessRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -141,7 +133,6 @@ where
         file_storage: &'a F,
         tags_repository: &'a T,
         likes_repository: &'a L,
-        access_repository: &'a A,
     ) -> Self {
         Self {
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
@@ -156,33 +147,29 @@ where
             file_storage,
             tags_repository,
             likes_repository,
-            access_repository,
             streams_repository: PostStreamDbService { db: &db, ctx },
         }
     }
 
     pub async fn like(&self, post_id: &str, user_id: &str, data: PostLikeData) -> CtxResult<u32> {
         let user = self.users_repository.get_by_id(&user_id).await?;
-        let post = self
-            .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
-            .await?;
-
-        if !PostAccess::new(&post).can_like(&user) {
-            return Err(AppError::Forbidden.into());
-        }
+        let post = self.posts_repository.get_by_id(post_id).await?;
 
         let count = data.count.unwrap_or(1);
         let likes_count = self
             .likes_repository
-            .like(user.id.as_ref().unwrap().clone(), post.id.clone(), count)
+            .like(
+                user.id.as_ref().unwrap().clone(),
+                post.id.as_ref().unwrap().clone(),
+                count,
+            )
             .await?;
 
         self.notification_service
             .on_like(
                 &user.id.as_ref().unwrap(),
                 vec![user.id.as_ref().unwrap().clone()],
-                post.id.clone(),
+                post.id.as_ref().unwrap().clone(),
             )
             .await?;
 
@@ -191,18 +178,14 @@ where
 
     pub async fn unlike(&self, post_id: &str, user_id: &str) -> CtxResult<u32> {
         let user = self.users_repository.get_by_id(&user_id).await?;
-        let post = self
-            .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
-            .await?;
-
-        if !PostAccess::new(&post).can_like(&user) {
-            return Err(AppError::Forbidden.into());
-        }
+        let post = self.posts_repository.get_by_id(post_id).await?;
 
         let likes_count = self
             .likes_repository
-            .unlike(user.id.as_ref().unwrap().clone(), post.id.clone())
+            .unlike(
+                user.id.as_ref().unwrap().clone(),
+                post.id.as_ref().unwrap().clone(),
+            )
             .await?;
 
         Ok(likes_count)
@@ -215,12 +198,9 @@ where
         query: DiscussionParams,
     ) -> CtxResult<Vec<PostView>> {
         let user = self.users_repository.get_by_id(&user_id).await?;
-        let disc = self
-            .discussions_repository
-            .get_view_by_id::<DiscussionAccessView>(disc_id)
-            .await?;
+        let disc = self.discussions_repository.get_by_id(disc_id).await?;
 
-        if !DiscussionAccess::new(&disc).can_view(&user) {
+        if !disc.is_profile() && !disc.is_member(&user.id.as_ref().unwrap()) {
             return Err(AppError::Forbidden.into());
         }
 
@@ -228,7 +208,7 @@ where
             .posts_repository
             .get_by_query(
                 &user.id.as_ref().unwrap().id.to_raw(),
-                &disc.id.id.to_raw(),
+                &disc.id.as_ref().unwrap().id.to_raw(),
                 Pagination {
                     order_by: None,
                     order_dir: None,
@@ -251,10 +231,7 @@ where
         }
 
         let user = self.users_repository.get_by_id(user_id).await?;
-        let disc = self
-            .discussions_repository
-            .get_view_by_id::<DiscussionAccessView>(disc_id)
-            .await?;
+        let disc = self.discussions_repository.get_by_id(disc_id).await?;
 
         if !DiscussionAccess::new(&disc).can_create_post(&user) {
             return Err(AppError::Forbidden.into());
@@ -289,13 +266,12 @@ where
         let post_res = self
             .posts_repository
             .create(CreatePost {
-                belongs_to: disc.id,
+                belongs_to: disc.id.clone().unwrap(),
                 title: data.title,
                 content: data.content,
                 media_links: media_links.clone(),
                 created_by: user.id.as_ref().unwrap().clone(),
                 id: new_post_id,
-                r#type: PostType::Public,
             })
             .await;
 
@@ -318,15 +294,6 @@ where
             }
         };
 
-        let _ = self
-            .access_repository
-            .add(
-                vec![user.id.as_ref().unwrap().clone()],
-                vec![post.id.as_ref().unwrap().clone()],
-                Role::Owner.to_string(),
-            )
-            .await?;
-
         if !data.tags.is_empty() {
             let _ = self
                 .tags_repository
@@ -334,15 +301,11 @@ where
                 .await?;
         }
 
-        if disc.r#type != DiscussionType::Public {
+        if disc.private_discussion_user_ids.is_some() {
             self.notification_service
                 .on_chat_message(
                     &user.id.as_ref().unwrap(),
-                    &disc
-                        .users
-                        .into_iter()
-                        .map(|u| u.user)
-                        .collect::<Vec<Thing>>(),
+                    &disc.private_discussion_user_ids.clone().unwrap(),
                     &post,
                 )
                 .await?;
@@ -374,7 +337,6 @@ where
                     updated_at: post.updated_at,
                     replies_nr: post.replies_nr,
                     likes_nr: post.likes_nr,
-                    liked_by: None,
                 },
             )
             .await?;

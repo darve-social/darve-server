@@ -57,7 +57,6 @@ async fn sign_by_fb(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
@@ -77,7 +76,6 @@ async fn sign_by_apple(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
     let (token, user) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
@@ -102,7 +100,6 @@ async fn sign_by_google(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let (token, user) = auth_service
@@ -135,7 +132,6 @@ async fn signin(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let (token, user) = auth_service.login_password(body).await?;
@@ -168,7 +164,6 @@ async fn signup(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let (token, user) = auth_service.register_password(body).await?;
@@ -219,7 +214,6 @@ async fn forgot_password(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let _ = auth_service.forgot_password(body).await?;
@@ -238,7 +232,6 @@ async fn reset_password(
         &state.email_sender,
         state.verification_code_ttl,
         &state.db.verification_code,
-        &state.db.access,
     );
 
     let _ = auth_service.reset_password(body).await?;

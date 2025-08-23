@@ -326,7 +326,6 @@ pub async fn get_query<T: for<'a> Deserialize<'a>>(
     // println!("Q={}", query_string);
     // dbg!(&res);
     // }
-
     let res = res.take::<Option<T>>(0)?;
     Ok(res)
 }
