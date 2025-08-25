@@ -12,7 +12,7 @@ use crate::{
         task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
-            balance_transaction_entity::BalanceTransactionDbService,
+            balance_transaction_entity::{BalanceTransactionDbService, TransactionType},
             wallet_entity::{CurrencySymbol, WalletDbService},
         },
     },
@@ -43,6 +43,7 @@ use validator::Validate;
 pub struct TaskView {
     pub id: Thing,
     pub wallet_id: Thing,
+    pub request_txt: String,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub r#type: TaskRequestType,
@@ -59,6 +60,7 @@ impl ViewFieldSelector for TaskView {
         "id, 
         reward_type,
         type,
+        request_txt,
         acceptance_period,
         delivery_period,
         currency,
@@ -66,8 +68,7 @@ impl ViewFieldSelector for TaskView {
         created_at,
         ->task_relate.out[0] as related_to,
         ->task_donor.*.{id, transaction, user: out} as donors,
-        ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants,
-        type"
+        ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants"
             .to_string()
     }
 }
@@ -305,6 +306,8 @@ where
                             &user_wallet,
                             tx.amount_out.unwrap(),
                             &tx.currency,
+                            Some("Update donate".to_string()),
+                            TransactionType::Refund,
                         )
                         .await?;
                 }
@@ -316,6 +319,8 @@ where
                         &task.wallet_id,
                         data.amount as i64,
                         &task.currency,
+                        Some("Update donate".to_string()),
+                        TransactionType::Donate,
                     )
                     .await?;
 
@@ -334,7 +339,6 @@ where
                 p.id.as_ref().unwrap().to_raw()
             }
             None => {
-                // can_donate
                 let response = self
                     .transactions_repository
                     .transfer_currency(
@@ -342,6 +346,8 @@ where
                         &task.wallet_id,
                         data.amount as i64,
                         &task.currency,
+                        Some(format!("Donate '{}' task", task.request_txt)),
+                        TransactionType::Donate,
                     )
                     .await?;
 
@@ -623,7 +629,14 @@ where
                     let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
                     let res = self
                         .transactions_repository
-                        .transfer_currency(wallet_id, &user_wallet, p.amount as i64, &task.currency)
+                        .transfer_currency(
+                            wallet_id,
+                            &user_wallet,
+                            p.amount as i64,
+                            &task.currency,
+                            Some(format!("Reward by `{}` task", task.request_txt)),
+                            TransactionType::Reward,
+                        )
                         .await;
                     if res.is_ok() {
                         let _ = self
@@ -651,6 +664,7 @@ where
                             amount as i64,
                             &task.currency,
                             &task_user.id,
+                            Some(format!("Refund by `{}` task", task.request_txt)),
                         )
                         .await;
                     if res.is_ok() {
@@ -710,6 +724,8 @@ where
                     &task.wallet_id,
                     amount as i64,
                     &offer_currency,
+                    Some(format!("Donate by `{}` task`", task.request_txt)),
+                    TransactionType::Donate,
                 )
                 .await?;
 

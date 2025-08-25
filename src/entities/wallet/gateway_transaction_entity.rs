@@ -1,5 +1,6 @@
 use balance_transaction_entity::BalanceTransactionDbService;
 
+use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -10,10 +11,13 @@ use surrealdb::sql::{Id, Thing};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 use crate::database::client::Db;
+use crate::database::surrdb_utils::get_entity_list;
 use crate::entities::user_auth::local_user_entity;
+use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::lock_transaction_entity::{LockTransactionDbService, UnlockTrigger};
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
+use crate::middleware::utils::db_utils::Pagination;
 
 use super::{balance_transaction_entity, lock_transaction_entity, wallet_entity};
 
@@ -29,17 +33,15 @@ pub struct GatewayTransaction {
     pub user: Thing,
     pub withdraw_lock_tx: Option<Thing>,
     pub withdraw_status: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
-// enum WithdrawStatus {
-//     Locked,
-//     ExternalProcess,
-//     Complete,
-// }
+#[derive(Debug, Serialize, Deserialize)]
+pub enum WithdrawStatus {
+    Pending,
+    Completed,
+    Failed,
+}
 
 pub struct GatewayTransactionDbService<'a> {
     pub db: &'a Db,
@@ -63,15 +65,14 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS withdraw_lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD IF NOT EXISTS withdraw_status ON TABLE {TABLE_NAME} TYPE option<string> ASSERT $value INSIDE ['LOCKED','EXTERNAL_PROCESS','COMPLETE'] ;
+    DEFINE FIELD IF NOT EXISTS withdraw_status ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string;
         // ASSERT string::len(string::trim($value))>0
         // ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
 
     ");
         let mutation = self.db.query(sql).await?;
@@ -89,6 +90,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         external_tx_id: String,
         amount: i64,
         currency_symbol: CurrencySymbol,
+        description: Option<String>,
     ) -> CtxResult<Thing> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
 
@@ -103,6 +105,8 @@ impl<'a> GatewayTransactionDbService<'a> {
             Some(fund_tx_id.clone()),
             None,
             true,
+            description,
+            TransactionType::Deposit,
         )?;
 
         let gateway_2_user_qry = gateway_2_user_tx.get_query_string();
@@ -117,6 +121,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 external_tx_id: $ext_tx,
                 external_account_id:$ext_account_id,
                 currency: $currency,
+                withdraw_status: $status
             }} RETURN id;
 
            {gateway_2_user_qry}
@@ -134,6 +139,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("user", user.clone()))
             .bind(("ext_tx", external_tx_id))
             .bind(("ext_account_id", external_account))
+            .bind(("status", WithdrawStatus::Pending))
             .bind(("currency", currency_symbol));
 
         let qry = gateway_2_user_tx
@@ -154,6 +160,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         user: &Thing,
         amount: i64,
         external_account_id: String,
+        description: Option<String>,
     ) -> CtxResult<Thing> {
         let withdraw_fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
 
@@ -170,6 +177,8 @@ impl<'a> GatewayTransactionDbService<'a> {
                 id: withdraw_fund_tx_id.clone(),
             }],
             true,
+            description,
+            TransactionType::Withdraw,
         )?;
         let user_2_lock_qry = user_2_lock_qry_bindings.get_query_string();
         let qry = format!(
@@ -179,7 +188,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 id: $fund_tx_id,
                 amount: $fund_amt,
                 user: $user,
-                withdraw_status: 'LOCKED',
+                withdraw_status: $status,
                 withdraw_lock_tx: $lock_tx_id,
                 external_account_id:$ext_account_id,
                 external_tx_id:$external_tx_id,
@@ -198,7 +207,8 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("user", user.clone()))
             .bind(("ext_account_id", external_account_id))
             .bind(("external_tx_id", "".to_string()))
-            .bind(("currency", CurrencySymbol::USD));
+            .bind(("currency", CurrencySymbol::USD))
+            .bind(("status", WithdrawStatus::Pending));
 
         let qry = user_2_lock_qry_bindings
             .get_bindings()
@@ -214,27 +224,12 @@ impl<'a> GatewayTransactionDbService<'a> {
         }))
     }
 
-    pub(crate) async fn user_withdraw_tx_revert(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
-        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
-
-        // TODO check if external tx matches, amount matches
-        let lock_db_service = LockTransactionDbService {
-            db: self.db,
-            ctx: self.ctx,
-        };
-
-        let lock_tx_id =
-            withdraw_tx
-                .withdraw_lock_tx
-                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
-                    description: "Lock tx not found".to_string(),
-                }))?;
-        lock_db_service.unlock_user_asset_tx(&lock_tx_id).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
-        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id)).await?;
+    pub(crate) async fn user_withdraw_tx_revert(
+        &self,
+        withdraw_tx_id: Thing,
+        description: Option<String>,
+    ) -> CtxResult<()> {
+        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
 
         // TODO check if external tx matches, amount matches
         let lock_db_service = LockTransactionDbService {
@@ -249,19 +244,51 @@ impl<'a> GatewayTransactionDbService<'a> {
                     description: "Lock tx not found".to_string(),
                 }))?;
         lock_db_service
-            .process_locked_payment(&lock_tx_id, &APP_GATEWAY_WALLET.clone())
+            .unlock_user_asset_tx(&lock_tx_id, description, TransactionType::Withdraw)
             .await?;
+
+        self.db
+            .query("UPDATE $tx SET status=$status")
+            .bind(("tx", withdraw_tx_id))
+            .bind(("status", WithdrawStatus::Failed))
+            .await?
+            .check()?;
+
         Ok(())
     }
 
-    // pub(crate) async fn user_withdraw_tx_status_update(
-    //     &self,
-    //     withdraw_tx_id: Thing,
-    //     external_tx_id: String,
-    //     new_status: String,
-    // ) -> CtxResult<()> {
-    //     todo!()
-    // }
+    pub(crate) async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
+        let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
+
+        // TODO check if external tx matches, amount matches
+        let lock_db_service = LockTransactionDbService {
+            db: self.db,
+            ctx: self.ctx,
+        };
+
+        let lock_tx_id =
+            withdraw_tx
+                .withdraw_lock_tx
+                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                    description: "Lock tx not found".to_string(),
+                }))?;
+        lock_db_service
+            .process_locked_payment(
+                &lock_tx_id,
+                &APP_GATEWAY_WALLET.clone(),
+                None,
+                TransactionType::Withdraw,
+            )
+            .await?;
+
+        self.db
+            .query("UPDATE $tx SET status=$status")
+            .bind(("tx", withdraw_tx_id))
+            .bind(("status", WithdrawStatus::Completed))
+            .await?
+            .check()?;
+        Ok(())
+    }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {
         let opt =
@@ -269,7 +296,42 @@ impl<'a> GatewayTransactionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
+    pub async fn get_by_user(
+        &self,
+        user: &Thing,
+        status: Option<WithdrawStatus>,
+        pagination: Option<Pagination>,
+    ) -> CtxResult<Vec<GatewayTransaction>> {
+        let ident = match status {
+            Some(ref v) => IdentIdName::ColumnIdentAnd(vec![
+                IdentIdName::ColumnIdent {
+                    column: "user".to_string(),
+                    val: user.to_raw(),
+                    rec: true,
+                },
+                IdentIdName::ColumnIdent {
+                    column: "status".to_string(),
+                    val: serde_json::to_string(v).unwrap(),
+                    rec: false,
+                },
+            ]),
+            None => IdentIdName::ColumnIdent {
+                column: "user".to_string(),
+                val: user.to_raw(),
+                rec: true,
+            },
+        };
+
+        let data = get_entity_list::<GatewayTransaction>(self.db, TABLE_NAME, &ident, pagination)
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
+
+        Ok(data)
+    }
+
     pub fn unknown_endowment_user_id(&self) -> Thing {
-        Thing::try_from((USER_TABLE, "unrecognised_user_endowment_id")).expect("is valid")
+        Thing::try_from((USER_TABLE, "unrecognized_user_endowment_id")).expect("is valid")
     }
 }

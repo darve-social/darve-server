@@ -1,20 +1,23 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::entities::user_auth::local_user_entity;
+use crate::entities::user_auth::local_user_entity::{self};
 use crate::entities::user_notification::UserNotificationEvent;
-use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
+use crate::entities::wallet::balance_transaction_entity::TransactionType;
+use crate::entities::wallet::gateway_transaction_entity::{
+    GatewayTransaction, GatewayTransactionDbService, WithdrawStatus,
+};
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::{AppError, CtxResult};
 use crate::middleware::mw_ctx::CtxState;
-use crate::middleware::utils::db_utils::QryOrder::DESC;
+use crate::middleware::utils::db_utils::QryOrder::{self};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_string_thing;
+use crate::models::view::balance_tx::CurrencyTransactionView;
 use crate::utils::paypal::Paypal;
-use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -22,60 +25,27 @@ use axum::{Json, Router};
 use balance_transaction_entity::BalanceTransactionDbService;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
-use middleware::utils::db_utils::{Pagination, ViewFieldSelector};
-use middleware::utils::extractor_utils::DiscussionParams;
+use middleware::utils::db_utils::Pagination;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use stripe::{AccountId, Client, CreatePaymentIntent, Currency};
-use surrealdb::sql::Thing;
 use validator::Validate;
-use wallet_entity::{CurrencySymbol, UserView, WalletDbService};
+use wallet_entity::{CurrencySymbol, WalletDbService};
 
 pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
-    let mut router = Router::new()
+    let mut router: Router<Arc<CtxState>> = Router::new()
         .route("/api/wallet/history", get(get_wallet_history))
         .route("/api/wallet/balance", get(get_user_balance))
         .route("/api/wallet/withdraw", post(withdraw))
-        .route("/api/wallet/deposit", post(deposit));
+        .route("/api/wallet/deposit", post(deposit))
+        .route("/api/gateway_wallet/history", get(gateway_wallet_history));
 
     if is_development {
         router = router.route("/test/api/endow/:endow_user_id/:amount", get(test_deposit));
     }
 
     router
-}
-
-#[derive(Template, Deserialize, Debug, Serialize)]
-#[template(path = "nera2/default-content.html")]
-pub struct CurrencyTransactionHistoryView {
-    pub wallet: Thing,
-    pub transactions: Vec<CurrencyTransactionView>,
-}
-#[derive(Template, Deserialize, Debug, Serialize)]
-#[template(path = "nera2/default-content.html")]
-pub struct CurrencyTransactionView {
-    pub id: Thing,
-    pub wallet: WalletUserView,
-    pub with_wallet: WalletUserView,
-    pub balance: i64,
-    pub currency: CurrencySymbol,
-    pub amount_in: Option<i64>,
-    pub amount_out: Option<i64>,
-    pub r_created: String,
-    pub r_updated: String,
-}
-
-impl ViewFieldSelector for CurrencyTransactionView {
-    fn get_select_query_fields() -> String {
-        "id, wallet.{user.{id, username, full_name}, id }, with_wallet.{user.{id, username, full_name}, id }, balance, amount_in, amount_out, currency, r_created, r_updated".to_string()
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct WalletUserView {
-    pub id: Thing,
-    pub user: Option<UserView>,
 }
 
 pub async fn get_user_balance(
@@ -95,19 +65,63 @@ pub async fn get_user_balance(
     auth_data.ctx.to_htmx_or_json(balances_view)
 }
 
-pub async fn get_wallet_history(
-    State(ctx_state): State<Arc<CtxState>>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetGatewayWalletHistoryQuery {
+    pub order_by: Option<String>,
+    pub order_dir: Option<QryOrder>,
+    pub count: Option<u16>,
+    pub start: Option<u32>,
+    pub status: Option<WithdrawStatus>,
+}
+
+pub async fn gateway_wallet_history(
     auth_data: AuthWithLoginAccess,
-    Query(params): Query<DiscussionParams>,
-) -> CtxResult<Html<String>> {
+    State(ctx_state): State<Arc<CtxState>>,
+    Query(params): Query<GetGatewayWalletHistoryQuery>,
+) -> CtxResult<Json<Vec<GatewayTransaction>>> {
     let user_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
     let user_id = user_service.get_ctx_user_thing().await?;
     let pagination = Some(Pagination {
-        order_by: Some("r_created".to_string()),
-        order_dir: Some(DESC),
+        order_by: params.order_by.or(Some("created_at".to_string())),
+        order_dir: params.order_dir.or(Some(QryOrder::DESC)),
+        count: params.count.unwrap_or(20),
+        start: params.start.unwrap_or(0),
+    });
+    let tx_service = GatewayTransactionDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let transactions = tx_service
+        .get_by_user(&user_id, params.status, pagination)
+        .await?;
+    Ok(Json(transactions))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetWalletHistoryQuery {
+    pub order_by: Option<String>,
+    pub order_dir: Option<QryOrder>,
+    pub count: Option<u16>,
+    pub start: Option<u32>,
+    pub r#type: Option<TransactionType>,
+}
+
+pub async fn get_wallet_history(
+    auth_data: AuthWithLoginAccess,
+    State(ctx_state): State<Arc<CtxState>>,
+    Query(params): Query<GetWalletHistoryQuery>,
+) -> CtxResult<Json<Vec<CurrencyTransactionView>>> {
+    let user_service = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let user_id = user_service.get_ctx_user_thing().await?;
+    let pagination = Some(Pagination {
+        order_by: params.order_by.or(Some("created_at".to_string())),
+        order_dir: params.order_dir.or(Some(QryOrder::DESC)),
         count: params.count.unwrap_or(20),
         start: params.start.unwrap_or(0),
     });
@@ -117,14 +131,10 @@ pub async fn get_wallet_history(
     };
     let user_wallet_id = WalletDbService::get_user_wallet_id(&user_id);
     let transactions = tx_service
-        .user_transaction_list(&user_wallet_id, pagination)
+        .user_transaction_list(&user_wallet_id, params.r#type, pagination)
         .await?;
-    auth_data
-        .ctx
-        .to_htmx_or_json(CurrencyTransactionHistoryView {
-            wallet: user_wallet_id,
-            transactions,
-        })
+
+    Ok(Json(transactions))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -161,6 +171,7 @@ async fn withdraw(
             &user.id.as_ref().unwrap(),
             data.amount as i64,
             "".to_string(),
+            None,
         )
         .await?;
 
@@ -183,7 +194,7 @@ async fn withdraw(
         Ok(_) => Ok(()),
         Err(e) => {
             let _ = gateway_tx_service
-                .user_withdraw_tx_revert(gateway_tx_id)
+                .user_withdraw_tx_revert(gateway_tx_id, Some(e.clone()))
                 .await;
             Err(AppError::Generic { description: e }.into())
         }
@@ -195,6 +206,7 @@ struct EndowmentData {
     #[validate(range(min = 100))]
     amount: u64,
 }
+
 async fn deposit(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
@@ -293,6 +305,7 @@ async fn test_deposit(
             "ext_tx_id_123".to_string(),
             amount,
             CurrencySymbol::USD,
+            None,
         )
         .await?;
 

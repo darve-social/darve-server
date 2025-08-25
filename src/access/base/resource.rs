@@ -3,14 +3,21 @@ use std::fmt::Display;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Hash, Clone)]
 pub enum Resource {
+    #[serde(alias = "APP")]
     App,
+    #[serde(alias = "DISCUSSION:PUBLIC")]
     DiscussionPublic,
+    #[serde(alias = "DISCUSSION:PRIVATE")]
     DiscussionPrivate,
-    DiscussionFixed,
+    #[serde(alias = "TASK:PRIVATE")]
     TaskPrivate,
+    #[serde(alias = "TASK:PUBLIC")]
     TaskPublic,
+    #[serde(alias = "POST:PUBLIC")]
     PostPublic,
+    #[serde(alias = "POST:PRIVATE")]
     PostPrivate,
+    #[serde(alias = "POST:IDEA")]
     PostIdea,
 }
 
@@ -25,7 +32,6 @@ impl Display for Resource {
             Resource::PostPublic => write!(f, "POST:PUBLIC"),
             Resource::PostPrivate => write!(f, "POST:PRIVATE"),
             Resource::PostIdea => write!(f, "POST:IDEA"),
-            Resource::DiscussionFixed => write!(f, "DISCUSSION:FIXED"),
         }
     }
 }
@@ -36,7 +42,6 @@ impl From<&str> for Resource {
             "APP" => Resource::App,
             "DISCUSSION:PUBLIC" => Resource::DiscussionPublic,
             "DISCUSSION:PRIVATE" => Resource::DiscussionPrivate,
-            "DISCUSSION:FIXED" => Resource::DiscussionFixed,
             "TASK:PRIVATE" => Resource::TaskPrivate,
             "TASK:PUBLIC" => Resource::TaskPublic,
             "POST:PUBLIC" => Resource::PostPublic,

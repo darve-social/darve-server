@@ -79,6 +79,7 @@ pub struct TaskParticipantForReward {
 #[derive(Debug, Deserialize)]
 pub struct TaskForReward {
     pub id: Thing,
+    pub request_txt: String,
     pub currency: CurrencySymbol,
     pub donors: Vec<TaskDonorForReward>,
     pub participants: Vec<TaskParticipantForReward>,
@@ -349,7 +350,7 @@ impl<'a> TaskRequestDbService<'a> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
-                SELECT id, wallet_id.* AS wallet, currency,
+                SELECT id, wallet_id.* AS wallet, currency, request_txt,
                     ->task_participant.{{ status, id, user_id: out }} AS participants,
                     ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
                 FROM {TABLE_NAME}

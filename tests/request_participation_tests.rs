@@ -1,7 +1,6 @@
 mod helpers;
 use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
-use chrono::DateTime;
 use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::community::post_entity::Post;
@@ -9,11 +8,11 @@ use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
+use darve_server::models::view::balance_tx::CurrencyTransactionView;
 use darve_server::models::view::task::TaskRequestView;
 use darve_server::models::view::task::TaskViewForParticipant;
 use darve_server::routes::tasks::TaskRequestOfferInput;
 use darve_server::routes::user_auth::login_routes;
-use darve_server::routes::wallet::CurrencyTransactionHistoryView;
 use darve_server::services::discussion_service::CreateDiscussion;
 use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
@@ -373,26 +372,18 @@ test_with_server!(
             .await;
         transaction_history_response.assert_status_success();
 
-        let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 4);
+        let transactions = &transaction_history_response.json::<Vec<CurrencyTransactionView>>();
+        assert_eq!(transactions.len(), 4);
 
-        created
-            .transactions
-            .iter()
-            .fold(i64::MAX, |prev_val, tx_v| {
-                let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-                let ts = date_time.unwrap().timestamp();
-                println!(
-                    "for {} with {} in {:?} out {:?} after tx balance={}",
-                    tx_v.wallet.id,
-                    tx_v.with_wallet.id,
-                    tx_v.amount_in,
-                    tx_v.amount_out,
-                    tx_v.balance
-                );
-                assert_eq!(ts <= prev_val, true);
-                ts
-            });
+        transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
+            let ts = tx_v.created_at.timestamp();
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts <= prev_val, true);
+            ts
+        });
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
@@ -401,26 +392,18 @@ test_with_server!(
             .await;
         transaction_history_response.assert_status_success();
 
-        let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-        assert_eq!(created.transactions.len(), 2);
+        let transactions = &transaction_history_response.json::<Vec<CurrencyTransactionView>>();
+        assert_eq!(transactions.len(), 2);
 
-        created
-            .transactions
-            .iter()
-            .fold(i64::MAX, |prev_val, tx_v| {
-                let date_time = DateTime::parse_from_rfc3339(tx_v.r_created.as_str());
-                let ts = date_time.unwrap().timestamp();
-                println!(
-                    "for {} with {} in {:?} out {:?} after tx balance={}",
-                    tx_v.wallet.id,
-                    tx_v.with_wallet.id,
-                    tx_v.amount_in,
-                    tx_v.amount_out,
-                    tx_v.balance
-                );
-                assert_eq!(ts <= prev_val, true);
-                ts
-            });
+        transactions.iter().fold(i64::MAX, |prev_val, tx_v| {
+            let ts = tx_v.created_at.timestamp();
+            println!(
+                "for {} with {} in {:?} out {:?} after tx balance={}",
+                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+            );
+            assert_eq!(ts <= prev_val, true);
+            ts
+        });
     }
 );
 

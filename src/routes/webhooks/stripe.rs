@@ -84,6 +84,7 @@ async fn handle_webhook(
                     external_tx_id.to_string(),
                     amount_received,
                     CurrencySymbol::USD,
+                    None,
                 )
                 .await;
             if endowment_saved.is_err() {
