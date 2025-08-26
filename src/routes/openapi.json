@@ -1230,6 +1230,28 @@
               "type": "string",
               "minLength": 3
             }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of notifications to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50
+            }
           }
         ],
         "responses": {
@@ -2208,12 +2230,42 @@
         ],
         "parameters": [
           {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionType"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "Field to order by",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order_dir",
+            "in": "query",
+            "description": "Order direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ASC", "DESC"]
+            }
+          },
+          {
             "name": "start",
             "in": "query",
             "description": "Pagination start index",
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "default": 0
             }
           },
@@ -2224,6 +2276,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 1,
               "default": 20
             }
           }
@@ -2232,9 +2285,104 @@
           "200": {
             "description": "Wallet transaction history",
             "content": {
-              "text/html": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyTransactionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/gateway_wallet/history": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get gateway wallet transaction history",
+        "description": "Get transaction history for the current user's gateway wallet",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/WithdrawStatus"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionType"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "Field to order by",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order_dir",
+            "in": "query",
+            "description": "Order direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ASC", "DESC"]
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start index",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of transactions to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gateway wallet transaction history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GatewayTransaction"
+                  }
                 }
               }
             }
@@ -2667,7 +2815,7 @@
           {
             "name": "count",
             "in": "query",
-            "description": "Number of tags to return",
+            "description": "Number of transactions to return",
             "required": false,
             "schema": {
               "type": "integer",
@@ -2991,6 +3139,16 @@
           }
         }
       },
+      "TransactionType": {
+        "type": "string",
+        "enum": ["Withdraw", "Deposit", "Refund", "Donate", "Reward"],
+        "description": "Type of notification event"
+      },
+      "WithdrawStatus": {
+        "type": "string",
+        "enum": ["Pending", "Completed", "Failed"],
+        "description": "Type of notification event"
+      },
       "UserNotificationEvent": {
         "type": "string",
         "enum": [
@@ -3082,6 +3240,76 @@
           }
         }
       },
+      "CurrencyTransactionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Thing"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/WalletView"
+          },
+          "with_wallet": {
+            "$ref": "#/components/schemas/WalletView"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencySymbol"
+          },
+          "amount_in": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "amount_out": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/TransactionType"
+          }
+        },
+        "required": [
+          "id",
+          "wallet",
+          "with_wallet",
+          "balance",
+          "currency",
+          "created_at"
+        ]
+      },
+      "WalletView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Thing"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserView",
+            "nullable": true
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRequestView",
+            "nullable": true
+          }
+        },
+        "required": ["id"]
+      },
       "TaskRequestDonorView": {
         "type": "object",
         "properties": {
@@ -3154,6 +3382,28 @@
             "description": "Whether user has OTP enabled"
           }
         }
+      },
+      "Thing": {
+        "type": "object",
+        "description": "SurrealDB Thing identifier (table:id).",
+        "properties": {
+          "tb": {
+            "type": "string",
+            "description": "Table name"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "Record ID"
+          }
+        },
+        "required": ["tb", "id"]
       },
       "TaskParticipantStatus": {
         "type": "string",
@@ -3263,6 +3513,55 @@
           }
         }
       },
+      "GatewayTransaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Thing",
+            "nullable": true
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencySymbol"
+          },
+          "external_tx_id": {
+            "type": "string"
+          },
+          "external_account_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "internal_tx": {
+            "$ref": "#/components/schemas/Thing",
+            "nullable": true
+          },
+          "user": {
+            "$ref": "#/components/schemas/Thing"
+          },
+          "withdraw_lock_tx": {
+            "$ref": "#/components/schemas/Thing",
+            "nullable": true
+          },
+          "withdraw_status": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "external_tx_id",
+          "user",
+          "created_at"
+        ]
+      },
       "EmailVerificationConfirmInput": {
         "type": "object",
         "required": ["email", "code"],
@@ -3285,20 +3584,13 @@
         "properties": {
           "filter_by_type": {
             "type": "string",
-            "enum": [
-              "Public",
-              "Private",
-              "Idea"
-            ],
+            "enum": ["Public", "Private", "Idea"],
             "nullable": true,
             "description": "Filter by post type"
           },
           "order_dir": {
             "type": "string",
-            "enum": [
-              "ASC",
-              "DESC"
-            ],
+            "enum": ["ASC", "DESC"],
             "nullable": true,
             "description": "Order direction"
           },
@@ -3316,18 +3608,11 @@
       },
       "PostType": {
         "type": "string",
-        "enum": [
-          "Public",
-          "Private",
-          "Idea"
-        ]
+        "enum": ["Public", "Private", "Idea"]
       },
       "QryOrder": {
         "type": "string",
-        "enum": [
-          "ASC",
-          "DESC"
-        ]
+        "enum": ["ASC", "DESC"]
       },
       "ProfileSettingsFormInput": {
         "type": "object",

@@ -63,7 +63,12 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service.user_withdraw_tx_revert(batch_thing).await?;
+            db_service
+                .user_withdraw_tx_revert(
+                    batch_thing,
+                    Some(serde_json::to_string(&event.event_type).unwrap()),
+                )
+                .await?;
         }
         _ => {
             let batch_id: &str = &event.resource.sender_batch_id.unwrap();
@@ -72,7 +77,12 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service.user_withdraw_tx_revert(batch_thing).await?;
+            db_service
+                .user_withdraw_tx_revert(
+                    batch_thing,
+                    Some(serde_json::to_string(&event.event_type).unwrap()),
+                )
+                .await?;
         }
     }
     Ok(())

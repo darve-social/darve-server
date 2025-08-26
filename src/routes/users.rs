@@ -2,7 +2,10 @@ use crate::{
     entities::community::post_stream_entity::PostStreamDbService,
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
-        utils::{db_utils::IdentIdName, string_utils::get_str_thing},
+        utils::{
+            db_utils::{IdentIdName, Pagination},
+            string_utils::get_str_thing,
+        },
     },
     models::view::user::UserView,
     utils::validate_utils::validate_social_links,
@@ -499,6 +502,8 @@ async fn update_user(
 pub struct SearchInput {
     #[validate(length(min = 3, message = "Min 3 characters"))]
     pub query: String,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
 }
 
 async fn search_users(
@@ -516,7 +521,15 @@ async fn search_users(
         .await?;
 
     let items: Vec<UserView> = local_user_db_service
-        .search::<UserView>(form_value.query)
+        .search::<UserView>(
+            form_value.query,
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                count: form_value.count.unwrap_or(50),
+                start: form_value.start.unwrap_or(0),
+            },
+        )
         .await?;
 
     Ok(Json(items))

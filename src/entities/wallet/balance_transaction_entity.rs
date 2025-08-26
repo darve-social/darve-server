@@ -3,7 +3,8 @@ use crate::database::client::Db;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::error::CtxError;
-use crate::routes::wallet::CurrencyTransactionView;
+use crate::models::view::balance_tx::CurrencyTransactionView;
+use chrono::{DateTime, Utc};
 use middleware::error::AppResult;
 use middleware::utils::db_utils::{
     get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal,
@@ -23,15 +24,12 @@ pub struct TransferCurrencyResponse {
     pub tx_out_id: Thing,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub wallet: Thing,
     pub with_wallet: Thing,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transfer_title: Option<String>,
-    pub tx_ident: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gateway_tx: Option<Thing>,
     pub currency: CurrencySymbol,
@@ -40,10 +38,19 @@ pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount_out: Option<i64>,
     pub balance: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub description: Option<String>,
+    pub r#type: Option<TransactionType>,
+    pub fee: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum TransactionType {
+    Withdraw,
+    Deposit,
+    Refund,
+    Donate,
+    Reward,
 }
 
 pub struct BalanceTransactionDbService<'a> {
@@ -71,17 +78,17 @@ impl<'a> BalanceTransactionDbService<'a> {
     DEFINE INDEX IF NOT EXISTS wallet_currency_idx ON {TABLE_NAME} FIELDS wallet, currency;
     DEFINE INDEX IF NOT EXISTS wallet_idx ON {TABLE_NAME} FIELDS wallet;
     DEFINE FIELD IF NOT EXISTS with_wallet ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE}>;
-    DEFINE FIELD IF NOT EXISTS transfer_title ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS tx_ident ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TX_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS gateway_tx ON TABLE {TABLE_NAME} TYPE option<record<{GATEWAY_TX_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS prev_transaction ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS amount_in ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS amount_out ON TABLE {TABLE_NAME} TYPE option<number>;
-    DEFINE FIELD IF NOT EXISTS balance ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE option<datetime> DEFAULT time::now() VALUE time::now();
-    DEFINE INDEX IF NOT EXISTS r_created_idx ON {TABLE_NAME} FIELDS r_created;
+    DEFINE FIELD IF NOT EXISTS balance ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS fee ON TABLE {TABLE_NAME} TYPE option<number>;
+    DEFINE FIELD IF NOT EXISTS description ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE INDEX IF NOT EXISTS created_at_idx ON {TABLE_NAME} FIELDS created_at;
     ");
         let mutation = self.db.query(sql).await?;
 
@@ -107,9 +114,19 @@ impl<'a> BalanceTransactionDbService<'a> {
         amount: i64,
         currency: &CurrencySymbol,
         task_user_id: &Thing,
+        description: Option<String>,
     ) -> CtxResult<()> {
-        let tx_qry =
-            Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, true)?;
+        let tx_qry = Self::get_transfer_qry(
+            wallet_from,
+            wallet_to,
+            amount,
+            currency,
+            None,
+            None,
+            true,
+            description,
+            TransactionType::Reward,
+        )?;
 
         let mut query = self
             .db
@@ -132,9 +149,20 @@ impl<'a> BalanceTransactionDbService<'a> {
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
+        description: Option<String>,
+        tx_type: TransactionType,
     ) -> CtxResult<TransferCurrencyResponse> {
-        let tx_qry =
-            Self::get_transfer_qry(wallet_from, wallet_to, amount, currency, None, None, false)?;
+        let tx_qry = Self::get_transfer_qry(
+            wallet_from,
+            wallet_to,
+            amount,
+            currency,
+            None,
+            None,
+            false,
+            description,
+            tx_type,
+        )?;
         let mut query = self
             .db
             .query(tx_qry.get_query_string())
@@ -155,17 +183,35 @@ impl<'a> BalanceTransactionDbService<'a> {
     pub async fn user_transaction_list(
         &self,
         wallet_id: &Thing,
+        tx_type: Option<TransactionType>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<CurrencyTransactionView>> {
         WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
-        get_entity_list_view::<CurrencyTransactionView>(
-            self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::ColumnIdent {
+
+        let ident = match tx_type {
+            Some(ref v) => IdentIdName::ColumnIdentAnd(vec![
+                IdentIdName::ColumnIdent {
+                    column: "wallet".to_string(),
+                    val: wallet_id.to_raw(),
+                    rec: true,
+                },
+                IdentIdName::ColumnIdent {
+                    column: "type".to_string(),
+                    val: serde_json::to_string(v).unwrap(),
+                    rec: false,
+                },
+            ]),
+            None => IdentIdName::ColumnIdent {
                 column: "wallet".to_string(),
                 val: wallet_id.to_raw(),
                 rec: true,
             },
+        };
+
+        get_entity_list_view::<CurrencyTransactionView>(
+            self.db,
+            TABLE_NAME.to_string(),
+            &ident,
             pagination,
         )
         .await
@@ -176,26 +222,15 @@ impl<'a> BalanceTransactionDbService<'a> {
         wallet_id: &Thing,
         currency: CurrencySymbol,
     ) -> CtxResult<CurrencyTransaction> {
-        let record = CurrencyTransaction {
-            id: None,
-            wallet: wallet_id.clone(),
-            with_wallet: Thing::from((WALLET_TABLE, "init_wallet")),
-            transfer_title: None,
-            tx_ident: wallet_id.id.to_raw(),
-            gateway_tx: None,
-            currency,
-            amount_in: None,
-            amount_out: None,
-            balance: 0,
-            r_created: None,
-            r_updated: None,
-        };
-        self.db
-            .create(TABLE_NAME)
-            .content(record)
+        let mut res = self.db.query(format!("INSERT INTO {TABLE_NAME} {{ wallet: $wallet, with_wallet: $with_wallet, currency: $currency, balance: 0 }}"))
+            .bind(( "wallet", wallet_id.clone()))
+            .bind(( "with_wallet",  Thing::from((WALLET_TABLE, "init_wallet"))))
+            .bind(( "currency",  currency))
             .await
-            .map_err(CtxError::from(self.ctx))
-            .map(|v: Option<CurrencyTransaction>| v.unwrap())
+            .map_err(CtxError::from(self.ctx))?;
+
+        let data = res.take::<Option<CurrencyTransaction>>(0)?;
+        Ok(data.unwrap())
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<CurrencyTransaction> {
@@ -212,6 +247,8 @@ impl<'a> BalanceTransactionDbService<'a> {
         gateway_tx: Option<Thing>,
         lock_tx: Option<Thing>,
         exclude_sql_transaction: bool,
+        description: Option<String>,
+        tx_type: TransactionType,
     ) -> AppResult<QryBindingsVal<Value>> {
         let (begin_tx, commit_tx) = if exclude_sql_transaction {
             ("", "")
@@ -236,17 +273,17 @@ impl<'a> BalanceTransactionDbService<'a> {
                 THROW \"{THROW_BALANCE_TOO_LOW}\";                
             }};
 
-            LET $tx_ident = rand::ulid();
             LET $tx_out = INSERT INTO {TABLE_NAME} {{
                 id: rand::ulid(),
                 wallet: $w_from_id,
                 with_wallet:$w_to_id,
-                tx_ident: $tx_ident,
                 currency: $currency,
                 amount_out: $tx_amt,
                 balance: $updated_from_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
+                description: $description,
+                tx_type: $tx_type
             }} RETURN id;
             LET $tx_out_id = $tx_out[0].id;
             UPDATE $w_from_id SET transaction_head[$currency]=$tx_out_id, lock_id=NONE;
@@ -257,12 +294,13 @@ impl<'a> BalanceTransactionDbService<'a> {
                 id: rand::ulid(),
                 wallet: $w_to_id,
                 with_wallet:$w_from_id,
-                tx_ident: $tx_ident,
                 currency: $currency,
                 amount_in: $tx_amt,
                 balance: $updated_to_balance,
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
+                description: $description,
+                tx_type: $tx_type
             }} RETURN id;
             LET $tx_in_id = $tx_in[0].id;
             UPDATE $w_to_id SET transaction_head[$currency]=$tx_in_id, lock_id=NONE;
@@ -270,6 +308,12 @@ impl<'a> BalanceTransactionDbService<'a> {
          "
         );
         let mut bindings = HashMap::new();
+        bindings.insert(
+            "tx_type".to_string(),
+            to_value(tx_type).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
         bindings.insert(
             "w_from_id".to_string(),
             to_value(wallet_from.clone()).map_err(|e| AppError::SurrealDb {
@@ -309,6 +353,12 @@ impl<'a> BalanceTransactionDbService<'a> {
         bindings.insert(
             "lock_tx_id".to_string(),
             to_value(lock_tx).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        );
+        bindings.insert(
+            "description".to_string(),
+            to_value(description.unwrap_or_default()).map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })?,
         );

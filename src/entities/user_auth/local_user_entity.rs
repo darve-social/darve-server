@@ -6,7 +6,7 @@ use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TAB
 use crate::database::surrdb_utils::{get_entity, get_str_id_thing};
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
-use crate::middleware::utils::db_utils::record_exists;
+use crate::middleware::utils::db_utils::{record_exists, Pagination};
 use middleware::error::AppError::EntityFailIdNotFound;
 use middleware::utils::db_utils::{
     exists_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -182,16 +182,20 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         find: String,
+        pag: Pagination,
     ) -> CtxResult<Vec<T>> {
         let field = T::get_select_query_fields();
         let qry = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find;",
+            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find 
+             LIMIT $limit START $start;",
             field
         );
         let res = self
             .db
             .query(qry)
             .bind(("find", find))
+            .bind(("limit", pag.count))
+            .bind(("start", pag.start))
             .await?
             .take::<Vec<T>>(0)?;
 

@@ -1,12 +1,14 @@
 mod helpers;
 use chrono::DateTime;
+use darve_server::entities::wallet::balance_transaction_entity::TransactionType;
+use darve_server::entities::wallet::gateway_transaction_entity::GatewayTransaction;
 use darve_server::entities::wallet::lock_transaction_entity::{
     LockTransactionDbService, UnlockTrigger,
 };
 use darve_server::entities::wallet::wallet_entity::{CurrencySymbol, WalletBalancesView};
 use darve_server::middleware;
 use darve_server::middleware::ctx::Ctx;
-use darve_server::routes::wallet::CurrencyTransactionHistoryView;
+use darve_server::models::view::balance_tx::CurrencyTransactionView;
 use futures::future::join_all;
 use helpers::{create_fake_login_test_user, create_login_test_user};
 use middleware::utils::string_utils::get_string_thing;
@@ -48,12 +50,9 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
 
     transaction_history_response.assert_status_success();
 
-    let created = &transaction_history_response.json::<CurrencyTransactionHistoryView>();
-    assert_eq!(created.transactions.len(), 1);
-    assert_eq!(
-        created.transactions.get(0).unwrap().amount_in,
-        Some(endow_amt)
-    );
+    let transactions = &transaction_history_response.json::<Vec<CurrencyTransactionView>>();
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(transactions.get(0).unwrap().amount_in, Some(endow_amt));
 });
 
 test_with_server!(lock_user_balance, |server, ctx_state, config| {
@@ -89,6 +88,8 @@ test_with_server!(lock_user_balance, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await
         .unwrap();
@@ -106,7 +107,7 @@ test_with_server!(lock_user_balance, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .unlock_user_asset_tx(&lock_id)
+    .unlock_user_asset_tx(&lock_id, None, TransactionType::Donate)
     .await
     .unwrap();
 
@@ -153,6 +154,8 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await;
 
@@ -169,6 +172,8 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await;
     assert_eq!(
@@ -184,6 +189,8 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await;
     assert!(res_3.as_ref().is_ok());
@@ -196,6 +203,8 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await;
     assert!(res_4.as_ref().is_ok());
@@ -208,6 +217,8 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         )
         .await;
     assert_eq!(
@@ -248,6 +259,8 @@ test_with_server!(
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         );
 
         let res1 = transaction_service.lock_user_asset_tx(
@@ -257,6 +270,8 @@ test_with_server!(
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         );
 
         let res = join_all([res0, res1]).await;
@@ -271,6 +286,8 @@ test_with_server!(
                 vec![UnlockTrigger::Timestamp {
                     at: DateTime::from(SystemTime::now()),
                 }],
+                None,
+                TransactionType::Donate,
             )
             .await;
         assert!(res.is_ok());
@@ -317,6 +334,8 @@ test_with_server!(
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         );
         let res1 = transaction_service.lock_user_asset_tx(
             &user2.id.as_ref().unwrap(),
@@ -325,6 +344,8 @@ test_with_server!(
             vec![UnlockTrigger::Timestamp {
                 at: DateTime::from(SystemTime::now()),
             }],
+            None,
+            TransactionType::Donate,
         );
         let res = join_all([res0, res1]).await;
         assert!(res[0].is_ok());
@@ -341,4 +362,111 @@ test_with_server!(prod_balance_0, |server, ctx_state, config| {
     response.assert_status_success();
     let balances = response.json::<WalletBalancesView>();
     assert_eq!(balances.balance_locked.balance_usd, 0);
+});
+
+test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
+
+    let endow_amt = 32;
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+
+    let endow_amt = 32;
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user1.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user1.id.as_ref().unwrap().to_raw(),
+            endow_amt
+        ))
+        .add_header("Accept", "application/json")
+        .json("")
+        .await;
+    endow_user_response.assert_status_success();
+
+    let transaction_history_response = server
+        .get("/api/gateway_wallet/history")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 3);
+
+    let transaction_history_response = server
+        .get("/api/gateway_wallet/history")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 2);
+
+    let transaction_history_response = server
+        .get("/api/gateway_wallet/history?status=Failed")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 0);
+
+    let transaction_history_response = server
+        .get("/api/gateway_wallet/history?status=Completed")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 0);
 });

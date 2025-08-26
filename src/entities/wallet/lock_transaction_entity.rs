@@ -2,6 +2,7 @@ use balance_transaction_entity::BalanceTransactionDbService;
 use chrono::{DateTime, Utc};
 
 use crate::database::client::Db;
+use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
     ctx::Ctx,
@@ -75,9 +76,18 @@ impl<'a> LockTransactionDbService<'a> {
         amount: i64,
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
+        description: Option<String>,
+        tx_type: TransactionType,
     ) -> CtxResult<Thing> {
-        let user_2_lock_qry_bindings =
-            self.lock_user_asset_qry(user, amount, currency_symbol, unlock_triggers, false)?;
+        let user_2_lock_qry_bindings = self.lock_user_asset_qry(
+            user,
+            amount,
+            currency_symbol,
+            unlock_triggers,
+            false,
+            description,
+            tx_type,
+        )?;
 
         let mut lock_res = user_2_lock_qry_bindings.into_query(self.db).await?;
 
@@ -96,6 +106,8 @@ impl<'a> LockTransactionDbService<'a> {
         currency_symbol: CurrencySymbol,
         unlock_triggers: Vec<UnlockTrigger>,
         exclude_sql_transaction: bool,
+        description: Option<String>,
+        tx_type: TransactionType,
     ) -> Result<QryBindingsVal<Value>, AppError> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let lock_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
@@ -109,6 +121,8 @@ impl<'a> LockTransactionDbService<'a> {
             None,
             Some(lock_tx_id.clone()),
             true,
+            description,
+            tx_type,
         )?;
         let user_2_lock_qry = user_2_lock_tx.get_query_string();
 
@@ -156,7 +170,12 @@ impl<'a> LockTransactionDbService<'a> {
         Ok(QryBindingsVal::<Value>::new(fund_qry, bindings))
     }
 
-    pub async fn unlock_user_asset_tx(&self, lock_id: &Thing) -> CtxResult<LockTransaction> {
+    pub async fn unlock_user_asset_tx(
+        &self,
+        lock_id: &Thing,
+        description: Option<String>,
+        tx_type: TransactionType,
+    ) -> CtxResult<LockTransaction> {
         // TODO do checks in db transaction
         let lock = self.get(IdentIdName::Id(lock_id.clone())).await?;
         let (amount, currency_symbol) = if lock.unlock_tx_in.is_some() {
@@ -195,6 +214,8 @@ impl<'a> LockTransactionDbService<'a> {
             None,
             lock_tx_id.clone(),
             true,
+            description,
+            tx_type,
         )?;
         let lock_2_user_qry = lock_2_user_tx.get_query_string();
 
@@ -230,6 +251,8 @@ impl<'a> LockTransactionDbService<'a> {
         &self,
         lock_id: &Thing,
         pay_to_user: &Thing,
+        description: Option<String>,
+        tx_type: TransactionType,
     ) -> CtxResult<()> {
         let curr_tx_service = BalanceTransactionDbService {
             db: self.db,
@@ -237,7 +260,9 @@ impl<'a> LockTransactionDbService<'a> {
         };
 
         // TODO !!! transfers in db transaction
-        let unlocked = self.unlock_user_asset_tx(lock_id).await?;
+        let unlocked = self
+            .unlock_user_asset_tx(lock_id, description.clone(), tx_type.clone())
+            .await?;
         // dbg!(&unlocked);
         let unlock_tx_in =
             unlocked
@@ -261,6 +286,8 @@ impl<'a> LockTransactionDbService<'a> {
                 &wallet_to,
                 unlocked_amount,
                 &unlocked_tx_in.currency,
+                description,
+                tx_type,
             )
             .await?;
         Ok(())

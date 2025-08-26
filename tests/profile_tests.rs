@@ -44,6 +44,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "rset".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -53,6 +55,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "user".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -62,6 +66,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "Userse".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -71,6 +77,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "one".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -80,6 +88,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "unknown".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -89,6 +99,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "its".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -98,6 +110,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "hero".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;
@@ -112,6 +126,8 @@ test_with_server!(search_users, |server, ctx_state, config| {
         &server,
         &SearchInput {
             query: "tes".to_string(),
+            start: None,
+            count: None,
         },
     )
     .await;

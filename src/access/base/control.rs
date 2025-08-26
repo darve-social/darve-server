@@ -1,18 +1,55 @@
-use serde_json::Value;
+use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::access::base::{path::AccessPath, permission::Permission};
+use crate::access::base::{
+    path::AccessPath, permission::Permission, resource::Resource, role::Role,
+};
+
+fn collect_paths(
+    resources: &HashMap<Resource, RoleNode>,
+    prefix: &str,
+    output: &mut HashMap<String, Vec<Permission>>,
+) {
+    for (resource, role_node) in resources {
+        let prefix = if prefix.is_empty() {
+            resource.to_string()
+        } else {
+            format!("{}->{}", prefix, resource.to_string())
+        };
+        for (role, node) in &role_node.roles {
+            let key = format!("{}->{}", prefix, role.to_string());
+            output.insert(key.clone(), node.permissions.clone());
+            collect_paths(&node.resources, &key, output);
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Node {
+    #[serde(default)]
+    pub permissions: Vec<Permission>,
+    #[serde(flatten)]
+    pub resources: HashMap<Resource, RoleNode>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RoleNode {
+    #[serde(flatten)]
+    pub roles: HashMap<Role, Node>,
+}
 
 #[derive(Debug)]
-pub struct AccessControl(HashMap<String, Vec<Permission>>);
+pub struct AccessControl {
+    paths: HashMap<String, Vec<Permission>>,
+}
 
 impl From<&str> for AccessControl {
     fn from(value: &str) -> Self {
-        let json: Value =
+        let root: HashMap<Resource, RoleNode> =
             serde_json::from_str(value).expect("Invalid JSON string for AccessControl");
-        let mut ac = AccessControl::new();
-        ac.flatten(&json, "".to_string());
-        ac
+        let mut paths: HashMap<String, Vec<Permission>> = HashMap::new();
+        collect_paths(&root, "", &mut paths);
+        AccessControl { paths }
     }
 }
 
@@ -21,43 +58,9 @@ impl AccessControl {
         let schema_str = include_str!("schema.json");
         AccessControl::from(schema_str)
     }
-    pub fn new() -> Self {
-        AccessControl(HashMap::new())
-    }
-
-    fn flatten(&mut self, json: &Value, prefix: String) {
-        if let Some(obj) = json.as_object() {
-            for (key, value) in obj {
-                let current_path = if prefix.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}->{}", prefix, key)
-                };
-
-                if let Some(perms) = value.get("permissions") {
-                    let perms_vec = perms
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| serde_json::from_value(v.clone()).unwrap())
-                        .collect::<Vec<Permission>>();
-                    self.0.insert(current_path.clone(), perms_vec);
-                }
-
-                for (nested_key, nested_value) in value.as_object().unwrap_or(&Default::default()) {
-                    if nested_key != "permissions" {
-                        self.flatten(
-                            &serde_json::json!({nested_key: nested_value}),
-                            current_path.clone(),
-                        );
-                    }
-                }
-            }
-        }
-    }
 
     pub fn who_can(&self, permission: &Permission) -> Vec<AccessPath> {
-        self.0
+        self.paths
             .iter()
             .filter(|v| v.1.contains(&permission))
             .map(|v| AccessPath::from(v.0.as_str()))
@@ -66,7 +69,7 @@ impl AccessControl {
 
     pub fn what_can(&self, path: &AccessPath) -> Vec<Permission> {
         let path_str = path.to_string();
-        self.0
+        self.paths
             .iter()
             .find(|v| v.0 == path_str.as_str())
             .map_or(vec![], |v| v.1.clone())
@@ -74,7 +77,7 @@ impl AccessControl {
 
     pub fn can(&self, path: &AccessPath, permission: &Permission) -> bool {
         let path_str = path.to_string();
-        self.0
+        self.paths
             .iter()
             .find(|v| v.1.contains(permission) && v.0 == path_str.as_str())
             .is_some()

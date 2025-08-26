@@ -77,7 +77,6 @@ impl<'a> PostAccess<'a> {
 
     pub fn can_create_private_task(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
-        println!(">>>>{:?}", path.to_string());
         self.access_control
             .can(&path, &Permission::CreatePrivateTask)
     }

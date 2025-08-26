@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Hash, Clone)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Role {
     Guest,
     Member,
