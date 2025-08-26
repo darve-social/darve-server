@@ -72,6 +72,7 @@ pub struct GetGatewayWalletHistoryQuery {
     pub count: Option<u16>,
     pub start: Option<u32>,
     pub status: Option<WithdrawStatus>,
+    pub r#type: Option<TransactionType>,
 }
 
 pub async fn gateway_wallet_history(
@@ -95,8 +96,9 @@ pub async fn gateway_wallet_history(
         ctx: &auth_data.ctx,
     };
     let transactions = tx_service
-        .get_by_user(&user_id, params.status, pagination)
+        .get_by_user(&user_id, params.status, params.r#type, pagination)
         .await?;
+
     Ok(Json(transactions))
 }
 

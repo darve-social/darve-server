@@ -300,10 +300,28 @@ impl<'a> GatewayTransactionDbService<'a> {
         &self,
         user: &Thing,
         status: Option<WithdrawStatus>,
+        r#type: Option<TransactionType>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<GatewayTransaction>> {
-        let ident = match status {
-            Some(ref v) => IdentIdName::ColumnIdentAnd(vec![
+        let ident = match (status, r#type) {
+            (None, None) => IdentIdName::ColumnIdent {
+                column: "user".to_string(),
+                val: user.to_raw(),
+                rec: true,
+            },
+            (None, Some(ref t)) => IdentIdName::ColumnIdentAnd(vec![
+                IdentIdName::ColumnIdent {
+                    column: "user".to_string(),
+                    val: user.to_raw(),
+                    rec: true,
+                },
+                IdentIdName::ColumnIdent {
+                    column: "type".to_string(),
+                    val: serde_json::to_string(t).unwrap(),
+                    rec: false,
+                },
+            ]),
+            (Some(ref s), None) => IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "user".to_string(),
                     val: user.to_raw(),
@@ -311,15 +329,27 @@ impl<'a> GatewayTransactionDbService<'a> {
                 },
                 IdentIdName::ColumnIdent {
                     column: "status".to_string(),
-                    val: serde_json::to_string(v).unwrap(),
+                    val: serde_json::to_string(s).unwrap(),
                     rec: false,
                 },
             ]),
-            None => IdentIdName::ColumnIdent {
-                column: "user".to_string(),
-                val: user.to_raw(),
-                rec: true,
-            },
+            (Some(ref s), Some(ref t)) => IdentIdName::ColumnIdentAnd(vec![
+                IdentIdName::ColumnIdent {
+                    column: "user".to_string(),
+                    val: user.to_raw(),
+                    rec: true,
+                },
+                IdentIdName::ColumnIdent {
+                    column: "type".to_string(),
+                    val: serde_json::to_string(t).unwrap(),
+                    rec: false,
+                },
+                IdentIdName::ColumnIdent {
+                    column: "status".to_string(),
+                    val: serde_json::to_string(s).unwrap(),
+                    rec: false,
+                },
+            ]),
         };
 
         let data = get_entity_list::<GatewayTransaction>(self.db, TABLE_NAME, &ident, pagination)

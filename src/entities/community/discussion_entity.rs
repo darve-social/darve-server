@@ -195,7 +195,7 @@ impl<'a> DiscussionDbService<'a> {
 
 
     pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
-        Thing::from((TABLE_NAME.to_string(), format!("{}_p", user_id.id.to_raw())))
+        Thing::from((TABLE_NAME.to_string(), format!("{}", user_id.id.to_raw())))
     }
 
   

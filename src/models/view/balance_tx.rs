@@ -1,10 +1,10 @@
 use crate::entities::task::task_request_entity::{TaskRequest, TABLE_NAME as TASK_TABLE_NAME};
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
+use crate::entities::wallet::balance_transaction_entity::TransactionType;
+
 use crate::models::view::user::UserView;
 use crate::{
-    database::repositories::wallet::TransactionType,
-    entities::wallet::wallet_entity::CurrencySymbol,
-    middleware::utils::db_utils::ViewFieldSelector,
+    entities::wallet::wallet_entity::CurrencySymbol, middleware::utils::db_utils::ViewFieldSelector,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ pub struct CurrencyTransactionView {
     pub wallet: WalletView,
     pub with_wallet: WalletView,
     pub balance: i64,
+    pub locked: bool,
     pub currency: CurrencySymbol,
     pub amount_in: Option<i64>,
     pub amount_out: Option<i64>,
@@ -28,16 +29,17 @@ impl ViewFieldSelector for CurrencyTransactionView {
     fn get_select_query_fields() -> String {
         format!(
             "id,
+            string::ends_with(record::id(id), '_locked') as locked,
             wallet.{{ 
-                id, 
-                user: type::thing('{USER_TABLE_NAME}', record::id(id)).* , 
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).* 
-            }},
+                id,
+                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
+            }} as wallet,
             with_wallet.{{ 
-                id, 
-                user: type::thing('{USER_TABLE_NAME}', record::id(id)).* , 
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).* 
-            }},
+                id,
+                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
+            }} as with_wallet,
         balance,
         amount_in,
         amount_out,
