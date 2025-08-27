@@ -1,6 +1,7 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use crate::helpers::post_helpers::create_fake_post_with_large_file;
 use crate::helpers::post_helpers::create_post;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::discussion_entity::Discussion;
@@ -18,9 +19,7 @@ use darve_server::services::discussion_service::CreateDiscussion;
 use fake::faker;
 use fake::Fake;
 use helpers::post_helpers::get_posts;
-use helpers::post_helpers::{
-    create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
-};
+use helpers::post_helpers::{create_fake_post, create_fake_post_with_file};
 use middleware::ctx::Ctx;
 
 test_with_server!(create_post_test, |server, ctx_state, config| {
@@ -83,9 +82,9 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
         .await
         .json::<Vec<PostView>>();
 
-    let post = posts.last().unwrap();
+    let post = posts.first().unwrap();
     assert_eq!(post.media_links.as_ref().unwrap().len(), 1);
-    assert!(post.media_links.as_ref().unwrap()[0].contains("test_image_2mb.jpg"));
+    assert!(post.media_links.as_ref().unwrap()[0].contains("file_example_PNG_1MB.png"));
 });
 
 test_with_server!(get_latest, |server, ctx_state, config| {

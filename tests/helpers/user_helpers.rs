@@ -20,10 +20,10 @@ pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<UserV
 
 #[allow(dead_code)]
 pub async fn update_current_user(server: &TestServer) -> TestResponse {
-    let file = fs::read("tests/dummy/test_image_2mb.jpg").unwrap();
+    let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();
     let part = Part::bytes(file)
-        .file_name("test_image_2mb.jpg")
-        .mime_type("image/jpeg");
+        .file_name("file_example_PNG_1MB.png")
+        .mime_type("image/png");
     let data = MultipartForm::new().add_part("image_url", part);
 
     server
