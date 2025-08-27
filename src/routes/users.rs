@@ -304,11 +304,9 @@ async fn get_following_posts(
     };
     let posts = post_db_service
         .get_by_followers(&auth_data.user_thing_id(), types, pag)
-        .await;
+        .await?;
 
-    println!(">>{:?}", posts);
-
-    Ok(Json(posts?))
+    Ok(Json(posts))
 }
 
 #[derive(Debug)]
