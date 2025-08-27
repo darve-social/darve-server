@@ -49,6 +49,13 @@ impl<'a> PostAccess<'a> {
         }
     }
 
+    pub fn who_can_like_count_of_any_task(&self) -> Vec<Role> {
+        self.access_control.which_roles(
+            vec![Resource::TaskPrivate, Resource::TaskPublic],
+            Permission::LikeCount,
+        )
+    }
+
     pub fn can_edit(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
         self.access_control.can(&path, &Permission::Edit)
@@ -62,6 +69,11 @@ impl<'a> PostAccess<'a> {
     pub fn can_like(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
         self.access_control.can(&path, &Permission::Like)
+    }
+
+    pub fn can_like_count(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_post(self.post, Some(&user), None);
+        self.access_control.can(&path, &Permission::LikeCount)
     }
 
     pub fn can_create_reply(&self, user: &LocalUser) -> bool {

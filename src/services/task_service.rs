@@ -754,10 +754,25 @@ where
                     source: e.to_string(),
                 })?;
 
+            self.access_repository
+                .add(
+                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Donor.to_string(),
+                )
+                .await?;
             let _ = self
                 .notification_service
                 .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
                 .await;
+        } else {
+            self.access_repository
+                .add(
+                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Owner.to_string(),
+                )
+                .await?;
         }
 
         if let Some(ref user) = participant {
@@ -800,13 +815,6 @@ where
                 .await?;
         };
 
-        self.access_repository
-            .add(
-                [user.id.as_ref().unwrap().clone()].to_vec(),
-                [task.id.as_ref().unwrap().clone()].to_vec(),
-                Role::Owner.to_string(),
-            )
-            .await?;
         Ok(task)
     }
 

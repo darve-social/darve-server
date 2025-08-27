@@ -18,5 +18,6 @@ pub enum Permission {
     DeliverTask,
     CreateReply,
     Like,
+    LikeCount,
     Donate,
 }

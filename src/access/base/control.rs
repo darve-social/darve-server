@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::access::base::{
     path::AccessPath, permission::Permission, resource::Resource, role::Role,
@@ -24,6 +24,23 @@ fn collect_paths(
     }
 }
 
+fn get_roles_by_res_permission(
+    data: &HashMap<Resource, RoleNode>,
+    resources: &Vec<Resource>,
+    permission: &Permission,
+    output: &mut HashSet<Role>,
+) {
+    for (res, role_node) in data {
+        for (role, node) in &role_node.roles {
+            if resources.contains(res) && node.permissions.contains(permission) {
+                output.insert(role.clone());
+            } else {
+                get_roles_by_res_permission(&node.resources, resources, permission, output);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Node {
     #[serde(default)]
@@ -41,6 +58,7 @@ pub struct RoleNode {
 #[derive(Debug)]
 pub struct AccessControl {
     paths: HashMap<String, Vec<Permission>>,
+    root: HashMap<Resource, RoleNode>,
 }
 
 impl From<&str> for AccessControl {
@@ -49,7 +67,7 @@ impl From<&str> for AccessControl {
             serde_json::from_str(value).expect("Invalid JSON string for AccessControl");
         let mut paths: HashMap<String, Vec<Permission>> = HashMap::new();
         collect_paths(&root, "", &mut paths);
-        AccessControl { paths }
+        AccessControl { paths, root }
     }
 }
 
@@ -65,6 +83,12 @@ impl AccessControl {
             .filter(|v| v.1.contains(&permission))
             .map(|v| AccessPath::from(v.0.as_str()))
             .collect::<Vec<AccessPath>>()
+    }
+
+    pub fn which_roles(&self, resource: Vec<Resource>, permission: Permission) -> Vec<Role> {
+        let mut output = HashSet::new();
+        get_roles_by_res_permission(&self.root, &resource, &permission, &mut output);
+        output.into_iter().collect()
     }
 
     pub fn what_can(&self, path: &AccessPath) -> Vec<Permission> {
@@ -322,7 +346,9 @@ mod schema_variant_tests {
         );
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 1);
+        assert!(permissions.contains(&Permission::Donate));
+        assert!(permissions.contains(&Permission::LikeCount));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -844,6 +870,16 @@ mod schema_variant_tests {
     }
 
     #[test]
+    fn test_who_can_like_count_comprehensive() {
+        let ac = access_control();
+        let paths = ac.who_can(&Permission::LikeCount);
+        let path_strings: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
+        for path_str in path_strings {
+            assert!(path_str.contains("DONOR"));
+        }
+    }
+
+    #[test]
     fn test_schema_completeness() {
         let ac = access_control();
 
@@ -862,6 +898,7 @@ mod schema_variant_tests {
             Permission::RejectTask,
             Permission::DeliverTask,
             Permission::Like,
+            Permission::LikeCount,
             Permission::CreateReply,
             Permission::Donate,
         ];

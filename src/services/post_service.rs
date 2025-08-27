@@ -6,6 +6,7 @@ use crate::{
             discussion_entity::{DiscussionDbService, DiscussionType},
             post_entity::{CreatePost, Post, PostDbService, PostType},
         },
+        task::task_request_entity::TaskRequestDbService,
         user_auth::{
             follow_entity::FollowDbService,
             local_user_entity::{LocalUser, LocalUserDbService},
@@ -52,8 +53,9 @@ pub struct GetPostsParams {
     pub count: Option<u16>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct PostLikeData {
+    #[validate(range(max = 100))]
     pub count: Option<u16>,
 }
 
@@ -88,6 +90,7 @@ where
     tags_repository: &'a T,
     access_repository: &'a A,
     follow_repository: FollowDbService<'a>,
+    tasks_repository: TaskRequestDbService<'a>,
 }
 
 impl<'a, F, N, T, L, A> PostService<'a, F, N, T, L, A>
@@ -123,17 +126,41 @@ where
             likes_repository,
             access_repository,
             follow_repository: FollowDbService { db, ctx },
+            tasks_repository: TaskRequestDbService { db, ctx },
         }
     }
 
     pub async fn like(&self, post_id: &str, user_id: &str, data: PostLikeData) -> CtxResult<u32> {
+        data.validate()?;
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
             .get_view_by_id::<PostAccessView>(post_id)
             .await?;
 
-        if !PostAccess::new(&post).can_like(&user) {
+        let post_access = PostAccess::new(&post);
+
+        let is_allow = match data.count {
+            Some(_) => {
+                let roles = post_access.who_can_like_count_of_any_task();
+                match roles.is_empty() {
+                    true => true,
+                    false => {
+                        let roles = roles.iter().map(|r| r.to_string()).collect::<Vec<String>>();
+                        self.tasks_repository
+                            .exists_with_roles(
+                                post.id.clone(),
+                                user.id.as_ref().unwrap().clone(),
+                                roles,
+                            )
+                            .await?
+                    }
+                }
+            }
+            None => post_access.can_like(&user),
+        };
+
+        if !is_allow {
             return Err(AppError::Forbidden.into());
         }
 

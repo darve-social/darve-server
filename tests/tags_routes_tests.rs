@@ -1,9 +1,10 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
+use crate::helpers::{create_fake_login_test_user, post_helpers::create_post_like};
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::middleware::utils::string_utils::get_string_thing;
+use fake::{faker, Fake};
 use serde_json::json;
 
 test_with_server!(get_tags_empty, |server, ctx_state, config| {
@@ -129,8 +130,10 @@ test_with_server!(
 );
 
 test_with_server!(get_sorted_by_most_likes, |server, state, config| {
-    let (server, user, _, __) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
     let post_0 = create_fake_post(
         &server,
         &discussion_id,
@@ -143,27 +146,44 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
     )
     .await;
 
+    server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            user.id.as_ref().unwrap().to_raw(),
+            1000
+        ))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_ok();
+
+    server
+        .post(format!("/api/posts/{}/tasks", post_0.id).as_str())
+        .json(&json!({
+            "offer_amount": Some(100),
+            "participant": user1.id.as_ref().unwrap().to_raw(),
+            "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
+
     let post_1 =
         create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
     let post_2 =
         create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
-
-    let (server, _user1, _, __) = create_fake_login_test_user(&server).await;
 
     let like_response = server
         .post(&format!("/api/posts/{}/like", post_0.id))
         .json(&json!({"count": 10}))
         .await;
     like_response.assert_status_success();
-    let like_response = server
-        .post(&format!("/api/posts/{}/like", post_1.id))
-        .json(&json!({"count": 1}))
-        .await;
+
+    let like_response = create_post_like(server, &post_1.id, None).await;
     like_response.assert_status_success();
-    let like_response = server
-        .post(&format!("/api/posts/{}/like", post_2.id))
-        .json(&json!({"count": 1}))
-        .await;
+    let like_response = create_post_like(server, &post_2.id, None).await;
     like_response.assert_status_success();
 
     let follow_response = server
