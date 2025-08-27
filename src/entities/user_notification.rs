@@ -24,6 +24,7 @@ pub enum UserNotificationEvent {
     UserTaskRequestCreated,
     UserTaskRequestDelivered,
     UserTaskRequestReceived,
+    CreatedPost,
 }
 
 impl UserNotificationEvent {
@@ -34,6 +35,7 @@ impl UserNotificationEvent {
             UserNotificationEvent::UserTaskRequestReceived => "UserTaskRequestReceived",
             UserNotificationEvent::UserTaskRequestDelivered => "UserTaskRequestDelivered",
             UserNotificationEvent::UserChatMessage => "UserChatMessage",
+            UserNotificationEvent::CreatedPost => "CreatedPost",
             UserNotificationEvent::UserCommunityPost => "UserCommunityPost",
             UserNotificationEvent::UserBalanceUpdate => "UserBalanceUpdate",
             UserNotificationEvent::UserLikePost => "UserLikePost",

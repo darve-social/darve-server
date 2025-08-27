@@ -1,13 +1,8 @@
 use std::sync::Arc;
-use std::vec;
 
-use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::post_entity::{PostDbService, PostType};
-use crate::entities::community::post_stream_entity::PostStreamDbService;
 use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::utils::db_utils::Pagination;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
@@ -170,8 +165,6 @@ async fn follow_user(
         n_service
             .on_follow(&from_user, follows_username, follower_ids)
             .await?;
-
-        let _ = add_latest_posts(&from_user.id.unwrap(), &follow, &ctx_state, &auth_data.ctx).await;
     }
 
     Ok(())
@@ -217,67 +210,4 @@ async fn is_following_user(
     .is_following(user_id, follows_user.clone())
     .await?;
     Ok(())
-}
-
-async fn add_latest_posts(
-    ctx_user_id: &Thing,
-    follow_user_id: &Thing,
-    ctx_state: &CtxState,
-    ctx: &Ctx,
-) {
-    // let follow_profile_comm = match (CommunityDbService {
-    //     ctx: &ctx,
-    //     db: &ctx_state.db.client,
-    // }
-    // .get_profile_community(follow_user_id.to_owned())
-    // .await)
-    // {
-    //     Ok(res) => res,
-    //     Err(err) => {
-    //         println!("get_profile_community error / err={err:?}");
-    //         return;
-    //     }
-    // };
-    let follow_profile_discussion_id =
-        DiscussionDbService::get_profile_discussion_id(&follow_user_id.to_owned());
-
-    let post_db_service = PostDbService {
-        ctx: &ctx,
-        db: &ctx_state.db.client,
-    };
-
-    let latest_posts = match post_db_service
-        .get_by_query(
-            &ctx_user_id.id.to_raw(),
-            &follow_profile_discussion_id.id.to_raw(),
-            Some(PostType::Public),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                start: 0,
-                count: 3,
-            },
-        )
-        .await
-    {
-        Ok(res) => res,
-        Err(err) => {
-            println!(" err getting latest posts / err={err:?}");
-            return;
-        }
-    };
-
-    let stream_db_service = PostStreamDbService {
-        ctx: &ctx,
-        db: &ctx_state.db.client,
-    };
-    for post in latest_posts {
-        if let Err(err) = stream_db_service
-            .add_to_users_stream(vec![ctx_user_id.clone()], &post.id)
-            .await
-        {
-            println!(" error adding to stream / err{err:?}");
-            continue;
-        };
-    }
 }

@@ -59,7 +59,9 @@
                 "CREATE_PUBLIC_TASK",
                 "CREATE_PRIVATE_TASK",
                 "CREATE_REPLY",
-                "LIKE"
+                "LIKE",
+                "ADD_MEMBER",
+                "REMOVE_MEMBER"
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
@@ -404,7 +406,9 @@
                 "VIEW",
                 "EDIT",
                 "CREATE_REPLY",
-                "LIKE"
+                "LIKE",
+                "ADD_MEMBER",
+                "REMOVE_MEMBER"
               ]
             },
             "MEMBER": {
@@ -503,8 +507,8 @@
             "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
-            "ADD_DISCUSSION_MEMBER",
-            "REMOVE_DISCUSSION_MEMBER"
+            "ADD_MEMBER",
+            "REMOVE_MEMBER"
           ],
           "POST:PRIVATE": {
             "OWNER": {
@@ -512,7 +516,9 @@
                 "VIEW",
                 "EDIT",
                 "CREATE_REPLY",
-                "LIKE"
+                "LIKE",
+                "ADD_MEMBER",
+                "REMOVE_MEMBER"
               ]
             },
             "MEMBER": {
@@ -617,7 +623,9 @@
                 "VIEW",
                 "EDIT",
                 "CREATE_REPLY",
-                "LIKE"
+                "LIKE",
+                "ADD_MEMBER",
+                "REMOVE_MEMBER"
               ]
             },
             "MEMBER": {

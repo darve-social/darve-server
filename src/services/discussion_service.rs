@@ -35,6 +35,7 @@ pub struct CreateDiscussion {
     pub title: String,
     pub image_uri: Option<String>,
     pub chat_user_ids: Option<Vec<String>>,
+    #[serde(default)]
     pub private_discussion_users_final: bool,
 }
 
@@ -222,7 +223,14 @@ where
         }
 
         let private_discussion_user_ids = match data.chat_user_ids {
-            Some(ids) => Some(record_exist_all(self.user_repository.db, ids).await?),
+            Some(ids) => {
+                let user_id_str = user.id.as_ref().unwrap().id.to_raw();
+                let user_ids = ids
+                    .into_iter()
+                    .filter(|u| u != &user_id_str)
+                    .collect::<Vec<String>>();
+                Some(record_exist_all(self.user_repository.db, user_ids).await?)
+            }
             None => None,
         };
 
@@ -235,10 +243,7 @@ where
                     .map(|id| id.id.to_raw())
                     .collect::<Vec<String>>();
 
-                let user_id = user.id.as_ref().unwrap().id.to_raw();
-                if !ids.contains(&user_id) {
-                    ids.push(user_id.clone());
-                };
+                ids.push(user_id.to_string());
 
                 ids.sort();
 

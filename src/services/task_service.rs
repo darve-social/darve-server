@@ -3,7 +3,10 @@ use crate::{
     database::client::Db,
     entities::{
         access_user::AccessUser,
-        community::{discussion_entity::DiscussionDbService, post_entity::PostDbService},
+        community::{
+            discussion_entity::DiscussionDbService,
+            post_entity::{PostDbService, PostType},
+        },
         task::task_request_entity::{
             DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
             TaskRequestDbService, TaskRequestStatus, TaskRequestType,
@@ -551,11 +554,19 @@ where
             .into());
         }
 
-        let post_thing = get_str_thing(&data.post_id)?;
-
-        self.posts_repository
-            .must_exist(IdentIdName::Id(post_thing))
+        let post_view = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(&data.post_id)
             .await?;
+
+        let owner = post_view
+            .users
+            .into_iter()
+            .find(|u| &u.user == user.id.as_ref().unwrap() && u.role == Role::Owner.to_string());
+
+        if owner.is_none() || post_view.r#type != PostType::Public {
+            return Err(AppError::Forbidden.into());
+        }
 
         self.task_participants_repository
             .update(

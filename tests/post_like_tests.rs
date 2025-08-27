@@ -3,8 +3,8 @@ mod helpers;
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::community::discussion_entity::DiscussionDbService,
-    middleware::utils::string_utils::get_string_thing, routes::posts::PostLikeResponse,
-    services::post_service::PostView,
+    middleware::utils::string_utils::get_string_thing, models::view::post::PostView,
+    routes::posts::PostLikeResponse,
 };
 use helpers::post_helpers::{self, create_fake_post};
 

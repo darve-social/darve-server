@@ -1,5 +1,5 @@
 use crate::{
-    entities::community::post_stream_entity::PostStreamDbService,
+    entities::community::post_entity::{PostDbService, PostType},
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
         utils::{
@@ -7,7 +7,7 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
-    models::view::user::UserView,
+    models::view::{post::PostView, user::UserView},
     utils::validate_utils::validate_social_links,
 };
 use axum::{
@@ -32,7 +32,7 @@ use crate::{
         mw_ctx::CtxState,
         utils::extractor_utils::JsonOrFormValidated,
     },
-    services::{post_service::PostView, user_service::UserService},
+    services::user_service::UserService,
     utils::{self, file::convert::FileUpload},
 };
 
@@ -267,25 +267,48 @@ async fn email_verification_confirm(
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GetFollowerPostsQuery {
+    pub r#type: Option<PostType>,
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+}
+
 async fn get_following_posts(
-    State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Query(query): Query<GetFollowerPostsQuery>,
 ) -> CtxResult<Json<Vec<PostView>>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     };
-    let user = local_user_db_service
+    let _ = local_user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
 
-    let data = PostStreamDbService {
+    let post_db_service = PostDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
-    }
-    .get_posts::<PostView>(user.id.as_ref().unwrap().clone())
-    .await?;
-    Ok(Json(data))
+    };
+
+    let types = query
+        .r#type
+        .map_or(vec![PostType::Idea, PostType::Public], |v| vec![v]);
+
+    let pag = Pagination {
+        order_by: None,
+        order_dir: None,
+        count: query.count.unwrap_or(50),
+        start: query.start.unwrap_or(0),
+    };
+    let posts = post_db_service
+        .get_by_followers(&auth_data.user_thing_id(), types, pag)
+        .await;
+
+    println!(">>{:?}", posts);
+
+    Ok(Json(posts?))
 }
 
 #[derive(Debug)]

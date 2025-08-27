@@ -12,9 +12,9 @@ use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
+use darve_server::models::view::post::PostView;
 use darve_server::routes::posts::GetPostsQuery;
 use darve_server::services::discussion_service::CreateDiscussion;
-use darve_server::services::post_service::PostView;
 use fake::faker;
 use fake::Fake;
 use helpers::post_helpers::get_posts;
@@ -104,7 +104,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_query(
+    .get_by_disc(
         &user.id.as_ref().unwrap().id.to_raw(),
         &default_discussion.id.to_raw(),
         Some(PostType::Public),
@@ -124,7 +124,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_query(
+    .get_by_disc(
         &user.id.as_ref().unwrap().id.to_raw(),
         &default_discussion.id.to_raw(),
         Some(PostType::Public),
@@ -142,7 +142,7 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_query(
+    .get_by_disc(
         &user.id.as_ref().unwrap().id.to_raw(),
         &default_discussion.id.to_raw(),
         Some(PostType::Public),

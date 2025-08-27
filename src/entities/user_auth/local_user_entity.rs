@@ -156,6 +156,16 @@ impl<'a> LocalUserDbService<'a> {
         Ok(record_exists(self.db, &get_str_id_thing(TABLE_NAME, id)?).await?)
     }
 
+    pub async fn get_by_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<LocalUser>> {
+        let mut res = self
+            .db
+            .query(format!("SELECT * FROM {TABLE_NAME} WHERE id IN $users;"))
+            .bind(("users", ids))
+            .await?;
+        let data = res.take::<Vec<LocalUser>>(0)?;
+        Ok(data)
+    }
+
     pub async fn get_by_email(&self, email: &str) -> CtxResult<LocalUser> {
         let ident = IdentIdName::ColumnIdent {
             column: "email_verified".to_string(),

@@ -19,7 +19,7 @@ use crate::entities::community::post_entity::PostType;
 use crate::entities::community::{self, community_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::middleware::utils::db_utils::Pagination;
-use crate::services::post_service::PostView;
+use crate::models::view::post::PostView;
 use crate::{middleware, utils};
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
@@ -28,7 +28,6 @@ use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::PostDbService;
 use utils::askama_filter_util::filters;
-
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new().route("/u/:username_or_id", get(display_profile))
 }
@@ -119,7 +118,7 @@ async fn display_profile(
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-    .get_by_query(
+    .get_by_disc(
         &profile_view.user_id.id.to_raw(),
         &profile_view
             .profile_discussion
