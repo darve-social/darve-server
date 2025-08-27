@@ -1,26 +1,21 @@
 mod helpers;
-use crate::helpers::{create_fake_login_test_user, create_login_test_user};
+use crate::helpers::create_fake_login_test_user;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{
-        community::{
-            discussion_entity::DiscussionDbService, post_entity::Post,
-            post_stream_entity::PostStreamDbService,
-        },
+        community::{discussion_entity::DiscussionDbService, post_entity::Post},
         user_auth::follow_entity,
         user_notification::UserNotification,
     },
     middleware,
+    models::view::post::PostView,
     routes::{
         community::profile_routes::ProfileView, follows::UserItemView, user_auth::login_routes,
     },
-    services::post_service::PostView,
 };
 use follow_entity::FollowDbService;
-use helpers::{fake_username_min_len, post_helpers::create_fake_post};
 use login_routes::LoginInput;
 use middleware::ctx::Ctx;
-use middleware::utils::string_utils::get_string_thing;
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
     let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
@@ -354,7 +349,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     let posts = &create_response.json::<Vec<PostView>>();
-    assert_eq!(posts.len(), 2);
+    assert_eq!(posts.len(), 0);
 
     let notifications_response = server
         .get("/api/notifications")
@@ -364,65 +359,3 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let notifications = notifications_response.json::<Vec<UserNotification>>();
     assert_eq!(notifications.len(), 2)
 });
-
-test_with_server!(
-    add_latest_three_posts_of_follower_to_ctx_user,
-    |server, ctx_state, config| {
-        let (_, user_ident1) = create_login_test_user(&server, fake_username_min_len(6)).await;
-
-        let user1_id = get_string_thing(user_ident1.clone()).expect("user1");
-
-        let profile_discussion = DiscussionDbService::get_profile_discussion_id(&user1_id);
-
-        let _ = create_fake_post(&server, &profile_discussion, None, None).await;
-        let post_2 = create_fake_post(&server, &profile_discussion, None, None).await;
-        let post_3 = create_fake_post(&server, &profile_discussion, None, None).await;
-        let post_4 = create_fake_post(&server, &profile_discussion, None, None).await;
-
-        let (_, user_ident2) = create_login_test_user(&server, fake_username_min_len(6)).await;
-
-        let user2_id = get_string_thing(user_ident2.clone()).expect("user1");
-        let ctx = Ctx::new(Ok(user_ident2.clone()), false);
-
-        let follow_db_service = FollowDbService {
-            ctx: &ctx,
-            db: &ctx_state.db.client,
-        };
-
-        let create_response = server
-            .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
-            .add_header("Accept", "application/json")
-            .json("")
-            .add_header("Accept", "application/json")
-            .await;
-
-        create_response.assert_status_success();
-
-        let followers_nr = follow_db_service
-            .user_followers_number(user1_id.clone())
-            .await
-            .expect("user 1 followers nr");
-        assert_eq!(1, followers_nr);
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-        let post_stream_db_service = PostStreamDbService {
-            ctx: &ctx,
-            db: &ctx_state.db.client,
-        };
-
-        let streams = post_stream_db_service
-            .get_posts::<PostView>(user2_id.clone())
-            .await;
-        let post_streams = streams
-            .unwrap()
-            .iter()
-            .map(|p| p.id.to_raw())
-            .collect::<Vec<String>>();
-
-        assert_eq!(post_streams.len(), 3);
-        assert!(post_streams.contains(&post_2.id));
-        assert!(post_streams.contains(&post_3.id));
-        assert!(post_streams.contains(&post_4.id));
-    }
-);

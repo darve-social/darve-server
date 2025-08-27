@@ -80,4 +80,14 @@ impl<'a> PostAccess<'a> {
         self.access_control
             .can(&path, &Permission::CreatePrivateTask)
     }
+
+    pub fn can_add_member(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_post(self.post, Some(&user), None);
+        self.access_control.can(&path, &Permission::AddMember)
+    }
+
+    pub fn can_remove_member(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_post(self.post, Some(&user), None);
+        self.access_control.can(&path, &Permission::RemoveMember)
+    }
 }

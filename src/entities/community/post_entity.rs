@@ -6,7 +6,7 @@ use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
-use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
+use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
@@ -18,14 +18,15 @@ use middleware::{
 };
 
 use crate::database::client::Db;
+use crate::entities::user_auth::follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
-use crate::services::post_service::PostView;
+use crate::models::view::post::PostView;
 
 use super::discussion_entity;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub enum PostType {
     Public,
     Private,
@@ -115,12 +116,6 @@ impl<'a> PostDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_by_id(&self, id: &str) -> CtxResult<Post> {
-        let thing = get_str_thing(&id)?;
-        let ident = IdentIdName::Id(thing);
-        self.get(ident).await
-    }
-
     pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         id: &str,
@@ -138,7 +133,7 @@ impl<'a> PostDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn get_by_query(
+    pub async fn get_by_disc(
         &self,
         user_id: &str,
         disc_id: &str,
@@ -154,7 +149,7 @@ impl<'a> PostDbService<'a> {
 
         let query = format!(
             "SELECT {fields} FROM {TABLE_NAME}
-            WHERE belongs_to=$disc {query_by_type}  
+            WHERE belongs_to=$disc {query_by_type} AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
             ORDER BY id {order_dir} LIMIT $limit START $start;"
         );
 
@@ -164,11 +159,45 @@ impl<'a> PostDbService<'a> {
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .bind(("filter_by_type", filter_by_type))
+            .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .await?;
 
         let posts = res.take::<Vec<PostView>>(0)?;
+
+        Ok(posts)
+    }
+
+    pub async fn get_by_followers(
+        &self,
+        user_id: &str,
+        types: Vec<PostType>,
+        pag: Pagination,
+    ) -> CtxResult<Vec<PostView>> {
+        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let fields = PostView::get_select_query_fields();
+
+        let query = format!(
+            "SELECT {fields} FROM {TABLE_NAME}
+            WHERE record::id(belongs_to) IN $user_ids AND type IN $types AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
+            ORDER BY id {order_dir} LIMIT $limit START $start;"
+        );
+
+        let mut res = self
+            .db
+            .query(format!(
+                "LET $user_ids = SELECT VALUE record::id(out) FROM $user->{FOLLOW_TABLE_NAME};"
+            ))
+            .query(query)
+            .bind(("limit", pag.count))
+            .bind(("start", pag.start))
+            .bind(("types", types))
+            .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .await?;
+
+        let posts = res.take::<Vec<PostView>>(res.num_statements() - 1)?;
 
         Ok(posts)
     }
@@ -188,7 +217,6 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
             .bind(("public_types", vec![PostType::Public, PostType::Idea]))
-            .bind(("post_type", PostType::Public))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .bind(("disc_type", DiscussionType::Public))

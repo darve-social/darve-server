@@ -39,6 +39,9 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/posts/:post_id/unlike", delete(unlike))
         .route("/api/posts/:post_id/replies", post(create_reply))
         .route("/api/posts/:post_id/replies", get(get_replies))
+        .route("/api/posts/:post_id/add_users", post(add_members))
+        .route("/api/posts/:post_id/remove_users", post(remove_members))
+        .route("/api/posts/:post_id/users", get(get_members))
         .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
@@ -189,6 +192,7 @@ pub struct GetRepliesQuery {
     pub start: Option<u32>,
     pub count: Option<u16>,
 }
+
 async fn get_replies(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
@@ -305,4 +309,74 @@ async fn create_reply(
         .await?;
 
     Ok(Json(reply_view))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct PostMember {
+    user_ids: Vec<String>,
+}
+
+async fn add_members(
+    auth_data: AuthWithLoginAccess,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<Arc<CtxState>>,
+    Json(body): Json<PostMember>,
+) -> CtxResult<()> {
+    let _ = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+        &ctx_state.db.tags,
+        &ctx_state.db.likes,
+        &ctx_state.db.access,
+    )
+    .add_members(&auth_data.user_thing_id(), &post_id, body.user_ids)
+    .await?;
+
+    Ok(())
+}
+
+async fn remove_members(
+    auth_data: AuthWithLoginAccess,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<Arc<CtxState>>,
+    Json(body): Json<PostMember>,
+) -> CtxResult<()> {
+    let _ = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+        &ctx_state.db.tags,
+        &ctx_state.db.likes,
+        &ctx_state.db.access,
+    )
+    .remove_members(&auth_data.user_thing_id(), &post_id, body.user_ids)
+    .await?;
+
+    Ok(())
+}
+
+async fn get_members(
+    auth_data: AuthWithLoginAccess,
+    Path(post_id): Path<String>,
+    State(ctx_state): State<Arc<CtxState>>,
+) -> CtxResult<Json<Vec<UserView>>> {
+    let users = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        &ctx_state.file_storage,
+        &ctx_state.db.tags,
+        &ctx_state.db.likes,
+        &ctx_state.db.access,
+    )
+    .get_users(&post_id, &auth_data.user_thing_id())
+    .await?;
+
+    Ok(Json(users))
 }

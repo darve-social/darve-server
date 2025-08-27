@@ -61,14 +61,12 @@ impl<'a> DiscussionAccess<'a> {
 
     pub fn can_add_member(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
-        self.access_control
-            .can(&path, &Permission::AddDiscussionMember)
+        self.access_control.can(&path, &Permission::AddMember)
     }
 
     pub fn can_remove_member(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
-        self.access_control
-            .can(&path, &Permission::RemoveDiscussionMember)
+        self.access_control.can(&path, &Permission::RemoveMember)
     }
 
     pub fn can_view(&self, user: &LocalUser) -> bool {

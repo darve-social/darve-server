@@ -2,12 +2,11 @@ use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
 use crate::database::client::Db;
-use crate::entities::community::post_entity::Post;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
+use crate::models::view::post::PostView;
 use crate::models::view::reply::ReplyView;
-use crate::services::post_service::PostView;
 use crate::{
     entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
     middleware::{
@@ -189,11 +188,11 @@ where
         Ok(())
     }
 
-    pub async fn on_chat_message(
+    pub async fn on_create_post(
         &self,
         user_id: &Thing,
         participators: &Vec<Thing>,
-        post: &Post,
+        post: &PostView,
     ) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
         let receivers = participators
@@ -205,55 +204,17 @@ where
             .notification_repository
             .create(
                 &user_id_str,
-                "chat",
-                UserNotificationEvent::UserChatMessage.as_str(),
+                &format!("`{}` created the post", post.created_by.username),
+                UserNotificationEvent::CreatedPost.as_str(),
                 &receivers,
                 Some({
                     json!({
-                        "post_id": post.id.as_ref().unwrap()
+                        "post_id": post.id,
+                        "post_type": post.r#type
                     })
                 }),
             )
             .await?;
-        let _ = self.event_sender.send(AppEvent {
-            receivers,
-            user_id: user_id_str,
-            metadata: None,
-            content: None,
-            event: AppEventType::UserNotificationEvent(event),
-        });
-
-        Ok(())
-    }
-
-    pub async fn on_community_post(&self, user_id: &Thing, post: &Post) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-
-        let follower_ids: Vec<Thing> = self
-            .follow_repository
-            .user_follower_ids(user_id.clone())
-            .await?;
-
-        let receivers = follower_ids
-            .iter()
-            .map(|id| id.to_raw())
-            .collect::<Vec<String>>();
-
-        let event = self
-            .notification_repository
-            .create(
-                &user_id_str,
-                "chat",
-                UserNotificationEvent::UserCommunityPost.as_str(),
-                &receivers,
-                Some({
-                    json!({
-                        "post_id": post.id.as_ref().cloned(),
-                    })
-                }),
-            )
-            .await?;
-
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,

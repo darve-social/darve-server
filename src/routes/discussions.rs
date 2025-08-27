@@ -12,9 +12,10 @@ use crate::middleware::mw_ctx::AppEventType;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
+use crate::models::view::post::PostView;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
-use crate::services::post_service::{GetPostsParams, PostInput, PostService, PostView};
+use crate::services::post_service::{GetPostsParams, PostInput, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
@@ -326,7 +327,6 @@ async fn create_post(
     let post = post_service
         .create(&auth_data.user_thing_id(), &discussion_id, input_value)
         .await?;
-
     Ok(Json(post))
 }
 
@@ -348,8 +348,7 @@ async fn get_posts(
     );
 
     let posts = post_service
-        .get_by_query(&disc_id, &auth_data.user_thing_id(), query)
+        .get_by_disc(&disc_id, &auth_data.user_thing_id(), query)
         .await?;
-
     Ok(Json(posts))
 }

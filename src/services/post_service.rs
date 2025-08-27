@@ -5,9 +5,11 @@ use crate::{
         community::{
             discussion_entity::{DiscussionDbService, DiscussionType},
             post_entity::{CreatePost, Post, PostDbService, PostType},
-            post_stream_entity::PostStreamDbService,
         },
-        user_auth::local_user_entity::LocalUserDbService,
+        user_auth::{
+            follow_entity::FollowDbService,
+            local_user_entity::{LocalUser, LocalUserDbService},
+        },
     },
     interfaces::{
         file_storage::FileStorageInterface,
@@ -18,22 +20,25 @@ use crate::{
     },
     middleware::{
         ctx::Ctx,
-        error::{AppError, CtxResult},
+        error::{AppError, AppResult, CtxResult},
         mw_ctx::AppEvent,
-        utils::db_utils::{Pagination, QryOrder, ViewFieldSelector, ViewRelateField},
+        utils::{
+            db_utils::{Pagination, QryOrder},
+            string_utils::get_str_thing,
+        },
     },
     models::view::{
         access::{DiscussionAccessView, PostAccessView},
+        post::{PostUsersView, PostView},
         user::UserView,
     },
     services::notification_service::NotificationService,
-    utils::file::convert::convert_field_file_data,
+    utils::file::convert::{convert_field_file_data, FileUpload},
 };
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
-use chrono::{DateTime, Utc};
 use futures::future::join_all;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use surrealdb::sql::Thing;
 use tempfile::NamedTempFile;
 use tokio::sync::broadcast::Sender;
@@ -52,7 +57,7 @@ pub struct PostLikeData {
     pub count: Option<u16>,
 }
 
-#[derive(Validate, TryFromMultipart)]
+#[derive(Debug, Validate, TryFromMultipart)]
 pub struct PostInput {
     #[validate(length(min = 5, message = "Min 5 characters"))]
     pub title: String,
@@ -63,55 +68,9 @@ pub struct PostInput {
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
     pub is_idea: Option<bool>,
+    pub users: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PostView {
-    pub id: Thing,
-    pub created_by: UserView,
-    pub belongs_to: Thing,
-    pub title: String,
-    pub content: Option<String>,
-    pub media_links: Option<Vec<String>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub replies_nr: i64,
-    pub likes_nr: i64,
-    pub liked_by: Option<Vec<Thing>>,
-}
-
-impl ViewFieldSelector for PostView {
-    fn get_select_query_fields() -> String {
-        "id,
-        created_by.* as created_by, 
-        title, 
-        content,
-        media_links, 
-        created_at,
-        updated_at,
-        belongs_to,
-        replies_nr,
-        likes_nr,
-        <-like[WHERE in=$user].in as liked_by"
-            .to_string()
-    }
-}
-
-impl ViewRelateField for PostView {
-    fn get_fields() -> &'static str {
-        "id,
-        created_by: created_by.*, 
-        title, 
-        content,
-        media_links, 
-        created_at,
-        updated_at,
-        belongs_to,
-        replies_nr,
-        likes_nr,
-        liked_by: <-like[WHERE in=$user].in"
-    }
-}
 pub struct PostService<'a, F, N, T, L, A>
 where
     F: FileStorageInterface,
@@ -122,13 +81,13 @@ where
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
-    streams_repository: PostStreamDbService<'a>,
     posts_repository: PostDbService<'a>,
     file_storage: &'a F,
     likes_repository: &'a L,
     notification_service: NotificationService<'a, N>,
     tags_repository: &'a T,
     access_repository: &'a A,
+    follow_repository: FollowDbService<'a>,
 }
 
 impl<'a, F, N, T, L, A> PostService<'a, F, N, T, L, A>
@@ -163,7 +122,7 @@ where
             tags_repository,
             likes_repository,
             access_repository,
-            streams_repository: PostStreamDbService { db: &db, ctx },
+            follow_repository: FollowDbService { db, ctx },
         }
     }
 
@@ -214,7 +173,107 @@ where
         Ok(likes_count)
     }
 
-    pub async fn get_by_query(
+    pub async fn add_members(
+        &self,
+        user_id: &str,
+        post_id: &str,
+        user_ids: Vec<String>,
+    ) -> CtxResult<()> {
+        let user = self.users_repository.get_by_id(user_id).await?;
+
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id)
+            .await?;
+
+        let post_access = PostAccess::new(&post);
+        if !post_access.can_add_member(&user) {
+            return Err(AppError::Forbidden.into());
+        }
+
+        let disc_access = DiscussionAccess::new(&post.discussion);
+        let members = self.get_users_by_ids(user_ids).await?;
+        if !members.iter().all(|u| disc_access.can_view(u)) {
+            return Err(AppError::Forbidden.into());
+        }
+        let post_user_ids = post
+            .users
+            .into_iter()
+            .map(|u| u.user)
+            .collect::<Vec<Thing>>();
+
+        let new_members = members
+            .into_iter()
+            .filter(|u| !post_user_ids.contains(u.id.as_ref().unwrap()))
+            .map(|u| u.id.as_ref().unwrap().clone())
+            .collect::<Vec<Thing>>();
+
+        if new_members.is_empty() {
+            return Ok(());
+        }
+
+        let _ = self
+            .access_repository
+            .add(new_members, vec![post.id.clone()], Role::Member.to_string())
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn remove_members(
+        &self,
+        user_id: &str,
+        post_id: &str,
+        user_ids: Vec<String>,
+    ) -> CtxResult<()> {
+        let user = self.users_repository.get_by_id(user_id).await?;
+        let user_id_str = user.id.as_ref().unwrap().to_raw();
+        if user_ids.contains(&user_id_str) {
+            return Err(AppError::Generic {
+                description: "Owner of the post can not remove yourself".to_string(),
+            }
+            .into());
+        };
+
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id)
+            .await?;
+
+        let post_access = PostAccess::new(&post);
+        if !post_access.can_remove_member(&user) {
+            return Err(AppError::Forbidden.into());
+        }
+
+        let user_things = user_ids
+            .into_iter()
+            .filter_map(|v| get_str_thing(&v).ok())
+            .collect::<Vec<Thing>>();
+
+        let post_user_ids = post
+            .users
+            .into_iter()
+            .map(|u| u.user)
+            .collect::<Vec<Thing>>();
+
+        let remove_members = user_things
+            .into_iter()
+            .filter(|u| post_user_ids.contains(u))
+            .collect::<Vec<Thing>>();
+
+        if remove_members.is_empty() {
+            return Ok(());
+        }
+
+        let _ = self
+            .access_repository
+            .remove_by_entity(post.id.clone(), remove_members)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_by_disc(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -239,7 +298,7 @@ where
 
         let items = self
             .posts_repository
-            .get_by_query(
+            .get_by_disc(
                 &user.id.as_ref().unwrap().id.to_raw(),
                 &disc.id.id.to_raw(),
                 query.filter_by_type,
@@ -250,45 +309,43 @@ where
         Ok(items)
     }
 
-    pub async fn create(&self, user_id: &str, disc_id: &str, data: PostInput) -> CtxResult<Post> {
-        data.validate()?;
-
-        if data.content.is_none() && data.file_1.is_none() {
-            return Err(AppError::Generic {
-                description: "Empty content and missing file".to_string(),
-            }
-            .into());
+    pub async fn get_users(&self, post_id: &str, user_id: &str) -> CtxResult<Vec<UserView>> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id)
+            .await?;
+        if !PostAccess::new(&post).can_view(&user) {
+            return Err(AppError::Forbidden.into());
         }
 
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostUsersView>(post_id)
+            .await?;
+
+        Ok(post
+            .users
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| a.user)
+            .collect::<Vec<UserView>>())
+    }
+    pub async fn create(&self, user_id: &str, disc_id: &str, data: PostInput) -> CtxResult<Post> {
+        let post_data = self.get_post_data_of_input(data).await?;
         let user = self.users_repository.get_by_id(user_id).await?;
+
         let disc = self
             .discussions_repository
             .get_view_by_id::<DiscussionAccessView>(disc_id)
             .await?;
 
-        let post_type = if data.is_idea.unwrap_or_default() {
-            PostType::Idea
-        } else {
-            PostType::Public
-        };
+        self.check_create_access(&disc, &post_data, &user)?;
 
-        let has_access = match post_type {
-            PostType::Public => DiscussionAccess::new(&disc).can_create_public_post(&user),
-            PostType::Private => DiscussionAccess::new(&disc).can_create_private_post(&user),
-            PostType::Idea => DiscussionAccess::new(&disc).can_idea_post(&user),
-        };
-
-        if !has_access {
-            return Err(AppError::Forbidden.into());
-        }
-
-        let new_post_id = PostDbService::get_new_post_thing();
-        let media_links = if let Some(uploaded_file) = data.file_1 {
-            let file = convert_field_file_data(uploaded_file)?;
-
+        let media_links = if let Some(file) = post_data.file {
             let file_name = format!(
                 "{}_{}",
-                new_post_id.clone().to_raw().replace(":", "_"),
+                post_data.id.to_raw().replace(":", "_"),
                 file.file_name
             );
             let result = self
@@ -301,6 +358,7 @@ where
                 )
                 .await
                 .map_err(|e| AppError::Generic { description: e })?;
+
             Some(vec![result])
         } else {
             None
@@ -310,12 +368,12 @@ where
             .posts_repository
             .create(CreatePost {
                 belongs_to: disc.id,
-                title: data.title,
-                content: data.content,
+                title: post_data.title,
+                content: post_data.content,
                 media_links: media_links.clone(),
                 created_by: user.id.as_ref().unwrap().clone(),
-                id: new_post_id,
-                r#type: post_type,
+                id: post_data.id,
+                r#type: post_data.r#type,
             })
             .await;
 
@@ -346,59 +404,152 @@ where
                 Role::Owner.to_string(),
             )
             .await?;
+        let member_ids = post_data
+            .members
+            .iter()
+            .filter_map(|u| {
+                let id = u.id.as_ref();
+                if id == user.id.as_ref() {
+                    None
+                } else {
+                    Some(id.unwrap().clone())
+                }
+            })
+            .collect::<Vec<Thing>>();
+        if !member_ids.is_empty() {
+            let _ = self
+                .access_repository
+                .add(
+                    member_ids.clone(),
+                    vec![post.id.as_ref().unwrap().clone()],
+                    Role::Member.to_string(),
+                )
+                .await?;
+        }
 
-        if !data.tags.is_empty() {
+        if !post_data.tags.is_empty() {
             let _ = self
                 .tags_repository
-                .create_with_relate(data.tags, post.id.as_ref().unwrap().clone())
+                .create_with_relate(post_data.tags, post.id.as_ref().unwrap().clone())
                 .await?;
         }
 
-        if disc.r#type == DiscussionType::Private {
-            self.notification_service
-                .on_chat_message(
-                    &user.id.as_ref().unwrap(),
-                    &disc
-                        .users
-                        .into_iter()
-                        .map(|u| u.user)
-                        .collect::<Vec<Thing>>(),
-                    &post,
-                )
-                .await?;
+        let post_view = PostView {
+            id: post.id.as_ref().unwrap().clone(),
+            created_by: UserView::from(user.clone()),
+            belongs_to: post.belongs_to.clone(),
+            title: post.title.clone(),
+            content: post.content.clone(),
+            media_links: post.media_links.clone(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
+            replies_nr: post.replies_nr,
+            likes_nr: post.likes_nr,
+            liked_by: None,
+            r#type: post.r#type.clone(),
+            users: None,
+        };
+
+        let receivers = if post.r#type == PostType::Private {
+            member_ids
+        } else if disc.r#type == DiscussionType::Private {
+            disc.users
+                .into_iter()
+                .map(|u| u.user)
+                .collect::<Vec<Thing>>()
         } else {
-            self.notification_service
-                .on_community_post(&user.id.as_ref().unwrap(), &post)
-                .await?;
-
-            self.streams_repository
-                .to_user_follower_streams(
-                    post.created_by.clone(),
-                    &post.id.clone().expect("has id"),
-                )
-                .await?;
-        }
+            self.follow_repository
+                .user_follower_ids(user.id.as_ref().unwrap().clone())
+                .await
+                .unwrap_or(vec![])
+        };
 
         let _ = self
             .notification_service
-            .on_discussion_post(
-                &user.id.as_ref().unwrap(),
-                &PostView {
-                    id: post.id.as_ref().unwrap().clone(),
-                    created_by: UserView::from(user.clone()),
-                    belongs_to: post.belongs_to.clone(),
-                    title: post.title.clone(),
-                    content: post.content.clone(),
-                    media_links: post.media_links.clone(),
-                    created_at: post.created_at,
-                    updated_at: post.updated_at,
-                    replies_nr: post.replies_nr,
-                    likes_nr: post.likes_nr,
-                    liked_by: None,
-                },
-            )
+            .on_create_post(&user.id.as_ref().unwrap(), &receivers, &post_view)
+            .await?;
+
+        let _ = self
+            .notification_service
+            .on_discussion_post(&user.id.as_ref().unwrap(), &post_view)
             .await?;
 
         Ok(post)
     }
+
+    async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {
+        data.validate()?;
+        if data.content.is_none() && data.file_1.is_none() {
+            return Err(AppError::Generic {
+                description: "Empty content and missing file".to_string(),
+            }
+            .into());
+        }
+
+        let (r#type, members) = if data.is_idea.unwrap_or_default() {
+            (PostType::Idea, Vec::new())
+        } else if !data.users.is_empty() {
+            let members = self.get_users_by_ids(data.users).await?;
+            (PostType::Private, members)
+        } else {
+            (PostType::Public, Vec::new())
+        };
+
+        Ok(PostCreationData {
+            id: PostDbService::get_new_post_thing(),
+            title: data.title,
+            tags: data.tags,
+            file: data
+                .file_1
+                .map(|v| convert_field_file_data(v))
+                .transpose()?,
+            members,
+            r#type,
+            content: data.content,
+        })
+    }
+
+    async fn get_users_by_ids(&self, user_ids: Vec<String>) -> CtxResult<Vec<LocalUser>> {
+        let user_things = user_ids
+            .iter()
+            .filter_map(|u| get_str_thing(&u).ok())
+            .collect::<Vec<Thing>>();
+
+        if user_things.is_empty() {
+            return Err(AppError::Forbidden.into());
+        }
+
+        Ok(self.users_repository.get_by_ids(user_things).await?)
+    }
+
+    fn check_create_access(
+        &self,
+        disc: &DiscussionAccessView,
+        data: &PostCreationData,
+        user: &LocalUser,
+    ) -> AppResult<()> {
+        let disc_access = DiscussionAccess::new(disc);
+
+        let members_access = data.members.iter().all(|u| disc_access.can_view(u));
+        let owner_access = match &data.r#type {
+            PostType::Public => disc_access.can_create_public_post(&user),
+            PostType::Private => disc_access.can_create_private_post(&user),
+            PostType::Idea => disc_access.can_idea_post(&user),
+        };
+
+        match (owner_access, members_access) {
+            (true, true) => Ok(()),
+            _ => Err(AppError::Forbidden.into()),
+        }
+    }
+}
+#[derive(Debug)]
+struct PostCreationData {
+    id: Thing,
+    tags: Vec<String>,
+    file: Option<FileUpload>,
+    members: Vec<LocalUser>,
+    r#type: PostType,
+    content: Option<String>,
+    title: String,
 }
