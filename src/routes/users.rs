@@ -11,7 +11,7 @@ use crate::{
     utils::validate_utils::validate_social_links,
 };
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
     Json, Router,
@@ -69,7 +69,10 @@ pub fn routes() -> Router<Arc<CtxState>> {
             "/api/users/current/email/verification/confirm",
             post(email_verification_confirm),
         )
-        .route("/api/users/current", patch(update_user))
+        .route(
+            "/api/users/current",
+            patch(update_user).layer(DefaultBodyLimit::max(1024 * 1024 * 8)),
+        )
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
 }
