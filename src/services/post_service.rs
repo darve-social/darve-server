@@ -55,7 +55,7 @@ pub struct GetPostsParams {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct PostLikeData {
-    #[validate(range(max = 100))]
+    #[validate(range(min = 1, max = 100))]
     pub count: Option<u16>,
 }
 
