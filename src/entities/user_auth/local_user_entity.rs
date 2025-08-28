@@ -39,6 +39,8 @@ pub struct LocalUser {
     #[serde(default)]
     pub is_otp_enabled: bool,
     pub otp_secret: Option<String>,
+    #[serde(default)]
+    pub credits: u64,
 }
 
 impl LocalUser {
@@ -55,6 +57,7 @@ impl LocalUser {
             image_uri: None,
             is_otp_enabled: false,
             otp_secret: None,
+            credits: 0,
         }
     }
 }
@@ -97,6 +100,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS credits ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
 
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
@@ -236,6 +240,28 @@ impl<'a> LocalUserDbService<'a> {
             .content(record)
             .await?;
         Ok(user.unwrap())
+    }
+
+    pub async fn add_credits(&self, user: Thing, value: u16) -> CtxResult<u64> {
+        let mut res = self
+            .db
+            .query("UPDATE $user SET credits += $credits RETURN credits;")
+            .bind(("credits", value))
+            .bind(("user", user))
+            .await?;
+        let data = res.take::<Option<u64>>((0, "credits"))?;
+        Ok(data.unwrap())
+    }
+
+    pub async fn remove_credits(&self, user: Thing, value: u16) -> CtxResult<u64> {
+        let mut res = self
+            .db
+            .query("UPDATE $user SET credits = math::max([0, credits-$credits]) RETURN credits;")
+            .bind(("credits", value))
+            .bind(("user", user))
+            .await?;
+        let data = res.take::<Option<u64>>((0, "credits"))?;
+        Ok(data.unwrap())
     }
 
     pub async fn users_len(&self) -> CtxResult<i32> {

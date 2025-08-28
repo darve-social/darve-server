@@ -10,6 +10,7 @@ pub struct TaskDonor {
     pub(crate) transaction: Option<Thing>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) votes: Option<Vec<RewardVote>>,
+    pub(crate) amount: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

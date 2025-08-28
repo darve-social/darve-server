@@ -217,29 +217,6 @@ impl<'a> TaskRequestDbService<'a> {
         with_not_found_err(opt, self.ctx, &id.to_raw())
     }
 
-    pub async fn exists_with_roles(
-        &self,
-        belongs_to: Thing,
-        user: Thing,
-        roles: Vec<String>,
-    ) -> CtxResult<bool> {
-        let mut res = self
-            .db
-            .query(format!(
-                "RETURN count(
-                    SELECT id FROM {TABLE_NAME} WHERE belongs_to=$belongs_to 
-                    AND (SELECT id FROM <-{ACCESS_TABLE_NAME} WHERE in=$user AND role IN $roles) 
-                ) > 0;"
-            ))
-            .bind(("user", user))
-            .bind(("belongs_to", belongs_to))
-            .bind(("roles", roles))
-            .await?;
-
-        let data = res.take::<Option<bool>>(0)?;
-        Ok(data.unwrap_or_default())
-    }
-
     pub async fn get_by_post<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
         &self,
         post: Thing,

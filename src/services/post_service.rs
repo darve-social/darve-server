@@ -6,7 +6,6 @@ use crate::{
             discussion_entity::{DiscussionDbService, DiscussionType},
             post_entity::{CreatePost, Post, PostDbService, PostType},
         },
-        task::task_request_entity::TaskRequestDbService,
         user_auth::{
             follow_entity::FollowDbService,
             local_user_entity::{LocalUser, LocalUserDbService},
@@ -55,7 +54,7 @@ pub struct GetPostsParams {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct PostLikeData {
-    #[validate(range(min = 1, max = 100))]
+    #[validate(range(min = 2, max = 10))]
     pub count: Option<u16>,
 }
 
@@ -90,7 +89,6 @@ where
     tags_repository: &'a T,
     access_repository: &'a A,
     follow_repository: FollowDbService<'a>,
-    tasks_repository: TaskRequestDbService<'a>,
 }
 
 impl<'a, F, N, T, L, A> PostService<'a, F, N, T, L, A>
@@ -126,7 +124,6 @@ where
             likes_repository,
             access_repository,
             follow_repository: FollowDbService { db, ctx },
-            tasks_repository: TaskRequestDbService { db, ctx },
         }
     }
 
@@ -138,36 +135,23 @@ where
             .get_view_by_id::<PostAccessView>(post_id)
             .await?;
 
-        let post_access = PostAccess::new(&post);
+        let likes = data.count.unwrap_or(1);
+        let by_credits = data.count.is_some();
 
-        let is_allow = match data.count {
-            Some(_) => {
-                let roles = post_access.who_can_like_count_of_any_task();
-                match roles.is_empty() {
-                    true => true,
-                    false => {
-                        let roles = roles.iter().map(|r| r.to_string()).collect::<Vec<String>>();
-                        self.tasks_repository
-                            .exists_with_roles(
-                                post.id.clone(),
-                                user.id.as_ref().unwrap().clone(),
-                                roles,
-                            )
-                            .await?
-                    }
-                }
-            }
-            None => post_access.can_like(&user),
-        };
-
-        if !is_allow {
+        if !PostAccess::new(&post).can_like(&user) {
             return Err(AppError::Forbidden.into());
         }
 
-        let count = data.count.unwrap_or(1);
+        if by_credits && user.credits < likes as u64 {
+            return Err(AppError::Generic {
+                description: "The user does not have enough credits".to_string(),
+            }
+            .into());
+        }
+
         let likes_count = self
             .likes_repository
-            .like(user.id.as_ref().unwrap().clone(), post.id.clone(), count)
+            .like(user.id.as_ref().unwrap().clone(), post.id.clone(), likes)
             .await?;
 
         self.notification_service
@@ -177,6 +161,12 @@ where
                 post.id.clone(),
             )
             .await?;
+
+        if by_credits {
+            self.users_repository
+                .remove_credits(user.id.as_ref().unwrap().clone(), likes)
+                .await?;
+        }
 
         Ok(likes_count)
     }

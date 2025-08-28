@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::access::post::PostAccess;
 use crate::entities::community::post_entity::PostDbService;
-use crate::entities::task::task_request_entity::TaskRequestDbService;
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::like::LikesRepositoryInterface;
 use crate::middleware;
@@ -38,12 +37,11 @@ async fn like(
     Json(body): Json<PostLikeData>,
 ) -> CtxResult<Json<LikeResponse>> {
     body.validate()?;
-    let user = LocalUserDbService {
+    let user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
-    }
-    .get_ctx_user()
-    .await?;
+    };
+    let user = user_db_service.get_ctx_user().await?;
 
     let reply_thing = get_str_thing(&reply_id)?;
 
@@ -62,40 +60,31 @@ async fn like(
         .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw())
         .await?;
 
-    let post_access = PostAccess::new(&post);
+    let likes = body.count.unwrap_or(1);
+    let by_credits = body.count.is_some();
 
-    let is_allow = match body.count {
-        Some(_) => {
-            let roles = post_access.who_can_like_count_of_any_task();
-            if !roles.is_empty() {
-                let task_db_service = TaskRequestDbService {
-                    db: &ctx_state.db.client,
-                    ctx: &auth_data.ctx,
-                };
-                let roles = roles.iter().map(|r| r.to_string()).collect::<Vec<String>>();
-                task_db_service
-                    .exists_with_roles(post.id, user.id.as_ref().unwrap().clone(), roles)
-                    .await?
-            } else {
-                true
-            }
-        }
-        None => post_access.can_like(&user),
-    };
-
-    if !is_allow {
+    if !PostAccess::new(&post).can_like(&user) {
         return Err(AppError::Forbidden.into());
+    }
+
+    if by_credits && user.credits < likes as u64 {
+        return Err(AppError::Generic {
+            description: "The user does not have enough credits".to_string(),
+        }
+        .into());
     }
 
     let count = ctx_state
         .db
         .likes
-        .like(
-            user.id.as_ref().unwrap().clone(),
-            reply.id,
-            body.count.unwrap_or(1),
-        )
+        .like(user.id.as_ref().unwrap().clone(), reply.id, likes)
         .await?;
+
+    if by_credits {
+        user_db_service
+            .remove_credits(user.id.as_ref().unwrap().clone(), likes)
+            .await?;
+    }
 
     Ok(Json(LikeResponse { likes_count: count }))
 }

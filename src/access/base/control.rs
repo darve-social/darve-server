@@ -347,8 +347,7 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Donate));
-        assert!(permissions.contains(&Permission::LikeCount));
-        assert_eq!(permissions.len(), 3);
+        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -870,16 +869,6 @@ mod schema_variant_tests {
     }
 
     #[test]
-    fn test_who_can_like_count_comprehensive() {
-        let ac = access_control();
-        let paths = ac.who_can(&Permission::LikeCount);
-        let path_strings: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
-        for path_str in path_strings {
-            assert!(path_str.contains("DONOR"));
-        }
-    }
-
-    #[test]
     fn test_schema_completeness() {
         let ac = access_control();
 
@@ -898,7 +887,6 @@ mod schema_variant_tests {
             Permission::RejectTask,
             Permission::DeliverTask,
             Permission::Like,
-            Permission::LikeCount,
             Permission::CreateReply,
             Permission::Donate,
         ];
