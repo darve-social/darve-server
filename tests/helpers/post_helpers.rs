@@ -105,7 +105,7 @@ pub async fn create_fake_post_with_large_file(
     data = data.add_part("file_1", part);
     let response = create_post(&server, &discussion_id, data).await;
 
-    response.assert_status_payload_too_large();
+    response.assert_status_success();
 }
 
 #[allow(dead_code)]
@@ -115,10 +115,10 @@ pub async fn create_fake_post_with_file(
     discussion_id: &Thing,
 ) -> String {
     let mut data = build_fake_post(None, None);
-    let file = fs::read("tests/dummy/test_image_2mb.jpg").unwrap();
+    let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();
 
     let part = Part::bytes(file)
-        .file_name("test_image_2mb.jpg")
+        .file_name("file_example_PNG_1MB.png")
         .mime_type("image/jpeg");
 
     data = data.add_part("file_1", part);

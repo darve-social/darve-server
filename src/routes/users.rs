@@ -1,5 +1,8 @@
 use crate::{
-    entities::community::post_entity::{PostDbService, PostType},
+    entities::community::{
+        discussion_entity::DiscussionType,
+        post_entity::{Post, PostDbService, PostType},
+    },
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
         utils::{
@@ -39,8 +42,7 @@ use crate::{
 use utils::validate_utils::validate_birth_date;
 use utils::validate_utils::validate_username;
 
-pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
-    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route(
             "/api/users/current/set_password/start",
@@ -62,6 +64,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/users/current/following/posts",
             get(get_following_posts),
         )
+        .route("/api/users/current/latest_posts", get(get_posts))
         .route(
             "/api/users/current/email/verification/start",
             post(email_verification_start),
@@ -70,10 +73,12 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/users/current/email/verification/confirm",
             post(email_verification_confirm),
         )
-        .route("/api/users/current", patch(update_user))
+        .route(
+            "/api/users/current",
+            patch(update_user).layer(DefaultBodyLimit::max(1024 * 1024 * 8)),
+        )
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
-        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -572,4 +577,47 @@ async fn get_user(
         .await?;
 
     Ok(Json(user))
+}
+
+#[derive(Debug, Deserialize)]
+struct GetPostsQuery {
+    text: Option<String>,
+    start: Option<u32>,
+    count: Option<u16>,
+}
+
+async fn get_posts(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Query(query): Query<GetPostsQuery>,
+) -> CtxResult<Json<Vec<Post>>> {
+    let user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let user = user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+
+    let post_db_service = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let pagination = Pagination {
+        order_by: None,
+        order_dir: None,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
+    };
+    let posts = post_db_service
+        .get_latest_posts(
+            user.id.unwrap(),
+            query.text,
+            DiscussionType::Private,
+            pagination,
+        )
+        .await;
+    println!("{:?}", posts);
+    Ok(Json(posts?))
 }

@@ -1,8 +1,10 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use crate::helpers::post_helpers::create_fake_post_with_large_file;
 use crate::helpers::post_helpers::create_post;
 use axum_test::multipart::MultipartForm;
+use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
@@ -18,9 +20,7 @@ use darve_server::services::discussion_service::CreateDiscussion;
 use fake::faker;
 use fake::Fake;
 use helpers::post_helpers::get_posts;
-use helpers::post_helpers::{
-    create_fake_post, create_fake_post_with_file, create_fake_post_with_large_file,
-};
+use helpers::post_helpers::{create_fake_post, create_fake_post_with_file};
 use middleware::ctx::Ctx;
 
 test_with_server!(create_post_test, |server, ctx_state, config| {
@@ -83,9 +83,9 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
         .await
         .json::<Vec<PostView>>();
 
-    let post = posts.last().unwrap();
+    let post = posts.first().unwrap();
     assert_eq!(post.media_links.as_ref().unwrap().len(), 1);
-    assert!(post.media_links.as_ref().unwrap()[0].contains("test_image_2mb.jpg"));
+    assert!(post.media_links.as_ref().unwrap()[0].contains("file_example_PNG_1MB.png"));
 });
 
 test_with_server!(get_latest, |server, ctx_state, config| {
@@ -467,4 +467,122 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
         .json::<Vec<PostView>>();
 
     assert_eq!(posts.len(), 3);
+});
+
+test_with_server!(get_latest_posts, |server, state, config| {
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
+
+    let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
+    let disc = server
+        .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", token))
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![
+                user1.id.as_ref().unwrap().to_raw(),
+                user2.id.as_ref().unwrap().to_raw(),
+            ]
+            .into(),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await
+        .json::<Discussion>();
+    let disc_id = disc.id;
+    let _ = create_fake_post(server, &disc_id, None, None).await;
+    let _ = create_fake_post(server, &disc_id, None, None).await;
+    let _ = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None).await;
+
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token2))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+
+    let data = MultipartForm::new()
+        .add_text("title", "Hello")
+        .add_text("content", "content")
+        .add_text("users", user.id.as_ref().unwrap().to_raw())
+        .add_text("users", user1.id.as_ref().unwrap().to_raw());
+
+    let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(
+        posts[0].id.as_ref().unwrap(),
+        private_post.id.as_ref().unwrap()
+    );
+
+    let latest_posts = server
+        .get("/api/users/current/latest_posts?text=rust")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 0);
+
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(
+        posts[0].id.as_ref().unwrap(),
+        private_post.id.as_ref().unwrap()
+    );
+    let latest_posts = server
+        .get("/api/users/current/latest_posts")
+        .add_header("Cookie", format!("jwt={}", token2))
+        .await;
+
+    latest_posts.assert_status_success();
+
+    let posts = latest_posts.json::<Vec<Post>>();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
 });

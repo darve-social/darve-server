@@ -37,6 +37,7 @@ use crate::{
     services::notification_service::NotificationService,
 };
 use chrono::{DateTime, TimeDelta, Utc};
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 use tokio::sync::broadcast::Sender;
@@ -70,11 +71,12 @@ impl ViewFieldSelector for TaskView {
         wallet_id,
         created_at,
         ->task_relate.out[0] as related_to,
-        ->task_donor.*.{id, transaction, user: out} as donors,
+        ->task_donor.*.{id, transaction, amount, user: out} as donors,
         ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants"
             .to_string()
     }
 }
+
 pub struct TaskDonorData {
     pub amount: u64,
 }
@@ -457,7 +459,7 @@ where
         if task
             .donors
             .iter()
-            .any(|t| t.user == *user.id.as_ref().unwrap())
+            .any(|t| &t.user == user.id.as_ref().unwrap())
         {
             return Err(AppError::Forbidden.into());
         }
@@ -582,18 +584,20 @@ where
                 source: "deliver_task".to_string(),
             })?;
 
-        let participant_ids = task
+        let donor_ids = task
             .donors
             .iter()
             .map(|t| t.user.clone())
             .collect::<Vec<Thing>>();
 
+        join_all(task.donors.into_iter().map(|d| {
+            self.users_repository
+                .add_credits(d.user, (d.amount / 100) as u16)
+        }))
+        .await;
+
         self.notification_service
-            .on_deliver_task(
-                &user.id.as_ref().unwrap(),
-                task_thing.clone(),
-                &participant_ids,
-            )
+            .on_deliver_task(&user.id.as_ref().unwrap(), task_thing.clone(), &donor_ids)
             .await?;
 
         Ok(())
@@ -754,10 +758,25 @@ where
                     source: e.to_string(),
                 })?;
 
+            self.access_repository
+                .add(
+                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Donor.to_string(),
+                )
+                .await?;
             let _ = self
                 .notification_service
                 .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
                 .await;
+        } else {
+            self.access_repository
+                .add(
+                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Owner.to_string(),
+                )
+                .await?;
         }
 
         if let Some(ref user) = participant {
@@ -800,13 +819,6 @@ where
                 .await?;
         };
 
-        self.access_repository
-            .add(
-                [user.id.as_ref().unwrap().clone()].to_vec(),
-                [task.id.as_ref().unwrap().clone()].to_vec(),
-                Role::Owner.to_string(),
-            )
-            .await?;
         Ok(task)
     }
 

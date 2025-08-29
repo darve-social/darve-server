@@ -23,7 +23,7 @@ impl AccessRepository {
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON like FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {ACCESS_TABLE_NAME} TYPE datetime DEFAULT time::now();
     DEFINE FIELD IF NOT EXISTS role ON TABLE {ACCESS_TABLE_NAME} TYPE string;
-     DEFINE INDEX IF NOT EXISTS idx_role ON TABLE {ACCESS_TABLE_NAME} COLUMNS role;
+    DEFINE INDEX IF NOT EXISTS idx_role ON TABLE {ACCESS_TABLE_NAME} COLUMNS role;
 
     ");
         let mutation = self.client.query(sql).await?;

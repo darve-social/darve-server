@@ -1,8 +1,10 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
+use crate::helpers::{create_fake_login_test_user, post_helpers::create_post_like};
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
+use darve_server::entities::user_auth::local_user_entity::LocalUserDbService;
+use darve_server::middleware::ctx::Ctx;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use serde_json::json;
 
@@ -129,8 +131,9 @@ test_with_server!(
 );
 
 test_with_server!(get_sorted_by_most_likes, |server, state, config| {
-    let (server, user, _, __) = create_fake_login_test_user(&server).await;
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
     let post_0 = create_fake_post(
         &server,
         &discussion_id,
@@ -143,27 +146,30 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
     )
     .await;
 
+    let count = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &Ctx::new(Ok(user.id.as_ref().unwrap().to_raw()), false),
+    }
+    .add_credits(user.id.as_ref().unwrap().clone(), 100)
+    .await
+    .unwrap();
+
+    assert_eq!(count, 100);
+
     let post_1 =
         create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
     let post_2 =
         create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
-
-    let (server, _user1, _, __) = create_fake_login_test_user(&server).await;
 
     let like_response = server
         .post(&format!("/api/posts/{}/like", post_0.id))
         .json(&json!({"count": 10}))
         .await;
     like_response.assert_status_success();
-    let like_response = server
-        .post(&format!("/api/posts/{}/like", post_1.id))
-        .json(&json!({"count": 1}))
-        .await;
+
+    let like_response = create_post_like(server, &post_1.id, None).await;
     like_response.assert_status_success();
-    let like_response = server
-        .post(&format!("/api/posts/{}/like", post_2.id))
-        .json(&json!({"count": 1}))
-        .await;
+    let like_response = create_post_like(server, &post_2.id, None).await;
     like_response.assert_status_success();
 
     let follow_response = server

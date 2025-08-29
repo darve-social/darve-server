@@ -13,7 +13,7 @@ use crate::{
             webauthn::webauthn_routes::{self, WebauthnConfig},
         },
         user_otp, users, wallet,
-        webhooks::paypal,
+        webhooks::{paypal, stripe},
     },
     services::auth_service::{AuthRegisterInput, AuthService},
 };
@@ -111,13 +111,14 @@ pub async fn main_router(ctx_state: &Arc<CtxState>, wa_config: WebauthnConfig) -
         .merge(auth_routes::routes())
         .merge(login_routes::routes())
         .merge(register_routes::routes())
-        .merge(posts::routes(ctx_state.upload_max_size_mb))
+        .merge(posts::routes())
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
         .merge(profile_routes::routes())
         .merge(tasks::routes())
         .merge(notifications::routes())
-        .merge(users::routes(ctx_state.upload_max_size_mb))
+        .merge(users::routes())
         .merge(paypal::routes())
+        .merge(stripe::routes())
         .merge(discussions::routes(ctx_state.upload_max_size_mb))
         .merge(follows::routes())
         .merge(swagger::routes())

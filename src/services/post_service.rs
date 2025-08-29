@@ -52,8 +52,9 @@ pub struct GetPostsParams {
     pub count: Option<u16>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct PostLikeData {
+    #[validate(range(min = 2, max = 10))]
     pub count: Option<u16>,
 }
 
@@ -127,20 +128,30 @@ where
     }
 
     pub async fn like(&self, post_id: &str, user_id: &str, data: PostLikeData) -> CtxResult<u32> {
+        data.validate()?;
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
             .get_view_by_id::<PostAccessView>(post_id)
             .await?;
 
+        let likes = data.count.unwrap_or(1);
+        let by_credits = data.count.is_some();
+
         if !PostAccess::new(&post).can_like(&user) {
             return Err(AppError::Forbidden.into());
         }
 
-        let count = data.count.unwrap_or(1);
+        if by_credits && user.credits < likes as u64 {
+            return Err(AppError::Generic {
+                description: "The user does not have enough credits".to_string(),
+            }
+            .into());
+        }
+
         let likes_count = self
             .likes_repository
-            .like(user.id.as_ref().unwrap().clone(), post.id.clone(), count)
+            .like(user.id.as_ref().unwrap().clone(), post.id.clone(), likes)
             .await?;
 
         self.notification_service
@@ -150,6 +161,12 @@ where
                 post.id.clone(),
             )
             .await?;
+
+        if by_credits {
+            self.users_repository
+                .remove_credits(user.id.as_ref().unwrap().clone(), likes)
+                .await?;
+        }
 
         Ok(likes_count)
     }

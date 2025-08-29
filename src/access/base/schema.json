@@ -98,7 +98,8 @@
                 },
                 "DONOR": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "GUEST": {
@@ -138,7 +139,8 @@
                 },
                 "DONOR": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "GUEST": {
@@ -164,7 +166,8 @@
                 },
                 "DONOR": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "GUEST": {
@@ -662,7 +665,8 @@
             },
             "DONOR": {
               "permissions": [
-                "VIEW"
+                "VIEW",
+                "DONATE"
               ]
             },
             "GUEST": {
@@ -693,7 +697,8 @@
             },
             "DONOR": {
               "permissions": [
-                "VIEW"
+                "VIEW",
+                "DONATE"
               ]
             },
             "GUEST": {
