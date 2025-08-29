@@ -210,17 +210,17 @@ struct EndowmentData {
 }
 
 async fn deposit(
+    user_auth: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     JsonOrFormValidated(data): JsonOrFormValidated<EndowmentData>,
 ) -> CtxResult<Json<String>> {
-    let user_id = ctx.user_id()?;
+    let user_id = user_auth.user_id;
     println!("User ID retrieved: {:?}", user_id);
 
     let acc_id = AccountId::from_str(&state.stripe_platform_account.as_str()).map_err(|e1| {
-        ctx.to_ctx_error(AppError::Stripe {
+        AppError::Stripe {
             source: e1.to_string(),
-        })
+        }
     })?;
     let client = Client::new(state.stripe_secret_key.clone()).with_stripe_account(acc_id.clone());
 
@@ -268,10 +268,8 @@ async fn deposit(
 
     let payment_intent = stripe::PaymentIntent::create(&client, create_pi)
         .await
-        .map_err(|e| {
-            ctx.to_ctx_error(AppError::Stripe {
-                source: e.to_string(),
-            })
+        .map_err(|e| AppError::Stripe {
+            source: e.to_string(),
         })?;
 
     Ok(Json(payment_intent.client_secret.unwrap()))
