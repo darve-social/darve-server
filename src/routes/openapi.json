@@ -907,6 +907,69 @@
         }
       }
     },
+    "/api/users/current/latest_posts": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get latest posts",
+        "description": "Get latest posts from private discussions accessible to the current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "description": "Optional search text to filter posts by title",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination start offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of posts to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int16",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of latest posts from private discussions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Post"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/users/current/email/verification/start": {
       "post": {
         "tags": [
@@ -3676,6 +3739,10 @@
           },
           "description": {
             "type": "string",
+            "nullable": true
+          },
+          "fee": {
+            "type": "number",
             "nullable": true
           },
           "type": {

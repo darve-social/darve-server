@@ -283,7 +283,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
                 description: $description,
-                tx_type: $tx_type
+                type: $tx_type
             }} RETURN id;
             LET $tx_out_id = $tx_out[0].id;
             UPDATE $w_from_id SET transaction_head[$currency]=$tx_out_id, lock_id=NONE;
@@ -300,7 +300,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 gateway_tx: $gateway_tx_id,
                 lock_tx: $lock_tx_id,
                 description: $description,
-                tx_type: $tx_type
+                type: $tx_type
             }} RETURN id;
             LET $tx_in_id = $tx_in[0].id;
             UPDATE $w_to_id SET transaction_head[$currency]=$tx_in_id, lock_id=NONE;
