@@ -139,7 +139,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("user", user.clone()))
             .bind(("ext_tx", external_tx_id))
             .bind(("ext_account_id", external_account))
-            .bind(("status", WithdrawStatus::Pending))
+            .bind(("status", WithdrawStatus::Completed))
             .bind(("currency", currency_symbol));
 
         let qry = gateway_2_user_tx
