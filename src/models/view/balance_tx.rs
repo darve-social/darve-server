@@ -23,7 +23,7 @@ pub struct CurrencyTransactionView {
     pub created_at: DateTime<Utc>,
     pub description: Option<String>,
     pub r#type: Option<TransactionType>,
-    pub fee: Option<f64>,
+    pub fee: Option<u64>,
 }
 
 impl ViewFieldSelector for CurrencyTransactionView {
