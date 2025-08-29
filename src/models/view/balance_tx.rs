@@ -23,6 +23,7 @@ pub struct CurrencyTransactionView {
     pub created_at: DateTime<Utc>,
     pub description: Option<String>,
     pub r#type: Option<TransactionType>,
+    pub fee: Option<u64>,
 }
 
 impl ViewFieldSelector for CurrencyTransactionView {
@@ -51,6 +52,7 @@ impl ViewFieldSelector for CurrencyTransactionView {
         )
     }
 }
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WalletView {
     pub id: Thing,

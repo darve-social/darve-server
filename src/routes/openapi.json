@@ -3465,6 +3465,10 @@
             "type": "string",
             "nullable": true
           },
+          "fee": {
+            "type": "number",
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/TransactionType"
           }
