@@ -4192,6 +4192,14 @@
             "nullable": true,
             "type": "boolean",
             "description": "Indicates whether the post is an idea (optional)"
+          },
+          "users": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Member of the private posts"
           }
         }
       },

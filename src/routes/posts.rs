@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use local_user_entity::LocalUserDbService;
@@ -29,8 +29,7 @@ use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{PostLikeData, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 
-pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
-    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/posts", get(get_posts))
         .route("/api/posts/:post_id/tasks", post(create_task))
@@ -42,7 +41,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/posts/:post_id/add_users", post(add_members))
         .route("/api/posts/:post_id/remove_users", post(remove_members))
         .route("/api/posts/:post_id/users", get(get_members))
-        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 #[derive(Debug, Deserialize)]

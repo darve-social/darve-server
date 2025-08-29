@@ -53,9 +53,11 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             delete(delete_discussion_users),
         )
         .route("/api/discussions/:discussion_id/sse", get(discussion_sse))
-        .route("/api/discussions/:discussion_id/posts", post(create_post))
+        .route(
+            "/api/discussions/:discussion_id/posts",
+            post(create_post).layer(DefaultBodyLimit::max(max_bytes_val)),
+        )
         .route("/api/discussions/:discussion_id/posts", get(get_posts))
-        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 pub async fn discussion_sse(

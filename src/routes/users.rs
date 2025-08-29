@@ -42,8 +42,7 @@ use crate::{
 use utils::validate_utils::validate_birth_date;
 use utils::validate_utils::validate_username;
 
-pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
-    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
+pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route(
             "/api/users/current/set_password/start",
@@ -74,10 +73,12 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/users/current/email/verification/confirm",
             post(email_verification_confirm),
         )
-        .route("/api/users/current", patch(update_user))
+        .route(
+            "/api/users/current",
+            patch(update_user).layer(DefaultBodyLimit::max(1024 * 1024 * 8)),
+        )
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
-        .layer(DefaultBodyLimit::max(max_bytes_val))
 }
 
 #[derive(Debug, Deserialize, Validate)]
