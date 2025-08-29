@@ -1,13 +1,6 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use surrealdb::err::Error::IndexExists;
-use surrealdb::opt::PatchOp;
-use surrealdb::sql::{Id, Thing};
-use surrealdb::Error as ErrorSrl;
-use validator::Validate;
-
 use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
+use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
     QryOrder, ViewFieldSelector,
@@ -16,8 +9,15 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
+use serde::{Deserialize, Serialize};
+use surrealdb::err::Error::IndexExists;
+use surrealdb::opt::PatchOp;
+use surrealdb::sql::{Id, Thing};
+use surrealdb::Error as ErrorSrl;
+use validator::Validate;
 
 use crate::database::client::Db;
+use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::user_auth::follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
@@ -99,6 +99,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS idx_type ON TABLE {TABLE_NAME} COLUMNS type;
+    DEFINE INDEX IF NOT EXISTS idx_title ON {TABLE_NAME} FIELDS title;
 ");
         let mutation = self.db.query(sql).await?;
         mutation.check().expect("should mutate domain");
@@ -269,6 +270,47 @@ impl<'a> PostDbService<'a> {
                 ident: record.to_raw(),
             })
         })
+    }
+
+    pub async fn get_latest_posts(
+        &self,
+        user: Thing,
+        search_test: Option<String>,
+        disc_type: DiscussionType,
+        pagination: Pagination,
+    ) -> CtxResult<Vec<Post>> {
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+
+        let post_query = format!("SELECT * FROM {TABLE_NAME}
+            WHERE belongs_to=$parent.id AND (type IN $public_posts OR $user IN <-{ACCESS_TABLE_NAME}.in)
+            ORDER BY id DESC LIMIT 1");
+
+        let disc_query = format!(
+            "SELECT VALUE ({post_query})[0] FROM {DISC_TABLE_NAME}
+                WHERE type=$disc_type AND $user IN <-{ACCESS_TABLE_NAME}.in"
+        );
+
+        let search = match search_test {
+            Some(_) => "WHERE $search_value IN title",
+            None => "",
+        };
+
+        let query = format!("SELECT * FROM ({disc_query}) {search} ORDER BY id {order_dir} LIMIT $limit START $start;");
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", user))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
+            .bind(("public_posts", vec![PostType::Public, PostType::Idea]))
+            .bind(("disc_type", disc_type))
+            .bind(("$search_value", search_test))
+            .bind(("disc_public", DiscussionType::Public))
+            .await?;
+
+        let data = res.take::<Vec<Post>>(0)?;
+        Ok(data)
     }
 
     pub fn get_new_post_thing() -> Thing {

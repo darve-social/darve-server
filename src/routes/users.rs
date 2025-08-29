@@ -1,5 +1,8 @@
 use crate::{
-    entities::community::post_entity::{PostDbService, PostType},
+    entities::community::{
+        discussion_entity::DiscussionType,
+        post_entity::{Post, PostDbService, PostType},
+    },
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
         utils::{
@@ -62,6 +65,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/users/current/following/posts",
             get(get_following_posts),
         )
+        .route("/api/users/current/latest_posts", get(get_posts))
         .route(
             "/api/users/current/email/verification/start",
             post(email_verification_start),
@@ -572,4 +576,47 @@ async fn get_user(
         .await?;
 
     Ok(Json(user))
+}
+
+#[derive(Debug, Deserialize)]
+struct GetPostsQuery {
+    text: Option<String>,
+    start: Option<u32>,
+    count: Option<u16>,
+}
+
+async fn get_posts(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Query(query): Query<GetPostsQuery>,
+) -> CtxResult<Json<Vec<Post>>> {
+    let user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let user = user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+
+    let post_db_service = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let pagination = Pagination {
+        order_by: None,
+        order_dir: None,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
+    };
+    let posts = post_db_service
+        .get_latest_posts(
+            user.id.unwrap(),
+            query.text,
+            DiscussionType::Private,
+            pagination,
+        )
+        .await;
+    println!("{:?}", posts);
+    Ok(Json(posts?))
 }
