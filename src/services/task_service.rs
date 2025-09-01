@@ -8,8 +8,8 @@ use crate::{
             post_entity::{PostDbService, PostType},
         },
         task::task_request_entity::{
-            DeliverableType, RewardType, TaskParticipantForReward, TaskRequest, TaskRequestCreate,
-            TaskRequestDbService, TaskRequestStatus, TaskRequestType,
+            DeliverableType, RewardType, TaskForReward, TaskParticipantForReward, TaskRequest,
+            TaskRequestCreate, TaskRequestDbService, TaskRequestStatus, TaskRequestType,
         },
         task_donor::TaskDonor,
         task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
@@ -508,6 +508,8 @@ where
             }
         }
 
+        let _ = self.try_to_process_reward_for_private_task(&task).await;
+
         Ok(())
     }
 
@@ -590,6 +592,8 @@ where
             .map(|t| t.user.clone())
             .collect::<Vec<Thing>>();
 
+        let _ = self.try_to_process_reward_for_private_task(&task).await;
+
         join_all(task.donors.into_iter().map(|d| {
             self.users_repository
                 .add_credits(d.user, (d.amount / 100) as u16)
@@ -628,78 +632,105 @@ where
 
     pub(crate) async fn distribute_expired_tasks_rewards(&self) -> AppResult<()> {
         let tasks = self.tasks_repository.get_ready_for_payment().await?;
+        join_all(tasks.into_iter().map(|t| self.process_reward(t))).await;
+        Ok(())
+    }
 
-        for task in tasks {
-            let delivered_users = task
-                .participants
-                .iter()
-                .filter(|user| user.status == TaskParticipantStatus::Delivered)
-                .collect::<Vec<&TaskParticipantForReward>>();
-
-            let wallet_id = task.wallet.id.as_ref().unwrap();
-
-            let mut is_completed = true;
-            if delivered_users.is_empty() {
-                for p in task.donors {
-                    let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
-                    let res = self
-                        .transactions_repository
-                        .transfer_currency(
-                            wallet_id,
-                            &user_wallet,
-                            p.amount as i64,
-                            &task.currency,
-                            Some(format!("Reward by `{}` task", task.request_txt)),
-                            TransactionType::Reward,
-                        )
-                        .await;
-                    if res.is_ok() {
-                        let _ = self
-                            .notification_service
-                            .on_update_balance(&p.id, &vec![p.id.clone()])
-                            .await;
-                    } else {
-                        is_completed = false;
-                    }
-                }
-            } else {
-                let task_users: Vec<&TaskParticipantForReward> = delivered_users
-                    .into_iter()
-                    .filter(|u| u.reward_tx.is_none())
-                    .collect();
-
-                let amount: u64 = task.balance as u64 / task_users.len() as u64;
-                for task_user in task_users {
-                    let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user_id);
-                    let res = self
-                        .transactions_repository
-                        .transfer_task_reward(
-                            wallet_id,
-                            &user_wallet,
-                            amount as i64,
-                            &task.currency,
-                            &task_user.id,
-                            Some(format!("Refund by `{}` task", task.request_txt)),
-                        )
-                        .await;
-                    if res.is_ok() {
-                        let _ = self
-                            .notification_service
-                            .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
-                            .await;
-                    } else {
-                        is_completed = false;
-                    }
-                }
-            }
-            if is_completed {
-                let _ = self
-                    .tasks_repository
-                    .update_status(task.id, TaskRequestStatus::Completed)
-                    .await;
-            }
+    async fn try_to_process_reward_for_private_task(&self, task: &TaskView) -> AppResult<()> {
+        if task.r#type == TaskRequestType::Public {
+            return Ok(());
         }
 
+        let task = self
+            .tasks_repository
+            .get_ready_for_payment_by_id(task.id.clone())
+            .await?;
+
+        let all_participants_completed = task.participants.iter().all(|u| {
+            [
+                TaskParticipantStatus::Rejected,
+                TaskParticipantStatus::Delivered,
+            ]
+            .contains(&u.status)
+        });
+
+        if !all_participants_completed {
+            return Ok(());
+        }
+
+        self.process_reward(task).await?;
+        Ok(())
+    }
+
+    async fn process_reward(&self, task: TaskForReward) -> AppResult<()> {
+        let delivered_users = task
+            .participants
+            .iter()
+            .filter(|user| user.status == TaskParticipantStatus::Delivered)
+            .collect::<Vec<&TaskParticipantForReward>>();
+
+        let wallet_id = task.wallet.id.as_ref().unwrap();
+
+        let mut is_completed = true;
+        if delivered_users.is_empty() {
+            for p in task.donors {
+                let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
+                let res = self
+                    .transactions_repository
+                    .transfer_currency(
+                        wallet_id,
+                        &user_wallet,
+                        p.amount as i64,
+                        &task.currency,
+                        Some(format!("Reward by `{}` task", task.request_txt)),
+                        TransactionType::Reward,
+                    )
+                    .await;
+                if res.is_ok() {
+                    let _ = self
+                        .notification_service
+                        .on_update_balance(&p.id, &vec![p.id.clone()])
+                        .await;
+                } else {
+                    is_completed = false;
+                }
+            }
+        } else {
+            let task_users: Vec<&TaskParticipantForReward> = delivered_users
+                .into_iter()
+                .filter(|u| u.reward_tx.is_none())
+                .collect();
+
+            let amount: u64 = task.balance as u64 / task_users.len() as u64;
+            for task_user in task_users {
+                let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user_id);
+                let res = self
+                    .transactions_repository
+                    .transfer_task_reward(
+                        wallet_id,
+                        &user_wallet,
+                        amount as i64,
+                        &task.currency,
+                        &task_user.id,
+                        Some(format!("Refund by `{}` task", task.request_txt)),
+                    )
+                    .await;
+                if res.is_ok() {
+                    let _ = self
+                        .notification_service
+                        .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
+                        .await;
+                } else {
+                    is_completed = false;
+                }
+            }
+        }
+        if is_completed {
+            let _ = self
+                .tasks_repository
+                .update_status(task.id, TaskRequestStatus::Completed)
+                .await;
+        }
         Ok(())
     }
 
