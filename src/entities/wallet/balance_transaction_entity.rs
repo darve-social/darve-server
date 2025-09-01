@@ -15,6 +15,7 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Display;
 use surrealdb::sql::{to_value, Thing, Value};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
@@ -51,6 +52,18 @@ pub enum TransactionType {
     Refund,
     Donate,
     Reward,
+}
+
+impl Display for TransactionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransactionType::Withdraw => write!(f, "Withdraw"),
+            TransactionType::Deposit => write!(f, "Deposit"),
+            TransactionType::Refund => write!(f, "Refund"),
+            TransactionType::Donate => write!(f, "Donate"),
+            TransactionType::Reward => write!(f, "Reward"),
+        }
+    }
 }
 
 pub struct BalanceTransactionDbService<'a> {

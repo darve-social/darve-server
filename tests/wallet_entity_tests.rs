@@ -438,6 +438,28 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     assert_eq!(transactions.len(), 3);
 
     let transaction_history_response = server
+        .get("/api/gateway_wallet/history?type=Deposit")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 3);
+
+    let transaction_history_response = server
+        .get("/api/gateway_wallet/history?type=Withdraw")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+
+    transaction_history_response.assert_status_success();
+
+    let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
+    assert_eq!(transactions.len(), 0);
+
+    let transaction_history_response = server
         .get("/api/gateway_wallet/history")
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -468,5 +490,5 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     transaction_history_response.assert_status_success();
 
     let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
-    assert_eq!(transactions.len(), 0);
+    assert_eq!(transactions.len(), 2);
 });
