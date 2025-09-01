@@ -3797,11 +3797,11 @@
           "user": {
             "$ref": "#/components/schemas/Thing"
           },
-          "withdraw_lock_tx": {
+          "lock_tx": {
             "$ref": "#/components/schemas/Thing",
             "nullable": true
           },
-          "withdraw_status": {
+          "status": {
             "type": "string",
             "nullable": true
           },
