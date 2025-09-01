@@ -17,7 +17,6 @@ pub struct CurrencyTransactionView {
     pub wallet: WalletView,
     pub with_wallet: WalletView,
     pub balance: i64,
-    pub locked: bool,
     pub currency: CurrencySymbol,
     pub amount_in: Option<i64>,
     pub amount_out: Option<i64>,
@@ -32,7 +31,6 @@ impl ViewFieldSelector for CurrencyTransactionView {
     fn get_select_query_fields() -> String {
         format!(
             "id,
-            string::ends_with(record::id(id), '_locked') as locked,
             wallet.{{ 
                 id,
                 task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,

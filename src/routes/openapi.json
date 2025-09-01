@@ -3504,9 +3504,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "locked": {
-            "type": "boolean"
-          },
           "currency": {
             "$ref": "#/components/schemas/CurrencySymbol"
           },
