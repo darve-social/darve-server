@@ -31,8 +31,8 @@ pub struct GatewayTransaction {
     pub external_account_id: Option<String>,
     pub internal_tx: Option<Thing>,
     pub user: Thing,
-    pub withdraw_lock_tx: Option<Thing>,
-    pub withdraw_status: Option<String>,
+    pub lock_tx: Option<Thing>,
+    pub status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub r#type: TransactionType,
 }
@@ -65,8 +65,8 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD IF NOT EXISTS withdraw_lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TRANSACTION_TABLE}>> VALUE $before OR $value;
-    DEFINE FIELD IF NOT EXISTS withdraw_status ON TABLE {TABLE_NAME} TYPE option<string>;
+    DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
@@ -123,7 +123,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 external_tx_id: $ext_tx,
                 external_account_id:$ext_account_id,
                 currency: $currency,
-                withdraw_status: $status,
+                status: $status,
                 type: $type
             }} RETURN id;
 
@@ -192,8 +192,8 @@ impl<'a> GatewayTransactionDbService<'a> {
                 id: $fund_tx_id,
                 amount: $fund_amt,
                 user: $user,
-                withdraw_status: $status,
-                withdraw_lock_tx: $lock_tx_id,
+                status: $status,
+                lock_tx: $lock_tx_id,
                 external_account_id:$ext_account_id,
                 external_tx_id:$external_tx_id,
                 currency: $currency,
@@ -243,12 +243,11 @@ impl<'a> GatewayTransactionDbService<'a> {
             ctx: self.ctx,
         };
 
-        let lock_tx_id =
-            withdraw_tx
-                .withdraw_lock_tx
-                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
-                    description: "Lock tx not found".to_string(),
-                }))?;
+        let lock_tx_id = withdraw_tx
+            .lock_tx
+            .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                description: "Lock tx not found".to_string(),
+            }))?;
         lock_db_service
             .unlock_user_asset_tx(&lock_tx_id, description, TransactionType::Withdraw)
             .await?;
@@ -272,12 +271,11 @@ impl<'a> GatewayTransactionDbService<'a> {
             ctx: self.ctx,
         };
 
-        let lock_tx_id =
-            withdraw_tx
-                .withdraw_lock_tx
-                .ok_or(self.ctx.to_ctx_error(AppError::Generic {
-                    description: "Lock tx not found".to_string(),
-                }))?;
+        let lock_tx_id = withdraw_tx
+            .lock_tx
+            .ok_or(self.ctx.to_ctx_error(AppError::Generic {
+                description: "Lock tx not found".to_string(),
+            }))?;
         lock_db_service
             .process_locked_payment(
                 &lock_tx_id,
