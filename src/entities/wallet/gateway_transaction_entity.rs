@@ -34,6 +34,7 @@ pub struct GatewayTransaction {
     pub withdraw_lock_tx: Option<Thing>,
     pub withdraw_status: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub r#type: TransactionType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -70,6 +71,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
         // ASSERT string::len(string::trim($value))>0
         // ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
@@ -121,7 +123,8 @@ impl<'a> GatewayTransactionDbService<'a> {
                 external_tx_id: $ext_tx,
                 external_account_id:$ext_account_id,
                 currency: $currency,
-                withdraw_status: $status
+                withdraw_status: $status,
+                type: $type
             }} RETURN id;
 
            {gateway_2_user_qry}
@@ -140,6 +143,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("ext_tx", external_tx_id))
             .bind(("ext_account_id", external_account))
             .bind(("status", WithdrawStatus::Completed))
+            .bind(("type", TransactionType::Deposit))
             .bind(("currency", currency_symbol));
 
         let qry = gateway_2_user_tx
@@ -193,6 +197,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 external_account_id:$ext_account_id,
                 external_tx_id:$external_tx_id,
                 currency: $currency,
+                type: $type
             }} RETURN id;
             LET $fund_tx_id = $fund_tx[0].id;
             $fund_tx_id;
@@ -208,6 +213,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("ext_account_id", external_account_id))
             .bind(("external_tx_id", "".to_string()))
             .bind(("currency", CurrencySymbol::USD))
+            .bind(("type", TransactionType::Withdraw))
             .bind(("status", WithdrawStatus::Pending));
 
         let qry = user_2_lock_qry_bindings

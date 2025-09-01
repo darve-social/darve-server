@@ -2,6 +2,7 @@ use crate::entities::task::task_request_entity::{TaskRequest, TABLE_NAME as TASK
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransaction;
 use crate::models::view::user::UserView;
 use crate::{
     entities::wallet::wallet_entity::CurrencySymbol, middleware::utils::db_utils::ViewFieldSelector,
@@ -24,6 +25,7 @@ pub struct CurrencyTransactionView {
     pub description: Option<String>,
     pub r#type: Option<TransactionType>,
     pub fee: Option<u64>,
+    pub gateway_tx: Option<GatewayTransaction>,
 }
 
 impl ViewFieldSelector for CurrencyTransactionView {
@@ -46,6 +48,7 @@ impl ViewFieldSelector for CurrencyTransactionView {
         amount_out,
         currency,
         description,
+        gateway_tx.* as gateway_tx, 
         fee,
         type,
         created_at"
