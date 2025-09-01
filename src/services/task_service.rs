@@ -508,7 +508,7 @@ where
             }
         }
 
-        let _ = self.try_to_process_reward_for_private_task(&task).await;
+        let _ = self.try_to_process_reward(&task).await;
 
         Ok(())
     }
@@ -592,7 +592,7 @@ where
             .map(|t| t.user.clone())
             .collect::<Vec<Thing>>();
 
-        let _ = self.try_to_process_reward_for_private_task(&task).await;
+        let _ = self.try_to_process_reward(&task).await;
 
         join_all(task.donors.into_iter().map(|d| {
             self.users_repository
@@ -636,7 +636,7 @@ where
         Ok(())
     }
 
-    async fn try_to_process_reward_for_private_task(&self, task: &TaskView) -> AppResult<()> {
+    async fn try_to_process_reward(&self, task: &TaskView) -> AppResult<()> {
         if task.r#type == TaskRequestType::Public {
             return Ok(());
         }
