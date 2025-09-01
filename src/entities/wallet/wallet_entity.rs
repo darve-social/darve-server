@@ -1,4 +1,5 @@
 use askama_axum::Template;
+use surrealdb::sql::{Id, Thing};
 
 use crate::database::client::Db;
 use middleware::utils::db_utils::{
@@ -12,7 +13,6 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use surrealdb::err::Error;
-use surrealdb::sql::Thing;
 use surrealdb::Response;
 
 use super::balance_transaction_entity;
@@ -295,6 +295,9 @@ impl<'a> WalletDbService<'a> {
         ))
     }
 
+    pub fn generate_id() -> Thing {
+        Thing::from((TABLE_NAME, Id::rand()))
+    }
     // not used anywhere - commenting for now @anukulpandey
     // pub(crate) fn get_user_id(wallet_id: &Thing) -> Thing {
     //     Thing::from((USER_TABLE, wallet_id.id.clone()))
