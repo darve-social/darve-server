@@ -346,6 +346,26 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(())
     }
 
+    pub async fn get_ready_for_payment_by_id(&self, id: Thing) -> CtxResult<TaskForReward> {
+        let query = format!(
+            "SELECT *, wallet.transaction_head[currency].balance as balance
+             FROM (
+                SELECT id, wallet_id.* AS wallet, currency, request_txt,
+                    ->task_participant.{{ status, id, user_id: out }} AS participants,
+                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
+                FROM $task WHERE status != $status
+            )"
+        );
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("task", id.clone()))
+            .bind(("status", TaskRequestStatus::Completed))
+            .await?;
+        let data = res.take::<Option<TaskForReward>>(0)?;
+        Ok(data.ok_or(AppError::EntityFailIdNotFound { ident: id.to_raw() })?)
+    }
+
     pub async fn get_ready_for_payment(&self) -> CtxResult<Vec<TaskForReward>> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance

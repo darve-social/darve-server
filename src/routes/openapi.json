@@ -1957,7 +1957,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["Private", "Fixed", "Public"]
+              "enum": ["Private", "Public"]
             }
           },
           {
@@ -3771,6 +3771,15 @@
       },
       "GatewayTransaction": {
         "type": "object",
+        "required": [
+          "amount",
+          "currency",
+          "external_tx_id",
+          "user",
+          "created_at",
+          "type",
+          "timelines"
+        ],
         "properties": {
           "id": {
             "$ref": "#/components/schemas/Thing",
@@ -3786,37 +3795,48 @@
           "external_tx_id": {
             "type": "string"
           },
-          "external_account_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "internal_tx": {
-            "$ref": "#/components/schemas/Thing",
-            "nullable": true
-          },
           "user": {
-            "$ref": "#/components/schemas/Thing"
+            "type": "string"
           },
           "lock_tx": {
-            "$ref": "#/components/schemas/Thing",
+            "type": "string",
             "nullable": true
           },
           "status": {
-            "type": "string",
+            "$ref": "#/components/schemas/GatewayTransactionStatus",
             "nullable": true
           },
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TransactionType"
+          },
+          "timelines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GatewayTransactionTimeline"
+            }
           }
-        },
-        "required": [
-          "amount",
-          "currency",
-          "external_tx_id",
-          "user",
-          "created_at"
-        ]
+        }
+      },
+      "GatewayTransactionStatus": {
+        "type": "string",
+        "enum": ["Pending", "Completed", "Failed", "Init"]
+      },
+      "GatewayTransactionTimeline": {
+        "type": "object",
+        "required": ["status", "date"],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/GatewayTransactionStatus"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "EmailVerificationConfirmInput": {
         "type": "object",

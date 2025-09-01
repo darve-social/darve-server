@@ -5,7 +5,7 @@ use crate::entities::user_auth::local_user_entity::{self};
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::gateway_transaction_entity::{
-    GatewayTransaction, GatewayTransactionDbService, WithdrawStatus,
+    GatewayTransaction, GatewayTransactionDbService, GatewayTransactionStatus,
 };
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
@@ -71,7 +71,7 @@ pub struct GetGatewayWalletHistoryQuery {
     pub order_dir: Option<QryOrder>,
     pub count: Option<u16>,
     pub start: Option<u32>,
-    pub status: Option<WithdrawStatus>,
+    pub status: Option<GatewayTransactionStatus>,
     pub r#type: Option<TransactionType>,
 }
 
@@ -169,12 +169,7 @@ async fn withdraw(
     };
 
     let gateway_tx_id = gateway_tx_service
-        .user_withdraw_tx_start(
-            &user.id.as_ref().unwrap(),
-            data.amount as i64,
-            "".to_string(),
-            None,
-        )
+        .user_withdraw_tx_start(&user.id.as_ref().unwrap(), data.amount as i64, None)
         .await?;
 
     let paypal = Paypal::new(
@@ -214,8 +209,16 @@ async fn deposit(
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EndowmentData>,
 ) -> CtxResult<Json<String>> {
-    let user_id = user_auth.user_id;
-    println!("User ID retrieved: {:?}", user_id);
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &user_auth.ctx,
+    }
+    .get_by_id(&user_auth.user_thing_id())
+    .await?;
+    println!(
+        "User ID retrieved: {:?}",
+        user.id.as_ref().unwrap().to_raw()
+    );
 
     let acc_id = AccountId::from_str(&state.stripe_platform_account.as_str()).map_err(|e1| {
         AppError::Stripe {
@@ -227,8 +230,11 @@ async fn deposit(
     let amt = data.amount as i64;
 
     let product_title = "wallet_endowment".to_string();
-    let mut metadata = HashMap::with_capacity(3);
-    metadata.insert("user_id".to_string(), user_id.clone());
+    let id = GatewayTransactionDbService::generate_id();
+
+    let mut metadata = HashMap::with_capacity(4);
+    metadata.insert("tx_id".to_string(), id.to_raw());
+    metadata.insert("user_id".to_string(), user.id.as_ref().unwrap().to_raw());
     metadata.insert("amount".to_string(), amt.to_string());
     metadata.insert("action".to_string(), product_title.clone());
 
@@ -272,6 +278,19 @@ async fn deposit(
             source: e.to_string(),
         })?;
 
+    let _ = GatewayTransactionDbService {
+        db: &state.db.client,
+        ctx: &user_auth.ctx,
+    }
+    .user_deposit_start(
+        id,
+        user.id.as_ref().unwrap().clone(),
+        amt,
+        CurrencySymbol::USD,
+        payment_intent.id.to_string(),
+    )
+    .await?;
+
     Ok(Json(payment_intent.client_secret.unwrap()))
 }
 
@@ -293,15 +312,25 @@ async fn test_deposit(
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
+
+    let tx = fund_service
+        .user_deposit_start(
+            GatewayTransactionDbService::generate_id(),
+            another_user_thing.clone(),
+            amount,
+            CurrencySymbol::USD,
+            "ext_tx_id_123".to_string(),
+        )
+        .await?;
+
     let wallet_service = WalletDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
-    fund_service
+    let _res = fund_service
         .user_deposit_tx(
-            &another_user_thing,
-            "ext_acc123".to_string(),
+            tx,
             "ext_tx_id_123".to_string(),
             amount,
             CurrencySymbol::USD,

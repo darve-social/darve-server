@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use balance_transaction_entity::BalanceTransactionDbService;
 
 use chrono::{DateTime, Utc};
@@ -21,27 +23,45 @@ use crate::middleware::utils::db_utils::Pagination;
 
 use super::{balance_transaction_entity, lock_transaction_entity, wallet_entity};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GatewayTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
     pub amount: i64,
     pub currency: CurrencySymbol,
     pub external_tx_id: String,
-    pub external_account_id: Option<String>,
-    pub internal_tx: Option<Thing>,
     pub user: Thing,
     pub lock_tx: Option<Thing>,
     pub status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub r#type: TransactionType,
+    #[serde(default)]
+    pub timelines: Vec<GatewayTransactionTimeline>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum WithdrawStatus {
+pub enum GatewayTransactionStatus {
     Pending,
     Completed,
     Failed,
+    Init,
+}
+
+impl Display for GatewayTransactionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GatewayTransactionStatus::Pending => write!(f, "Pending"),
+            GatewayTransactionStatus::Completed => write!(f, "Completed"),
+            GatewayTransactionStatus::Failed => write!(f, "Failed"),
+            GatewayTransactionStatus::Init => write!(f, "Init"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GatewayTransactionTimeline {
+    pub status: GatewayTransactionStatus,
+    pub date: DateTime<Utc>,
 }
 
 pub struct GatewayTransactionDbService<'a> {
@@ -51,30 +71,25 @@ pub struct GatewayTransactionDbService<'a> {
 
 pub const TABLE_NAME: &str = "gateway_transaction";
 const USER_TABLE: &str = local_user_entity::TABLE_NAME;
-const TRANSACTION_TABLE: &str = balance_transaction_entity::TABLE_NAME;
 const LOCK_TRANSACTION_TABLE: &str = lock_transaction_entity::TABLE_NAME;
 
 impl<'a> GatewayTransactionDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
-        let curr_usd = CurrencySymbol::USD;
-        let curr_reef = CurrencySymbol::REEF;
-        let curr_eth = CurrencySymbol::ETH;
-
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
-    DEFINE FIELD IF NOT EXISTS external_account_id ON TABLE {TABLE_NAME} TYPE string VALUE $before OR $value;
-    DEFINE FIELD IF NOT EXISTS internal_tx ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>> VALUE $before OR $value;
+    DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS lock_tx ON TABLE {TABLE_NAME} TYPE option<record<{LOCK_TRANSACTION_TABLE}>> VALUE $before OR $value;
     DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
-    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
-        // ASSERT string::len(string::trim($value))>0
-        // ASSERT $value INSIDE ['{curr_usd}','{curr_reef}','{curr_eth}'];
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS timelines ON TABLE {TABLE_NAME} TYPE array<{{ status: string, date: datetime }}>;
+        
+    DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
+    DEFINE INDEX IF NOT EXISTS type_idx ON TABLE {TABLE_NAME} COLUMNS type;
+    DEFINE INDEX IF NOT EXISTS status_idx ON TABLE {TABLE_NAME} COLUMNS status;
 
     ");
         let mutation = self.db.query(sql).await?;
@@ -84,17 +99,59 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(())
     }
 
+    pub async fn user_deposit_start(
+        &self,
+        id: Thing,
+        user: Thing,
+        amount: i64,
+        currency: CurrencySymbol,
+        external_tx_id: String,
+    ) -> CtxResult<Thing> {
+        let _ = self
+            .db
+            .query(format!(
+                "INSERT INTO {TABLE_NAME} {{
+                id: $id,
+                amount: $amount,
+                user: $user,
+                currency: $currency,
+                status: $status,
+                type: $type,
+                external_tx_id: $external_tx_id,
+                timelines: [{{ status: $status, date: time::now() }}]
+            }};"
+            ))
+            .bind(("id", id.clone()))
+            .bind(("user", user))
+            .bind(("external_tx_id", external_tx_id))
+            .bind(("amount", amount))
+            .bind(("currency", currency))
+            .bind(("type", TransactionType::Deposit))
+            .bind(("status", GatewayTransactionStatus::Init))
+            .await?
+            .check()?;
+
+        Ok(id)
+    }
+
     // creates gatewayTransaction
     pub(crate) async fn user_deposit_tx(
         &self,
-        user: &Thing,
-        external_account: String,
+        gateway_tx: Thing,
         external_tx_id: String,
         amount: i64,
         currency_symbol: CurrencySymbol,
         description: Option<String>,
     ) -> CtxResult<Thing> {
-        let user_wallet = WalletDbService::get_user_wallet_id(user);
+        let tx = self.get(IdentIdName::Id(gateway_tx)).await?;
+
+        if tx.external_tx_id != external_tx_id {
+            return Err(AppError::Generic {
+                description: "Payment id is not valid".to_string(),
+            }
+            .into());
+        }
+        let user_wallet = WalletDbService::get_user_wallet_id(&tx.user);
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
@@ -116,20 +173,11 @@ impl<'a> GatewayTransactionDbService<'a> {
         let fund_qry = format!(
             "
         BEGIN TRANSACTION;
-            LET $fund_tx = INSERT INTO {TABLE_NAME} {{
-                id: $fund_tx_id,
-                amount: $fund_amt,
-                user: $user,
-                external_tx_id: $ext_tx,
-                external_account_id:$ext_account_id,
-                currency: $currency,
-                status: $status,
-                type: $type
-            }} RETURN id;
-
+            UPDATE $gateway_tx SET
+                status=$status,
+                external_tx_id=$ext_tx,
+                timelines+=[{{ status: $status, date: time::now() }}];
            {gateway_2_user_qry}
-
-            $fund_tx[0].id;
         COMMIT TRANSACTION;
 
         "
@@ -137,14 +185,9 @@ impl<'a> GatewayTransactionDbService<'a> {
         let qry = self
             .db
             .query(fund_qry)
-            .bind(("fund_tx_id", fund_tx_id))
-            .bind(("fund_amt", amount))
-            .bind(("user", user.clone()))
+            .bind(("gateway_tx", tx.id.as_ref().unwrap().clone()))
             .bind(("ext_tx", external_tx_id))
-            .bind(("ext_account_id", external_account))
-            .bind(("status", WithdrawStatus::Completed))
-            .bind(("type", TransactionType::Deposit))
-            .bind(("currency", currency_symbol));
+            .bind(("status", GatewayTransactionStatus::Completed));
 
         let qry = gateway_2_user_tx
             .get_bindings()
@@ -152,18 +195,15 @@ impl<'a> GatewayTransactionDbService<'a> {
             .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
 
         let mut fund_res = qry.await?;
+
         check_transaction_custom_error(&mut fund_res)?;
-        let res: Option<Thing> = fund_res.take(fund_res.num_statements() - 1)?;
-        res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
-            description: "Error in endowment tx".to_string(),
-        }))
+        Ok(tx.id.as_ref().unwrap().clone())
     }
 
     pub(crate) async fn user_withdraw_tx_start(
         &self,
         user: &Thing,
         amount: i64,
-        external_account_id: String,
         description: Option<String>,
     ) -> CtxResult<Thing> {
         let withdraw_fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
@@ -194,10 +234,10 @@ impl<'a> GatewayTransactionDbService<'a> {
                 user: $user,
                 status: $status,
                 lock_tx: $lock_tx_id,
-                external_account_id:$ext_account_id,
                 external_tx_id:$external_tx_id,
                 currency: $currency,
-                type: $type
+                type: $type,
+                timelines: [{{ status: $status, date: time::now() }}]
             }} RETURN id;
             LET $fund_tx_id = $fund_tx[0].id;
             $fund_tx_id;
@@ -210,11 +250,10 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("fund_tx_id", withdraw_fund_tx_id))
             .bind(("fund_amt", amount))
             .bind(("user", user.clone()))
-            .bind(("ext_account_id", external_account_id))
             .bind(("external_tx_id", "".to_string()))
             .bind(("currency", CurrencySymbol::USD))
             .bind(("type", TransactionType::Withdraw))
-            .bind(("status", WithdrawStatus::Pending));
+            .bind(("status", GatewayTransactionStatus::Pending));
 
         let qry = user_2_lock_qry_bindings
             .get_bindings()
@@ -253,9 +292,9 @@ impl<'a> GatewayTransactionDbService<'a> {
             .await?;
 
         self.db
-            .query("UPDATE $tx SET status=$status")
+            .query("UPDATE $tx SET status=$status, timelines+=[{ status: $status, date: time::now() }];")
             .bind(("tx", withdraw_tx_id))
-            .bind(("status", WithdrawStatus::Failed))
+            .bind(("status", GatewayTransactionStatus::Failed))
             .await?
             .check()?;
 
@@ -286,9 +325,9 @@ impl<'a> GatewayTransactionDbService<'a> {
             .await?;
 
         self.db
-            .query("UPDATE $tx SET status=$status")
+            .query("UPDATE $tx SET status=$status, timelines+=[{ status: $status, date: time::now() }];")
             .bind(("tx", withdraw_tx_id))
-            .bind(("status", WithdrawStatus::Completed))
+            .bind(("status", GatewayTransactionStatus::Completed))
             .await?
             .check()?;
         Ok(())
@@ -303,7 +342,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     pub async fn get_by_user(
         &self,
         user: &Thing,
-        status: Option<WithdrawStatus>,
+        status: Option<GatewayTransactionStatus>,
         r#type: Option<TransactionType>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<GatewayTransaction>> {
@@ -321,7 +360,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 },
                 IdentIdName::ColumnIdent {
                     column: "type".to_string(),
-                    val: serde_json::to_string(t).unwrap(),
+                    val: t.to_string(),
                     rec: false,
                 },
             ]),
@@ -333,7 +372,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 },
                 IdentIdName::ColumnIdent {
                     column: "status".to_string(),
-                    val: serde_json::to_string(s).unwrap(),
+                    val: s.to_string(),
                     rec: false,
                 },
             ]),
@@ -345,12 +384,12 @@ impl<'a> GatewayTransactionDbService<'a> {
                 },
                 IdentIdName::ColumnIdent {
                     column: "type".to_string(),
-                    val: serde_json::to_string(t).unwrap(),
+                    val: t.to_string(),
                     rec: false,
                 },
                 IdentIdName::ColumnIdent {
                     column: "status".to_string(),
-                    val: serde_json::to_string(s).unwrap(),
+                    val: s.to_string(),
                     rec: false,
                 },
             ]),
@@ -363,6 +402,10 @@ impl<'a> GatewayTransactionDbService<'a> {
             })?;
 
         Ok(data)
+    }
+
+    pub fn generate_id() -> Thing {
+        Thing::from((TABLE_NAME, Id::ulid()))
     }
 
     pub fn unknown_endowment_user_id(&self) -> Thing {

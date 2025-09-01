@@ -14,6 +14,7 @@ use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
+use crate::middleware::error::AppError;
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::extractor_utils::extract_stripe_event;
 use crate::middleware::utils::string_utils::get_str_thing;
@@ -61,26 +62,25 @@ async fn handle_webhook(
                 return Ok("No amount received".into_response());
             }
 
+            let tx_id = payment_intent
+                .metadata
+                .get("tx_id")
+                .ok_or(AppError::Generic {
+                    description: "gateway transaction id not found".to_string(),
+                })?;
+
+            let gateway_id = get_str_thing(&tx_id)?;
+
             let user_id: Thing = match payment_intent.metadata.get("user_id") {
                 Some(id) => get_str_thing(id).expect("Parse user_id stripe webhook"),
                 None => fund_service.unknown_endowment_user_id(),
             };
 
-            let external_account =
-                payment_intent
-                    .customer
-                    .as_ref()
-                    .map_or("unknown_customer".to_string(), |cust| match cust {
-                        stripe::Expandable::Id(ref id) => id.as_str().to_string(),
-                        stripe::Expandable::Object(ref obj) => obj.id.as_str().to_string(),
-                    });
-
             let external_tx_id = payment_intent.id;
 
             let endowment_saved = fund_service
                 .user_deposit_tx(
-                    &user_id,
-                    external_account,
+                    gateway_id,
                     external_tx_id.to_string(),
                     amount_received,
                     CurrencySymbol::USD,
