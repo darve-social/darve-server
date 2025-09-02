@@ -2641,6 +2641,53 @@
         }
       }
     },
+    "/api/gateway_wallet/count": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get gateway wallet transactions count",
+        "description": "Get transactions count for the current user's gateway wallet",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/WithdrawStatus"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gateway wallet transactions count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/wallet/balance": {
       "get": {
         "tags": ["Wallet"],

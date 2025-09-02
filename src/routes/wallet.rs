@@ -39,7 +39,8 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
         .route("/api/wallet/balance", get(get_user_balance))
         .route("/api/wallet/withdraw", post(withdraw))
         .route("/api/wallet/deposit", post(deposit))
-        .route("/api/gateway_wallet/history", get(gateway_wallet_history));
+        .route("/api/gateway_wallet/history", get(gateway_wallet_history))
+        .route("/api/gateway_wallet/count", get(gateway_wallet_count));
 
     if is_development {
         router = router.route("/test/api/endow/:endow_user_id/:amount", get(test_deposit));
@@ -65,6 +66,32 @@ pub async fn get_user_balance(
     auth_data.ctx.to_htmx_or_json(balances_view)
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetGatewayWalletCountQuery {
+    pub status: Option<GatewayTransactionStatus>,
+    pub r#type: Option<TransactionType>,
+}
+
+pub async fn gateway_wallet_count(
+    auth_data: AuthWithLoginAccess,
+    State(ctx_state): State<Arc<CtxState>>,
+    Query(params): Query<GetGatewayWalletCountQuery>,
+) -> CtxResult<Json<u64>> {
+    let user_service = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let user_id = user_service.get_ctx_user_thing().await?;
+    let tx_service = GatewayTransactionDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let count = tx_service
+        .get_count_by_user(&user_id, params.status, params.r#type)
+        .await?;
+
+    Ok(Json(count))
+}
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetGatewayWalletHistoryQuery {
     pub order_by: Option<String>,

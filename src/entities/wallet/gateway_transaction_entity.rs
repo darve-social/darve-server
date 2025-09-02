@@ -403,6 +403,34 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         Ok(data)
     }
+    pub async fn get_count_by_user(
+        &self,
+        user: &Thing,
+        status: Option<GatewayTransactionStatus>,
+        r#type: Option<TransactionType>,
+    ) -> CtxResult<u64> {
+        let mut conditions = vec!["user=<record>$user"];
+        if status.is_some() {
+            conditions.push("status=$status");
+        }
+        if r#type.is_some() {
+            conditions.push("type=$type");
+        }
+
+        let condition_str = conditions.join(" AND ");
+        let mut res = self
+            .db
+            .query(format!(
+                "SELECT count() FROM {TABLE_NAME} WHERE {condition_str} GROUP ALL;"
+            ))
+            .bind(("status", status))
+            .bind(("type", r#type))
+            .bind(("user", user.clone()))
+            .await?;
+
+        let count = res.take::<Option<u64>>((0, "count"))?;
+        Ok(count.unwrap_or_default())
+    }
 
     pub fn generate_id() -> Thing {
         Thing::from((TABLE_NAME, Id::ulid()))
