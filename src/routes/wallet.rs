@@ -205,11 +205,13 @@ async fn withdraw(
         &state.paypal_webhook_id,
     );
 
+    let amount = (data.amount as f64 * state.withdraw_fee) as u64;
+
     let res = paypal
         .send_money(
             &gateway_tx_id.to_raw(),
             &user.email_verified.unwrap(),
-            (data.amount as f64) / 100.00,
+            (amount as f64) / 100.00,
             &CurrencySymbol::USD.to_string(),
         )
         .await;

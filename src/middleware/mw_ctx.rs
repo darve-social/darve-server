@@ -54,6 +54,7 @@ pub struct CtxState {
     pub paypal_webhook_id: String,
     pub paypal_client_id: String,
     pub paypal_client_key: String,
+    pub withdraw_fee: f64,
 }
 
 impl Debug for CtxState {
@@ -96,6 +97,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_webhook_id: config.paypal_webhook_id.clone(),
         paypal_client_id: config.paypal_client_id.clone(),
         paypal_client_key: config.paypal_client_key.clone(),
+        withdraw_fee: 0.05,
     };
     Arc::new(ctx_state)
 }

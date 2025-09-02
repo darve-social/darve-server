@@ -53,7 +53,9 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service.user_withdraw_tx_complete(batch_thing).await?;
+            db_service
+                .user_withdraw_tx_complete(batch_thing, state.withdraw_fee)
+                .await?;
         }
         EventType::PaymentPayoutBatchDenied => {
             let batch_header = event.resource.batch_header.unwrap();
