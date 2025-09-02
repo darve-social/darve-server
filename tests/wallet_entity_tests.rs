@@ -491,4 +491,36 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
 
     let transactions = &transaction_history_response.json::<Vec<GatewayTransaction>>();
     assert_eq!(transactions.len(), 2);
+    let transaction_count_response = server
+        .get("/api/gateway_wallet/count?status=Completed")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+    transaction_count_response.assert_status_success();
+    let count = transaction_count_response.json::<u64>();
+    assert_eq!(count, 2);
+    let transaction_count_response = server
+        .get("/api/gateway_wallet/count?status=Failed")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+    transaction_count_response.assert_status_success();
+    let count = transaction_count_response.json::<u64>();
+    assert_eq!(count, 0);
+    let transaction_count_response = server
+        .get("/api/gateway_wallet/count")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+    transaction_count_response.assert_status_success();
+    let count = transaction_count_response.json::<u64>();
+    assert_eq!(count, 2);
+    let transaction_count_response = server
+        .get("/api/gateway_wallet/count")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token))
+        .await;
+    transaction_count_response.assert_status_success();
+    let count = transaction_count_response.json::<u64>();
+    assert_eq!(count, 3);
 });
