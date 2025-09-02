@@ -682,7 +682,7 @@ where
                         p.amount as i64,
                         &task.currency,
                         Some(format!("Reward by `{}` task", task.request_txt)),
-                        TransactionType::Reward,
+                        TransactionType::Refund,
                     )
                     .await;
                 if res.is_ok() {
