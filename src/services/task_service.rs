@@ -681,7 +681,7 @@ where
                         &user_wallet,
                         p.amount as i64,
                         &task.currency,
-                        Some(format!("Reward by `{}` task", task.request_txt)),
+                        Some(format!("Refund by `{}` task", task.request_txt)),
                         TransactionType::Refund,
                     )
                     .await;
@@ -711,7 +711,7 @@ where
                         amount as i64,
                         &task.currency,
                         &task_user.id,
-                        Some(format!("Refund by `{}` task", task.request_txt)),
+                        Some(format!("Reward by `{}` task", task.request_txt)),
                     )
                     .await;
                 if res.is_ok() {
