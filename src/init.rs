@@ -28,7 +28,6 @@ use entities::task::task_request_entity::TaskRequestDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
-use entities::wallet::lock_transaction_entity::LockTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use std::sync::Arc;
@@ -93,9 +92,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
         .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
-    LockTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;
     GatewayTransactionDbService { db: &db, ctx: &c }
