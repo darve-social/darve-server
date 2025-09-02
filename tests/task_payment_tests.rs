@@ -697,7 +697,6 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     assert_eq!(task.status, TaskRequestStatus::Completed);
     assert_eq!(task.balance, 0);
 });
-
 test_with_server!(
     two_donor_and_one_user_has_delivered,
     |server, state, config| {
@@ -812,3 +811,68 @@ test_with_server!(
         assert_eq!(task.balance, 0);
     }
 );
+
+test_with_server!(immediately_refund_on_reject, |server, state, config| {
+    let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
+
+    let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
+    let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
+    let post = create_fake_post(server, &disc, None, None).await;
+    let donor0_amount = 1000;
+    let endow_user_response = server
+        .get(&format!(
+            "/test/api/endow/{}/{}",
+            donor0.id.as_ref().unwrap().to_raw(),
+            donor0_amount
+        ))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    endow_user_response.assert_status_success();
+    let donor0_task_amount = 100;
+    let task_request = server
+        .post(format!("/api/posts/{}/tasks", post.id).as_str())
+        .json(&json!({
+            "offer_amount": donor0_task_amount,
+            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+
+    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+    let response = server
+        .post(&format!("/api/tasks/{}/reject", task_id))
+        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    let wallet_service = WalletDbService {
+        db: &state.db.client,
+        ctx: &Ctx::new(Ok("".to_string()), false),
+    };
+
+    let balance = wallet_service
+        .get_balance(&Thing::from((
+            "wallet",
+            participant.id.as_ref().unwrap().id.to_raw().as_str(),
+        )))
+        .await
+        .unwrap();
+
+    assert_eq!(balance.balance_usd, 0);
+
+    let balance = wallet_service
+        .get_balance(&Thing::from((
+            "wallet",
+            donor0.id.as_ref().unwrap().id.to_raw().as_str(),
+        )))
+        .await
+        .unwrap();
+    assert_eq!(balance.balance_usd, donor0_amount);
+});
