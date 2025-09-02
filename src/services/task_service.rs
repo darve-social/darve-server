@@ -421,6 +421,7 @@ where
                 source: format!("reject_task"),
             })?;
 
+        let _ = self.try_to_process_reward(&task).await;
         self.access_repository
             .remove_by_user(
                 user.id.as_ref().unwrap().clone(),
@@ -507,8 +508,6 @@ where
                     .await;
             }
         }
-
-        let _ = self.try_to_process_reward(&task).await;
 
         Ok(())
     }
