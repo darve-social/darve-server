@@ -29,7 +29,6 @@ use crate::{
     entities::user_auth::{
         authentication_entity::AuthenticationDbService, local_user_entity::LocalUserDbService,
     },
-    interfaces::file_storage::FileStorageInterface,
     middleware::{
         error::{AppError, CtxResult},
         mw_ctx::CtxState,
@@ -98,7 +97,7 @@ async fn start_set_password(
             db: &state.db.client,
             ctx: &auth_data.ctx,
         },
-        &state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
@@ -123,7 +122,7 @@ async fn start_update_password(
             db: &state.db.client,
             ctx: &auth_data.ctx,
         },
-        &state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
@@ -149,7 +148,7 @@ async fn set_password(
             db: &state.db.client,
             ctx: &auth_data.ctx,
         },
-        &state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
@@ -185,7 +184,7 @@ async fn reset_password(
             db: &state.db.client,
             ctx: &auth_data.ctx,
         },
-        &state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
         AuthenticationDbService {
             db: &state.db.client,
@@ -221,7 +220,7 @@ async fn email_verification_start(
             db: &ctx_state.db.client,
             ctx: &auth_data.ctx,
         },
-        &ctx_state.email_sender,
+        ctx_state.email_sender.clone(),
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state.db.client,
@@ -256,7 +255,7 @@ async fn email_verification_confirm(
             db: &ctx_state.db.client,
             ctx: &auth_data.ctx,
         },
-        &ctx_state.email_sender,
+        ctx_state.email_sender.clone(),
         ctx_state.verification_code_ttl,
         AuthenticationDbService {
             db: &ctx_state.db.client,

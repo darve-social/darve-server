@@ -21,11 +21,6 @@ impl EmailSender {
 #[async_trait]
 impl SendEmailInterface for EmailSender {
     async fn send(&self, emails: Vec<String>, body: &str, subject: &str) -> Result<(), String> {
-        // !!!TODO mock this for test
-        if cfg!(test) {
-            return Ok(());
-        }
-
         let personalizations = vec![serde_json::json!({
             "to": emails.iter().map(|email| serde_json::json!({ "email": email })).collect::<Vec<_>>(),
         })];

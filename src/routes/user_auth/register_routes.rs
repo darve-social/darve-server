@@ -85,7 +85,7 @@ pub async fn register_user(
         &state.db.client,
         &ctx,
         &state.jwt,
-        &state.email_sender,
+        state.email_sender.clone(),
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
