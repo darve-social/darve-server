@@ -49,7 +49,6 @@ pub struct Post {
     pub updated_at: DateTime<Utc>,
     pub replies_nr: i64,
     pub likes_nr: i64,
-    pub tags: Option<Vec<String>>,
     pub r#type: PostType,
 }
 

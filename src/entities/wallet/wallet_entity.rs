@@ -62,9 +62,11 @@ pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResul
     }
 }
 
-pub(crate) static APP_GATEWAY_WALLET: Lazy<Thing> =
+pub static APP_GATEWAY_WALLET: Lazy<Thing> =
     Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
 pub const THROW_WALLET_LOCKED: &str = "Wallet locked";
+
+pub static DARVE_WALLET: Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "darve_wallet")));
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Wallet {
