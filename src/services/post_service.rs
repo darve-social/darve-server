@@ -348,6 +348,7 @@ where
             .map(|a| a.user)
             .collect::<Vec<UserView>>())
     }
+
     pub async fn create(&self, user_id: &str, disc_id: &str, data: PostInput) -> CtxResult<Post> {
         let post_data = self.get_post_data_of_input(data).await?;
         let user = self.users_repository.get_by_id(user_id).await?;

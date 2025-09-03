@@ -521,14 +521,16 @@ where
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
-        let task = self
+        let task_view = self
             .tasks_repository
             .get_by_id::<TaskAccessView>(&task_thing)
             .await?;
 
-        if !TaskAccess::new(&task).can_deliver(&user) {
+        if !TaskAccess::new(&task_view).can_deliver(&user) {
             return Err(AppError::Forbidden);
         }
+
+        self.check_delivery_post(&data.post_id, task_view).await?;
 
         let task = self
             .tasks_repository
@@ -555,20 +557,6 @@ where
                 description: "The delivery period has expired".to_string(),
             }
             .into());
-        }
-
-        let post_view = self
-            .posts_repository
-            .get_view_by_id::<PostAccessView>(&data.post_id)
-            .await?;
-
-        let owner = post_view
-            .users
-            .into_iter()
-            .find(|u| &u.user == user.id.as_ref().unwrap() && u.role == Role::Owner.to_string());
-
-        if owner.is_none() || post_view.r#type != PostType::Public {
-            return Err(AppError::Forbidden.into());
         }
 
         self.task_participants_repository
@@ -879,5 +867,83 @@ where
             }
             _ => true,
         }
+    }
+
+    fn check_delivery_post_access(
+        &self,
+        deliver_post_view: &PostAccessView,
+        task_view: TaskAccessView,
+    ) -> AppResult<()> {
+        let donor_role = Role::Donor.to_string();
+
+        let donors = task_view
+            .users
+            .iter()
+            .filter_map(|u| {
+                if u.role == donor_role {
+                    let mut user = LocalUser::default("".to_string());
+                    user.id = Some(u.user.clone());
+                    Some(user)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<LocalUser>>();
+
+        let post_access = PostAccess::new(deliver_post_view);
+
+        if !donors.iter().all(|d| post_access.can_view(d)) {
+            return Err(AppError::Generic {
+                description: "All donors must have view access to the delivery post".to_string(),
+            }
+            .into());
+        }
+
+        Ok(())
+    }
+
+    async fn update_role_for_delivery_post(&self, post_view: &PostAccessView) -> AppResult<()> {
+        let post_owner_role = Role::Owner.to_string();
+        let post_owner = post_view.users.iter().find(|u| u.role == post_owner_role);
+
+        if post_owner.is_none() {
+            return Ok(());
+        }
+
+        match post_view.r#type {
+            PostType::Public => {
+                self.access_repository
+                    .remove_by_user(post_owner.unwrap().user.clone(), vec![post_view.id.clone()])
+                    .await?
+            }
+            PostType::Private => {
+                self.access_repository
+                    .update(
+                        post_owner.unwrap().user.clone(),
+                        post_view.id.clone(),
+                        Role::Member.to_string(),
+                    )
+                    .await?
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
+    async fn check_delivery_post(&self, post_id: &str, task_view: TaskAccessView) -> AppResult<()> {
+        let post_view = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(&post_id)
+            .await?;
+
+        if post_view.r#type == PostType::Idea {
+            return Err(AppError::Forbidden);
+        }
+
+        self.check_delivery_post_access(&post_view, task_view)?;
+
+        self.update_role_for_delivery_post(&post_view).await?;
+
+        Ok(())
     }
 }
