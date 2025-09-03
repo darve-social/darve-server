@@ -47,7 +47,7 @@ impl ViewFieldSelector for CurrencyTransactionView {
         currency,
         description,
         gateway_tx.* as gateway_tx,
-        gateway_tx.fee_tx.amount_out as fee, 
+        fee_amount as fee, 
         type,
         created_at"
         )

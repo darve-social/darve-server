@@ -190,13 +190,20 @@ async fn withdraw(
         .into());
     }
 
+    let fee = (data.amount as f64 * state.withdraw_fee) as u64;
+
     let gateway_tx_service = GatewayTransactionDbService {
         db: &state.db.client,
         ctx: &ctx,
     };
 
     let gateway_tx_id = gateway_tx_service
-        .user_withdraw_tx_start(&user.id.as_ref().unwrap(), data.amount as i64, None)
+        .user_withdraw_tx_start(
+            &user.id.as_ref().unwrap(),
+            data.amount,
+            None,
+            state.withdraw_fee,
+        )
         .await?;
 
     let paypal = Paypal::new(
@@ -205,13 +212,11 @@ async fn withdraw(
         &state.paypal_webhook_id,
     );
 
-    let amount = (data.amount as f64 * state.withdraw_fee) as u64;
-
     let res = paypal
         .send_money(
             &gateway_tx_id.to_raw(),
             &user.email_verified.unwrap(),
-            (amount as f64) / 100.00,
+            ((data.amount - fee) as f64) / 100.00,
             &CurrencySymbol::USD.to_string(),
         )
         .await;

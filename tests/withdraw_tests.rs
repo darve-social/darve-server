@@ -39,7 +39,12 @@ test_with_server!(
         };
 
         let res = gateway_db_service
-            .user_withdraw_tx_start(user.id.as_ref().unwrap(), 200000, None)
+            .user_withdraw_tx_start(
+                user.id.as_ref().unwrap(),
+                200000,
+                None,
+                ctx_state.withdraw_fee,
+            )
             .await;
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().error, AppError::BalanceTooLow);
@@ -68,14 +73,19 @@ test_with_server!(withdraw_complete, |server, ctx_state, config| {
     };
 
     let res = gateway_db_service
-        .user_withdraw_tx_start(user.id.as_ref().unwrap(), amount as i64, None)
+        .user_withdraw_tx_start(
+            user.id.as_ref().unwrap(),
+            amount,
+            None,
+            ctx_state.withdraw_fee,
+        )
         .await;
     assert!(res.is_ok());
 
     let gateway_id = res.unwrap();
 
     let res = gateway_db_service
-        .user_withdraw_tx_complete(gateway_id.clone(), ctx_state.withdraw_fee)
+        .user_withdraw_tx_complete(gateway_id.clone())
         .await;
 
     assert!(res.is_ok());
@@ -153,7 +163,12 @@ test_with_server!(withdraw_revert, |server, ctx_state, config| {
     };
 
     let res = gateway_db_service
-        .user_withdraw_tx_start(user.id.as_ref().unwrap(), amount as i64, None)
+        .user_withdraw_tx_start(
+            user.id.as_ref().unwrap(),
+            amount,
+            None,
+            ctx_state.withdraw_fee,
+        )
         .await;
     assert!(res.is_ok());
 
