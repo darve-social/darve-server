@@ -211,7 +211,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 },
                 IdentIdName::ColumnIdent {
                     column: "type".to_string(),
-                    val: serde_json::to_string(v).unwrap(),
+                    val: v.to_string(),
                     rec: false,
                 },
             ]),
