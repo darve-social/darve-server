@@ -42,7 +42,6 @@ pub struct CtxState {
     pub stripe_secret_key: String,
     pub stripe_wh_secret: String,
     pub stripe_platform_account: String,
-    pub platform_fee_rel: f64,
     pub upload_max_size_mb: u64,
     pub apple_mobile_client_id: String,
     pub google_ios_client_id: String,
@@ -55,6 +54,7 @@ pub struct CtxState {
     pub paypal_webhook_id: String,
     pub paypal_client_id: String,
     pub paypal_client_key: String,
+    pub withdraw_fee: f64,
 }
 
 impl Debug for CtxState {
@@ -72,7 +72,6 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         stripe_secret_key: config.stripe_secret_key.clone(),
         stripe_wh_secret: config.stripe_wh_secret.clone(),
         stripe_platform_account: config.stripe_platform_account.clone(),
-        platform_fee_rel: 0.05,
         upload_max_size_mb: config.upload_file_size_max_mb,
         jwt: JWT::new(config.jwt_secret.clone(), Duration::days(1)),
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
@@ -96,6 +95,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_webhook_id: config.paypal_webhook_id.clone(),
         paypal_client_id: config.paypal_client_id.clone(),
         paypal_client_key: config.paypal_client_key.clone(),
+        withdraw_fee: 0.05,
     };
     Arc::new(ctx_state)
 }

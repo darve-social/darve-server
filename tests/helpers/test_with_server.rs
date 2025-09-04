@@ -40,7 +40,6 @@ macro_rules! test_with_server {
                     stripe_secret_key: config.stripe_secret_key.clone(),
                     stripe_wh_secret: config.stripe_wh_secret.clone(),
                     stripe_platform_account: config.stripe_platform_account.clone(),
-                    platform_fee_rel: 0.05,
                     upload_max_size_mb: config.upload_file_size_max_mb,
                     jwt: JWT::new(config.jwt_secret.clone(), chrono::Duration::days(1)),
                     apple_mobile_client_id: config.apple_mobile_client_id.clone(),
@@ -53,6 +52,7 @@ macro_rules! test_with_server {
                     paypal_client_id: config.paypal_client_id.clone(),
                     paypal_client_key: config.paypal_client_key.clone(),
                     event_sender,
+                    withdraw_fee: 0.05
                 };
                 Arc::new(ctx_state)
             }

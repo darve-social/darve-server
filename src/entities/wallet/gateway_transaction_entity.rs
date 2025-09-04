@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use balance_transaction_entity::BalanceTransactionDbService;
 
+use balance_transaction_entity::TABLE_NAME as BALANCE_TX_TABLE_NAME;
 use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{get_entity, with_not_found_err, IdentIdName};
 use middleware::{
@@ -18,7 +19,7 @@ use crate::database::client::Db;
 use crate::database::surrdb_utils::get_entity_list;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::balance_transaction_entity::{self, TransactionType};
-use crate::entities::wallet::wallet_entity::{self, check_transaction_custom_error};
+use crate::entities::wallet::wallet_entity::{self, check_transaction_custom_error, DARVE_WALLET};
 use crate::middleware;
 use crate::middleware::utils::db_utils::Pagination;
 
@@ -34,6 +35,8 @@ pub struct GatewayTransaction {
     pub status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub r#type: TransactionType,
+    pub fee_tx: Option<Thing>,
+    pub fee_amount: Option<u64>,
     #[serde(default)]
     pub timelines: Vec<GatewayTransactionTimeline>,
 }
@@ -77,11 +80,13 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
     DEFINE FIELD IF NOT EXISTS external_tx_id ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS withdraw_wallet ON TABLE {TABLE_NAME} TYPE option<record<{WALLET_TABLE_NAME}>>;
+    DEFINE FIELD IF NOT EXISTS fee_tx ON TABLE {TABLE_NAME} TYPE option<record<{BALANCE_TX_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS user ON TABLE {TABLE_NAME} TYPE record<{USER_TABLE}>;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE string;
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS fee_amount ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS timelines ON TABLE {TABLE_NAME} TYPE array<{{ status: string, date: datetime }}>;
         
@@ -133,7 +138,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     }
 
     // creates gatewayTransaction
-    pub(crate) async fn user_deposit_tx(
+    pub async fn user_deposit_tx(
         &self,
         gateway_tx: Thing,
         external_tx_id: String,
@@ -160,10 +165,10 @@ impl<'a> GatewayTransactionDbService<'a> {
             amount,
             &currency_symbol,
             Some(fund_tx_id.clone()),
-            None,
             true,
             description,
             TransactionType::Deposit,
+            "",
         )?;
 
         let gateway_2_user_qry = gateway_2_user_tx.get_query_string();
@@ -198,11 +203,12 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(tx.id.as_ref().unwrap().clone())
     }
 
-    pub(crate) async fn user_withdraw_tx_start(
+    pub async fn user_withdraw_tx_start(
         &self,
         user: &Thing,
-        amount: i64,
+        amount: u64,
         description: Option<String>,
+        withdraw_fee: f64,
     ) -> CtxResult<Thing> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let wallet_to = WalletDbService::generate_id();
@@ -212,13 +218,13 @@ impl<'a> GatewayTransactionDbService<'a> {
         let query = BalanceTransactionDbService::get_transfer_qry(
             &user_wallet,
             &wallet_to,
-            amount,
+            amount as i64,
             &currency,
             Some(id.clone()),
-            None,
             true,
             description,
             TransactionType::Withdraw,
+            "",
         )?;
 
         let user_2_lock_qry = query.get_query_string();
@@ -235,6 +241,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 external_tx_id: $external_tx_id,
                 currency: $currency,
                 type: $type,
+                fee_amount: $fee_amount,
                 timelines: [{{ status: $status, date: time::now() }}]
             }} RETURN id;
             LET $fund_tx_id = $fund_tx[0].id;
@@ -242,6 +249,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         COMMIT TRANSACTION;"
         );
 
+        let fee_amount = (amount as f64 * withdraw_fee) as u64;
         let qry = self
             .db
             .query(qry)
@@ -250,7 +258,8 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("user", user.clone()))
             .bind(("external_tx_id", "".to_string()))
             .bind(("currency", currency))
-            .bind(("wallet_withdraw", wallet_to.clone()))
+            .bind(("fee_amount", fee_amount))
+            .bind(("withdraw_wallet", wallet_to.clone()))
             .bind(("type", TransactionType::Withdraw))
             .bind(("status", GatewayTransactionStatus::Pending));
 
@@ -268,7 +277,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         }))
     }
 
-    pub(crate) async fn user_withdraw_tx_revert(
+    pub async fn user_withdraw_tx_revert(
         &self,
         withdraw_tx_id: Thing,
         description: Option<String>,
@@ -287,10 +296,10 @@ impl<'a> GatewayTransactionDbService<'a> {
             withdraw_tx.amount,
             &withdraw_tx.currency,
             Some(withdraw_tx_id.clone()),
-            None,
             true,
             description,
             TransactionType::Withdraw,
+            "",
         )?;
 
         let user_2_lock_qry = query.get_query_string();
@@ -319,7 +328,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(())
     }
 
-    pub(crate) async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
+    pub async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
 
         let wallet_from = withdraw_tx
@@ -328,24 +337,44 @@ impl<'a> GatewayTransactionDbService<'a> {
                 ident: "withdraw_wallet".to_string(),
             })?;
 
+        let fee = withdraw_tx.fee_amount.ok_or(AppError::Generic {
+            description: "Fee amount does not exist".to_string(),
+        })?;
+
+        let amount = withdraw_tx.amount - fee as i64;
         let query = BalanceTransactionDbService::get_transfer_qry(
             &wallet_from,
             &APP_GATEWAY_WALLET,
-            withdraw_tx.amount,
+            amount,
             &withdraw_tx.currency,
             Some(withdraw_tx_id.clone()),
-            None,
             true,
             None,
             TransactionType::Withdraw,
+            "withdraw",
         )?;
 
-        let user_2_lock_qry = query.get_query_string();
+        let fee_uniq = "fee";
+        let query_fee = BalanceTransactionDbService::get_transfer_qry(
+            &wallet_from,
+            &DARVE_WALLET,
+            fee as i64,
+            &withdraw_tx.currency,
+            Some(withdraw_tx_id.clone()),
+            true,
+            None,
+            TransactionType::Fee,
+            fee_uniq,
+        )?;
+
+        let withdraw_qry = query.get_query_string();
+        let fee_qry = query_fee.get_query_string();
 
         let qry = format!(
             "BEGIN TRANSACTION;
-               {user_2_lock_qry}
-               UPDATE $tx_id SET status=$status, timelines+=[{{ status: $status, date: time::now() }}];
+               {withdraw_qry}
+               {fee_qry}
+               UPDATE $tx_id SET status=$status, fee_tx=${fee_uniq}_tx_out_id, timelines+=[{{ status: $status, date: time::now() }}];
              COMMIT TRANSACTION;"
         );
 
@@ -356,6 +385,11 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("status", GatewayTransactionStatus::Completed));
 
         let qry = query
+            .get_bindings()
+            .into_iter()
+            .fold(qry, |q, item| q.bind((item.0, item.1)));
+
+        let qry = query_fee
             .get_bindings()
             .into_iter()
             .fold(qry, |q, item| q.bind((item.0, item.1)));
@@ -435,6 +469,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         Ok(data)
     }
+
     pub async fn get_count_by_user(
         &self,
         user: &Thing,
