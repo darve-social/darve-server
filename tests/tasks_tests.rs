@@ -1,20 +1,25 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use axum_test::multipart::MultipartForm;
 use chrono::Utc;
 use darve_server::{
+    access::base::role::Role,
     entities::{
         community::{
             community_entity::CommunityDbService,
             discussion_entity::{Discussion, DiscussionDbService},
-            post_entity::Post,
+            post_entity::{Post, PostDbService},
         },
         task::task_request_entity::TaskRequest,
         task_request_user::TaskParticipantStatus,
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
     middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
-    models::view::task::{TaskRequestView, TaskViewForParticipant},
+    models::view::{
+        access::PostAccessView,
+        task::{TaskRequestView, TaskViewForParticipant},
+    },
 };
 
 use fake::{faker, Fake};
@@ -656,11 +661,22 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
 
     let delivered_response = server
         .post(&format!("/api/tasks/{}/deliver", task_id))
-        .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
+        .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
     delivered_response.assert_status_success();
+
+    let post_view = PostDbService {
+        db: &ctx_state.db.client,
+        ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
+    }
+    .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str())
+    .await
+    .unwrap();
+
+    assert_eq!(post_view.users.len(), 0);
+
     let task_request = server
         .get("/api/tasks/received")
         .add_header("Cookie", format!("jwt={}", token0))
@@ -1365,3 +1381,165 @@ test_with_server!(get_expired_tasks, |server, state, config| {
     let tasks = get_response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 1);
 });
+
+test_with_server!(
+    delivered_task_request_with_private_delivery_post,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
+            .json(&json!({
+                "offer_amount": Some(100),
+                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+        let accept_response = server
+            .post(&format!("/api/tasks/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
+
+        let title = faker::lorem::en::Sentence(7..20).fake::<String>();
+        let data = MultipartForm::new()
+            .add_text("title", title)
+            .add_text("content", "content")
+            .add_text("users", user1.id.as_ref().unwrap().to_raw());
+
+        let deliver_post = server
+            .post(format!("/api/discussions/{disc}/posts").as_str())
+            .multipart(data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await
+            .json::<Post>();
+
+        let delivered_response = server
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_success();
+
+        let post_view = PostDbService {
+            db: &ctx_state.db.client,
+            ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
+        }
+        .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str())
+        .await
+        .unwrap();
+
+        assert_eq!(post_view.users.len(), 2);
+        let post_creator_access = post_view
+            .users
+            .iter()
+            .find(|u| u.user == *user0.id.as_ref().unwrap())
+            .unwrap();
+
+        assert_eq!(post_creator_access.role, Role::Member.to_string());
+
+        let task_request = server
+            .get("/api/tasks/received")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
+        assert_eq!(tasks.len(), 1);
+        let first = tasks.first().unwrap();
+        assert_eq!(first.participants.len(), 1);
+        let task_user = first.participants.first().unwrap();
+        assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
+        assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
+    }
+);
+
+test_with_server!(
+    try_to_deliver_task_request_with_private_delivery_post_without_donors_access,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
+            .json(&json!({
+                "offer_amount": Some(100),
+                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+        let accept_response = server
+            .post(&format!("/api/tasks/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
+
+        let title = faker::lorem::en::Sentence(7..20).fake::<String>();
+        let data = MultipartForm::new()
+            .add_text("title", title)
+            .add_text("content", "content")
+            .add_text("users", user2.id.as_ref().unwrap().to_raw());
+
+        let deliver_post = server
+            .post(format!("/api/discussions/{disc}/posts").as_str())
+            .multipart(data)
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await
+            .json::<Post>();
+
+        let delivered_response = server
+            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        delivered_response.assert_status_failure();
+
+        assert!(delivered_response
+            .text()
+            .contains("All donors must have view access to the delivery post"))
+    }
+);
