@@ -390,6 +390,146 @@
                 }
               }
             }
+          },
+          "POST:PRIVATE": {
+            "OWNER": {
+              "permissions": [
+                "VIEW",
+                "EDIT",
+                "CREATE_PUBLIC_TASK",
+                "CREATE_PRIVATE_TASK",
+                "CREATE_REPLY",
+                "LIKE",
+                "ADD_MEMBER",
+                "REMOVE_MEMBER"
+              ],
+              "TASK:PUBLIC": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              },
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "REJECT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              }
+            },
+            "MEMBER": {
+              "permissions": [
+                "VIEW",
+                "CREATE_PUBLIC_TASK",
+                "CREATE_PRIVATE_TASK",
+                "CREATE_REPLY",
+                "LIKE"
+              ],
+              "TASK:PUBLIC": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              },
+              "TASK:PRIVATE": {
+                "OWNER": {
+                  "permissions": [
+                    "VIEW",
+                    "EDIT"
+                  ]
+                },
+                "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW"
+                  ]
+                },
+                "CANDIDATE": {
+                  "permissions": [
+                    "ACCEPT_TASK",
+                    "REJECT_TASK",
+                    "VIEW"
+                  ]
+                },
+                "PARTICIPANT": {
+                  "permissions": [
+                    "DELIVER_TASK",
+                    "VIEW"
+                  ]
+                }
+              }
+            }
           }
         }
       },
