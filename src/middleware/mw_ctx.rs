@@ -1,6 +1,8 @@
 use crate::config::AppConfig;
 use crate::database::client::Database;
 use crate::entities::user_notification::UserNotification;
+use crate::interfaces::file_storage::FileStorageInterface;
+use crate::interfaces::send_email::SendEmailInterface;
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
@@ -40,7 +42,6 @@ pub struct CtxState {
     pub stripe_secret_key: String,
     pub stripe_wh_secret: String,
     pub stripe_platform_account: String,
-    pub min_platform_fee_abs_2dec: i64,
     pub upload_max_size_mb: u64,
     pub apple_mobile_client_id: String,
     pub google_ios_client_id: String,
@@ -48,8 +49,8 @@ pub struct CtxState {
     pub event_sender: broadcast::Sender<AppEvent>,
     pub verification_code_ttl: Duration,
     pub jwt: JWT,
-    pub email_sender: EmailSender,
-    pub file_storage: Arc<GoogleCloudFileStorage>,
+    pub email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+    pub file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     pub paypal_webhook_id: String,
     pub paypal_client_id: String,
     pub paypal_client_key: String,
@@ -71,7 +72,6 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         stripe_secret_key: config.stripe_secret_key.clone(),
         stripe_wh_secret: config.stripe_wh_secret.clone(),
         stripe_platform_account: config.stripe_platform_account.clone(),
-        min_platform_fee_abs_2dec: 500,
         upload_max_size_mb: config.upload_file_size_max_mb,
         jwt: JWT::new(config.jwt_secret.clone(), Duration::days(1)),
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
@@ -86,11 +86,11 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
             .await,
         ),
         event_sender,
-        email_sender: EmailSender::new(
+        email_sender: Arc::new(EmailSender::new(
             &config.sendgrid_api_key,
             &config.sendgrid_api_url,
             &config.no_replay,
-        ),
+        )),
         verification_code_ttl: Duration::minutes(config.verification_code_ttl as i64),
         paypal_webhook_id: config.paypal_webhook_id.clone(),
         paypal_client_id: config.paypal_client_id.clone(),

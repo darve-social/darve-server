@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use crate::{
@@ -13,24 +15,22 @@ use crate::{
 use super::verification_code_service::VerificationCodeService;
 use chrono::Duration;
 
-pub struct UserService<'a, V, S>
+pub struct UserService<'a, V>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
 {
     user_repository: LocalUserDbService<'a>,
     auth_repository: AuthenticationDbService<'a>,
-    verification_code_service: VerificationCodeService<'a, V, S>,
+    verification_code_service: VerificationCodeService<'a, V>,
 }
 
-impl<'a, V, S> UserService<'a, V, S>
+impl<'a, V> UserService<'a, V>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
 {
     pub fn new(
         user_repository: LocalUserDbService<'a>,
-        email_sender: &'a S,
+        email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
         code_ttl: Duration,
         auth_repository: AuthenticationDbService<'a>,
         verification_code_repository: &'a V,

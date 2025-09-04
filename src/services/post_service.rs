@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess},
     database::client::Db,
@@ -72,9 +74,8 @@ pub struct PostInput {
     pub users: Vec<String>,
 }
 
-pub struct PostService<'a, F, N, T, L, A>
+pub struct PostService<'a, N, T, L, A>
 where
-    F: FileStorageInterface,
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
@@ -83,7 +84,7 @@ where
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
     posts_repository: PostDbService<'a>,
-    file_storage: &'a F,
+    file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     likes_repository: &'a L,
     notification_service: NotificationService<'a, N>,
     tags_repository: &'a T,
@@ -91,9 +92,8 @@ where
     follow_repository: FollowDbService<'a>,
 }
 
-impl<'a, F, N, T, L, A> PostService<'a, F, N, T, L, A>
+impl<'a, N, T, L, A> PostService<'a, N, T, L, A>
 where
-    F: FileStorageInterface,
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
@@ -104,7 +104,7 @@ where
         ctx: &'a Ctx,
         event_sender: &'a Sender<AppEvent>,
         notification_repository: &'a N,
-        file_storage: &'a F,
+        file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
         tags_repository: &'a T,
         likes_repository: &'a L,
         access_repository: &'a A,
@@ -399,7 +399,7 @@ where
             Err(err) => {
                 if let Some(links) = &media_links {
                     let futures = links.into_iter().map(|link| {
-                        let file_storage = self.file_storage;
+                        let file_storage = self.file_storage.clone();
                         async move {
                             if let Some(filename) = link.split('/').last() {
                                 let _ = file_storage.delete(Some("posts"), filename).await;

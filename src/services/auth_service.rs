@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::verification_code_service::VerificationCodeService;
 use crate::access::base::role::Role;
 use crate::entities::community::discussion_entity::DiscussionDbService;
@@ -79,10 +81,9 @@ pub struct ResetPasswordInput {
     pub email_or_username: String,
 }
 
-pub struct AuthService<'a, V, S, A>
+pub struct AuthService<'a, V, A>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
     A: AccessRepositoryInterface,
 {
     ctx: &'a Ctx,
@@ -90,25 +91,24 @@ where
     user_repository: LocalUserDbService<'a>,
     auth_repository: AuthenticationDbService<'a>,
     community_repository: CommunityDbService<'a>,
-    verification_code_service: VerificationCodeService<'a, V, S>,
+    verification_code_service: VerificationCodeService<'a, V>,
     access_repository: &'a A,
 }
 
-impl<'a, V, S, A> AuthService<'a, V, S, A>
+impl<'a, V, A> AuthService<'a, V, A>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
     A: AccessRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
         ctx: &'a Ctx,
         jwt: &'a JWT,
-        email_sender: &'a S,
+        email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
         code_ttl: Duration,
         verification_code_repository: &'a V,
         access_repository: &'a A,
-    ) -> AuthService<'a, V, S, A> {
+    ) -> AuthService<'a, V, A> {
         AuthService {
             ctx,
             jwt,

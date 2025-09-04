@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use askama::Template;
 use chrono::{Duration, Utc};
 
@@ -12,23 +14,25 @@ use crate::{
     utils::generate,
 };
 
-pub struct VerificationCodeService<'a, V, S>
+pub struct VerificationCodeService<'a, V>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
 {
     repository: &'a V,
-    email_sender: &'a S,
+    email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
     code_ttl: Duration,
     max_attempts: u8,
 }
 
-impl<'a, V, S> VerificationCodeService<'a, V, S>
+impl<'a, V> VerificationCodeService<'a, V>
 where
     V: VerificationCodeRepositoryInterface + Send + Sync,
-    S: SendEmailInterface + Send + Sync,
 {
-    pub fn new(repository: &'a V, email_sender: &'a S, code_ttl: Duration) -> Self {
+    pub fn new(
+        repository: &'a V,
+        email_sender: Arc<dyn SendEmailInterface + Send + Sync>,
+        code_ttl: Duration,
+    ) -> Self {
         Self {
             repository,
             email_sender,
