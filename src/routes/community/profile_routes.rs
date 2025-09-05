@@ -5,12 +5,12 @@ use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use axum_typed_multipart::TryFromMultipart;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
 use community::post_entity;
 use community_entity::CommunityDbService;
-use follow_entity::FollowDbService;
 use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
@@ -21,6 +21,8 @@ use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::middleware::utils::db_utils::Pagination;
 use crate::models::view::post::PostView;
 use crate::{middleware, utils};
+use follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
+use local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
@@ -28,6 +30,7 @@ use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
 use post_entity::PostDbService;
 use utils::askama_filter_util::filters;
+
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new().route("/u/:username_or_id", get(display_profile))
 }
@@ -69,16 +72,22 @@ pub struct ProfileView {
     pub community: Option<Thing>,
     pub profile_discussion: Option<Thing>,
     #[serde(default)]
-    pub followers_nr: i64,
+    pub followers_nr: u64,
     #[serde(default)]
-    pub following_nr: i64,
+    pub following_nr: u64,
     #[serde(default)]
     pub posts: Vec<PostView>,
+    pub last_seen: Option<DateTime<Utc>>,
 }
 
 impl ViewFieldSelector for ProfileView {
     fn get_select_query_fields() -> String {
-        "*, id as user_id".to_string()
+        format!(
+            "*,
+            id as user_id,
+            count(->{FOLLOW_TABLE_NAME}->{USER_TABLE_NAME}) as following_nr,
+            count(<-{FOLLOW_TABLE_NAME}<-{USER_TABLE_NAME}) as followers_nr"
+        )
     }
 }
 
@@ -135,19 +144,6 @@ async fn display_profile(
         },
     )
     .await?;
-
-    let follow_db_service = FollowDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-    // TODO cache user follow numbers
-    profile_view.following_nr = follow_db_service
-        .user_following_number(profile_view.user_id.clone())
-        .await?;
-
-    profile_view.followers_nr = follow_db_service
-        .user_followers_number(profile_view.user_id.clone())
-        .await?;
 
     Ok(Json(profile_view))
 }

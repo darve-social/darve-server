@@ -1370,6 +1370,47 @@
         }
       }
     },
+    "/api/users/status": {
+      "get": {
+        "tags": ["Users"],
+        "description": "Get users status",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_ids",
+            "in": "query",
+            "description": "User identities (only id from Thing)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserStatus"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/u/{username_or_id}": {
       "get": {
         "tags": ["Users"],
@@ -3680,6 +3721,11 @@
           "is_otp_enabled": {
             "type": "boolean",
             "description": "Whether user has OTP enabled"
+          },
+          "last_seen": {
+            "type": "datetime",
+            "nullable": true,
+            "description": "Last seen of the user"
           }
         }
       },
@@ -3896,6 +3942,20 @@
             "minLength": 6,
             "maxLength": 6,
             "description": "6-digit verification code"
+          }
+        }
+      },
+      "UserStatus": {
+        "type": "object",
+        "required": ["user_id", "is_online"],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identity"
+          },
+          "is_online": {
+            "type": "boolean",
+            "description": "User status online/offline"
           }
         }
       },

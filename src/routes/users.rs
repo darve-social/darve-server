@@ -13,12 +13,14 @@ use crate::{
     models::view::{post::PostView, user::UserView},
     utils::validate_utils::validate_social_links,
 };
+
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
     Json, Router,
 };
+use axum_extra::extract::Query as ExtractQuery;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -617,9 +619,8 @@ async fn get_posts(
             DiscussionType::Private,
             pagination,
         )
-        .await;
-    println!("{:?}", posts);
-    Ok(Json(posts?))
+        .await?;
+    Ok(Json(posts))
 }
 
 #[derive(Debug, Serialize)]
@@ -630,13 +631,14 @@ struct UserStatus {
 
 #[derive(Debug, Deserialize)]
 struct GetUsersStatusQuery {
+    #[serde(default)]
     user_ids: Vec<String>,
 }
 
 async fn get_users_status(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-    Query(query): Query<GetUsersStatusQuery>,
+    ExtractQuery(query): ExtractQuery<GetUsersStatusQuery>,
 ) -> CtxResult<Json<Vec<UserStatus>>> {
     let _ = LocalUserDbService {
         db: &state.db.client,
