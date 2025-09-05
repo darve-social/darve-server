@@ -7,6 +7,7 @@ macro_rules! test_with_server {
         #[serial_test::serial]
         async fn $name() {
             use std::sync::Arc;
+            use dashmap::DashMap;
             use async_trait::async_trait;
             use darve_server::interfaces::send_email::SendEmailInterface;
             use darve_server::{
@@ -52,7 +53,8 @@ macro_rules! test_with_server {
                     paypal_client_id: config.paypal_client_id.clone(),
                     paypal_client_key: config.paypal_client_key.clone(),
                     event_sender,
-                    withdraw_fee: 0.05
+                    withdraw_fee: 0.05,
+                    online_users: Arc::new(DashMap::new())
                 };
                 Arc::new(ctx_state)
             }

@@ -7,6 +7,7 @@ use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
 use chrono::Duration;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -19,7 +20,14 @@ pub enum AppEventType {
     DiscussionPostAdded,
     DiscussionPostReplyAdded,
     DiscussionPostReplyNrIncreased,
+    UserStatus(AppEventUsetStatus),
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AppEventUsetStatus {
+    pub is_online: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEventMetadata {
     pub discussion_id: Option<Thing>,
@@ -55,6 +63,7 @@ pub struct CtxState {
     pub paypal_client_id: String,
     pub paypal_client_key: String,
     pub withdraw_fee: f64,
+    pub online_users: Arc<DashMap<String, usize>>,
 }
 
 impl Debug for CtxState {
@@ -96,6 +105,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_client_id: config.paypal_client_id.clone(),
         paypal_client_key: config.paypal_client_key.clone(),
         withdraw_fee: 0.05,
+        online_users: Arc::new(DashMap::new()),
     };
     Arc::new(ctx_state)
 }

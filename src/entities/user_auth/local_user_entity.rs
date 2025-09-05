@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -41,6 +42,8 @@ pub struct LocalUser {
     pub otp_secret: Option<String>,
     #[serde(default)]
     pub credits: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen: Option<DateTime<Utc>>,
 }
 
 impl LocalUser {
@@ -58,6 +61,7 @@ impl LocalUser {
             is_otp_enabled: false,
             otp_secret: None,
             credits: 0,
+            last_seen: None,
         }
     }
 }
@@ -101,6 +105,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS credits ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
+    DEFINE FIELD IF NOT EXISTS last_seen ON TABLE {TABLE_NAME} TYPE option<datetime>;
 
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
@@ -262,6 +267,16 @@ impl<'a> LocalUserDbService<'a> {
             .await?;
         let data = res.take::<Option<u64>>((0, "credits"))?;
         Ok(data.unwrap())
+    }
+
+    pub async fn update_last_seen(&self, user_id: &str) -> CtxResult<()> {
+        let _ = self
+            .db
+            .query("UPDATE $user SET last_seen=time::now();")
+            .bind(("user", Thing::from((TABLE_NAME, user_id))))
+            .await?
+            .check()?;
+        Ok(())
     }
 
     pub async fn users_len(&self) -> CtxResult<i32> {

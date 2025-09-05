@@ -4,8 +4,10 @@ use crate::interfaces::repositories::user_notifications::{
 };
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::mw_ctx::{AppEventType, CtxState};
+use crate::middleware::mw_ctx::AppEventType;
+use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder;
+use crate::utils::user_presence_guard::UserPresenceGuard;
 use axum::extract::{Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
@@ -142,16 +144,23 @@ async fn sse(
     .await?;
 
     let user_id = user.to_raw();
+    let indicator = Arc::new(UserPresenceGuard::new(state.clone(), user.id.to_raw()));
 
     let rx = state.event_sender.subscribe();
-    let stream = BroadcastStream::new(rx).filter_map(move |msg| match msg {
-        Err(_) => None,
-        Ok(msg) => match msg.event {
-            AppEventType::UserNotificationEvent(n) if msg.receivers.contains(&user_id) => {
-                Some(Ok(Event::default().data(json!(n).to_string())))
-            }
-            _ => None,
-        },
+    let stream = BroadcastStream::new(rx).filter_map(move |msg| {
+        let _tracker = indicator.clone();
+        match msg {
+            Err(_) => None,
+            Ok(msg) => match msg.event {
+                AppEventType::UserNotificationEvent(_) if msg.receivers.contains(&user_id) => {
+                    Some(Ok(Event::default().data(json!(msg.clone()).to_string())))
+                }
+                AppEventType::UserStatus(_) => {
+                    Some(Ok(Event::default().data(json!(msg.clone()).to_string())))
+                }
+                _ => None,
+            },
+        }
     });
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))

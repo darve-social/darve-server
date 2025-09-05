@@ -42,7 +42,7 @@ async-stripe = { version = "0.41.0", features = [
 google-cloud-storage = "0.24.0"
 async-trait = "0.1.88"
 dotenvy = "0.15.7"
-axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
+axum-extra = { version = "0.9", features = ["cookie", "query", "typed-header"] }
 sentry = { version = "0.39.0", default-features = false, features = [
     "curl",
     "backtrace",
@@ -51,6 +51,7 @@ sentry = { version = "0.39.0", default-features = false, features = [
 ] }
 argon2 = "0.5.3"
 totp-rs = { version = "5.7.0", features = ["gen_secret", "otpauth"] }
+dashmap = "6.1.0"
 
 [dev-dependencies]
 fake = { version = "4.3.0", features = ["chrono"] }
