@@ -2,6 +2,7 @@ use crate::{
     entities::user_auth::local_user_entity::LocalUser,
     middleware::utils::db_utils::ViewFieldSelector,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -17,6 +18,7 @@ pub struct UserView {
     pub social_links: Option<Vec<String>>,
     pub image_uri: Option<String>,
     pub is_otp_enabled: bool,
+    pub last_seen: Option<DateTime<Utc>>,
 }
 
 impl From<LocalUser> for UserView {
@@ -32,6 +34,7 @@ impl From<LocalUser> for UserView {
             social_links: user.social_links,
             image_uri: user.image_uri,
             is_otp_enabled: user.is_otp_enabled,
+            last_seen: user.last_seen,
         }
     }
 }

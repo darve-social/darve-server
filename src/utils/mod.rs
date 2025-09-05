@@ -7,5 +7,6 @@ pub mod jwt;
 pub mod paypal;
 pub mod template_utils;
 pub mod totp;
+pub mod user_presence_guard;
 pub mod validate_utils;
 pub mod verification;

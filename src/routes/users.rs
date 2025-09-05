@@ -78,6 +78,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         )
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
+        .route("/api/users/status", get(get_users_status))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -619,4 +620,39 @@ async fn get_posts(
         .await;
     println!("{:?}", posts);
     Ok(Json(posts?))
+}
+
+#[derive(Debug, Serialize)]
+struct UserStatus {
+    user_id: String,
+    is_online: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetUsersStatusQuery {
+    user_ids: Vec<String>,
+}
+
+async fn get_users_status(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Query(query): Query<GetUsersStatusQuery>,
+) -> CtxResult<Json<Vec<UserStatus>>> {
+    let _ = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+
+    let users_status = query
+        .user_ids
+        .into_iter()
+        .map(|id| UserStatus {
+            is_online: state.online_users.get(&id).is_some(),
+            user_id: id,
+        })
+        .collect::<Vec<UserStatus>>();
+
+    Ok(Json(users_status))
 }
