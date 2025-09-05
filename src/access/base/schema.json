@@ -279,14 +279,14 @@
                 "EDIT",
                 "CREATE_PUBLIC_TASK",
                 "CREATE_REPLY",
-                "LIKE",
-                "ACCEPT_TASK"
+                "LIKE"
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "ACCEPT_TASK"
                   ]
                 },
                 "PARTICIPANT": {

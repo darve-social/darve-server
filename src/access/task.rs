@@ -64,7 +64,6 @@ impl<'a> TaskAccess<'a> {
 
     pub fn can_accept(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_task(self.task, Some(&user));
-
         self.access_control.can(&path, &Permission::AcceptTask)
     }
 
