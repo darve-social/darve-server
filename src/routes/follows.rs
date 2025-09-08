@@ -14,7 +14,6 @@ use local_user_entity::{LocalUser, LocalUserDbService};
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
-use middleware::utils::db_utils::IdentIdName;
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -135,10 +134,9 @@ async fn follow_user(
         ctx: &auth_data.ctx,
     };
     let from_user = local_user_db_service.get_ctx_user().await?;
-    let follow = get_string_thing(follow_user_id.clone())?;
-
-    let follows_username = local_user_db_service
-        .get_username(IdentIdName::Id(follow.clone()))
+    let following_thing = get_str_thing(&follow_user_id)?;
+    let following_user = local_user_db_service
+        .get_by_id(&following_thing.id.to_raw())
         .await?;
 
     let follow_db_service = FollowDbService {
@@ -146,26 +144,34 @@ async fn follow_user(
         ctx: &auth_data.ctx,
     };
 
-    let success = follow_db_service
-        .create_follow(from_user.id.clone().unwrap(), follow.clone())
+    let is_following = follow_db_service
+        .is_following(
+            from_user.id.as_ref().unwrap().clone(),
+            following_user.id.as_ref().unwrap().clone(),
+        )
         .await?;
 
-    if success {
-        let mut follower_ids = follow_db_service
-            .user_follower_ids(from_user.id.clone().unwrap())
-            .await?;
-        follower_ids.push(follow.clone());
-
-        let n_service = NotificationService::new(
-            &ctx_state.db.client,
-            &auth_data.ctx,
-            &ctx_state.event_sender,
-            &ctx_state.db.user_notifications,
-        );
-        n_service
-            .on_follow(&from_user, follows_username, follower_ids)
-            .await?;
+    if is_following {
+        return Ok(());
     }
+
+    let _ = follow_db_service
+        .create_follow(from_user.id.clone().unwrap(), following_thing.clone())
+        .await?;
+
+    let mut follower_ids = follow_db_service
+        .user_follower_ids(from_user.id.clone().unwrap())
+        .await?;
+    follower_ids.push(following_thing.clone());
+    let n_service = NotificationService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+    );
+    n_service
+        .on_follow(&from_user, following_user.username, follower_ids)
+        .await?;
 
     Ok(())
 }

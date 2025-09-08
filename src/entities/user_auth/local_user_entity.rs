@@ -193,11 +193,6 @@ impl<'a> LocalUserDbService<'a> {
         self.get(ident).await
     }
 
-    pub async fn get_username(&self, ident: IdentIdName) -> CtxResult<String> {
-        let u_view = self.get_view::<UsernameView>(ident).await?;
-        Ok(u_view.username)
-    }
-
     pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         find: String,
