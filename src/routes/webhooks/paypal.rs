@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use askama::Template;
 use axum::{
     body::{to_bytes, Body},
     extract::{Request, State},
@@ -12,6 +13,7 @@ use surrealdb::sql::Thing;
 use crate::{
     entities::wallet::gateway_transaction_entity::GatewayTransactionDbService,
     middleware::{ctx::Ctx, error::CtxResult, mw_ctx::CtxState},
+    models::email::PaypalUnclaimed,
     utils::paypal::{EventType, Paypal},
 };
 
@@ -69,6 +71,23 @@ async fn handle_webhook(
                     Some(serde_json::to_string(&event.event_type).unwrap()),
                 )
                 .await?;
+        }
+        EventType::PaymentPayoutItemUnclaimed => {
+            let payment_item = event.resource.payout_item.unwrap();
+            let email = payment_item.receiver;
+            let view = PaypalUnclaimed {
+                amount: &payment_item.amount.value,
+                paypal_email: &email,
+            };
+
+            let _ = state
+                .email_sender
+                .send(
+                    [email.to_string()].to_vec(),
+                    &view.render().unwrap(),
+                    "Paypal Unclaimed",
+                )
+                .await;
         }
         _ => {
             let batch_id: &str = &event.resource.sender_batch_id.unwrap();

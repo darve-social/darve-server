@@ -28,6 +28,7 @@ pub struct AppConfig {
     pub paypal_webhook_id: String,
     pub paypal_client_id: String,
     pub paypal_client_key: String,
+    pub support_email: String,
 }
 
 impl AppConfig {
@@ -95,6 +96,7 @@ impl AppConfig {
         let paypal_webhook_id = std::env::var("PAYPAL_WEBHOOK_ID").unwrap_or("".to_string());
         let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").unwrap_or("".to_string());
         let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").unwrap_or("".to_string());
+        let support_email = std::env::var("SUPPORT_EMAIL").unwrap_or("".to_string());
 
         Self {
             db_namespace,
@@ -123,6 +125,7 @@ impl AppConfig {
             paypal_webhook_id,
             paypal_client_id,
             paypal_client_key,
+            support_email,
         }
     }
 }
