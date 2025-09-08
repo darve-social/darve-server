@@ -64,6 +64,7 @@ pub struct CtxState {
     pub paypal_client_key: String,
     pub withdraw_fee: f64,
     pub online_users: Arc<DashMap<String, usize>>,
+    pub support_email: String,
 }
 
 impl Debug for CtxState {
@@ -106,6 +107,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         paypal_client_key: config.paypal_client_key.clone(),
         withdraw_fee: 0.05,
         online_users: Arc::new(DashMap::new()),
+        support_email: config.support_email.clone(),
     };
     Arc::new(ctx_state)
 }

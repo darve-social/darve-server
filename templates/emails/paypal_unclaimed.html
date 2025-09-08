@@ -1,0 +1,83 @@
+{% extends "base.html" %} {% block content %}
+<div
+  style="
+    font-family: Arial, sans-serif;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    margin: auto;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  "
+>
+  <h2 style="color: #333; margin-bottom: 20px; text-align: center">
+    ⚠️ Withdrawal Issue - Action Required
+  </h2>
+
+  <div
+    style="
+      background: #fff3cd;
+      padding: 20px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border-left: 4px solid #ffc107;
+    "
+  >
+    <h3 style="color: #856404; margin: 0 0 15px 0; font-size: 18px">
+      📧 PayPal Account Not Found
+    </h3>
+
+    <div style="margin-bottom: 15px">
+      <strong style="color: #333">Amount:</strong>
+      <span style="font-size: 20px; color: #856404; font-weight: bold">
+        ${{ amount }}
+      </span>
+    </div>
+
+    <div style="margin-bottom: 15px">
+      <strong style="color: #333">PayPal Email:</strong>
+      <span style="color: #555">{{ paypal_email }}</span>
+    </div>
+
+    <div style="margin-bottom: 15px">
+      <strong style="color: #333">Status:</strong>
+      <span style="color: #dc3545; font-weight: bold">Unclaimed</span>
+    </div>
+  </div>
+
+  <div
+    style="
+      background: #f8d7da;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border-left: 4px solid #dc3545;
+    "
+  >
+    <p style="margin: 0; color: #721c24; font-size: 14px">
+      <strong>❌ What happened:</strong><br />
+      We attempted to send your withdrawal to
+      <strong>{{ paypal_email }}</strong>, but this email address does not have
+      an active PayPal account associated with it.
+    </p>
+  </div>
+
+  <div
+    style="
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      border-left: 4px solid #2196f3;
+    "
+  >
+    <p style="margin: 0; color: #1976d2; font-size: 14px">
+      <strong>✅ Next Steps:</strong><br />
+      • Create a PayPal account using the email <b>{{ paypal_email }}</b><br />
+      • Or update your withdrawal method to a different PayPal email<br />
+      • We automatically cancel pending or unclaimed payments after 30 days and
+      send the money back to the original payment method
+    </p>
+  </div>
+</div>
+{% endblock %}

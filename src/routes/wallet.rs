@@ -16,8 +16,10 @@ use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder::{self};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_string_thing;
+use crate::models::email::WithdrawPaypal;
 use crate::models::view::balance_tx::CurrencyTransactionView;
 use crate::utils::paypal::Paypal;
+use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
@@ -212,17 +214,34 @@ async fn withdraw(
         &state.paypal_webhook_id,
     );
 
+    let paypal_amount = ((data.amount - fee) as f64) / 100.00;
     let res = paypal
         .send_money(
             &gateway_tx_id.to_raw(),
-            &user.email_verified.unwrap(),
-            ((data.amount - fee) as f64) / 100.00,
+            user.email_verified.as_ref().unwrap(),
+            paypal_amount,
             &CurrencySymbol::USD.to_string(),
         )
         .await;
 
     match res {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            let paypal_template = WithdrawPaypal {
+                paypal_email: user.email_verified.as_ref().unwrap(),
+                support_email: &state.support_email,
+                amount: paypal_amount,
+            };
+
+            let _ = state
+                .email_sender
+                .send(
+                    [user.email_verified.as_ref().unwrap().clone()].to_vec(),
+                    &paypal_template.render().unwrap(),
+                    "Paypal Withdraw",
+                )
+                .await;
+            Ok(())
+        }
         Err(e) => {
             let _ = gateway_tx_service
                 .user_withdraw_tx_revert(gateway_tx_id, Some(e.clone()))

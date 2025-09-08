@@ -38,6 +38,8 @@ pub enum EventType {
     PaymentPayoutItemBlocked,
     #[serde(rename = "PAYMENT.PAYOUTS-ITEM.CANCELED")]
     PaymentPayoutItemCanceled,
+    #[serde(rename = "PAYMENT.PAYOUTS-ITEM.UNCLAIMED")]
+    PaymentPayoutItemUnclaimed,
     #[serde(rename = "PAYMENT.PAYOUTSBATCH.DENIED")]
     PaymentPayoutBatchDenied,
 }
