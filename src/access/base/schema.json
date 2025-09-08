@@ -67,7 +67,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -79,7 +80,8 @@
                 "GUEST": {
                   "permissions": [
                     "ACCEPT_TASK",
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "PARTICIPANT": {
@@ -93,7 +95,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -104,7 +107,8 @@
                 },
                 "GUEST": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "CANDIDATE": {
@@ -134,7 +138,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -146,7 +151,8 @@
                 "GUEST": {
                   "permissions": [
                     "ACCEPT_TASK",
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "PARTICIPANT": {
@@ -161,7 +167,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -172,7 +179,8 @@
                 },
                 "GUEST": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "CANDIDATE": {
@@ -209,6 +217,12 @@
                   ]
                 },
                 "DONOR": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
+                "GUEST": {
                   "permissions": [
                     "VIEW",
                     "DONATE"
@@ -407,7 +421,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -419,7 +434,8 @@
                 "GUEST": {
                   "permissions": [
                     "ACCEPT_TASK",
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "PARTICIPANT": {
@@ -433,7 +449,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -444,7 +461,8 @@
                 },
                 "GUEST": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "CANDIDATE": {
@@ -474,7 +492,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -486,7 +505,8 @@
                 "GUEST": {
                   "permissions": [
                     "ACCEPT_TASK",
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "PARTICIPANT": {
@@ -501,7 +521,8 @@
                 "OWNER": {
                   "permissions": [
                     "VIEW",
-                    "EDIT"
+                    "EDIT",
+                    "DONATE"
                   ]
                 },
                 "DONOR": {
@@ -512,7 +533,8 @@
                 },
                 "GUEST": {
                   "permissions": [
-                    "VIEW"
+                    "VIEW",
+                    "DONATE"
                   ]
                 },
                 "CANDIDATE": {
@@ -800,7 +822,8 @@
             "OWNER": {
               "permissions": [
                 "VIEW",
-                "EDIT"
+                "EDIT",
+                "DONATE"
               ]
             },
             "DONOR": {
@@ -811,7 +834,8 @@
             },
             "GUEST": {
               "permissions": [
-                "VIEW"
+                "VIEW",
+                "DONATE"
               ]
             },
             "CANDIDATE": {
@@ -832,7 +856,8 @@
             "OWNER": {
               "permissions": [
                 "VIEW",
-                "EDIT"
+                "EDIT",
+                "DONATE"
               ]
             },
             "DONOR": {
@@ -843,6 +868,7 @@
             },
             "GUEST": {
               "permissions": [
+                "DONATE",
                 "VIEW",
                 "ACCEPT_TASK"
               ]

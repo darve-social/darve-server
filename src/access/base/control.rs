@@ -256,7 +256,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -269,7 +270,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::AcceptTask));
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -295,7 +297,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -307,7 +310,8 @@ mod schema_variant_tests {
         );
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 1);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -360,7 +364,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -373,7 +378,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::AcceptTask));
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -400,7 +406,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
@@ -412,7 +419,8 @@ mod schema_variant_tests {
         );
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 1);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -763,7 +771,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::AcceptTask));
-        assert_eq!(permissions.len(), 2);
+        assert!(permissions.contains(&Permission::Donate));
+        assert_eq!(permissions.len(), 3);
     }
 
     #[test]
