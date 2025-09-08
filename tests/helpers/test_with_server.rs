@@ -54,7 +54,8 @@ macro_rules! test_with_server {
                     paypal_client_key: config.paypal_client_key.clone(),
                     event_sender,
                     withdraw_fee: 0.05,
-                    online_users: Arc::new(DashMap::new())
+                    online_users: Arc::new(DashMap::new()),
+                    support_email: config.support_email.clone()
                 };
                 Arc::new(ctx_state)
             }
@@ -86,6 +87,7 @@ macro_rules! test_with_server {
                 paypal_webhook_id: "".to_string(),
                 paypal_client_id: "".to_string(),
                 paypal_client_key: "".to_string(),
+                support_email: "".to_string()
             };
 
             let $ctx_state = {
