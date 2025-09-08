@@ -1,5 +1,6 @@
 use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
+use crate::middleware::utils::db_utils::ViewRelateField;
 use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{
     exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
@@ -202,12 +203,12 @@ impl<'a> PostDbService<'a> {
         Ok(posts)
     }
 
-    pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<Post>> {
+    pub async fn get_by_tag(&self, tag: &str, pagination: Pagination) -> CtxResult<Vec<PostView>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pagination.order_by.unwrap_or("id".to_string()).to_string();
-
+        let fields = PostView::get_fields();
         let query = format!(
-            "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME}
+            "SELECT *, out.{{{fields}}} AS entity FROM $tag->{TAG_REL_TABLE_NAME}
              WHERE out.type IN $public_types AND out.belongs_to.type = $disc_type
              ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by, order_dir
@@ -222,7 +223,7 @@ impl<'a> PostDbService<'a> {
             .bind(("disc_type", DiscussionType::Public))
             .await?;
 
-        let posts = res.take::<Vec<Post>>((0, "entity"))?;
+        let posts = res.take::<Vec<PostView>>((0, "entity"))?;
         Ok(posts)
     }
 
@@ -277,10 +278,10 @@ impl<'a> PostDbService<'a> {
         search_test: Option<String>,
         disc_type: DiscussionType,
         pagination: Pagination,
-    ) -> CtxResult<Vec<Post>> {
+    ) -> CtxResult<Vec<PostView>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
-
-        let post_query = format!("SELECT * FROM {TABLE_NAME}
+        let fields = PostView::get_select_query_fields();
+        let post_query = format!("SELECT {fields} FROM {TABLE_NAME}
             WHERE belongs_to=$parent.id AND (type IN $public_posts OR $user IN <-{ACCESS_TABLE_NAME}.in)
             ORDER BY id DESC LIMIT 1");
 
@@ -308,7 +309,7 @@ impl<'a> PostDbService<'a> {
             .bind(("disc_public", DiscussionType::Public))
             .await?;
 
-        let data = res.take::<Vec<Post>>(0)?;
+        let data = res.take::<Vec<PostView>>(0)?;
         Ok(data)
     }
 

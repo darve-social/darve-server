@@ -255,7 +255,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts = posts_res.json::<Vec<Post>>();
+    let posts = posts_res.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
 
     let posts_res = get_posts(
@@ -270,7 +270,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts = posts_res.json::<Vec<Post>>();
+    let posts = posts_res.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
 
     let posts_res = get_posts(
@@ -285,7 +285,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
     .await;
 
     posts_res.assert_status_success();
-    let posts = posts_res.json::<Vec<Post>>();
+    let posts = posts_res.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
 
     let posts = server
@@ -505,9 +505,9 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+    assert_eq!(posts[0].id.to_raw(), post.id);
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
@@ -516,9 +516,9 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+    assert_eq!(posts[0].id.to_raw(), post.id);
     let latest_posts = server
         .get("/api/users/current/latest_posts")
         .add_header("Cookie", format!("jwt={}", token2))
@@ -526,9 +526,9 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+    assert_eq!(posts[0].id.to_raw(), post.id);
 
     let data = MultipartForm::new()
         .add_text("title", "Hello")
@@ -545,12 +545,9 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(
-        posts[0].id.as_ref().unwrap(),
-        private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(posts[0].id, *private_post.id.as_ref().unwrap());
 
     let latest_posts = server
         .get("/api/users/current/latest_posts?text=rust")
@@ -559,7 +556,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
 
     let latest_posts = server
@@ -569,12 +566,9 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(
-        posts[0].id.as_ref().unwrap(),
-        private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(posts[0].id, *private_post.id.as_ref().unwrap());
     let latest_posts = server
         .get("/api/users/current/latest_posts")
         .add_header("Cookie", format!("jwt={}", token2))
@@ -582,7 +576,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<Post>>();
+    let posts = latest_posts.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].id.as_ref().unwrap().to_raw(), post.id);
+    assert_eq!(posts[0].id.to_raw(), post.id);
 });

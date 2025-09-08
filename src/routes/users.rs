@@ -1,7 +1,7 @@
 use crate::{
     entities::community::{
         discussion_entity::DiscussionType,
-        post_entity::{Post, PostDbService, PostType},
+        post_entity::{PostDbService, PostType},
     },
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
@@ -592,7 +592,7 @@ async fn get_posts(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetPostsQuery>,
-) -> CtxResult<Json<Vec<Post>>> {
+) -> CtxResult<Json<Vec<PostView>>> {
     let user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
