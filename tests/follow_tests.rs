@@ -61,15 +61,6 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .await;
     create_response.assert_status_success();
 
-    // // refollow error
-    // let create_response = server
-    //     .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
-    //     .add_header("Accept", "application/json")
-    //     .json("")
-    //     .add_header("Accept", "application/json")
-    //     .await;
-    // create_response.assert_status_failure();
-
     let followers_nr = follow_db_service
         .user_followers_number(user1_id.clone())
         .await
@@ -105,14 +96,6 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .json("")
         .await;
     create_response.assert_status_success();
-
-    // // refollow error
-    // let create_response = server
-    //     .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
-    //     .add_header("Accept", "application/json")
-    //     .json("")
-    //     .await;
-    // create_response.assert_status_failure();
 
     // check nr of followers
     let followers_nr = follow_db_service
