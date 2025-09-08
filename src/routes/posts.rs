@@ -22,6 +22,7 @@ use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::models::view::access::PostAccessView;
+use crate::models::view::post::PostView;
 use crate::models::view::reply::ReplyView;
 use crate::models::view::task::TaskRequestView;
 use crate::models::view::user::UserView;
@@ -120,7 +121,7 @@ async fn get_posts(
     Query(query): Query<GetPostsQuery>,
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-) -> CtxResult<Json<Vec<Post>>> {
+) -> CtxResult<Json<Vec<PostView>>> {
     let post_db_service = PostDbService {
         ctx: &ctx,
         db: &state.db.client,
@@ -131,9 +132,10 @@ async fn get_posts(
         count: query.count.unwrap_or(100),
         start: query.start.unwrap_or_default(),
     };
-    let posts = post_db_service.get_by_tag(&query.tag, pagination).await?;
+    let posts = post_db_service.get_by_tag(&query.tag, pagination).await;
+    println!("{:?}", posts);
 
-    Ok(Json(posts))
+    Ok(Json(posts?))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

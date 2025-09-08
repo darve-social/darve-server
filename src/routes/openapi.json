@@ -905,7 +905,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Post"
+                    "$ref": "#/components/schemas/PostView"
                   }
                 }
               }
@@ -1531,7 +1531,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Post"
+                    "$ref": "#/components/schemas/PostView"
                   }
                 }
               }
@@ -2418,7 +2418,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Post"
+                  "$ref": "#/components/schemas/PostView"
                 }
               }
             }
@@ -4077,56 +4077,6 @@
               "type": "string"
             },
             "description": "Member of the private posts"
-          }
-        }
-      },
-      "Post": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Post ID"
-          },
-          "belongs_to": {
-            "type": "string",
-            "description": "Discussion ID this post belongs to"
-          },
-          "created_by": {
-            "type": "string",
-            "description": "User ID who created the post"
-          },
-          "title": {
-            "type": "string",
-            "description": "Post title"
-          },
-          "content": {
-            "type": "string",
-            "description": "Post content"
-          },
-          "media_links": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Media links attached to the post"
-          },
-          "likes_nr": {
-            "type": "integer",
-            "description": "Number of likes"
-          },
-          "replies_nr": {
-            "type": "integer",
-            "description": "Number of replies"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last update timestamp"
           }
         }
       },
