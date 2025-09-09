@@ -314,7 +314,7 @@ impl<'a> TaskRequestDbService<'a> {
                 "SELECT *, {fields} FROM {TABLE_NAME}
                  WHERE created_by=$user AND (belongs_to.type IN $public_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
                   AND (
-                      record::tb(id) != {POST_TABLE_NAME}
+                      record::tb(belongs_to) != {POST_TABLE_NAME}
                       OR belongs_to.belongs_to.type IN $public_types
                       OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in
                   )

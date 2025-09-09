@@ -1543,3 +1543,215 @@ test_with_server!(
             .contains("All donors must have view access to the delivery post"))
     }
 );
+
+test_with_server!(
+    given_tasks_public_disc_public_post,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, _user2, _, token2) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let endow_user_response = server
+            .get(&format!(
+                "/test/api/endow/{}/{}",
+                user1.id.as_ref().unwrap().to_raw(),
+                1000
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
+            .json(&json!({
+                "offer_amount": Some(100),
+                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 1);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 0);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token2))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 0);
+    }
+);
+
+test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap().clone());
+    let create_response = server
+            .post("/api/discussions")
+            .json(&json!({
+                "community_id": comm_id.to_raw(),
+                "title": "The Discussion".to_string(),
+                "chat_user_ids": [user2.id.as_ref().unwrap().to_raw(), user0.id.as_ref().unwrap().to_raw()],
+                "private_discussion_users_final": false,
+            }))
+            .add_header("Accept", "application/json")
+            .await;
+
+    create_response.assert_status_success();
+    let disc_id = create_response.json::<Discussion>().id;
+
+    let task_request = server
+        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
+        .json(&json!({
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+        }))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+
+    let given_tasks_response = server
+        .get("/api/tasks/given")
+        .add_header("Cookie", format!("jwt={}", token0))
+        .await;
+
+    given_tasks_response.assert_status_success();
+    let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 1);
+    let given_tasks_response = server
+        .get("/api/tasks/given")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    given_tasks_response.assert_status_success();
+    let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 0);
+    let given_tasks_response = server
+        .get("/api/tasks/given")
+        .add_header("Cookie", format!("jwt={}", token2))
+        .await;
+
+    given_tasks_response.assert_status_success();
+    let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 0);
+
+    server
+        .delete(&format!("/api/discussions/{}/chat_users", disc_id.to_raw()))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()]}))
+        .await
+        .assert_status_success();
+    let given_tasks_response = server
+        .get("/api/tasks/given")
+        .add_header("Cookie", format!("jwt={}", token0))
+        .await;
+
+    given_tasks_response.assert_status_success();
+    let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+    assert_eq!(tasks.len(), 0);
+});
+
+test_with_server!(
+    given_tasks_public_disc_private_post,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+
+        let title = faker::lorem::en::Sentence(7..20).fake::<String>();
+        let data = MultipartForm::new()
+            .add_text("title", title)
+            .add_text("content", "content")
+            .add_text("users", user2.id.as_ref().unwrap().to_raw())
+            .add_text("users", user0.id.as_ref().unwrap().to_raw());
+
+        let post = server
+            .post(format!("/api/discussions/{}/posts", disc_id.to_raw()).as_str())
+            .multipart(data)
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await
+            .json::<Post>();
+
+        let task_request = server
+            .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await;
+
+        given_tasks_response.assert_status_success();
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+        assert_eq!(tasks.len(), 1);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .await;
+
+        given_tasks_response.assert_status_success();
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+        assert_eq!(tasks.len(), 0);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token2))
+            .await;
+
+        given_tasks_response.assert_status_success();
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+        assert_eq!(tasks.len(), 0);
+
+        server
+            .post(&format!(
+                "/api/posts/{}/remove_users",
+                post.id.as_ref().unwrap().to_raw()
+            ))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()]}))
+            .await
+            .assert_status_success();
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await;
+
+        given_tasks_response.assert_status_success();
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+        assert_eq!(tasks.len(), 0);
+    }
+);
