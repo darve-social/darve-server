@@ -4,6 +4,7 @@ use crate::database::client::Db;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::community::post_entity::PostType;
+use crate::entities::community::post_entity::TABLE_NAME as POST_TABLE_NAME;
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::wallet_entity::{self, TRANSACTION_HEAD_F};
@@ -303,20 +304,29 @@ impl<'a> TaskRequestDbService<'a> {
     pub async fn get_by_creator<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         user: Thing,
-        pagination: Option<Pagination>,
+        pagination: Pagination,
     ) -> CtxResult<Vec<T>> {
-        let filter_by = vec![IdentIdName::ColumnIdent {
-            column: "created_by".to_string(),
-            val: user.to_raw(),
-            rec: true,
-        }];
-        get_entity_list_view::<T>(
-            self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::ColumnIdentAnd(filter_by),
-            pagination,
-        )
-        .await
+        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let fields = T::get_select_query_fields();
+        let mut res = self
+            .db
+            .query(format!(
+                "SELECT *, {fields} FROM {TABLE_NAME}
+                 WHERE created_by=$user AND (belongs_to.type IN $public_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
+                  AND (
+                      record::tb(id) != {POST_TABLE_NAME}
+                      OR belongs_to.belongs_to.type IN $public_types
+                      OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in
+                  )
+                 ORDER BY created_at {order_dir} LIMIT $limit START $start;"
+            ))
+            .bind(("user", user))
+            .bind(("public_types", [PostType::Public, PostType::Idea]))
+            .bind(("limit", pagination.count))
+            .bind(("start", pagination.start))
+            .await?;
+
+        Ok(res.take::<Vec<T>>(0)?)
     }
 
     pub async fn on_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
