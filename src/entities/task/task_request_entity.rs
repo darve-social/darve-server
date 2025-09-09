@@ -45,6 +45,7 @@ pub struct TaskRequest {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum TaskRequestStatus {
+    Init,
     InProgress,
     Completed,
 }
@@ -189,7 +190,7 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("currency", record.currency.clone()))
             .bind(("type", record.r#type.clone()))
             .bind(("acceptance_period", record.acceptance_period))
-            .bind(("status", TaskRequestStatus::InProgress))
+            .bind(("status", TaskRequestStatus::Init))
             .bind(("due_at", Datetime::from(due_at.unwrap())))
             .bind(("wallet", Thing::from((WALLET_TABLE_NAME, id.as_str()))))
             .bind(("task", Thing::from((TABLE_NAME, id.as_str()))))

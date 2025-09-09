@@ -1,5 +1,6 @@
 use crate::{
     entities::{
+        task::task_request_entity::TaskRequestStatus,
         task_request_user::{TaskParticipantStatus, TaskParticipantTimeline},
         wallet::wallet_entity::CurrencySymbol,
     },
@@ -36,6 +37,7 @@ pub struct TaskRequestView {
     pub due_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub wallet_id: Thing,
+    pub status: TaskRequestStatus,
 }
 
 impl ViewFieldSelector for TaskRequestView {
@@ -47,6 +49,7 @@ impl ViewFieldSelector for TaskRequestView {
         acceptance_period,
         wallet_id,
         currency,
+        status,
         request_txt,
         created_by.* as created_by,
         ->task_participant.{ user: out.*, status, timelines } as participants,
@@ -64,6 +67,7 @@ impl ViewRelateField for TaskRequestView {
         acceptance_period,
         wallet_id,
         currency,
+        status,
         request_txt,
         created_by:created_by.*,
         participants:->task_participant.{ user: out.*, status, timelines},
@@ -84,6 +88,7 @@ pub struct TaskViewForParticipant {
     pub deliver_by: Option<DateTime<Utc>>,
     pub participants: Vec<TaskRequestViewParticipant>,
     pub created_at: DateTime<Utc>,
+    pub status: TaskRequestStatus,
 }
 
 impl TaskViewForParticipant {
@@ -120,6 +125,7 @@ impl TaskViewForParticipant {
 
             deliver_by,
             created_at: view.created_at,
+            status: view.status,
         }
     }
 }
