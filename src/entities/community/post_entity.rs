@@ -10,7 +10,7 @@ use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use surrealdb::err::Error::IndexExists;
 use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
@@ -23,7 +23,7 @@ use crate::entities::user_auth::follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
-use crate::models::view::post::PostView;
+use crate::models::view::post::{LatestPostView, PostView};
 
 use super::discussion_entity;
 
@@ -32,6 +32,37 @@ pub enum PostType {
     Public,
     Private,
     Idea,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PostUserStatus {
+    Delivered,
+    Seen,
+}
+
+impl Serialize for PostUserStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(self.clone() as u8)
+    }
+}
+impl<'de> Deserialize<'de> for PostUserStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let v = u8::deserialize(deserializer)?;
+        match v {
+            0 => Ok(PostUserStatus::Delivered),
+            1 => Ok(PostUserStatus::Seen),
+            _ => Err(serde::de::Error::custom(format!(
+                "invalid PostUserStatus value: {}",
+                v
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -278,9 +309,9 @@ impl<'a> PostDbService<'a> {
         search_test: Option<String>,
         disc_type: DiscussionType,
         pagination: Pagination,
-    ) -> CtxResult<Vec<PostView>> {
+    ) -> CtxResult<Vec<LatestPostView>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
-        let fields = PostView::get_select_query_fields();
+        let fields = LatestPostView::get_select_query_fields();
         let post_query = format!("SELECT {fields} FROM {TABLE_NAME}
             WHERE belongs_to=$parent.id AND (type IN $public_posts OR $user IN <-{ACCESS_TABLE_NAME}.in)
             ORDER BY id DESC LIMIT 1");
@@ -309,7 +340,7 @@ impl<'a> PostDbService<'a> {
             .bind(("disc_public", DiscussionType::Public))
             .await?;
 
-        let data = res.take::<Vec<PostView>>(0)?;
+        let data = res.take::<Vec<LatestPostView>>(0)?;
         Ok(data)
     }
 

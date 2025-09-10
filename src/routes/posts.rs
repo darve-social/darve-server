@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::access::post::PostAccess;
-use crate::entities::community::post_entity;
+use crate::entities::community::post_entity::{self};
 use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
 use crate::entities::user_auth::local_user_entity;
-use crate::middleware;
 
+use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -28,6 +28,7 @@ use crate::models::view::task::TaskRequestView;
 use crate::models::view::user::UserView;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{PostLikeData, PostService};
+use crate::services::post_user_service::PostUserService;
 use crate::services::task_service::{TaskRequestInput, TaskService};
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -37,6 +38,8 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/posts/:post_id/tasks", get(get_post_tasks))
         .route("/api/posts/:post_id/like", post(like))
         .route("/api/posts/:post_id/unlike", delete(unlike))
+        .route("/api/posts/:post_id/deliver", post(post_mark_as_deliver))
+        .route("/api/posts/:post_id/read", post(post_mark_as_read))
         .route("/api/posts/:post_id/replies", post(create_reply))
         .route("/api/posts/:post_id/replies", get(get_replies))
         .route("/api/posts/:post_id/add_users", post(add_members))
@@ -379,4 +382,26 @@ async fn get_members(
     .await?;
 
     Ok(Json(users))
+}
+
+async fn post_mark_as_deliver(
+    Path(post_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+) -> CtxResult<()> {
+    let service = PostUserService::new(&state, &auth_data.ctx, &state.db.post_users);
+    service
+        .deliver(&auth_data.user_thing_id(), &post_id)
+        .await?;
+    Ok(())
+}
+
+async fn post_mark_as_read(
+    Path(post_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+) -> CtxResult<()> {
+    let service = PostUserService::new(&state, &auth_data.ctx, &state.db.post_users);
+    service.read(&auth_data.user_thing_id(), &post_id).await?;
+    Ok(())
 }

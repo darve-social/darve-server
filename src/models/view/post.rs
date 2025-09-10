@@ -1,5 +1,7 @@
 use crate::database::table_names::ACCESS_TABLE_NAME;
+use crate::database::table_names::POST_USER_TABLE_NAME;
 use crate::entities::access_user::AccessUser;
+use crate::entities::community::post_entity::PostUserStatus;
 use crate::models::view::access_user::AccessUserView;
 use crate::{
     entities::community::post_entity::PostType,
@@ -80,5 +82,43 @@ impl ViewFieldSelector for PostUsersView {
 impl ViewRelateField for PostUsersView {
     fn get_fields() -> &'static str {
         "id, users: <-has_access.{ user: in.*, role, created_at }"
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PostUserStatusView {
+    pub status: PostUserStatus,
+    #[serde(rename = "out")]
+    pub user: Thing,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct LatestPostView {
+    pub id: Thing,
+    pub created_by: UserView,
+    pub r#type: PostType,
+    pub belongs_to: Thing,
+    pub title: String,
+    pub content: Option<String>,
+    pub media_links: Option<Vec<String>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub users_status: Option<Vec<PostUserStatusView>>,
+}
+
+impl ViewFieldSelector for LatestPostView {
+    fn get_select_query_fields() -> String {
+        format!(
+            "id,
+        created_by.* as created_by, 
+        title, 
+        type,
+        content,
+        media_links, 
+        created_at,
+        updated_at,
+        belongs_to,
+        ->{POST_USER_TABLE_NAME}.* as users_status"
+        )
     }
 }

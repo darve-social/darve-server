@@ -14,6 +14,7 @@ use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::string_utils::get_string_thing;
 use darve_server::middleware::{self};
+use darve_server::models::view::post::LatestPostView;
 use darve_server::models::view::post::PostView;
 use darve_server::routes::posts::GetPostsQuery;
 use darve_server::services::discussion_service::CreateDiscussion;
@@ -505,7 +506,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id.to_raw(), post.id);
 
@@ -516,7 +517,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id.to_raw(), post.id);
     let latest_posts = server
@@ -526,7 +527,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id.to_raw(), post.id);
 
@@ -545,7 +546,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id, *private_post.id.as_ref().unwrap());
 
@@ -556,7 +557,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 0);
 
     let latest_posts = server
@@ -566,7 +567,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id, *private_post.id.as_ref().unwrap());
     let latest_posts = server
@@ -576,7 +577,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     latest_posts.assert_status_success();
 
-    let posts = latest_posts.json::<Vec<PostView>>();
+    let posts = latest_posts.json::<Vec<LatestPostView>>();
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].id.to_raw(), post.id);
 });
