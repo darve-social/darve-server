@@ -82,9 +82,17 @@ async fn user_requests_received(
     Ok(Json(list))
 }
 
+#[derive(Debug, Deserialize)]
+struct GetTaskByCreatorQuery {
+    order_dir: Option<QryOrder>,
+    start: Option<u32>,
+    count: Option<u16>,
+}
+
 async fn user_requests_given(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
+    Query(query): Query<GetTaskByCreatorQuery>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let from_user = LocalUserDbService {
         db: &state.db.client,
@@ -93,11 +101,17 @@ async fn user_requests_given(
     .get_ctx_user_thing()
     .await?;
 
+    let pagination = Pagination {
+        order_by: None,
+        order_dir: query.order_dir,
+        count: query.count.unwrap_or(20),
+        start: query.start.unwrap_or(0),
+    };
     let list = TaskRequestDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     }
-    .get_by_creator::<TaskRequestView>(from_user, None)
+    .get_by_creator::<TaskRequestView>(from_user, pagination)
     .await?;
     Ok(Json(list))
 }
