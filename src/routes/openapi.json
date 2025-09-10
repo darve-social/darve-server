@@ -935,13 +935,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Array of latest posts from private discussions",
+            "description": "Array of latest posts with user-specific delivery/read status",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PostView"
+                    "$ref": "#/components/schemas/LatestPostView"
                   }
                 }
               }
@@ -2006,6 +2006,74 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        }
+      }
+    },
+    "/api/posts/{post_id}/deliver": {
+      "post": {
+        "tags": ["Posts"],
+        "summary": "Mark post as delivered",
+        "description": "Mark a specific post as delivered by the current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the post to mark as delivered",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post marked as delivered successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Post not found"
+          }
+        }
+      }
+    },
+    "/api/posts/{post_id}/read": {
+      "post": {
+        "tags": ["Posts"],
+        "summary": "Mark post as read",
+        "description": "Mark a specific post as read by the current user",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the post to mark as read",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Post marked as read successfully"
           },
           "401": {
             "description": "Unauthorized"
@@ -4196,6 +4264,49 @@
             "description": "List of users associated with the post"
           }
         }
+      },
+      "PostUserStatus": {
+        "type": "integer",
+        "enum": [0, 1],
+        "description": "User status for a post: 0=Delivered, 1=Seen"
+      },
+      "PostUserStatusView": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/PostUserStatus"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID"
+          }
+        },
+        "required": ["status", "user"]
+      },
+      "LatestPostView": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Post ID" },
+          "created_by": { "$ref": "#/components/schemas/UserView" },
+          "type": { "$ref": "#/components/schemas/PostType" },
+          "belongs_to": { "type": "string" },
+          "title": { "type": "string" },
+          "content": { "type": "string", "nullable": true },
+          "media_links": {
+            "type": "array",
+            "items": { "type": "string" },
+            "nullable": true
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "users_status": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PostUserStatusView" },
+            "nullable": true,
+            "description": "Per-user status entries for this post"
+          }
+        },
+        "required": ["id", "created_by", "type", "belongs_to", "title", "created_at", "updated_at"]
       },
       "PostLikeResponse": {
         "type": "object",
