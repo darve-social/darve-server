@@ -57,6 +57,7 @@ pub struct TaskView {
     pub delivery_period: u16,
     pub created_at: DateTime<Utc>,
     pub related_to: Option<Thing>,
+    pub status: TaskRequestStatus,
 }
 
 impl ViewFieldSelector for TaskView {
@@ -70,6 +71,7 @@ impl ViewFieldSelector for TaskView {
         currency,
         wallet_id,
         created_at,
+        status,
         ->task_relate.out[0] as related_to,
         ->task_donor.*.{id, transaction, amount, user: out} as donors,
         ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants"
@@ -280,16 +282,7 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        if data.amount <= 0 {
-            return Err(AppError::Forbidden.into());
-        }
-
-        let is_some_accepted_or_delivered = task.participants.iter().any(|v| {
-            v.status == TaskParticipantStatus::Accepted
-                || v.status == TaskParticipantStatus::Delivered
-        });
-
-        if is_some_accepted_or_delivered {
+        if data.amount <= 0 || task.status != TaskRequestStatus::Init {
             return Err(AppError::Forbidden.into());
         }
 
@@ -507,6 +500,12 @@ where
                     )
                     .await;
             }
+        }
+
+        if task.status != TaskRequestStatus::InProgress {
+            self.tasks_repository
+                .update_status(task.id, TaskRequestStatus::InProgress)
+                .await?;
         }
 
         Ok(())

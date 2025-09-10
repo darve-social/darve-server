@@ -3545,6 +3545,9 @@
           "created_by": {
             "$ref": "#/components/schemas/UserView"
           },
+          "status": {
+            "$ref": "#/components/schemas/TaskRequestStatus"
+          },
           "participants": {
             "type": "array",
             "items": {
@@ -3592,6 +3595,11 @@
             "description": "Wallet ID"
           }
         }
+      },
+      "TaskRequestStatus": {
+        "type": "string",
+        "enum": ["Init", "InProgress", "Completed"],
+        "description": "Status of task"
       },
       "TaskRequestViewParticipant": {
         "type": "object",
@@ -3821,6 +3829,9 @@
           },
           "created_by": {
             "$ref": "#/components/schemas/UserView"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskRequestStatus"
           },
           "request_txt": {
             "type": "string",
