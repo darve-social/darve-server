@@ -142,7 +142,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
     }
 
     async fn read(&self, id: &str, user_id: &str) -> Result<(), AppError> {
-        let res = self
+        let _ = self
             .client
             .query("UPDATE user_notifications SET is_read=$is_read WHERE out=$id AND in=$user_id")
             .bind(("id", Thing::from(("notifications", id))))
@@ -153,7 +153,6 @@ impl UserNotificationsInterface for UserNotificationsRepository {
                 source: e.to_string(),
             })?;
 
-        println!("><<<<<<<<{:?}", res);
         Ok(())
     }
     async fn read_all(&self, user_id: &str) -> Result<(), AppError> {
