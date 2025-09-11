@@ -5,10 +5,11 @@ use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::task::task_request_entity::TaskRequest;
-use darve_server::entities::user_notification::{UserNotification, UserNotificationEvent};
+use darve_server::entities::user_notification::UserNotificationEvent;
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::models::view::balance_tx::CurrencyTransactionView;
+use darve_server::models::view::notification::UserNotificationView;
 use darve_server::models::view::task::TaskRequestView;
 use darve_server::models::view::task::TaskViewForParticipant;
 use darve_server::routes::tasks::TaskRequestOfferInput;
@@ -350,7 +351,7 @@ test_with_server!(
             .await;
 
         notif_history_req.assert_status_success();
-        let received_notifications = notif_history_req.json::<Vec<UserNotification>>();
+        let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
 
         assert_eq!(received_notifications.len(), 4);
 
@@ -437,7 +438,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 4);
     let req = server
         .get("/api/notifications?count=1")
@@ -446,7 +447,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
     let req = server
         .get("/api/notifications?is_read=true")
@@ -455,7 +456,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 0);
 
     let req = server
@@ -465,7 +466,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
 });
 
@@ -491,10 +492,11 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
 
     let id = &notifications.first().as_ref().unwrap().id;
+
     let req = server
         .post(&format!("/api/notifications/{id}/read"))
         .add_header("Cookie", format!("jwt={}", token))
@@ -509,7 +511,7 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
     let first = notifications.first().unwrap();
     assert_eq!(first.is_read, true);
@@ -542,7 +544,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 5);
 
     let req = server
@@ -559,7 +561,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
         .await;
 
     req.assert_status_success();
-    let notifications = req.json::<Vec<UserNotification>>();
+    let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 5);
 });
 

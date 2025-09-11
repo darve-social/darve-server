@@ -1,8 +1,12 @@
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use chrono::{DateTime, Months, Utc};
+use core::fmt;
 use regex::Regex;
 use reqwest::Url;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::{self, MapAccess, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
@@ -50,6 +54,46 @@ where
 {
     let thing = Thing::deserialize(deserializer)?;
     Ok(thing.id.to_raw())
+}
+
+pub fn deserialize_thing_or_string_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct IdExtractor;
+
+    impl<'de> Visitor<'de> for IdExtractor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a Thing object")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<String, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<String, E>
+        where
+            E: de::Error,
+        {
+            Ok(value)
+        }
+
+        fn visit_map<M>(self, map: M) -> Result<String, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            // Try to deserialize the map as a Thing
+            let thing = Thing::deserialize(de::value::MapAccessDeserializer::new(map))?;
+            Ok(thing.id.to_raw())
+        }
+    }
+
+    deserializer.deserialize_any(IdExtractor)
 }
 
 pub fn serialize_string_id<S>(x: &String, s: S) -> Result<S::Ok, S::Error>

@@ -1,10 +1,15 @@
 use crate::{
     database::client::Db,
+    entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
     entities::user_notification::UserNotification,
     interfaces::repositories::user_notifications::{
         GetNotificationOptions, UserNotificationsInterface,
     },
-    middleware::{error::AppError, utils::string_utils::get_str_thing},
+    middleware::{
+        error::AppError,
+        utils::{db_utils::ViewRelateField, string_utils::get_str_thing},
+    },
+    models::view::notification::UserNotificationView,
 };
 use async_trait::async_trait;
 use serde_json::Value;
@@ -27,7 +32,7 @@ impl UserNotificationsRepository {
         DEFINE TABLE IF NOT EXISTS notifications SCHEMAFULL;
         DEFINE FIELD IF NOT EXISTS event       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS title       ON TABLE notifications TYPE string;
-        DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<local_user>;
+        DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<{USER_TABLE_NAME}>;
         DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications FLEXIBLE TYPE option<object>;
         DEFINE FIELD IF NOT EXISTS created_at  ON TABLE notifications TYPE datetime DEFAULT time::now();
 
@@ -70,18 +75,11 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             LET $n_id = $notification.id;
 
             FOR $user_id IN $receivers {
-                RELATE $user_id -> user_notifications -> $n_id SET is_read = false;
+                RELATE $user_id->user_notifications->$n_id SET is_read = false;
             };
             
             COMMIT TRANSACTION;
-            RETURN {
-                id: record::id($notification.id),
-                created_by: record::id($notification.created_by),
-                event: $notification.event,
-                title: $notification.title,
-                metadata: $notification.metadata,
-                created_at: $notification.created_at
-            };
+            RETURN $notification;
 
         "#;
 
@@ -112,20 +110,18 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         &self,
         user_id: &str,
         options: GetNotificationOptions,
-    ) -> Result<Vec<UserNotification>, AppError> {
+    ) -> Result<Vec<UserNotificationView>, AppError> {
         let is_read_query = if options.is_read.is_some() {
             "AND is_read = $is_read"
         } else {
             ""
         };
+
+        let fields = UserNotificationView::get_fields();
         let query = format!(
-            " SELECT out.*,
-                    record::id(out.id) AS out.id,
-                    record::id(out.created_by) AS out.created_by, 
-                    is_read as out.is_read, 
-                    out.created_at as created_at 
+            " SELECT  out.created_at as created_at, out.{{{fields}}}, is_read as out.is_read
                 FROM user_notifications
-                WHERE in = $user_id {}
+                WHERE in=$user_id {}
                 ORDER BY created_at {}
                 LIMIT $limit START $start;",
             is_read_query, options.order_dir
@@ -133,7 +129,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let mut res = self
             .client
             .query(&query)
-            .bind(("user_id", get_str_thing(user_id)?))
+            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("start", options.start))
             .bind(("limit", options.limit))
             .bind(("is_read", options.is_read))
@@ -141,21 +137,23 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })?;
-        let data = res.take::<Vec<UserNotification>>((0, "out"))?;
+        let data = res.take::<Vec<UserNotificationView>>((0, "out"))?;
         Ok(data)
     }
 
     async fn read(&self, id: &str, user_id: &str) -> Result<(), AppError> {
-        let _ = self
+        let res = self
             .client
             .query("UPDATE user_notifications SET is_read=$is_read WHERE out=$id AND in=$user_id")
             .bind(("id", Thing::from(("notifications", id))))
-            .bind(("user_id", get_str_thing(user_id)?))
+            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("is_read", true))
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })?;
+
+        println!("><<<<<<<<{:?}", res);
         Ok(())
     }
     async fn read_all(&self, user_id: &str) -> Result<(), AppError> {

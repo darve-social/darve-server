@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::{
     entities::user_notification::UserNotification,
     middleware::{error::AppError, utils::db_utils::QryOrder},
+    models::view::notification::UserNotificationView,
 };
 
 pub struct GetNotificationOptions {
@@ -27,7 +28,7 @@ pub trait UserNotificationsInterface {
         &self,
         user_id: &str,
         options: GetNotificationOptions,
-    ) -> Result<Vec<UserNotification>, AppError>;
+    ) -> Result<Vec<UserNotificationView>, AppError>;
     async fn read(&self, id: &str, user_id: &str) -> Result<(), AppError>;
     async fn read_all(&self, user_id: &str) -> Result<(), AppError>;
     async fn get_count(&self, user_id: &str, is_read: Option<bool>) -> Result<u64, AppError>;
