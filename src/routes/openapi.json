@@ -303,7 +303,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/UserNotification"
+                    "$ref": "#/components/schemas/UserNotificationView"
                   }
                 }
               }
@@ -3477,7 +3477,7 @@
           }
         }
       },
-      "UserNotification": {
+      "UserNotificationView": {
         "type": "object",
         "properties": {
           "id": {
@@ -3485,7 +3485,7 @@
             "description": "Notification ID"
           },
           "created_by": {
-            "type": "string",
+            "$ref": "#/components/schemas/UserView",
             "description": "User who created the notification"
           },
           "event": {
