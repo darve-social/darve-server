@@ -154,13 +154,7 @@ where
             .like(user.id.as_ref().unwrap().clone(), post.id.clone(), likes)
             .await?;
 
-        self.notification_service
-            .on_like(
-                &user.id.as_ref().unwrap(),
-                vec![user.id.as_ref().unwrap().clone()],
-                post.id.clone(),
-            )
-            .await?;
+        self.notification_service.on_post_like(&user, post).await?;
 
         if by_credits {
             self.users_repository

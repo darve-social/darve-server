@@ -1,10 +1,13 @@
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
+use crate::access::base::role::Role;
 use crate::database::client::Db;
+use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::mw_ctx::AppEventMetadata;
+use crate::models::view::access::PostAccessView;
 use crate::models::view::post::PostView;
 use crate::models::view::reply::ReplyView;
 use crate::{
@@ -46,14 +49,39 @@ where
         }
     }
 
-    pub async fn on_like(
-        &self,
-        user_id: &Thing,
-        participators: Vec<Thing>,
-        post_id: Thing,
-    ) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-        let receivers = participators
+    pub async fn on_post_like(&self, user: &LocalUser, post: PostAccessView) -> CtxResult<()> {
+        let current_user_id = user.id.as_ref().unwrap();
+        let receivers = if post.discussion.r#type == DiscussionType::Private {
+            post.discussion
+                .users
+                .into_iter()
+                .filter_map(|d| {
+                    if d.user != *current_user_id {
+                        Some(d.user)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<Thing>>()
+        } else {
+            let owner_role = Role::Owner.to_string();
+            match post
+                .discussion
+                .users
+                .into_iter()
+                .find(|d| d.role == owner_role && d.user != *current_user_id)
+            {
+                Some(d) => vec![d.user],
+                None => vec![],
+            }
+        };
+
+        if receivers.is_empty() {
+            return Ok(());
+        }
+
+        let user_id_str = current_user_id.to_raw();
+        let receivers = receivers
             .iter()
             .map(|id| id.to_raw())
             .collect::<Vec<String>>();
@@ -62,12 +90,12 @@ where
             .notification_repository
             .create(
                 &user_id_str,
-                "like",
+                format!("{} liked the post", user.username).as_str(),
                 &UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
                 Some(json!({
                     "user_id": user_id_str,
-                    "post_id": post_id.to_raw()
+                    "post_id": post.id.to_raw()
                 })),
             )
             .await?;
