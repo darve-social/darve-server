@@ -253,7 +253,11 @@ where
             }
         }
 
-        self.create(&user, participant, r#type, data, disc_id).await
+        let task = self
+            .create(&user, participant, r#type, data, disc_id)
+            .await?;
+
+        Ok(task)
     }
 
     pub async fn upsert_donor(
@@ -793,12 +797,12 @@ where
                 .await?;
         }
 
-        if let Some(ref user) = participant {
+        if let Some(ref participant) = participant {
             let _ = self
                 .task_participants_repository
                 .create(
                     &task.id.as_ref().unwrap().id.to_raw(),
-                    &user.id.as_ref().unwrap().id.to_raw(),
+                    &participant.id.as_ref().unwrap().id.to_raw(),
                     TaskParticipantStatus::Requested.as_str(),
                 )
                 .await
@@ -808,27 +812,17 @@ where
 
             self.access_repository
                 .add(
-                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [participant.id.as_ref().unwrap().clone()].to_vec(),
                     [task.id.as_ref().unwrap().clone()].to_vec(),
                     Role::Candidate.to_string(),
                 )
                 .await?;
 
-            let _ = self
-                .notification_service
-                .on_created_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    &user.id.as_ref().unwrap(),
-                )
-                .await?;
-
-            let _ = self
-                .notification_service
-                .on_received_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    user.id.as_ref().unwrap(),
+            self.notification_service
+                .on_task_received(
+                    &user,
+                    participant.id.as_ref().unwrap(),
+                    task.id.as_ref().unwrap(),
                 )
                 .await?;
         };

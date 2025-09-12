@@ -289,48 +289,6 @@ where
         Ok(())
     }
 
-    pub async fn on_received_task(
-        &self,
-        user_id: &Thing,
-        task_id: &Thing,
-        to_user: &Thing,
-    ) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-
-        let follower_ids: Vec<Thing> = self
-            .follow_repository
-            .user_follower_ids(to_user.clone())
-            .await?;
-
-        let receivers = follower_ids
-            .iter()
-            .map(|id| id.to_raw())
-            .collect::<Vec<String>>();
-        let event = self
-            .notification_repository
-            .create(
-                &user_id_str,
-                "create a task",
-                UserNotificationEvent::UserTaskRequestReceived.as_str(),
-                &receivers,
-                Some(json!({
-                        "task_id": task_id.to_raw(),  
-                        "from_user": user_id.to_raw(),
-                        "to_user": to_user.to_raw()})),
-            )
-            .await?;
-
-        let _ = self.event_sender.send(AppEvent {
-            receivers,
-            content: None,
-            user_id: user_id_str,
-            metadata: None,
-            event: AppEventType::UserNotificationEvent(event),
-        });
-
-        Ok(())
-    }
-
     pub async fn on_discussion_post_reply(
         &self,
         user_id: &Thing,
@@ -419,6 +377,40 @@ where
             content: Some(post_json),
             receivers,
             metadata: Some(metadata),
+        });
+
+        Ok(())
+    }
+
+    pub async fn on_received_task(
+        &self,
+        user: &LocalUser,
+        participant: &Thing,
+        task_id: &Thing,
+    ) -> CtxResult<()> {
+        let user_id_str = user.id.as_ref().unwrap().to_raw();
+
+        let receivers = vec![participant.to_raw()];
+        let event = self
+            .notification_repository
+            .create(
+                &user_id_str,
+                format!("{} created a task for you", user.username).as_str(),
+                UserNotificationEvent::UserTaskRequestCreated.as_str(),
+                &receivers,
+                Some(json!({
+                        "participant": participant.to_raw(),
+                        "task_id": task_id.to_raw()
+                })),
+            )
+            .await?;
+
+        let _ = self.event_sender.send(AppEvent {
+            receivers,
+            content: None,
+            user_id: user_id_str,
+            metadata: None,
+            event: AppEventType::UserNotificationEvent(event),
         });
 
         Ok(())
