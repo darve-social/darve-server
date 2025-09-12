@@ -98,8 +98,8 @@ where
             .notification_repository
             .create(
                 &user_id_str,
-                "follow",
-                UserNotificationEvent::UserLikePost.as_str(),
+                format!("{} started following {}", user.username, follow_username).as_str(),
+                UserNotificationEvent::UserFollowAdded.as_str(),
                 &receivers,
                 Some(json!({
                     "username": user.username.clone(),
