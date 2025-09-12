@@ -254,12 +254,11 @@
           {
             "name": "start",
             "in": "query",
-            "description": "Pagination start index",
+            "description": "Pagination start",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
+              "type": "datetime",
+              "default": "current utc datetime"
             }
           },
           {

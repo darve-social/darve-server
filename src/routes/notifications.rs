@@ -13,6 +13,7 @@ use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use middleware::ctx::Ctx;
 use serde::Deserialize;
@@ -71,7 +72,7 @@ async fn read_all(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<()>
 
 #[derive(Debug, Deserialize)]
 struct GetNotificationsQuery {
-    start: Option<u32>,
+    start: Option<DateTime<Utc>>,
     count: Option<u8>,
     is_read: Option<bool>,
     order_dir: Option<QryOrder>,
@@ -96,7 +97,7 @@ async fn get_notifications(
             &auth_data.user_thing_id(),
             GetNotificationOptions {
                 limit: query.count.unwrap_or(50),
-                start: query.start.unwrap_or(0),
+                start: query.start.unwrap_or(Utc::now()),
                 order_dir: query.order_dir.map_or(QryOrder::DESC, |v| v),
                 is_read: query.is_read,
             },

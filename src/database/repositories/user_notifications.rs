@@ -121,9 +121,9 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let query = format!(
             " SELECT  out.created_at as created_at, out.{{{fields}}}, is_read as out.is_read
                 FROM user_notifications
-                WHERE in=$user_id {}
+                WHERE in=$user_id AND created_at < $start {}
                 ORDER BY created_at {}
-                LIMIT $limit START $start;",
+                LIMIT $limit;",
             is_read_query, options.order_dir
         );
         let mut res = self

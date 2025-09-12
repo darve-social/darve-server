@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
 
 pub struct GetNotificationOptions {
     pub limit: u8,
-    pub start: u32,
+    pub start: DateTime<Utc>,
     pub is_read: Option<bool>,
     pub order_dir: QryOrder,
 }
