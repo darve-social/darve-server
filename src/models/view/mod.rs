@@ -6,3 +6,4 @@ pub mod post;
 pub mod reply;
 pub mod task;
 pub mod user;
+pub mod notification;

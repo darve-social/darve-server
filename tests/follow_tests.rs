@@ -5,10 +5,9 @@ use darve_server::{
     entities::{
         community::{discussion_entity::DiscussionDbService, post_entity::Post},
         user_auth::follow_entity,
-        user_notification::UserNotification,
     },
     middleware,
-    models::view::post::PostView,
+    models::view::{notification::UserNotificationView, post::PostView},
     routes::{
         community::profile_routes::ProfileView, follows::UserItemView, user_auth::login_routes,
     },
@@ -339,6 +338,6 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     notifications_response.assert_status_success();
-    let notifications = notifications_response.json::<Vec<UserNotification>>();
+    let notifications = notifications_response.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 2)
 });

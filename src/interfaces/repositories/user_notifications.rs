@@ -1,14 +1,16 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use crate::{
     entities::user_notification::UserNotification,
     middleware::{error::AppError, utils::db_utils::QryOrder},
+    models::view::notification::UserNotificationView,
 };
 
 pub struct GetNotificationOptions {
     pub limit: u8,
-    pub start: u32,
+    pub start: DateTime<Utc>,
     pub is_read: Option<bool>,
     pub order_dir: QryOrder,
 }
@@ -27,7 +29,7 @@ pub trait UserNotificationsInterface {
         &self,
         user_id: &str,
         options: GetNotificationOptions,
-    ) -> Result<Vec<UserNotification>, AppError>;
+    ) -> Result<Vec<UserNotificationView>, AppError>;
     async fn read(&self, id: &str, user_id: &str) -> Result<(), AppError>;
     async fn read_all(&self, user_id: &str) -> Result<(), AppError>;
     async fn get_count(&self, user_id: &str, is_read: Option<bool>) -> Result<u64, AppError>;

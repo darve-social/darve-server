@@ -1,4 +1,3 @@
-use crate::entities::user_notification::UserNotification;
 use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
 };
@@ -7,12 +6,14 @@ use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder;
+use crate::models::view::notification::UserNotificationView;
 use crate::utils::user_presence_guard::UserPresenceGuard;
 use axum::extract::{Path, Query, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use middleware::ctx::Ctx;
 use serde::Deserialize;
@@ -50,7 +51,7 @@ async fn read(
     let _ = state
         .db
         .user_notifications
-        .read(&notification_id, &user.to_raw())
+        .read(&notification_id, &user.id.to_raw())
         .await?;
 
     Ok(())
@@ -71,7 +72,7 @@ async fn read_all(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<()>
 
 #[derive(Debug, Deserialize)]
 struct GetNotificationsQuery {
-    start: Option<u32>,
+    start: Option<DateTime<Utc>>,
     count: Option<u8>,
     is_read: Option<bool>,
     order_dir: Option<QryOrder>,
@@ -81,7 +82,7 @@ async fn get_notifications(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Query(query): Query<GetNotificationsQuery>,
-) -> CtxResult<Json<Vec<UserNotification>>> {
+) -> CtxResult<Json<Vec<UserNotificationView>>> {
     let _ = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -93,10 +94,10 @@ async fn get_notifications(
         .db
         .user_notifications
         .get_by_user(
-            &auth_data.user_id,
+            &auth_data.user_thing_id(),
             GetNotificationOptions {
                 limit: query.count.unwrap_or(50),
-                start: query.start.unwrap_or(0),
+                start: query.start.unwrap_or(Utc::now()),
                 order_dir: query.order_dir.map_or(QryOrder::DESC, |v| v),
                 is_read: query.is_read,
             },

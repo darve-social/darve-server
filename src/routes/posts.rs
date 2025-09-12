@@ -132,10 +132,8 @@ async fn get_posts(
         count: query.count.unwrap_or(100),
         start: query.start.unwrap_or_default(),
     };
-    let posts = post_db_service.get_by_tag(&query.tag, pagination).await;
-    println!("{:?}", posts);
-
-    Ok(Json(posts?))
+    let posts = post_db_service.get_by_tag(&query.tag, pagination).await?;
+    Ok(Json(posts))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

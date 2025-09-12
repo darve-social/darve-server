@@ -5,7 +5,7 @@ use surrealdb::sql::Thing;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccessUser {
     pub role: String,
-    #[serde(rename = "in")]
+    #[serde(alias = "in")]
     pub user: Thing,
     pub created_at: DateTime<Utc>,
 }
