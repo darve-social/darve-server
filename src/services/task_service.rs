@@ -377,7 +377,7 @@ where
         };
 
         self.notification_service
-            .on_update_balance(&donor_thing, &vec![donor_thing.clone()])
+            .on_update_balance(&donor_thing)
             .await?;
 
         Ok(offer_id)
@@ -673,10 +673,7 @@ where
                     )
                     .await;
                 if res.is_ok() {
-                    let _ = self
-                        .notification_service
-                        .on_update_balance(&p.id, &vec![p.id.clone()])
-                        .await;
+                    let _ = self.notification_service.on_update_balance(&p.id).await;
                 } else {
                     is_completed = false;
                 }
@@ -704,7 +701,7 @@ where
                 if res.is_ok() {
                     let _ = self
                         .notification_service
-                        .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
+                        .on_update_balance(&task_user.user_id)
                         .await;
                 } else {
                     is_completed = false;
@@ -784,7 +781,7 @@ where
                 .await?;
             let _ = self
                 .notification_service
-                .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
+                .on_update_balance(&user_thing.clone())
                 .await;
         } else {
             self.access_repository

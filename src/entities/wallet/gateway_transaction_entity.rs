@@ -209,7 +209,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         amount: u64,
         description: Option<String>,
         withdraw_fee: f64,
-    ) -> CtxResult<Thing> {
+    ) -> CtxResult<GatewayTransaction> {
         let user_wallet = WalletDbService::get_user_wallet_id(user);
         let wallet_to = WalletDbService::generate_id();
         let currency = CurrencySymbol::USD;
@@ -243,9 +243,9 @@ impl<'a> GatewayTransactionDbService<'a> {
                 type: $type,
                 fee_amount: $fee_amount,
                 timelines: [{{ status: $status, date: time::now() }}]
-            }} RETURN id;
+            }};
             LET $fund_tx_id = $fund_tx[0].id;
-            $fund_tx_id;
+            $fund_tx;
         COMMIT TRANSACTION;"
         );
 
@@ -271,7 +271,8 @@ impl<'a> GatewayTransactionDbService<'a> {
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        let res: Option<Thing> = fund_res.take(fund_res.num_statements() - 1)?;
+        let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 1)?;
+
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
         }))
@@ -281,17 +282,19 @@ impl<'a> GatewayTransactionDbService<'a> {
         &self,
         withdraw_tx_id: Thing,
         description: Option<String>,
-    ) -> CtxResult<()> {
+    ) -> CtxResult<GatewayTransaction> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
-        let wallet_from = withdraw_tx
-            .withdraw_wallet
-            .ok_or(AppError::EntityFailIdNotFound {
-                ident: "withdraw_wallet".to_string(),
-            })?;
+        let wallet_from =
+            withdraw_tx
+                .withdraw_wallet
+                .as_ref()
+                .ok_or(AppError::EntityFailIdNotFound {
+                    ident: "withdraw_wallet".to_string(),
+                })?;
         let user_wallet = WalletDbService::get_user_wallet_id(&withdraw_tx.user);
 
         let query = BalanceTransactionDbService::get_transfer_qry(
-            &wallet_from,
+            wallet_from,
             &user_wallet,
             withdraw_tx.amount,
             &withdraw_tx.currency,
@@ -325,17 +328,22 @@ impl<'a> GatewayTransactionDbService<'a> {
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        Ok(())
+        Ok(withdraw_tx)
     }
 
-    pub async fn user_withdraw_tx_complete(&self, withdraw_tx_id: Thing) -> CtxResult<()> {
+    pub async fn user_withdraw_tx_complete(
+        &self,
+        withdraw_tx_id: Thing,
+    ) -> CtxResult<GatewayTransaction> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
 
-        let wallet_from = withdraw_tx
-            .withdraw_wallet
-            .ok_or(AppError::EntityFailIdNotFound {
-                ident: "withdraw_wallet".to_string(),
-            })?;
+        let wallet_from =
+            withdraw_tx
+                .withdraw_wallet
+                .as_ref()
+                .ok_or(AppError::EntityFailIdNotFound {
+                    ident: "withdraw_wallet".to_string(),
+                })?;
 
         let fee = withdraw_tx.fee_amount.ok_or(AppError::Generic {
             description: "Fee amount does not exist".to_string(),
@@ -396,7 +404,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
-        Ok(())
+        Ok(withdraw_tx)
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<GatewayTransaction> {

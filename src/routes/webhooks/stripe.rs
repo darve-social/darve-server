@@ -10,14 +10,13 @@ use gateway_transaction_entity::GatewayTransactionDbService;
 use surrealdb::sql::Thing;
 use wallet_entity::CurrencySymbol;
 
-use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
-use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::middleware::error::AppError;
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::extractor_utils::extract_stripe_event;
 use crate::middleware::utils::string_utils::get_str_thing;
+use crate::services::notification_service::NotificationService;
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 
@@ -93,17 +92,14 @@ async fn handle_webhook(
                 );
             }
 
-            let _ = state
-                .db
-                .user_notifications
-                .create(
-                    &user_id.to_raw(),
-                    "update balance",
-                    UserNotificationEvent::UserBalanceUpdate.as_str(),
-                    &vec![user_id.to_raw()],
-                    None,
-                )
-                .await?;
+            let notification_service = NotificationService::new(
+                &state.db.client,
+                &ctx,
+                &state.event_sender,
+                &state.db.user_notifications,
+            );
+
+            notification_service.on_update_balance(&user_id).await?;
 
             Ok("Full payment processed".into_response())
         }

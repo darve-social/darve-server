@@ -14,6 +14,7 @@ use crate::{
     entities::wallet::gateway_transaction_entity::GatewayTransactionDbService,
     middleware::{ctx::Ctx, error::CtxResult, mw_ctx::CtxState},
     models::email::PaypalUnclaimed,
+    services::notification_service::NotificationService,
     utils::paypal::{EventType, Paypal},
 };
 
@@ -55,7 +56,7 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service.user_withdraw_tx_complete(batch_thing).await?;
+            let _ = db_service.user_withdraw_tx_complete(batch_thing).await?;
         }
         EventType::PaymentPayoutBatchDenied => {
             let batch_header = event.resource.batch_header.unwrap();
@@ -65,12 +66,20 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service
+            let tx = db_service
                 .user_withdraw_tx_revert(
                     batch_thing,
                     Some(serde_json::to_string(&event.event_type).unwrap()),
                 )
                 .await?;
+            let notification_service = NotificationService::new(
+                &state.db.client,
+                &ctx,
+                &state.event_sender,
+                &state.db.user_notifications,
+            );
+
+            notification_service.on_update_balance(&tx.user).await?;
         }
         EventType::PaymentPayoutItemUnclaimed => {
             let payment_item = event.resource.payout_item.unwrap();
@@ -96,12 +105,20 @@ async fn handle_webhook(
                 db: &state.db.client,
                 ctx: &ctx,
             };
-            db_service
+            let tx = db_service
                 .user_withdraw_tx_revert(
                     batch_thing,
                     Some(serde_json::to_string(&event.event_type).unwrap()),
                 )
                 .await?;
+            let notification_service = NotificationService::new(
+                &state.db.client,
+                &ctx,
+                &state.event_sender,
+                &state.db.user_notifications,
+            );
+
+            notification_service.on_update_balance(&tx.user).await?;
         }
     }
     Ok(())

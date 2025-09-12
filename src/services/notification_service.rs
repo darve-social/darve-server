@@ -155,22 +155,14 @@ where
         Ok(())
     }
 
-    pub async fn on_update_balance(
-        &self,
-        user_id: &Thing,
-        participators: &Vec<Thing>,
-    ) -> CtxResult<()> {
+    pub async fn on_update_balance(&self, user_id: &Thing) -> CtxResult<()> {
         let user_id_str = user_id.to_raw();
-        let receivers = participators
-            .iter()
-            .map(|id| id.to_raw())
-            .collect::<Vec<String>>();
-
+        let receivers = vec![user_id.to_raw()];
         let event = self
             .notification_repository
             .create(
                 &user_id_str,
-                "deliver",
+                "update your balance",
                 &UserNotificationEvent::UserBalanceUpdate.as_str(),
                 &receivers,
                 None,

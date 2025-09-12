@@ -82,7 +82,7 @@ test_with_server!(withdraw_complete, |server, ctx_state, config| {
         .await;
     assert!(res.is_ok());
 
-    let gateway_id = res.unwrap();
+    let gateway_id = res.unwrap().id.unwrap();
 
     let res = gateway_db_service
         .user_withdraw_tx_complete(gateway_id.clone())
@@ -172,7 +172,7 @@ test_with_server!(withdraw_revert, |server, ctx_state, config| {
         .await;
     assert!(res.is_ok());
 
-    let gateway_id = res.unwrap();
+    let gateway_id = res.unwrap().id.unwrap();
 
     let res = gateway_db_service
         .user_withdraw_tx_revert(gateway_id.clone(), None)
