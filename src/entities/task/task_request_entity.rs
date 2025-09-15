@@ -69,11 +69,16 @@ pub struct TaskDonorForReward {
     pub amount: i64,
     pub id: Thing,
 }
+#[derive(Debug, Deserialize)]
+pub struct TaskParticipantUserView {
+    pub id: Thing,
+    pub username: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct TaskParticipantForReward {
     pub id: Thing,
-    pub user_id: Thing,
+    pub user: TaskParticipantUserView,
     pub status: TaskParticipantStatus,
     pub reward_tx: Option<Thing>,
 }
@@ -81,6 +86,7 @@ pub struct TaskParticipantForReward {
 #[derive(Debug, Deserialize)]
 pub struct TaskForReward {
     pub id: Thing,
+    pub belongs_to: Thing,
     pub request_txt: String,
     pub currency: CurrencySymbol,
     pub donors: Vec<TaskDonorForReward>,
@@ -361,8 +367,8 @@ impl<'a> TaskRequestDbService<'a> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
-                SELECT id, wallet_id.* AS wallet, currency, request_txt,
-                    ->task_participant.{{ status, id, user_id: out }} AS participants,
+                SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
+                    ->task_participant.{{ status, id, user: out.* }} AS participants,
                     ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
                 FROM $task WHERE status != $status
             )"
@@ -381,8 +387,8 @@ impl<'a> TaskRequestDbService<'a> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
-                SELECT id, wallet_id.* AS wallet, currency, request_txt,
-                    ->task_participant.{{ status, id, user_id: out }} AS participants,
+                SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
+                    ->task_participant.{{ status, id, user: out.* }} AS participants,
                     ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
                 FROM {TABLE_NAME}
                 WHERE status != $status AND due_at <= time::now()

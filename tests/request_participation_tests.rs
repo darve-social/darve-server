@@ -353,7 +353,7 @@ test_with_server!(
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
 
-        assert_eq!(received_notifications.len(), 4);
+        assert_eq!(received_notifications.len(), 6);
 
         let balance_updates: Vec<_> = received_notifications
             .iter()
@@ -364,7 +364,7 @@ test_with_server!(
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
             .collect();
-        assert_eq!(task_delivered_evt.len(), 1);
+        assert_eq!(task_delivered_evt.len(), 2);
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server

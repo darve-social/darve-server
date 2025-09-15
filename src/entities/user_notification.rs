@@ -25,8 +25,14 @@ pub enum UserNotificationEvent {
     UserLikePost,
     UserTaskRequestCreated,
     UserTaskRequestDelivered,
-    UserTaskRequestReceived,
+    DonateTaskRequest,
+    UserTaskRequestAccepted,
+    TaskRewardReceived,
     CreatedPost,
+    CommentAdded,
+    UserLikeComment,
+    DepositCompleted,
+    WithdrawCompleted,
 }
 
 impl UserNotificationEvent {
@@ -34,12 +40,18 @@ impl UserNotificationEvent {
         match self {
             UserNotificationEvent::UserFollowAdded => "UserFollowAdded",
             UserNotificationEvent::UserTaskRequestCreated => "UserTaskRequestCreated",
-            UserNotificationEvent::UserTaskRequestReceived => "UserTaskRequestReceived",
             UserNotificationEvent::UserTaskRequestDelivered => "UserTaskRequestDelivered",
+            UserNotificationEvent::UserTaskRequestAccepted => "UserTaskRequestAccepted",
+            UserNotificationEvent::DonateTaskRequest => "DonateTaskRequest",
+            UserNotificationEvent::TaskRewardReceived => "TaskRewardReceived",
             UserNotificationEvent::CreatedPost => "CreatedPost",
             UserNotificationEvent::UserCommunityPost => "UserCommunityPost",
             UserNotificationEvent::UserBalanceUpdate => "UserBalanceUpdate",
             UserNotificationEvent::UserLikePost => "UserLikePost",
+            UserNotificationEvent::CommentAdded => "CommentAdded",
+            UserNotificationEvent::UserLikeComment => "UserLikeComment",
+            UserNotificationEvent::DepositCompleted => "DepositCompleted",
+            UserNotificationEvent::WithdrawCompleted => "WithdrawCompleted",
         }
     }
 }

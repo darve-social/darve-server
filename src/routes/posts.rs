@@ -281,6 +281,8 @@ async fn create_reply(
         &state.db.user_notifications,
     );
 
+    n_service.on_created_reply(&user, &post).await?;
+
     let reply_view = ReplyView {
         id: reply.id,
         user: UserView::from(user),

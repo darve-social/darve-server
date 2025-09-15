@@ -99,7 +99,8 @@ async fn handle_webhook(
                 &state.db.user_notifications,
             );
 
-            notification_service.on_update_balance(&user_id).await?;
+            let _ = notification_service.on_completed_deposit(&user_id).await;
+            let _ = notification_service.on_update_balance(&user_id).await;
 
             Ok("Full payment processed".into_response())
         }
