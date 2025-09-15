@@ -1,5 +1,6 @@
 pub mod access;
 pub mod like;
+pub mod post_user;
 pub mod tags;
 pub mod task_donors;
 pub mod task_participants;

@@ -10,7 +10,10 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
-    models::view::{post::PostView, user::UserView},
+    models::view::{
+        post::{LatestPostView, PostView},
+        user::UserView,
+    },
     utils::validate_utils::validate_social_links,
 };
 
@@ -65,7 +68,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
             "/api/users/current/following/posts",
             get(get_following_posts),
         )
-        .route("/api/users/current/latest_posts", get(get_posts))
+        .route("/api/users/current/latest_posts", get(get_latest_posts))
         .route(
             "/api/users/current/email/verification/start",
             post(email_verification_start),
@@ -588,11 +591,11 @@ struct GetPostsQuery {
     count: Option<u16>,
 }
 
-async fn get_posts(
+async fn get_latest_posts(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetPostsQuery>,
-) -> CtxResult<Json<Vec<PostView>>> {
+) -> CtxResult<Json<Vec<LatestPostView>>> {
     let user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -640,6 +643,13 @@ async fn get_users_status(
     State(state): State<Arc<CtxState>>,
     ExtractQuery(query): ExtractQuery<GetUsersStatusQuery>,
 ) -> CtxResult<Json<Vec<UserStatus>>> {
+    if query.user_ids.len() > 50 {
+        return Err(AppError::Generic {
+            description: "To much ids".to_string(),
+        }
+        .into());
+    }
+
     let _ = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
