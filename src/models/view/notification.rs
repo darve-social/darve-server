@@ -19,10 +19,14 @@ pub struct UserNotificationView {
     pub is_read: bool,
     pub metadata: Option<Value>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub is_follower: bool,
+    #[serde(default)]
+    pub is_following: bool,
 }
 
 impl ViewRelateField for UserNotificationView {
     fn get_fields() -> &'static str {
-        "id, created_by: created_by.*, title, event, is_read, metadata, created_at"
+        "id, is_following: created_by IN $user->follow.out, is_follower: created_by IN $user<-follow.in, created_by: created_by.*, title, event, is_read, metadata, created_at"
     }
 }

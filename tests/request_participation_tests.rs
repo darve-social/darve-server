@@ -494,6 +494,8 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
+    assert_eq!(notifications[0].is_following, true);
+    assert_eq!(notifications[0].is_follower, false);
 
     let id = &notifications.first().as_ref().unwrap().id;
 

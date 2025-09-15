@@ -3507,6 +3507,14 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          },
+          "is_follower": {
+            "type": "boolean",
+            "description": "Indicates whether the current user is followed by the notification creator."
+          },
+          "is_following": {
+            "type": "boolean",
+            "description": "Indicates whether the current user is following the notification creator."
           }
         }
       },
