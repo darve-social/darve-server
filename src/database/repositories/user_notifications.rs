@@ -122,9 +122,9 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             " SELECT  out.created_at as created_at, out.{{{fields}}}, is_read as out.is_read
                 FROM user_notifications
                 WHERE in=$user_id AND created_at < $start {}
-                ORDER BY created_at {}
+                ORDER BY created_at DESC
                 LIMIT $limit;",
-            is_read_query, options.order_dir
+            is_read_query
         );
         let mut res = self
             .client
