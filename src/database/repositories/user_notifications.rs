@@ -121,7 +121,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let query = format!(
             " SELECT  out.created_at as created_at, out.{{{fields}}}, is_read as out.is_read
                 FROM user_notifications
-                WHERE in=$user_id AND created_at < $start {}
+                WHERE in=$user AND created_at < $start {}
                 ORDER BY created_at DESC
                 LIMIT $limit;",
             is_read_query
@@ -129,7 +129,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let mut res = self
             .client
             .query(&query)
-            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
             .bind(("start", options.start))
             .bind(("limit", options.limit))
             .bind(("is_read", options.is_read))
