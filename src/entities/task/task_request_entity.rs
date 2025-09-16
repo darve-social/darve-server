@@ -233,8 +233,8 @@ impl<'a> TaskRequestDbService<'a> {
         let query = format!("
             SELECT {} FROM {TABLE_NAME} 
             WHERE belongs_to = $post
-                AND (belongs_to.type IN $public_post_types OR $user IN belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in) 
-                AND (belongs_to.belongs_to.type = $disc_type OR $user IN belongs_to.belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in)", T::get_select_query_fields());
+                AND (belongs_to.type IN $public_post_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in) 
+                AND (belongs_to.belongs_to.type=$disc_type OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in)", T::get_select_query_fields());
         let mut res = self
             .db
             .query(query)
@@ -254,8 +254,7 @@ impl<'a> TaskRequestDbService<'a> {
         let query = format!(
             "
             SELECT {} FROM {TABLE_NAME} 
-            WHERE belongs_to = $disc 
-                AND belongs_to.type = $disc_type OR $user IN belongs_to.{ACCESS_TABLE_NAME}<-{TABLE_NAME}.in",
+            WHERE belongs_to=$disc AND (belongs_to.type=$disc_type OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)",
             T::get_select_query_fields()
         );
         let mut res = self
