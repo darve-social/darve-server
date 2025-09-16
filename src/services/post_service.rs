@@ -5,13 +5,10 @@ use crate::{
     database::client::Db,
     entities::{
         community::{
-            discussion_entity::{DiscussionDbService, DiscussionType},
+            discussion_entity::DiscussionDbService,
             post_entity::{CreatePost, Post, PostDbService, PostType},
         },
-        user_auth::{
-            follow_entity::FollowDbService,
-            local_user_entity::{LocalUser, LocalUserDbService},
-        },
+        user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     },
     interfaces::{
         file_storage::FileStorageInterface,
@@ -89,7 +86,6 @@ where
     notification_service: NotificationService<'a, N>,
     tags_repository: &'a T,
     access_repository: &'a A,
-    follow_repository: FollowDbService<'a>,
 }
 
 impl<'a, N, T, L, A> PostService<'a, N, T, L, A>
@@ -123,7 +119,6 @@ where
             tags_repository,
             likes_repository,
             access_repository,
-            follow_repository: FollowDbService { db, ctx },
         }
     }
 
@@ -155,11 +150,7 @@ where
             .await?;
 
         self.notification_service
-            .on_like(
-                &user.id.as_ref().unwrap(),
-                vec![user.id.as_ref().unwrap().clone()],
-                post.id.clone(),
-            )
+            .on_post_like(&user, &post, likes == 10)
             .await?;
 
         if by_credits {
@@ -385,7 +376,7 @@ where
         let post_res = self
             .posts_repository
             .create(CreatePost {
-                belongs_to: disc.id,
+                belongs_to: disc.id.clone(),
                 title: post_data.title,
                 content: post_data.content,
                 media_links: media_links.clone(),
@@ -468,23 +459,9 @@ where
             users: None,
         };
 
-        let receivers = if post.r#type == PostType::Private {
-            member_ids
-        } else if disc.r#type == DiscussionType::Private {
-            disc.users
-                .into_iter()
-                .map(|u| u.user)
-                .collect::<Vec<Thing>>()
-        } else {
-            self.follow_repository
-                .user_follower_ids(user.id.as_ref().unwrap().clone())
-                .await
-                .unwrap_or(vec![])
-        };
-
         let _ = self
             .notification_service
-            .on_create_post(&user.id.as_ref().unwrap(), &receivers, &post_view)
+            .on_created_post(&user, &post, &disc, &member_ids)
             .await?;
 
         let _ = self

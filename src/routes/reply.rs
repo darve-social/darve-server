@@ -9,6 +9,7 @@ use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::PostAccessView;
+use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostLikeData;
 use axum::extract::{Path, State};
 use axum::routing::{delete, post};
@@ -85,6 +86,15 @@ async fn like(
             .remove_credits(user.id.as_ref().unwrap().clone(), likes)
             .await?;
     }
+
+    let n_service = NotificationService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+    );
+
+    n_service.on_reply_like(&user, &post).await?;
 
     Ok(Json(LikeResponse { likes_count: count }))
 }

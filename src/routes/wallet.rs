@@ -18,6 +18,7 @@ use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_string_thing;
 use crate::models::email::WithdrawPaypal;
 use crate::models::view::balance_tx::CurrencyTransactionView;
+use crate::services::notification_service::NotificationService;
 use crate::utils::paypal::Paypal;
 use askama::Template;
 use axum::extract::{Path, Query, State};
@@ -199,7 +200,7 @@ async fn withdraw(
         ctx: &ctx,
     };
 
-    let gateway_tx_id = gateway_tx_service
+    let gateway_tx = gateway_tx_service
         .user_withdraw_tx_start(
             &user.id.as_ref().unwrap(),
             data.amount,
@@ -217,7 +218,7 @@ async fn withdraw(
     let paypal_amount = ((data.amount - fee) as f64) / 100.00;
     let res = paypal
         .send_money(
-            &gateway_tx_id.to_raw(),
+            &gateway_tx.id.as_ref().unwrap().to_raw(),
             user.email_verified.as_ref().unwrap(),
             paypal_amount,
             &CurrencySymbol::USD.to_string(),
@@ -243,9 +244,21 @@ async fn withdraw(
             Ok(())
         }
         Err(e) => {
-            let _ = gateway_tx_service
-                .user_withdraw_tx_revert(gateway_tx_id, Some(e.clone()))
+            let tx_res = gateway_tx_service
+                .user_withdraw_tx_revert(gateway_tx.id.as_ref().unwrap().clone(), Some(e.clone()))
                 .await;
+            if tx_res.is_ok() {
+                let notification_service = NotificationService::new(
+                    &state.db.client,
+                    &ctx,
+                    &state.event_sender,
+                    &state.db.user_notifications,
+                );
+
+                notification_service
+                    .on_update_balance(user.id.as_ref().unwrap())
+                    .await?;
+            }
             Err(AppError::Generic { description: e }.into())
         }
     }

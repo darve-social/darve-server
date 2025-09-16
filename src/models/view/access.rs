@@ -9,11 +9,28 @@ use crate::middleware::utils::db_utils::ViewFieldSelector;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiscussionAccessView {
     pub id: Thing,
     pub r#type: DiscussionType,
     pub users: Vec<AccessUser>,
+}
+
+impl DiscussionAccessView {
+    pub fn get_user_ids(&self) -> Vec<Thing> {
+        self.users
+            .iter()
+            .map(|user| user.user.clone())
+            .collect::<Vec<Thing>>()
+    }
+
+    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+        self.users
+            .iter()
+            .filter(|u| u.role == role)
+            .map(|u| u.user.clone())
+            .collect::<Vec<Thing>>()
+    }
 }
 
 impl ViewFieldSelector for DiscussionAccessView {
@@ -22,12 +39,29 @@ impl ViewFieldSelector for DiscussionAccessView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PostAccessView {
     pub id: Thing,
     pub r#type: PostType,
     pub discussion: DiscussionAccessView,
     pub users: Vec<AccessUser>,
+}
+
+impl PostAccessView {
+    pub fn get_user_ids(&self) -> Vec<Thing> {
+        self.users
+            .iter()
+            .map(|user| user.user.clone())
+            .collect::<Vec<Thing>>()
+    }
+
+    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+        self.users
+            .iter()
+            .filter(|u| u.role == role)
+            .map(|u| u.user.clone())
+            .collect::<Vec<Thing>>()
+    }
 }
 
 impl ViewFieldSelector for PostAccessView {
@@ -43,6 +77,22 @@ pub struct TaskAccessView {
     pub post: Option<PostAccessView>,
     pub discussion: Option<DiscussionAccessView>,
     pub users: Vec<AccessUser>,
+}
+impl TaskAccessView {
+    pub fn get_user_ids(&self) -> Vec<Thing> {
+        self.users
+            .iter()
+            .map(|user| user.user.clone())
+            .collect::<Vec<Thing>>()
+    }
+
+    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+        self.users
+            .iter()
+            .filter(|u| u.role == role)
+            .map(|u| u.user.clone())
+            .collect::<Vec<Thing>>()
+    }
 }
 
 impl ViewFieldSelector for TaskAccessView {

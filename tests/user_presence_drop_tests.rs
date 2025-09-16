@@ -187,15 +187,7 @@ test_with_server!(
             .await
             .expect("Should find user");
 
-        // Note: This test might be flaky due to the async nature and timing
-        // but provides insight into the behavior
-        println!("Last seen before: {:?}", last_seen_before);
-        println!("Last seen after: {:?}", user_after.last_seen);
-
         assert_ne!(last_seen_before, user_after.last_seen);
-
-        // In a real scenario, we'd expect the last_seen to be updated
-        // The exact timing depends on the async task completion
     }
 );
 

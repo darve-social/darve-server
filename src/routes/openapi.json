@@ -254,12 +254,11 @@
           {
             "name": "start",
             "in": "query",
-            "description": "Pagination start index",
+            "description": "Pagination start",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
+              "type": "datetime",
+              "default": "current utc datetime"
             }
           },
           {
@@ -303,7 +302,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/UserNotification"
+                    "$ref": "#/components/schemas/UserNotificationView"
                   }
                 }
               }
@@ -3545,7 +3544,7 @@
           }
         }
       },
-      "UserNotification": {
+      "UserNotificationView": {
         "type": "object",
         "properties": {
           "id": {
@@ -3553,7 +3552,7 @@
             "description": "Notification ID"
           },
           "created_by": {
-            "type": "string",
+            "$ref": "#/components/schemas/UserView",
             "description": "User who created the notification"
           },
           "event": {
@@ -3576,6 +3575,14 @@
             "type": "string",
             "format": "date-time",
             "description": "Creation timestamp"
+          },
+          "is_follower": {
+            "type": "boolean",
+            "description": "Indicates whether the current user is followed by the notification creator."
+          },
+          "is_following": {
+            "type": "boolean",
+            "description": "Indicates whether the current user is following the notification creator."
           }
         }
       },

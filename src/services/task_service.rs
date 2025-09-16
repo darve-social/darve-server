@@ -33,8 +33,11 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
-    models::view::access::{DiscussionAccessView, PostAccessView, TaskAccessView},
-    services::notification_service::NotificationService,
+    models::view::{
+        access::{DiscussionAccessView, PostAccessView, TaskAccessView},
+        post::PostView,
+    },
+    services::notification_service::{NotificationService, OnCreatedTaskView},
 };
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::future::join_all;
@@ -183,12 +186,13 @@ where
             }
         }
 
+        let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
         let post_id = post.id.clone();
-        if data.offer_amount.unwrap_or_default() > 0 {
+        if is_donate_value {
             let task = TaskAccessView {
                 id: user.id.as_ref().unwrap().clone(),
                 r#type: r#type.clone(),
-                post: Some(post),
+                post: Some(post.clone()),
                 discussion: None,
                 users: vec![AccessUser {
                     role: Role::Owner.to_string(),
@@ -202,7 +206,22 @@ where
             }
         }
 
-        self.create(&user, participant, r#type, data, post_id).await
+        let task = self
+            .create(&user, participant.as_ref(), r#type, data, post_id)
+            .await?;
+
+        let _ = self
+            .notification_service
+            .on_created_task(
+                &user,
+                &task,
+                OnCreatedTaskView::Post(&post),
+                participant.as_ref(),
+                is_donate_value,
+            )
+            .await;
+
+        Ok(task)
     }
 
     pub async fn create_for_disc(
@@ -235,12 +254,14 @@ where
         }
 
         let disc_id = discussion.id.clone();
-        if data.offer_amount.unwrap_or_default() > 0 {
+
+        let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
+        if is_donate_value {
             let task = TaskAccessView {
                 id: user.id.as_ref().unwrap().clone(),
                 r#type: r#type.clone(),
                 post: None,
-                discussion: Some(discussion),
+                discussion: Some(discussion.clone()),
                 users: vec![AccessUser {
                     role: Role::Owner.to_string(),
                     user: user.id.as_ref().unwrap().clone(),
@@ -253,7 +274,22 @@ where
             }
         }
 
-        self.create(&user, participant, r#type, data, disc_id).await
+        let task = self
+            .create(&user, participant.as_ref(), r#type, data, disc_id)
+            .await?;
+
+        let _ = self
+            .notification_service
+            .on_created_task(
+                &user,
+                &task,
+                OnCreatedTaskView::Disc(&discussion),
+                participant.as_ref(),
+                is_donate_value,
+            )
+            .await;
+
+        Ok(task)
     }
 
     pub async fn upsert_donor(
@@ -263,7 +299,7 @@ where
         data: TaskDonorData,
     ) -> AppResult<String> {
         let task_thing = get_str_thing(&task_id)?;
-        let task = self
+        let task_view = self
             .tasks_repository
             .get_by_id::<TaskAccessView>(&task_thing)
             .await?;
@@ -273,7 +309,7 @@ where
             .get_by_id(&donor_thing.id.to_raw())
             .await?;
 
-        if !TaskAccess::new(&task).can_donate(&donor) {
+        if !TaskAccess::new(&task_view).can_donate(&donor) {
             return Err(AppError::Forbidden);
         }
 
@@ -377,7 +413,11 @@ where
         };
 
         self.notification_service
-            .on_update_balance(&donor_thing, &vec![donor_thing.clone()])
+            .on_donate_task(&donor, &task_view)
+            .await?;
+
+        self.notification_service
+            .on_update_balance(&donor_thing)
             .await?;
 
         Ok(offer_id)
@@ -429,12 +469,12 @@ where
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
-        let task = self
+        let task_view = self
             .tasks_repository
             .get_by_id::<TaskAccessView>(&task_thing)
             .await?;
 
-        if !TaskAccess::new(&task).can_accept(&user) {
+        if !TaskAccess::new(&task_view).can_accept(&user) {
             return Err(AppError::Forbidden);
         }
 
@@ -507,6 +547,9 @@ where
                 .update_status(task.id, TaskRequestStatus::InProgress)
                 .await?;
         }
+        self.notification_service
+            .on_accepted_task(&user, &task_view)
+            .await?;
 
         Ok(())
     }
@@ -529,7 +572,12 @@ where
             return Err(AppError::Forbidden);
         }
 
-        self.check_delivery_post(&data.post_id, task_view).await?;
+        let result = self
+            .posts_repository
+            .get_view_by_id::<PostView>(&data.post_id)
+            .await?;
+
+        self.check_delivery_post(&data.post_id, &task_view).await?;
 
         let task = self
             .tasks_repository
@@ -572,12 +620,6 @@ where
                 source: "deliver_task".to_string(),
             })?;
 
-        let donor_ids = task
-            .donors
-            .iter()
-            .map(|t| t.user.clone())
-            .collect::<Vec<Thing>>();
-
         let _ = self.try_to_process_reward(&task).await;
 
         join_all(task.donors.into_iter().map(|d| {
@@ -587,7 +629,7 @@ where
         .await;
 
         self.notification_service
-            .on_deliver_task(&user.id.as_ref().unwrap(), task_thing.clone(), &donor_ids)
+            .on_deliver_task(&user, &task_view, &result)
             .await?;
 
         Ok(())
@@ -673,10 +715,7 @@ where
                     )
                     .await;
                 if res.is_ok() {
-                    let _ = self
-                        .notification_service
-                        .on_update_balance(&p.id, &vec![p.id.clone()])
-                        .await;
+                    let _ = self.notification_service.on_update_balance(&p.id).await;
                 } else {
                     is_completed = false;
                 }
@@ -687,9 +726,11 @@ where
                 .filter(|u| u.reward_tx.is_none())
                 .collect();
 
+            let task_donors = task.donors.iter().map(|d| &d.id).collect::<Vec<&Thing>>();
+
             let amount: u64 = task.balance as u64 / task_users.len() as u64;
             for task_user in task_users {
-                let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user_id);
+                let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user.id);
                 let res = self
                     .transactions_repository
                     .transfer_task_reward(
@@ -704,7 +745,11 @@ where
                 if res.is_ok() {
                     let _ = self
                         .notification_service
-                        .on_update_balance(&task_user.user_id, &vec![task_user.user_id.clone()])
+                        .on_task_reward(&task_user.user, &task.id, &task.belongs_to, &task_donors)
+                        .await;
+                    let _ = self
+                        .notification_service
+                        .on_update_balance(&task_user.user.id)
                         .await;
                 } else {
                     is_completed = false;
@@ -721,9 +766,9 @@ where
     }
 
     async fn create(
-        self,
+        &self,
         user: &LocalUser,
-        participant: Option<LocalUser>,
+        participant: Option<&LocalUser>,
         r#type: TaskRequestType,
         data: TaskRequestInput,
         belongs_to: Thing,
@@ -784,7 +829,7 @@ where
                 .await?;
             let _ = self
                 .notification_service
-                .on_update_balance(&user_thing.clone(), &vec![user_thing.clone()])
+                .on_update_balance(&user_thing.clone())
                 .await;
         } else {
             self.access_repository
@@ -796,12 +841,12 @@ where
                 .await?;
         }
 
-        if let Some(ref user) = participant {
+        if let Some(ref participant) = participant {
             let _ = self
                 .task_participants_repository
                 .create(
                     &task.id.as_ref().unwrap().id.to_raw(),
-                    &user.id.as_ref().unwrap().id.to_raw(),
+                    &participant.id.as_ref().unwrap().id.to_raw(),
                     TaskParticipantStatus::Requested.as_str(),
                 )
                 .await
@@ -811,27 +856,9 @@ where
 
             self.access_repository
                 .add(
-                    [user.id.as_ref().unwrap().clone()].to_vec(),
+                    [participant.id.as_ref().unwrap().clone()].to_vec(),
                     [task.id.as_ref().unwrap().clone()].to_vec(),
                     Role::Candidate.to_string(),
-                )
-                .await?;
-
-            let _ = self
-                .notification_service
-                .on_created_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    &user.id.as_ref().unwrap(),
-                )
-                .await?;
-
-            let _ = self
-                .notification_service
-                .on_received_task(
-                    &user_thing,
-                    &task.id.as_ref().unwrap(),
-                    user.id.as_ref().unwrap(),
                 )
                 .await?;
         };
@@ -871,7 +898,7 @@ where
     fn check_delivery_post_access(
         &self,
         deliver_post_view: &PostAccessView,
-        task_view: TaskAccessView,
+        task_view: &TaskAccessView,
     ) -> AppResult<()> {
         let donor_role = Role::Donor.to_string();
 
@@ -929,7 +956,11 @@ where
         Ok(())
     }
 
-    async fn check_delivery_post(&self, post_id: &str, task_view: TaskAccessView) -> AppResult<()> {
+    async fn check_delivery_post(
+        &self,
+        post_id: &str,
+        task_view: &TaskAccessView,
+    ) -> AppResult<()> {
         let post_view = self
             .posts_repository
             .get_view_by_id::<PostAccessView>(&post_id)
