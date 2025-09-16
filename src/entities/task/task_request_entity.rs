@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use crate::database::client::Db;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
+use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::community::post_entity::PostType;
 use crate::entities::community::post_entity::TABLE_NAME as POST_TABLE_NAME;
 use crate::entities::task_request_user::TaskParticipantStatus;
@@ -136,7 +137,7 @@ impl<'a> TaskRequestDbService<'a> {
         let sql = format!("
 
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record;
+    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{DISC_TABLE_NAME}|{POST_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
     DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
     DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
