@@ -1,8 +1,6 @@
 use crate::{
-    entities::community::{
-        discussion_entity::DiscussionType,
-        post_entity::{PostDbService, PostType},
-    },
+    entities::community::post_entity::{PostDbService, PostType},
+    interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface,
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
         utils::{
@@ -10,10 +8,7 @@ use crate::{
             string_utils::get_str_thing,
         },
     },
-    models::view::{
-        post::{LatestPostView, PostView},
-        user::UserView,
-    },
+    models::view::{discussion_user::DiscussionUserView, post::PostView, user::UserView},
     utils::validate_utils::validate_social_links,
 };
 
@@ -586,7 +581,6 @@ async fn get_user(
 
 #[derive(Debug, Deserialize)]
 struct GetPostsQuery {
-    text: Option<String>,
     start: Option<u32>,
     count: Option<u16>,
 }
@@ -595,7 +589,7 @@ async fn get_latest_posts(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetPostsQuery>,
-) -> CtxResult<Json<Vec<LatestPostView>>> {
+) -> CtxResult<Json<Vec<DiscussionUserView>>> {
     let user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -604,26 +598,20 @@ async fn get_latest_posts(
         .get_by_id(&auth_data.user_thing_id())
         .await?;
 
-    let post_db_service = PostDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    };
-
     let pagination = Pagination {
         order_by: None,
         order_dir: None,
         count: query.count.unwrap_or(20),
         start: query.start.unwrap_or(0),
     };
-    let posts = post_db_service
-        .get_latest_posts(
-            user.id.unwrap(),
-            query.text,
-            DiscussionType::Private,
-            pagination,
-        )
+
+    let data = state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(&user.id.as_ref().unwrap().id.to_raw(), pagination, true)
         .await?;
-    Ok(Json(posts))
+
+    Ok(Json(data))
 }
 
 #[derive(Debug, Serialize)]

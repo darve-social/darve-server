@@ -9,7 +9,7 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscussionUserView {
     pub discussion: DiscussionView,
-    pub latest_post: Option<LatestPostView>,
+    pub latest_post: LatestPostView,
     pub nr_unread: u32,
     pub updated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -19,6 +19,6 @@ impl ViewFieldSelector for DiscussionUserView {
     fn get_select_query_fields() -> String {
         let disc_view_fields = DiscussionView::get_fields();
         let post_view_fields = LatestPostView::get_fields();
-        format!("*, in.{{{disc_view_fields}}} as discussion,  latest_post.{{{post_view_fields}}} as latest_post")
+        format!("*, in.{{{disc_view_fields}}} as discussion, latest_post.{{{post_view_fields}}} as latest_post")
     }
 }

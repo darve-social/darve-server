@@ -9,7 +9,7 @@ use darve_server::{
     },
     interfaces::repositories::post_user::PostUserRepositoryInterface,
     middleware::utils::string_utils::get_str_thing,
-    models::view::post::LatestPostView,
+    models::view::discussion_user::DiscussionUserView,
     services::discussion_service::CreateDiscussion,
 };
 
@@ -225,11 +225,12 @@ test_with_server!(
             .get("/api/users/current/latest_posts")
             .add_header("Cookie", format!("jwt={}", token))
             .await
-            .json::<Vec<LatestPostView>>();
+            .json::<Vec<DiscussionUserView>>();
         let users_status = latest_posts
             .first()
             .as_ref()
             .unwrap()
+            .latest_post
             .users_status
             .as_ref()
             .unwrap();

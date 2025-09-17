@@ -18,12 +18,11 @@ use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
 use crate::database::client::Db;
-use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::user_auth::follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
-use crate::models::view::post::{LatestPostView, PostView};
+use crate::models::view::post::PostView;
 
 use super::discussion_entity;
 
@@ -301,47 +300,6 @@ impl<'a> PostDbService<'a> {
                 ident: record.to_raw(),
             })
         })
-    }
-
-    pub async fn get_latest_posts(
-        &self,
-        user: Thing,
-        search_test: Option<String>,
-        disc_type: DiscussionType,
-        pagination: Pagination,
-    ) -> CtxResult<Vec<LatestPostView>> {
-        let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
-        let fields = LatestPostView::get_select_query_fields();
-        let post_query = format!("SELECT {fields} FROM {TABLE_NAME}
-            WHERE belongs_to=$parent.id AND (type IN $public_posts OR $user IN <-{ACCESS_TABLE_NAME}.in)
-            ORDER BY id DESC LIMIT 1");
-
-        let disc_query = format!(
-            "SELECT VALUE ({post_query})[0] FROM {DISC_TABLE_NAME}
-                WHERE type=$disc_type AND $user IN <-{ACCESS_TABLE_NAME}.in"
-        );
-
-        let search = match search_test {
-            Some(_) => "WHERE $search_value IN title",
-            None => "",
-        };
-
-        let query = format!("SELECT * FROM ({disc_query}) {search} ORDER BY id {order_dir} LIMIT $limit START $start;");
-
-        let mut res = self
-            .db
-            .query(query)
-            .bind(("user", user))
-            .bind(("limit", pagination.count))
-            .bind(("start", pagination.start))
-            .bind(("public_posts", vec![PostType::Public, PostType::Idea]))
-            .bind(("disc_type", disc_type))
-            .bind(("$search_value", search_test))
-            .bind(("disc_public", DiscussionType::Public))
-            .await?;
-
-        let data = res.take::<Vec<LatestPostView>>(0)?;
-        Ok(data)
     }
 
     pub fn get_new_post_thing() -> Thing {

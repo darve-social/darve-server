@@ -5,15 +5,34 @@ use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
-use darve_server::middleware::utils::db_utils::Pagination;
-use darve_server::models::view::discussion_user::DiscussionUserView;
+use darve_server::middleware::utils::db_utils::{Pagination, ViewFieldSelector};
 use darve_server::services::discussion_service::CreateDiscussion;
-
-use community_entity::CommunityDbService;
-use serde_json::json;
 
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::{create_fake_post, create_post};
+use community_entity::CommunityDbService;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use surrealdb::sql::Thing;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DiscussionUserView {
+    pub latest_post: Option<Thing>,
+    pub nr_unread: u32,
+}
+
+impl ViewFieldSelector for DiscussionUserView {
+    fn get_select_query_fields() -> String {
+        format!("*")
+    }
+}
+
+const PAGINATION: Pagination = Pagination {
+    order_by: None,
+    order_dir: None,
+    count: 10,
+    start: 0,
+};
 
 test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
@@ -47,21 +66,13 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user1.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user1.len(), 1);
-    assert_eq!(
-        disc_user1[0].discussion.title,
-        Some("The Discussion".to_string())
-    );
     assert_eq!(disc_user1[0].nr_unread, 0);
     assert!(disc_user1[0].latest_post.is_none());
 
@@ -70,21 +81,13 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user2.len(), 1);
-    assert_eq!(
-        disc_user2[0].discussion.title,
-        Some("The Discussion".to_string())
-    );
     assert_eq!(disc_user2[0].nr_unread, 0);
     assert!(disc_user2[0].latest_post.is_none());
 
@@ -93,21 +96,13 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user3.len(), 1);
-    assert_eq!(
-        disc_user3[0].discussion.title,
-        Some("The Discussion".to_string())
-    );
     assert_eq!(disc_user3[0].nr_unread, 0);
     assert!(disc_user3[0].latest_post.is_none());
     let disc_user4 = ctx_state
@@ -115,21 +110,14 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user4.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user4.len(), 1);
-    assert_eq!(
-        disc_user4[0].discussion.title,
-        Some("The Discussion".to_string())
-    );
+
     assert_eq!(disc_user4[0].nr_unread, 0);
     assert!(disc_user4[0].latest_post.is_none());
     let disc_user5 = ctx_state
@@ -137,21 +125,14 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user5.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user5.len(), 1);
-    assert_eq!(
-        disc_user5[0].discussion.title,
-        Some("The Discussion".to_string())
-    );
+
     assert_eq!(disc_user5[0].nr_unread, 0);
     assert!(disc_user5[0].latest_post.is_none());
 });
@@ -178,12 +159,8 @@ test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
@@ -227,22 +204,15 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user2.len(), 1);
     assert_eq!(disc_user2[0].nr_unread, 0);
-    assert_eq!(
-        disc_user2[0].latest_post.as_ref().unwrap().id.to_raw(),
-        post
-    );
+    assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
 });
 
 test_with_server!(
@@ -280,12 +250,8 @@ test_with_server!(
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
@@ -326,64 +292,43 @@ test_with_server!(
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user2.len(), 1);
         assert_eq!(disc_user2[0].nr_unread, 1);
-        assert_eq!(
-            disc_user2[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
         let disc_user1 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 1);
-        assert_eq!(
-            disc_user1[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user1[0].latest_post.as_ref().unwrap().to_raw(), post);
         let disc_user3 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(
-            disc_user3[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user3[0].latest_post.as_ref().unwrap().to_raw(), post);
     }
 );
 
@@ -426,64 +371,43 @@ test_with_server!(
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user2.len(), 1);
         assert_eq!(disc_user2[0].nr_unread, 1);
-        assert_eq!(
-            disc_user2[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
         let disc_user1 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(
-            disc_user1[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user1[0].latest_post, private_post.id);
         let disc_user3 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(
-            disc_user3[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user3[0].latest_post, private_post.id);
     }
 );
 
@@ -536,64 +460,43 @@ test_with_server!(
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user2.len(), 1);
         assert_eq!(disc_user2[0].nr_unread, 1);
-        assert_eq!(
-            disc_user2[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
         let disc_user1 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(
-            disc_user1[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user1[0].latest_post, private_post.id);
         let disc_user3 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(
-            disc_user3[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user3[0].latest_post, private_post.id);
     }
 );
 
@@ -656,64 +559,43 @@ test_with_server!(
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user2.len(), 1);
         assert_eq!(disc_user2[0].nr_unread, 1);
-        assert_eq!(
-            disc_user2[0].latest_post.as_ref().unwrap().id.to_raw(),
-            post
-        );
+        assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
         let disc_user1 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(
-            disc_user1[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user1[0].latest_post, private_post.id);
         let disc_user3 = ctx_state
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
-                Pagination {
-                    order_by: None,
-                    order_dir: None,
-                    count: 10,
-                    start: 0,
-                },
+                PAGINATION,
+                false,
             )
             .await
             .unwrap();
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(
-            disc_user3[0].latest_post.as_ref().unwrap().id,
-            *private_post.id.as_ref().unwrap()
-        );
+        assert_eq!(disc_user3[0].latest_post, private_post.id);
     }
 );
 
@@ -740,7 +622,7 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
         .await;
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
-    let post = create_fake_post(&server, &disc_id, None, None).await.id;
+    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
 
     let data = MultipartForm::new()
         .add_text("title", "Test discussion users: create ptivate post")
@@ -765,64 +647,41 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user2.len(), 1);
     assert_eq!(disc_user2[0].nr_unread, 1);
-    assert_eq!(
-        disc_user2[0].latest_post.as_ref().unwrap().id,
-        *private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(disc_user2[0].latest_post, private_post.id);
     let disc_user1 = ctx_state
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user1.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user1.len(), 1);
     assert_eq!(disc_user1[0].nr_unread, 2);
-    assert_eq!(
-        disc_user1[0].latest_post.as_ref().unwrap().id,
-        *private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(disc_user1[0].latest_post, private_post.id);
     let disc_user3 = ctx_state
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
-            Pagination {
-                order_by: None,
-                order_dir: None,
-                count: 10,
-                start: 0,
-            },
+            PAGINATION,
+            false,
         )
         .await
         .unwrap();
 
     assert_eq!(disc_user3.len(), 1);
     assert_eq!(disc_user3[0].nr_unread, 0);
-    assert_eq!(
-        disc_user3[0].latest_post.as_ref().unwrap().id,
-        *private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(disc_user3[0].latest_post, private_post.id);
 });
-
-test_with_server!(get_latest_post, |server, ctx_state, config| {});

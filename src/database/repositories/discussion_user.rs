@@ -96,10 +96,10 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .into_iter()
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
             .collect::<Vec<Thing>>();
-        let response = self
+        let _ = self
             .client
             .query(format!("UPDATE $disc->{DISC_USER_TABLE_NAME}
-                    SET  nr_unread-= (IF latest_post->{POST_USER_TABLE_NAME}[WHERE out=$parent.out AND status=$read_status] THEN 0 ELSE 1 END),
+                    SET nr_unread-= (IF latest_post->{POST_USER_TABLE_NAME}[WHERE out=$parent.out AND status=$read_status] THEN 0 ELSE 1 END),
                         latest_post=(SELECT id FROM {POST_TABLE_NAME} WHERE belongs_to=$disc AND (type=$public_type OR $parent.out IN <-{ACCESS_TABLE_NAME}.in) ORDER BY id DESC LIMIT 1)[0].id,
                         updated_at=time::now()
                     WHERE out IN $users;"))
@@ -108,7 +108,6 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .bind(("public_type", PostType::Public))
             .bind(("read_status", PostUserStatus::Seen))
             .await?;
-        println!("{:?}", response);
         Ok(())
     }
 
@@ -133,11 +132,22 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         &self,
         user_id: &str,
         pad: Pagination,
+        require_latest_post: bool,
     ) -> AppResult<Vec<T>> {
         let fields = T::get_select_query_fields();
         let order_dir = pad.order_dir.unwrap_or(QryOrder::DESC);
-        let mut res = self.client
-            .query(format!("SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME} WHERE out=$user ORDER BY updated_at {order_dir} LIMIT $limit START $start;"))
+        let latest_post_cond = if require_latest_post {
+            "AND latest_post != NONE"
+        } else {
+            ""
+        };
+        let mut res = self
+            .client
+            .query(format!(
+                "SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME} 
+                WHERE out=$user {latest_post_cond} ORDER BY updated_at {order_dir} 
+                LIMIT $limit START $start;"
+            ))
             .bind(("limit", pad.count))
             .bind(("start", pad.start))
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
