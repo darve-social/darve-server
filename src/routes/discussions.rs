@@ -158,7 +158,8 @@ async fn create_discussion(
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
-    let disc_service = DiscussionService::new(&state, &ctx, &state.db.access);
+    let disc_service =
+        DiscussionService::new(&state, &ctx, &state.db.access, &state.db.discussion_users);
     let disc = disc_service
         .create(&auth_data.user_thing_id(), data)
         .await?;
@@ -179,7 +180,12 @@ async fn get_discussions(
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetDiscussionsQuery>,
 ) -> CtxResult<Json<Vec<DiscussionView>>> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+    );
     let pagination = Pagination {
         order_by: query.order_by,
         order_dir: query.order_dir,
@@ -203,7 +209,12 @@ async fn add_discussion_users(
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+    );
     disc_service
         .add_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
@@ -216,7 +227,12 @@ async fn delete_discussion_users(
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+    );
     disc_service
         .remove_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
         .await?;
@@ -228,7 +244,12 @@ async fn delete_discussion(
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+    );
     disc_service
         .delete(&auth_data.user_thing_id(), &discussion_id)
         .await?;
@@ -241,7 +262,12 @@ async fn update_discussion(
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateDiscussion>,
 ) -> CtxResult<()> {
-    let disc_service = DiscussionService::new(&state, &auth_data.ctx, &state.db.access);
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+    );
     disc_service
         .update(&auth_data.user_thing_id(), &discussion_id, data)
         .await?;
@@ -324,6 +350,7 @@ async fn create_post(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     );
 
     let post = post_service
@@ -347,6 +374,7 @@ async fn get_posts(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     );
 
     let posts = post_service

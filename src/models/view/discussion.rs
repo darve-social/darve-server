@@ -1,8 +1,10 @@
-use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::wallet::wallet_entity::UserView;
 use crate::middleware::utils::db_utils::ViewFieldSelector;
 use crate::models::view::access_user::AccessUserView;
+use crate::{
+    database::table_names::ACCESS_TABLE_NAME, middleware::utils::db_utils::ViewRelateField,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -23,5 +25,11 @@ pub struct DiscussionView {
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields() -> String {
         format!("*, created_by.* as created_by, <-{ACCESS_TABLE_NAME}.{{ user: in.*, role, created_at }} as users")
+    }
+}
+
+impl ViewRelateField for DiscussionView {
+    fn get_fields() -> &'static str {
+        " id, type, belongs_to, title, image_uri, created_at, updated_at, created_by: created_by.*, users: <-has_access.{user: in.*, role, created_at}"
     }
 }

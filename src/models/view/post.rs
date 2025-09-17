@@ -122,3 +122,18 @@ impl ViewFieldSelector for LatestPostView {
         )
     }
 }
+
+impl ViewRelateField for LatestPostView {
+    fn get_fields() -> &'static str {
+        "id,
+        created_by: created_by.*, 
+        title, 
+        type,
+        content,
+        media_links, 
+        created_at,
+        updated_at,
+        belongs_to,
+        users_status: ->post_user.*"
+    }
+}
