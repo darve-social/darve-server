@@ -158,7 +158,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     }
 
     async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()> {
-        let res = self
+        let _ = self
             .client
             .query(format!(
                 "DELETE $disc->{DISC_USER_TABLE_NAME} WHERE out IN $users;"
@@ -167,7 +167,6 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .bind(("users", user_ids))
             .await?
             .check()?;
-        println!("{:?}", res);
         Ok(())
     }
 }
