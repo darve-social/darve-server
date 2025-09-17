@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::repositories::access::AccessRepository;
+use crate::database::repositories::discussion_user::DiscussionUserRepository;
 use crate::database::repositories::like::LikesRepository;
 use crate::database::repositories::post_user::PostUserRepository;
 use crate::database::repositories::reply::RepliesRepository;
@@ -41,6 +42,7 @@ pub struct Database {
     pub likes: LikesRepository,
     pub access: AccessRepository,
     pub post_users: PostUserRepository,
+    pub discussion_users: DiscussionUserRepository,
 }
 
 impl Database {
@@ -78,7 +80,8 @@ impl Database {
             replies: RepliesRepository::new(client.clone()),
             likes: LikesRepository::new(client.clone()),
             access: AccessRepository::new(client.clone()),
-            post_users: PostUserRepository::new(client),
+            post_users: PostUserRepository::new(client.clone()),
+            discussion_users: DiscussionUserRepository::new(client),
         }
     }
 
@@ -92,6 +95,7 @@ impl Database {
         self.likes.mutate_db().await?;
         self.access.mutate_db().await?;
         self.post_users.mutate_db().await?;
+        self.discussion_users.mutate_db().await?;
         Ok(())
     }
 }
