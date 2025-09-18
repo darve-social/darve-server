@@ -188,7 +188,7 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
 
-    let post = create_fake_post(&server, &disc_id, None, None).await.id;
+    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
 
     let create_response = server
         .post(format!("/api/discussions/{}/chat_users", disc_id.to_raw()).as_str())
