@@ -13,8 +13,9 @@ use crate::{
     interfaces::{
         file_storage::FileStorageInterface,
         repositories::{
-            access::AccessRepositoryInterface, like::LikesRepositoryInterface,
-            tags::TagsRepositoryInterface, user_notifications::UserNotificationsInterface,
+            access::AccessRepositoryInterface, discussion_user::DiscussionUserRepositoryInterface,
+            like::LikesRepositoryInterface, tags::TagsRepositoryInterface,
+            user_notifications::UserNotificationsInterface,
         },
     },
     middleware::{
@@ -71,12 +72,13 @@ pub struct PostInput {
     pub users: Vec<String>,
 }
 
-pub struct PostService<'a, N, T, L, A>
+pub struct PostService<'a, N, T, L, A, DU>
 where
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
     A: AccessRepositoryInterface,
+    DU: DiscussionUserRepositoryInterface,
 {
     users_repository: LocalUserDbService<'a>,
     discussions_repository: DiscussionDbService<'a>,
@@ -86,14 +88,16 @@ where
     notification_service: NotificationService<'a, N>,
     tags_repository: &'a T,
     access_repository: &'a A,
+    discussion_users: &'a DU,
 }
 
-impl<'a, N, T, L, A> PostService<'a, N, T, L, A>
+impl<'a, N, T, L, A, DU> PostService<'a, N, T, L, A, DU>
 where
     N: UserNotificationsInterface,
     T: TagsRepositoryInterface,
     L: LikesRepositoryInterface,
     A: AccessRepositoryInterface,
+    DU: DiscussionUserRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -104,6 +108,7 @@ where
         tags_repository: &'a T,
         likes_repository: &'a L,
         access_repository: &'a A,
+        discussion_users: &'a DU,
     ) -> Self {
         Self {
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
@@ -119,6 +124,7 @@ where
             tags_repository,
             likes_repository,
             access_repository,
+            discussion_users,
         }
     }
 
@@ -273,9 +279,19 @@ where
             return Ok(());
         }
 
+        let disc_users = remove_members
+            .iter()
+            .map(|id| id.id.to_raw())
+            .collect::<Vec<String>>();
+
         let _ = self
             .access_repository
             .remove_by_entity(post.id.clone(), remove_members)
+            .await?;
+
+        let _ = self
+            .discussion_users
+            .update_latest_post(&post.discussion.id.id.to_raw(), disc_users)
             .await?;
 
         Ok(())
@@ -382,7 +398,7 @@ where
                 media_links: media_links.clone(),
                 created_by: user.id.as_ref().unwrap().clone(),
                 id: post_data.id,
-                r#type: post_data.r#type,
+                r#type: post_data.r#type.clone(),
             })
             .await;
 
@@ -417,14 +433,14 @@ where
             .members
             .iter()
             .filter_map(|u| {
-                let id = u.id.as_ref();
-                if id == user.id.as_ref() {
+                if u.id.as_ref() == user.id.as_ref() {
                     None
                 } else {
-                    Some(id.unwrap().clone())
+                    Some(u.id.as_ref().unwrap().clone())
                 }
             })
             .collect::<Vec<Thing>>();
+
         if !member_ids.is_empty() {
             let _ = self
                 .access_repository
@@ -435,6 +451,32 @@ where
                 )
                 .await?;
         }
+
+        let disc_all_users = match post_data.r#type {
+            PostType::Private => member_ids
+                .iter()
+                .map(|id| id.id.to_raw())
+                .chain(std::iter::once(user_id.to_string()))
+                .collect::<Vec<String>>(),
+            _ => disc
+                .get_user_ids()
+                .iter()
+                .map(|id| id.id.to_raw())
+                .collect::<Vec<String>>(),
+        };
+
+        let _ = self
+            .discussion_users
+            .set_new_latest_post(
+                &post.belongs_to.id.to_raw(),
+                disc_all_users.iter().map(|id| id).collect::<Vec<&String>>(),
+                &post.id.as_ref().unwrap().id.to_raw(),
+                disc_all_users
+                    .iter()
+                    .filter(|id| id.as_str() != user_id)
+                    .collect::<Vec<&String>>(),
+            )
+            .await?;
 
         if !post_data.tags.is_empty() {
             let _ = self

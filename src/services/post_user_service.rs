@@ -4,7 +4,9 @@ use crate::{
         community::post_entity::{PostDbService, PostUserStatus},
         user_auth::local_user_entity::LocalUserDbService,
     },
-    interfaces::repositories::post_user::PostUserRepositoryInterface,
+    interfaces::repositories::{
+        discussion_user::DiscussionUserRepositoryInterface, post_user::PostUserRepositoryInterface,
+    },
     middleware::{
         ctx::Ctx,
         error::{AppError, AppResult},
@@ -13,21 +15,30 @@ use crate::{
     models::view::access::PostAccessView,
 };
 
-pub struct PostUserService<'a, PU>
+pub struct PostUserService<'a, PU, DU>
 where
+    DU: DiscussionUserRepositoryInterface,
     PU: PostUserRepositoryInterface,
 {
+    discussion_users: &'a DU,
     post_user_repository: &'a PU,
     posts_repository: PostDbService<'a>,
     users_repository: LocalUserDbService<'a>,
 }
 
-impl<'a, PU> PostUserService<'a, PU>
+impl<'a, PU, DU> PostUserService<'a, PU, DU>
 where
+    DU: DiscussionUserRepositoryInterface,
     PU: PostUserRepositoryInterface,
 {
-    pub fn new(state: &'a CtxState, ctx: &'a Ctx, post_user_repository: &'a PU) -> Self {
+    pub fn new(
+        state: &'a CtxState,
+        ctx: &'a Ctx,
+        post_user_repository: &'a PU,
+        discussion_users: &'a DU,
+    ) -> Self {
         Self {
+            discussion_users,
             post_user_repository,
             posts_repository: PostDbService {
                 db: &state.db.client,
@@ -114,6 +125,10 @@ where
                     .await?;
             }
         };
+
+        self.discussion_users
+            .decrease_unread_count(&post.discussion.id.id.to_raw(), vec![user_id.to_string()])
+            .await?;
 
         Ok(())
     }

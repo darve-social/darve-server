@@ -7,6 +7,7 @@ use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::sql::Thing;
+
 #[derive(Debug)]
 pub struct PostUserRepository {
     client: Arc<Db>,

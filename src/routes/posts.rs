@@ -160,6 +160,7 @@ async fn like(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     )
     .like(&post_id, &user_id, body)
     .await?;
@@ -181,6 +182,7 @@ async fn unlike(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     )
     .unlike(&post_id, &auth_data.user_thing_id())
     .await?;
@@ -334,6 +336,7 @@ async fn add_members(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     )
     .add_members(&auth_data.user_thing_id(), &post_id, body.user_ids)
     .await?;
@@ -356,6 +359,7 @@ async fn remove_members(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     )
     .remove_members(&auth_data.user_thing_id(), &post_id, body.user_ids)
     .await?;
@@ -377,6 +381,7 @@ async fn get_members(
         &ctx_state.db.tags,
         &ctx_state.db.likes,
         &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
     )
     .get_users(&post_id, &auth_data.user_thing_id())
     .await?;
@@ -389,7 +394,12 @@ async fn post_mark_as_deliver(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
 ) -> CtxResult<()> {
-    let service = PostUserService::new(&state, &auth_data.ctx, &state.db.post_users);
+    let service = PostUserService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.post_users,
+        &state.db.discussion_users,
+    );
     service
         .deliver(&auth_data.user_thing_id(), &post_id)
         .await?;
@@ -401,7 +411,12 @@ async fn post_mark_as_read(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
 ) -> CtxResult<()> {
-    let service = PostUserService::new(&state, &auth_data.ctx, &state.db.post_users);
+    let service = PostUserService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.post_users,
+        &state.db.discussion_users,
+    );
     service.read(&auth_data.user_thing_id(), &post_id).await?;
     Ok(())
 }

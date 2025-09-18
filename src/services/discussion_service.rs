@@ -9,6 +9,7 @@ use crate::entities::community::discussion_entity::{
     CreateDiscussionEntity, DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
 };
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
+use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::middleware::utils::db_utils::{record_exist_all, Pagination};
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::DiscussionAccessView;
@@ -44,8 +45,9 @@ pub struct UpdateDiscussion {
     pub title: Option<String>,
 }
 
-pub struct DiscussionService<'a, A>
+pub struct DiscussionService<'a, A, U>
 where
+    U: DiscussionUserRepositoryInterface,
     A: AccessRepositoryInterface,
 {
     ctx: &'a Ctx,
@@ -53,13 +55,20 @@ where
     discussion_repository: DiscussionDbService<'a>,
     community_repository: CommunityDbService<'a>,
     access_repository: &'a A,
+    discussion_users: &'a U,
 }
 
-impl<'a, A> DiscussionService<'a, A>
+impl<'a, A, U> DiscussionService<'a, A, U>
 where
+    U: DiscussionUserRepositoryInterface,
     A: AccessRepositoryInterface,
 {
-    pub fn new(state: &'a CtxState, ctx: &'a Ctx, access_repository: &'a A) -> Self {
+    pub fn new(
+        state: &'a CtxState,
+        ctx: &'a Ctx,
+        access_repository: &'a A,
+        discussion_users: &'a U,
+    ) -> Self {
         Self {
             ctx,
             user_repository: LocalUserDbService {
@@ -75,6 +84,7 @@ where
                 ctx: &ctx,
             },
             access_repository,
+            discussion_users,
         }
     }
 
@@ -149,8 +159,13 @@ where
             .filter(|id| !disc_user_ids.contains(id))
             .collect::<Vec<Thing>>();
 
+        let disc_id = disc.id.id.to_raw();
         self.access_repository
             .add(new_users.clone(), vec![disc.id], Role::Member.to_string())
+            .await?;
+
+        self.discussion_users
+            .create(&disc_id, new_users.clone())
             .await?;
 
         Ok(new_users)
@@ -189,9 +204,12 @@ where
             .filter_map(|u| get_str_thing(u).ok())
             .collect::<Vec<Thing>>();
 
+        let disc_id = disc.id.id.to_raw();
         self.access_repository
-            .remove_by_entity(disc.id, user_things)
+            .remove_by_entity(disc.id, user_things.clone())
             .await?;
+
+        self.discussion_users.remove(&disc_id, user_things).await?;
 
         Ok(())
     }
@@ -319,13 +337,17 @@ where
             )
             .await?;
 
-        if let Some(user_ids) = private_discussion_user_ids {
+        if let Some(mut user_ids) = private_discussion_user_ids {
             self.access_repository
                 .add(
-                    user_ids,
+                    user_ids.clone(),
                     [disc.id.clone()].to_vec(),
                     Role::Member.to_string(),
                 )
+                .await?;
+            user_ids.push(user.id.as_ref().unwrap().clone());
+            self.discussion_users
+                .create(&disc.id.id.to_raw(), user_ids)
                 .await?;
         }
         Ok(disc)
