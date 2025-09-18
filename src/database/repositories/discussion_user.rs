@@ -25,11 +25,13 @@ impl DiscussionUserRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {DISC_USER_TABLE_NAME} TYPE RELATION IN {DISC_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {DISC_USER_TABLE_NAME} FIELDS in, out UNIQUE;
         DEFINE FIELD IF NOT EXISTS nr_unread ON TABLE {DISC_USER_TABLE_NAME} TYPE int VALUE math::max([$value, 0]) DEFAULT 0;
         DEFINE FIELD IF NOT EXISTS created_at ON TABLE {DISC_USER_TABLE_NAME} TYPE datetime DEFAULT time::now();
         DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {DISC_USER_TABLE_NAME} TYPE datetime DEFAULT time::now();
         DEFINE FIELD IF NOT EXISTS latest_post ON TABLE {DISC_USER_TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
+
+        DEFINE INDEX IF NOT EXISTS latest_post_idx ON {DISC_USER_TABLE_NAME} COLUMNS latest_post;
+        DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {DISC_USER_TABLE_NAME} FIELDS in, out UNIQUE;
 ");
         let mutation = self.client.query(sql).await?;
 
