@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::database::client::Database;
+use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::user_notification::UserNotification;
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::send_email::SendEmailInterface;
@@ -20,6 +21,7 @@ pub enum AppEventType {
     DiscussionPostAdded,
     DiscussionPostReplyAdded,
     DiscussionPostReplyNrIncreased,
+    UpdateDiscussionsUsers(Vec<DiscussionUser>),
     UserStatus(AppEventUsetStatus),
 }
 

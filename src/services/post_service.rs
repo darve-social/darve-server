@@ -289,9 +289,13 @@ where
             .remove_by_entity(post.id.clone(), remove_members)
             .await?;
 
-        let _ = self
+        let updated_discs_users = self
             .discussion_users
             .update_latest_post(&post.discussion.id.id.to_raw(), disc_users)
+            .await?;
+        let _ = self
+            .notification_service
+            .on_updated_users_discussions(&user.id.as_ref().unwrap(), &updated_discs_users)
             .await?;
 
         Ok(())
@@ -465,7 +469,7 @@ where
                 .collect::<Vec<String>>(),
         };
 
-        let _ = self
+        let updated_discs_users = self
             .discussion_users
             .set_new_latest_post(
                 &post.belongs_to.id.to_raw(),
@@ -500,6 +504,11 @@ where
             r#type: post.r#type.clone(),
             users: None,
         };
+
+        let _ = self
+            .notification_service
+            .on_updated_users_discussions(&user.id.as_ref().unwrap(), &updated_discs_users)
+            .await?;
 
         let _ = self
             .notification_service

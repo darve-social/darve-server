@@ -1,5 +1,6 @@
 use crate::{
     access::post::PostAccess,
+    database::repositories::user_notifications::UserNotificationsRepository,
     entities::{
         community::post_entity::{PostDbService, PostUserStatus},
         user_auth::local_user_entity::LocalUserDbService,
@@ -13,6 +14,7 @@ use crate::{
         mw_ctx::CtxState,
     },
     models::view::access::PostAccessView,
+    services::notification_service::NotificationService,
 };
 
 pub struct PostUserService<'a, PU, DU>
@@ -24,6 +26,7 @@ where
     post_user_repository: &'a PU,
     posts_repository: PostDbService<'a>,
     users_repository: LocalUserDbService<'a>,
+    notification_service: NotificationService<'a, UserNotificationsRepository>,
 }
 
 impl<'a, PU, DU> PostUserService<'a, PU, DU>
@@ -36,6 +39,7 @@ where
         ctx: &'a Ctx,
         post_user_repository: &'a PU,
         discussion_users: &'a DU,
+        notification_service: NotificationService<'a, UserNotificationsRepository>,
     ) -> Self {
         Self {
             discussion_users,
@@ -48,6 +52,7 @@ where
                 db: &state.db.client,
                 ctx: ctx,
             },
+            notification_service,
         }
     }
 
@@ -126,10 +131,15 @@ where
             }
         };
 
-        self.discussion_users
+        let updated_discs_users = self
+            .discussion_users
             .decrease_unread_count(&post.discussion.id.id.to_raw(), vec![user_id.to_string()])
             .await?;
 
+        let _ = self
+            .notification_service
+            .on_updated_users_discussions(&user_thing, &updated_discs_users)
+            .await?;
         Ok(())
     }
 }
