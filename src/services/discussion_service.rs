@@ -88,19 +88,6 @@ where
         }
     }
 
-    pub async fn delete(&self, user_id: &str, disc_id: &str) -> AppResult<()> {
-        let user = self.user_repository.get_by_id(&user_id).await?;
-        let disc = self
-            .discussion_repository
-            .get_view_by_id::<DiscussionAccessView>(&disc_id)
-            .await?;
-        if !DiscussionAccess::new(&disc).can_edit(&user) {
-            return Err(AppError::Forbidden);
-        }
-        self.discussion_repository.delete(disc_id).await?;
-        Ok(())
-    }
-
     pub async fn update(
         &self,
         user_id: &str,
@@ -209,7 +196,7 @@ where
             .remove_by_entity(disc.id, user_things.clone())
             .await?;
 
-        self.discussion_users.remove(&disc_id, user_things).await?;
+        let _ = self.discussion_users.remove(&disc_id, user_things).await?;
 
         Ok(())
     }

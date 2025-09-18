@@ -1,3 +1,4 @@
+use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
 };
@@ -14,7 +15,7 @@ use axum::response::Sse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{stream, Stream};
 use middleware::ctx::Ctx;
 use serde::Deserialize;
 use serde_json::json;
@@ -25,7 +26,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::{
     entities::user_auth::local_user_entity::LocalUserDbService, middleware::error::CtxResult,
 };
-use tokio_stream::StreamExt;
+use futures::StreamExt;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
@@ -144,25 +145,68 @@ async fn sse(
     .get_ctx_user_thing()
     .await?;
 
-    let user_id = user.to_raw();
-    let indicator = Arc::new(UserPresenceGuard::new(state.clone(), user.id.to_raw()));
+    let user_id = user.id.to_raw();
+    let indicator = Arc::new(UserPresenceGuard::new(state.clone(), user_id.clone()));
+
+    let get_unread_count_ev = {
+        let state = state.clone();
+        let user_id = user_id.clone();
+
+        move || async move {
+            let count = state
+                .db
+                .discussion_users
+                .get_count_of_unread(&user_id)
+                .await
+                .unwrap_or_default();
+
+            Event::default()
+                .event("UnreadDiscussionsCount")
+                .data(count.to_string())
+        }
+    };
+
+    let initial = stream::once({
+        let get_unread_count_ev = get_unread_count_ev.clone();
+        async move { Ok(get_unread_count_ev().await) }
+    });
 
     let rx = state.event_sender.subscribe();
-    let stream = BroadcastStream::new(rx).filter_map(move |msg| {
-        let _tracker = indicator.clone();
-        match msg {
-            Err(_) => None,
-            Ok(msg) => match msg.event {
-                AppEventType::UserNotificationEvent(_) if msg.receivers.contains(&user_id) => {
-                    Some(Ok(Event::default().data(json!(msg.clone()).to_string())))
-                }
-                AppEventType::UserStatus(_) => {
-                    Some(Ok(Event::default().data(json!(msg.clone()).to_string())))
-                }
-                _ => None,
-            },
+    let broadcast_stream = BroadcastStream::new(rx).filter_map(move |msg| {
+        let indicator = indicator.clone();
+        let user_id = user_id.clone();
+        let get_unread_count_ev = get_unread_count_ev.clone();
+
+        async move {
+            let _tracker = indicator.clone();
+            match msg {
+                Err(_) => None,
+                Ok(msg) => match msg.event {
+                    AppEventType::UserNotificationEvent(data)
+                        if msg.receivers.contains(&user_id) =>
+                    {
+                        Some(Ok(Event::default()
+                            .event("Notifications")
+                            .data(json!(data).to_string())))
+                    }
+                    AppEventType::UserStatus(data) => {
+                        Some(Ok(Event::default().event("UserStatus").data(
+                            json!({ "is_online": data.is_online , "user_id": msg.user_id.clone() })
+                                .to_string(),
+                        )))
+                    }
+
+                    AppEventType::UpdateDiscussionsUsers(_users)
+                        if msg.receivers.contains(&user_id) =>
+                    {
+                        Some(Ok(get_unread_count_ev().await))
+                    }
+                    _ => None,
+                },
+            }
         }
     });
 
+    let stream = initial.chain(broadcast_stream);
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

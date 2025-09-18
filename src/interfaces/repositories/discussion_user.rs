@@ -1,6 +1,9 @@
-use crate::middleware::{
-    error::AppResult,
-    utils::db_utils::{Pagination, ViewFieldSelector},
+use crate::{
+    entities::discussion_user::DiscussionUser,
+    middleware::{
+        error::AppResult,
+        utils::db_utils::{Pagination, ViewFieldSelector},
+    },
 };
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -16,13 +19,23 @@ pub trait DiscussionUserRepositoryInterface {
         user_ids: Vec<&String>,
         latest_post: &str,
         increase_unread_for_user_ids: Vec<&String>,
-    ) -> AppResult<()>;
+    ) -> AppResult<Vec<DiscussionUser>>;
 
-    async fn update_latest_post(&self, disc_id: &str, user_ids: Vec<String>) -> AppResult<()>;
+    async fn update_latest_post(
+        &self,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> AppResult<Vec<DiscussionUser>>;
 
-    async fn decrease_unread_count(&self, disc_id: &str, user_ids: Vec<String>) -> AppResult<()>;
+    async fn decrease_unread_count(
+        &self,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> AppResult<Vec<DiscussionUser>>;
 
-    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()>;
+    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<Vec<Thing>>;
+
+    async fn get_count_of_unread(&self, user_id: &str) -> AppResult<u32>;
 
     async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,

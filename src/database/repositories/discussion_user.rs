@@ -4,6 +4,7 @@ use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME
 use crate::entities::community::post_entity::{
     PostType, PostUserStatus, TABLE_NAME as POST_TABLE_NAME,
 };
+use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
@@ -62,7 +63,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         user_ids: Vec<&String>,
         latest_post: &str,
         increase_unread_for_user_ids: Vec<&String>,
-    ) -> AppResult<()> {
+    ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
@@ -73,7 +74,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
             .collect::<Vec<Thing>>();
 
-        let _ = self
+        let mut res = self
             .client
             .query(format!(
                 "UPDATE $disc->{DISC_USER_TABLE_NAME}
@@ -88,15 +89,20 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .bind(("post", Thing::from((POST_TABLE_NAME, latest_post))))
             .await?;
 
-        Ok(())
+        let data = res.take::<Vec<DiscussionUser>>(0)?;
+        Ok(data)
     }
 
-    async fn update_latest_post(&self, disc_id: &str, user_ids: Vec<String>) -> AppResult<()> {
+    async fn update_latest_post(
+        &self,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
             .collect::<Vec<Thing>>();
-        let _ = self
+        let mut res = self
             .client
             .query(format!("UPDATE $disc->{DISC_USER_TABLE_NAME}
                     SET nr_unread-= (IF latest_post->{POST_USER_TABLE_NAME}[WHERE out=$parent.out AND status=$read_status] THEN 0 ELSE 1 END),
@@ -108,15 +114,20 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .bind(("public_type", PostType::Public))
             .bind(("read_status", PostUserStatus::Seen))
             .await?;
-        Ok(())
+        let data = res.take::<Vec<DiscussionUser>>(0)?;
+        Ok(data)
     }
 
-    async fn decrease_unread_count(&self, disc_id: &str, user_ids: Vec<String>) -> AppResult<()> {
+    async fn decrease_unread_count(
+        &self,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
             .collect::<Vec<Thing>>();
-        let _ = self
+        let mut res = self
             .client
             .query(format!(
                 "UPDATE $disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $users;"
@@ -124,8 +135,18 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("users", users))
             .await?;
+        let data = res.take::<Vec<DiscussionUser>>(0)?;
+        Ok(data)
+    }
 
-        Ok(())
+    async fn get_count_of_unread(&self, user_id: &str) -> AppResult<u32> {
+        let mut res = self.client
+            .query(format!("SELECT count() as count FROM {DISC_USER_TABLE_NAME} WHERE out=$user AND nr_unread > 0 GROUP ALL;"))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .await?;
+        let data = res.take::<Option<u32>>((0, "count"))?;
+
+        Ok(data.unwrap_or(0))
     }
 
     async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
@@ -157,16 +178,18 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         Ok(data)
     }
 
-    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()> {
-        let _ = self
+    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<Vec<Thing>> {
+        let mut res = self
             .client
             .query(format!(
-                "DELETE $disc->{DISC_USER_TABLE_NAME} WHERE out IN $users;"
+                "DELETE $disc->{DISC_USER_TABLE_NAME} WHERE out IN $users RETURN BEFORE;"
             ))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("users", user_ids))
-            .await?
-            .check()?;
-        Ok(())
+            .await?;
+
+        let data = res.take::<Vec<Thing>>("id")?;
+
+        Ok(data)
     }
 }
