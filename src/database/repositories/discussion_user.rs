@@ -48,11 +48,9 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     async fn create(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()> {
         let _ = self
             .client
-            .query(format!("LET $latest_post = (SELECT id FROM {POST_TABLE_NAME} WHERE belongs_to=$disc AND type=$public_type ORDER BY id DESC LIMIT 1)[0].id"))
-            .query(format!("RELATE $disc->{DISC_USER_TABLE_NAME}->$users SET latest_post=$latest_post, nr_unread=0"))
+            .query(format!("RELATE $disc->{DISC_USER_TABLE_NAME}->$users"))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("users", user_ids))
-              .bind(("public_type", PostType::Public))
             .await?;
 
         Ok(())

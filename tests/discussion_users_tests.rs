@@ -212,7 +212,7 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
 
     assert_eq!(disc_user2.len(), 1);
     assert_eq!(disc_user2[0].nr_unread, 0);
-    assert_eq!(disc_user2[0].latest_post.as_ref().unwrap().to_raw(), post);
+    assert!(disc_user2[0].latest_post.is_none());
 });
 
 test_with_server!(
