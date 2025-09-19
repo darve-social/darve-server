@@ -9,7 +9,7 @@ pub trait RepositoryConn {
     type Error: std::error::Error + Send;
     type QueryResultItem;
     type QueryResultList;
-    
+
     fn new(conn: Self::Connection, table_name: String) -> Self
     where
         Self: Sized;
@@ -17,7 +17,6 @@ pub trait RepositoryConn {
 
 #[async_trait]
 pub trait RepositoryCore: RepositoryConn {
-    
     async fn item_create(
         &self,
         entity: Self::QueryResultItem,
@@ -28,10 +27,7 @@ pub trait RepositoryCore: RepositoryConn {
         &self,
         ident: &IdentIdName,
     ) -> Result<Option<Self::QueryResultItem>, Self::Error>;
-    async fn list_by_ids(
-        &self,
-        ids: Vec<&str>,
-    ) -> Result<Vec<Self::QueryResultItem>, Self::Error>;
+    async fn list_by_ids(&self, ids: Vec<&str>) -> Result<Vec<Self::QueryResultItem>, Self::Error>;
 
     async fn item_delete(&self, record_id: &str) -> Result<bool, Self::Error>;
     async fn count_records(&self) -> Result<u64, Self::Error>;
@@ -44,13 +40,15 @@ pub trait RepositoryCore: RepositoryConn {
     async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<Thing, Self::Error>;
     async fn item_id_exists(&self, record_id: &str) -> Result<(), Self::Error>;
     async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<Thing>, Self::Error>;
-    
-    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(&self,
-                                                                                ident: &IdentIdName,
-                                                                                pagination: Option<Pagination>,
+
+    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+        &self,
+        ident: &IdentIdName,
+        pagination: Option<Pagination>,
     ) -> Result<Vec<T>, surrealdb::Error>;
-    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(&self,
-                                                                                ident: &IdentIdName,
+    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+        &self,
+        ident: &IdentIdName,
     ) -> Result<Option<T>, surrealdb::Error>;
 }
 
@@ -72,11 +70,13 @@ pub trait EntityWithId {
 
 #[async_trait]
 pub trait RepositoryEntityView: RepositoryConn {
-    async fn list_view(&self,
-                                                                                  ident: &IdentIdName,
-                                                                                  pagination: Option<Pagination>,
+    async fn list_view(
+        &self,
+        ident: &IdentIdName,
+        pagination: Option<Pagination>,
     ) -> Result<Self::QueryResultList, surrealdb::Error>;
-    async fn get_entity_view(&self,
-                             ident: &IdentIdName,
+    async fn get_entity_view(
+        &self,
+        ident: &IdentIdName,
     ) -> Result<Option<Self::QueryResultItem>, surrealdb::Error>;
 }
