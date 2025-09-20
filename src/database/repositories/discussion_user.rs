@@ -93,11 +93,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         Ok(data)
     }
 
-    async fn update_latest_post(
-        &self,
-        disc_id: &str,
-        user_ids: Vec<String>,
-    ) -> AppResult<Vec<DiscussionUser>> {
+    async fn update_latest_post(&self, disc_id: &str, user_ids: Vec<String>) -> AppResult<()> {
         let users = user_ids
             .into_iter()
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))

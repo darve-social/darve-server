@@ -12,7 +12,7 @@ use middleware::{
 
 use crate::database::client::Db;
 use crate::database::table_names::ACCESS_TABLE_NAME;
-use crate::entities::user_auth::local_user_entity::{ TABLE_NAME as USER_TABLE_NAME};
+use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::middleware;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::string_utils::get_str_thing;
@@ -124,21 +124,19 @@ impl<'a> DiscussionDbService<'a> {
         disc_type: Option<DiscussionType>,
         pagination: Pagination,
     ) -> CtxResult<Vec<T>> {
-
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pagination.order_by.unwrap_or("created_at".to_string());
 
         let query_by_type = match disc_type {
             Some(_) => "type=$disc_type AND ",
-            None => ""
+            None => "",
         };
-        
+
         let fields = T::get_select_query_fields();
 
         let query = format!(
             "SELECT {fields} FROM {TABLE_NAME} WHERE {query_by_type} <-{ACCESS_TABLE_NAME}.in CONTAINS $user
                  ORDER BY {order_by} {order_dir} LIMIT $limit START $start;",
-            
         );
         let mut res = self
             .db
@@ -179,10 +177,7 @@ impl<'a> DiscussionDbService<'a> {
         })?)
     }
 
-
     pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
         Thing::from((TABLE_NAME.to_string(), format!("{}", user_id.id.to_raw())))
     }
-
-  
 }

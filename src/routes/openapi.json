@@ -15,7 +15,9 @@
   "paths": {
     "/api/auth/sign_with_facebook": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Sign in with Facebook",
         "description": "Authenticate user using Facebook token",
         "security": [],
@@ -48,7 +50,9 @@
     },
     "/api/auth/sign_with_apple": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Sign in with Apple",
         "description": "Authenticate user using Apple token",
         "security": [],
@@ -81,7 +85,9 @@
     },
     "/api/auth/sign_with_google": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Sign in with Google",
         "description": "Authenticate user using Google token",
         "security": [],
@@ -114,7 +120,9 @@
     },
     "/api/login": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Login with username and password",
         "description": "Authenticate user using username and password",
         "security": [],
@@ -152,7 +160,9 @@
     },
     "/api/register": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Register new user",
         "description": "Create a new user account",
         "security": [],
@@ -190,7 +200,9 @@
     },
     "/api/forgot_password": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Request password reset",
         "description": "Send password reset email to user",
         "security": [],
@@ -216,7 +228,9 @@
     },
     "/api/reset_password": {
       "post": {
-        "tags": ["Authentication"],
+        "tags": [
+          "Authentication"
+        ],
         "summary": "Reset password",
         "description": "Reset user password using verification code",
         "security": [],
@@ -242,7 +256,9 @@
     },
     "/api/notifications": {
       "get": {
-        "tags": ["Notifications"],
+        "tags": [
+          "Notifications"
+        ],
         "summary": "Get user notifications",
         "description": "Retrieve notifications for the current user",
         "security": [
@@ -289,7 +305,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"],
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
               "default": "DESC"
             }
           }
@@ -316,7 +335,9 @@
     },
     "/api/notifications/read": {
       "post": {
-        "tags": ["Notifications"],
+        "tags": [
+          "Notifications"
+        ],
         "summary": "Mark all notifications as read",
         "description": "Mark all notifications as read for the current user",
         "security": [
@@ -336,7 +357,9 @@
     },
     "/api/notifications/count": {
       "get": {
-        "tags": ["Notifications"],
+        "tags": [
+          "Notifications"
+        ],
         "summary": "Get notification count",
         "description": "Get the count of notifications for the current user",
         "security": [
@@ -375,7 +398,9 @@
     },
     "/api/notifications/sse": {
       "get": {
-        "tags": ["Notifications"],
+        "tags": [
+          "Notifications"
+        ],
         "summary": "Server-sent events for notifications",
         "description": "Real-time notification stream using Server-Sent Events. The stream consists of several event types.",
         "security": [
@@ -412,7 +437,9 @@
     },
     "/api/notifications/{notification_id}/read": {
       "post": {
-        "tags": ["Notifications"],
+        "tags": [
+          "Notifications"
+        ],
         "summary": "Mark notification as read",
         "description": "Mark a specific notification as read",
         "security": [
@@ -446,7 +473,9 @@
     },
     "/api/tasks/received": {
       "get": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Get received task requests",
         "description": "Get task requests received by the current user",
         "security": [
@@ -462,7 +491,12 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["Requested", "Accepted", "Rejected", "Delivered"]
+              "enum": [
+                "Requested",
+                "Accepted",
+                "Rejected",
+                "Delivered"
+              ]
             }
           },
           {
@@ -481,7 +515,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"],
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
               "default": "DESC"
             }
           },
@@ -531,7 +568,9 @@
     },
     "/api/tasks/given": {
       "get": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Get given task requests",
         "description": "Get task requests created by the current user",
         "security": [
@@ -547,7 +586,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"],
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
               "default": "DESC"
             }
           },
@@ -597,7 +639,9 @@
     },
     "/api/tasks/{task_id}/accept": {
       "post": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Accept task request",
         "description": "Accept a task request",
         "security": [
@@ -631,7 +675,9 @@
     },
     "/api/tasks/{task_id}/reject": {
       "post": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Reject task request",
         "description": "Reject a task request",
         "security": [
@@ -665,7 +711,9 @@
     },
     "/api/tasks/{task_id}/deliver": {
       "post": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Deliver task",
         "description": "Mark a task as delivered",
         "security": [
@@ -709,7 +757,9 @@
     },
     "/api/tasks/{task_id}/donor": {
       "post": {
-        "tags": ["Tasks"],
+        "tags": [
+          "Tasks"
+        ],
         "summary": "Add or update donor",
         "description": "Add or update a donor for a task",
         "security": [
@@ -758,7 +808,9 @@
     },
     "/api/users/{user_id}/followers/count": {
       "get": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Get user's followers count",
         "description": "Get the number of followers for a specific user",
         "security": [
@@ -798,7 +850,9 @@
     },
     "/api/users/{user_id}/following/count": {
       "get": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Get user's following count",
         "description": "Get the number of users a specific user is following",
         "security": [
@@ -838,7 +892,9 @@
     },
     "/api/users/current/following/posts": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Get posts from followed users",
         "description": "Get posts from users that the current user follows",
         "security": [
@@ -901,7 +957,9 @@
     },
     "/api/users/current/latest_posts": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Get latest posts",
         "description": "Get latest posts from private discussions accessible to the current user",
         "security": [
@@ -955,7 +1013,9 @@
     },
     "/api/users/current/email/verification/start": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Start email verification",
         "description": "Start email verification process for user opt-in",
         "security": [
@@ -990,7 +1050,9 @@
     },
     "/api/users/current/email/verification/confirm": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Confirm email verification",
         "description": "Confirm email verification with code for user opt-in",
         "security": [
@@ -1025,7 +1087,9 @@
     },
     "/api/users/current": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Get current user",
         "description": "Get current authenticated user information",
         "security": [
@@ -1050,7 +1114,9 @@
         }
       },
       "patch": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Update current user",
         "description": "Update current user profile",
         "security": [
@@ -1090,7 +1156,9 @@
     },
     "/api/users/current/set_password/start": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Start password set process",
         "description": "Start password set process for current user",
         "security": [
@@ -1110,7 +1178,9 @@
     },
     "/api/users/current/set_password/confirm": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Confirm password setting",
         "description": "Confirm password setting with verification code for current user",
         "security": [
@@ -1148,7 +1218,9 @@
     },
     "/api/users/current/update_password/start": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Start password update process",
         "description": "Start password update process for current user",
         "security": [
@@ -1168,7 +1240,9 @@
     },
     "/api/users/current/update_password/confirm": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Confirm password update",
         "description": "Confirm password update with verification code for current user",
         "security": [
@@ -1214,7 +1288,9 @@
     },
     "/api/users/current/otp/enable": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Enable OTP for current user",
         "description": "Enable two-factor authentication (OTP) for the current user",
         "security": [
@@ -1241,7 +1317,9 @@
     },
     "/api/users/current/otp/disable": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Disable OTP for current user",
         "description": "Disable two-factor authentication (OTP) for the current user",
         "security": [
@@ -1261,7 +1339,9 @@
     },
     "/api/users/current/otp/verification": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Verify OTP setup",
         "description": "Verify OTP token during setup process to enable two-factor authentication",
         "security": [
@@ -1304,7 +1384,9 @@
     },
     "/api/users/current/otp/validate": {
       "post": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Validate OTP token",
         "description": "Validate OTP token for a user with OTP enabled and return full authentication token",
         "security": [
@@ -1344,7 +1426,9 @@
     },
     "/api/users": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Search users",
         "description": "Search for users",
         "security": [
@@ -1408,7 +1492,9 @@
     },
     "/api/users/status": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "description": "Get users status",
         "security": [
           {
@@ -1449,7 +1535,9 @@
     },
     "/u/{username_or_id}": {
       "get": {
-        "tags": ["Users"],
+        "tags": [
+          "Users"
+        ],
         "summary": "Get user profile by username or id",
         "description": "Get detailed user profile information by username or user ID, including posts, followers, and other profile data",
         "security": [
@@ -1510,7 +1598,9 @@
     },
     "/api/posts": {
       "get": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Get posts",
         "description": "Get posts with optional filtering",
         "security": [
@@ -1535,7 +1625,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"]
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
             }
           },
           {
@@ -1581,7 +1674,9 @@
     },
     "/api/posts/{post_id}/tasks": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Create task for post",
         "description": "Create a task related to a post",
         "security": [
@@ -1627,7 +1722,9 @@
         }
       },
       "get": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Get tasks for post",
         "description": "Get tasks related to a post",
         "security": [
@@ -1668,7 +1765,9 @@
     },
     "/api/posts/{post_id}/like": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Like a post",
         "description": "Like a specific post",
         "security": [
@@ -1716,7 +1815,9 @@
     },
     "/api/posts/{post_id}/unlike": {
       "delete": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Unlike a post",
         "description": "Remove like from a specific post",
         "security": [
@@ -1754,7 +1855,9 @@
     },
     "/api/posts/{post_id}/replies": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Create reply to post",
         "description": "Create a reply to a specific post",
         "security": [
@@ -1805,7 +1908,9 @@
         }
       },
       "get": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Get replies to post",
         "description": "Get replies to a specific post",
         "security": [
@@ -1866,7 +1971,9 @@
     },
     "/api/posts/{post_id}/add_users": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Add users to post",
         "description": "Add users to a specific post",
         "security": [
@@ -1900,7 +2007,9 @@
                     "description": "Array of user IDs to add to the post"
                   }
                 },
-                "required": ["user_ids"]
+                "required": [
+                  "user_ids"
+                ]
               }
             }
           }
@@ -1920,7 +2029,9 @@
     },
     "/api/posts/{post_id}/remove_users": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Remove users from post",
         "description": "Remove users from a specific post",
         "security": [
@@ -1954,7 +2065,9 @@
                     "description": "Array of user IDs to remove from the post"
                   }
                 },
-                "required": ["user_ids"]
+                "required": [
+                  "user_ids"
+                ]
               }
             }
           }
@@ -1974,7 +2087,9 @@
     },
     "/api/posts/{post_id}/users": {
       "get": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Get users associated with post",
         "description": "Get list of users associated with a specific post",
         "security": [
@@ -2018,7 +2133,9 @@
     },
     "/api/posts/{post_id}/deliver": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Mark post as delivered",
         "description": "Mark a specific post as delivered by the current user",
         "security": [
@@ -2052,7 +2169,9 @@
     },
     "/api/posts/{post_id}/read": {
       "post": {
-        "tags": ["Posts"],
+        "tags": [
+          "Posts"
+        ],
         "summary": "Mark post as read",
         "description": "Mark a specific post as read by the current user",
         "security": [
@@ -2086,7 +2205,9 @@
     },
     "/api/discussions": {
       "get": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Get discussions",
         "description": "Get discussions for the current user",
         "security": [
@@ -2102,7 +2223,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["Private", "Public"]
+              "enum": [
+                "Private",
+                "Public"
+              ]
             }
           },
           {
@@ -2141,7 +2265,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"]
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
             }
           }
         ],
@@ -2165,7 +2292,9 @@
         }
       },
       "post": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Create discussion",
         "description": "Create a new discussion",
         "security": [
@@ -2202,7 +2331,9 @@
     },
     "/api/discussions/{discussion_id}": {
       "patch": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Update discussion",
         "description": "Update a discussion",
         "security": [
@@ -2241,7 +2372,9 @@
         }
       },
       "delete": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Delete discussion",
         "description": "Delete a discussion",
         "security": [
@@ -2272,7 +2405,9 @@
     },
     "/api/discussions/{discussion_id}/tasks": {
       "post": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Create task for discussion",
         "description": "Create a task related to a discussion",
         "security": [
@@ -2318,7 +2453,9 @@
         }
       },
       "get": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Get tasks for discussion",
         "description": "Get tasks related to a discussion",
         "security": [
@@ -2359,7 +2496,9 @@
     },
     "/api/discussions/{discussion_id}/chat_users": {
       "post": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Add users to discussion",
         "description": "Add users to a discussion chat",
         "security": [
@@ -2403,7 +2542,9 @@
         }
       },
       "delete": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Remove users from discussion",
         "description": "Remove users from a discussion chat",
         "security": [
@@ -2449,7 +2590,9 @@
     },
     "/api/discussions/{discussion_id}/sse": {
       "get": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Discussion SSE stream",
         "description": "Server-sent events stream for discussion updates",
         "security": [
@@ -2487,7 +2630,9 @@
     },
     "/api/discussions/{discussion_id}/posts": {
       "post": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Create post in discussion",
         "description": "Create a new post in a discussion",
         "security": [
@@ -2533,7 +2678,9 @@
         }
       },
       "get": {
-        "tags": ["Discussions"],
+        "tags": [
+          "Discussions"
+        ],
         "summary": "Get posts in discussion",
         "description": "Get posts from a discussion",
         "security": [
@@ -2613,7 +2760,9 @@
     },
     "/api/wallet/history": {
       "get": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Get wallet transaction history",
         "description": "Get transaction history for the current user's wallet",
         "security": [
@@ -2648,7 +2797,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"]
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
             }
           },
           {
@@ -2696,7 +2848,9 @@
     },
     "/api/gateway_wallet/history": {
       "get": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Get gateway wallet transaction history",
         "description": "Get transaction history for the current user's gateway wallet",
         "security": [
@@ -2740,7 +2894,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"]
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
             }
           },
           {
@@ -2788,7 +2945,9 @@
     },
     "/api/gateway_wallet/count": {
       "get": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Get gateway wallet transactions count",
         "description": "Get transactions count for the current user's gateway wallet",
         "security": [
@@ -2835,7 +2994,9 @@
     },
     "/api/wallet/balance": {
       "get": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Get wallet balance",
         "description": "Get the current user's wallet balance",
         "security": [
@@ -2862,7 +3023,9 @@
     },
     "/api/wallet/withdraw": {
       "post": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Withdraw from wallet",
         "description": "Withdraw money from the current user's wallet",
         "security": [
@@ -2900,7 +3063,9 @@
     },
     "/api/wallet/deposit": {
       "post": {
-        "tags": ["Wallet"],
+        "tags": [
+          "Wallet"
+        ],
         "summary": "Deposit to wallet",
         "description": "Send money to the current user's wallet",
         "security": [
@@ -2945,7 +3110,9 @@
     },
     "/api/users/{user_id}/followers": {
       "get": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Get user followers",
         "description": "Get followers of a specific user",
         "security": [
@@ -2986,7 +3153,9 @@
     },
     "/api/users/{user_id}/following": {
       "get": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Get users followed by user",
         "description": "Get users that a specific user is following",
         "security": [
@@ -3027,7 +3196,9 @@
     },
     "/api/replies/{reply_id}/like": {
       "post": {
-        "tags": ["Replies"],
+        "tags": [
+          "Replies"
+        ],
         "summary": "Like a reply",
         "description": "Add like to a specific reply",
         "security": [
@@ -3078,7 +3249,9 @@
     },
     "/api/replies/{reply_id}/unlike": {
       "delete": {
-        "tags": ["Replies"],
+        "tags": [
+          "Replies"
+        ],
         "summary": "Unlike a reply",
         "description": "Remove like from a specific reply",
         "security": [
@@ -3119,7 +3292,9 @@
     },
     "/api/followers/{follow_user_id}": {
       "post": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Follow user",
         "description": "Follow a specific user",
         "security": [
@@ -3151,7 +3326,9 @@
         }
       },
       "delete": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Unfollow user",
         "description": "Unfollow a specific user",
         "security": [
@@ -3183,7 +3360,9 @@
         }
       },
       "get": {
-        "tags": ["Follows"],
+        "tags": [
+          "Follows"
+        ],
         "summary": "Check if following user",
         "description": "Check if current user is following a specific user",
         "security": [
@@ -3217,7 +3396,9 @@
     },
     "/api/tags": {
       "get": {
-        "tags": ["Tags"],
+        "tags": [
+          "Tags"
+        ],
         "summary": "Get tags with optional filtering and pagination",
         "description": "Retrieve a list of tags with optional filtering by prefix and pagination support",
         "security": [],
@@ -3238,7 +3419,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["ASC", "DESC"]
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
             }
           },
           {
@@ -3300,11 +3484,17 @@
             "description": "The shared secret for TOTP"
           }
         },
-        "required": ["token", "url", "secret"]
+        "required": [
+          "token",
+          "url",
+          "secret"
+        ]
       },
       "SocialSignInput": {
         "type": "object",
-        "required": ["token"],
+        "required": [
+          "token"
+        ],
         "properties": {
           "token": {
             "type": "string",
@@ -3314,7 +3504,10 @@
       },
       "AuthLoginInput": {
         "type": "object",
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "properties": {
           "username": {
             "type": "string",
@@ -3329,7 +3522,10 @@
       },
       "AuthRegisterInput": {
         "type": "object",
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "properties": {
           "username": {
             "type": "string",
@@ -3368,7 +3564,9 @@
       },
       "ForgotPasswordInput": {
         "type": "object",
-        "required": ["email_or_username"],
+        "required": [
+          "email_or_username"
+        ],
         "properties": {
           "email_or_username": {
             "type": "string",
@@ -3378,7 +3576,11 @@
       },
       "ResetPasswordInput": {
         "type": "object",
-        "required": ["old_password", "new_password", "code"],
+        "required": [
+          "old_password",
+          "new_password",
+          "code"
+        ],
         "properties": {
           "old_password": {
             "type": "string",
@@ -3399,7 +3601,11 @@
       },
       "ForgotPasswordResetInput": {
         "type": "object",
-        "required": ["password", "code", "email_or_username"],
+        "required": [
+          "password",
+          "code",
+          "email_or_username"
+        ],
         "properties": {
           "password": {
             "type": "string",
@@ -3419,7 +3625,9 @@
       },
       "SetPasswordInput": {
         "type": "object",
-        "required": ["password"],
+        "required": [
+          "password"
+        ],
         "properties": {
           "password": {
             "type": "string",
@@ -3435,7 +3643,10 @@
       },
       "UpdatePasswordInput": {
         "type": "object",
-        "required": ["old_password", "new_password"],
+        "required": [
+          "old_password",
+          "new_password"
+        ],
         "properties": {
           "old_password": {
             "type": "string",
@@ -3456,7 +3667,9 @@
       },
       "DeliverTaskRequestInput": {
         "type": "object",
-        "required": ["post_id"],
+        "required": [
+          "post_id"
+        ],
         "properties": {
           "post_id": {
             "type": "string",
@@ -3466,7 +3679,9 @@
       },
       "TaskRequestOfferInput": {
         "type": "object",
-        "required": ["amount"],
+        "required": [
+          "amount"
+        ],
         "properties": {
           "amount": {
             "type": "integer",
@@ -3589,12 +3804,22 @@
       },
       "TransactionType": {
         "type": "string",
-        "enum": ["Withdraw", "Deposit", "Refund", "Donate", "Reward"],
+        "enum": [
+          "Withdraw",
+          "Deposit",
+          "Refund",
+          "Donate",
+          "Reward"
+        ],
         "description": "Type of notification event"
       },
       "WithdrawStatus": {
         "type": "string",
-        "enum": ["Pending", "Completed", "Failed"],
+        "enum": [
+          "Pending",
+          "Completed",
+          "Failed"
+        ],
         "description": "Type of notification event"
       },
       "TaskRequestView": {
@@ -3660,7 +3885,11 @@
       },
       "TaskRequestStatus": {
         "type": "string",
-        "enum": ["Init", "InProgress", "Completed"],
+        "enum": [
+          "Init",
+          "InProgress",
+          "Completed"
+        ],
         "description": "Status of task"
       },
       "TaskRequestViewParticipant": {
@@ -3755,7 +3984,9 @@
             "nullable": true
           }
         },
-        "required": ["id"]
+        "required": [
+          "id"
+        ]
       },
       "TaskRequestDonorView": {
         "type": "object",
@@ -3855,11 +4086,19 @@
             "description": "Record ID"
           }
         },
-        "required": ["tb", "id"]
+        "required": [
+          "tb",
+          "id"
+        ]
       },
       "TaskParticipantStatus": {
         "type": "string",
-        "enum": ["Requested", "Rejected", "Accepted", "Delivered"],
+        "enum": [
+          "Requested",
+          "Rejected",
+          "Accepted",
+          "Delivered"
+        ],
         "description": "Status of task participant"
       },
       "TaskParticipantTimeline": {
@@ -3874,12 +4113,19 @@
             "description": "Timestamp when this status change occurred"
           }
         },
-        "required": ["status", "date"],
+        "required": [
+          "status",
+          "date"
+        ],
         "description": "Timeline entry tracking status changes for a task participant"
       },
       "CurrencySymbol": {
         "type": "string",
-        "enum": ["USD", "REEF", "ETH"],
+        "enum": [
+          "USD",
+          "REEF",
+          "ETH"
+        ],
         "description": "Currency symbol"
       },
       "TaskViewForParticipant": {
@@ -3959,7 +4205,9 @@
       },
       "EmailVerificationStartInput": {
         "type": "object",
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -4022,11 +4270,19 @@
       },
       "GatewayTransactionStatus": {
         "type": "string",
-        "enum": ["Pending", "Completed", "Failed", "Init"]
+        "enum": [
+          "Pending",
+          "Completed",
+          "Failed",
+          "Init"
+        ]
       },
       "GatewayTransactionTimeline": {
         "type": "object",
-        "required": ["status", "date"],
+        "required": [
+          "status",
+          "date"
+        ],
         "properties": {
           "status": {
             "$ref": "#/components/schemas/GatewayTransactionStatus"
@@ -4039,7 +4295,10 @@
       },
       "EmailVerificationConfirmInput": {
         "type": "object",
-        "required": ["email", "code"],
+        "required": [
+          "email",
+          "code"
+        ],
         "properties": {
           "email": {
             "type": "string",
@@ -4056,7 +4315,10 @@
       },
       "UserStatus": {
         "type": "object",
-        "required": ["user_id", "is_online"],
+        "required": [
+          "user_id",
+          "is_online"
+        ],
         "properties": {
           "user_id": {
             "type": "string",
@@ -4156,13 +4418,20 @@
         "properties": {
           "filter_by_type": {
             "type": "string",
-            "enum": ["Public", "Private", "Idea"],
+            "enum": [
+              "Public",
+              "Private",
+              "Idea"
+            ],
             "nullable": true,
             "description": "Filter by post type"
           },
           "order_dir": {
             "type": "string",
-            "enum": ["ASC", "DESC"],
+            "enum": [
+              "ASC",
+              "DESC"
+            ],
             "nullable": true,
             "description": "Order direction"
           },
@@ -4180,11 +4449,18 @@
       },
       "PostType": {
         "type": "string",
-        "enum": ["Public", "Private", "Idea"]
+        "enum": [
+          "Public",
+          "Private",
+          "Idea"
+        ]
       },
       "QryOrder": {
         "type": "string",
-        "enum": ["ASC", "DESC"]
+        "enum": [
+          "ASC",
+          "DESC"
+        ]
       },
       "ProfileSettingsFormInput": {
         "type": "object",
@@ -4232,7 +4508,9 @@
       },
       "PostInput": {
         "type": "object",
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "properties": {
           "title": {
             "type": "string",
@@ -4344,7 +4622,10 @@
       },
       "PostUserStatus": {
         "type": "integer",
-        "enum": [0, 1],
+        "enum": [
+          0,
+          1
+        ],
         "description": "User status for a post: 0=Delivered, 1=Seen"
       },
       "PostUserStatusView": {
@@ -4358,7 +4639,26 @@
             "description": "User ID"
           }
         },
-        "required": ["status", "user"]
+        "required": [
+          "status",
+          "user"
+        ]
+      },
+      "DiscussionUserView": {
+        "type": "object",
+        "properties": {
+          "latest_post": {
+            "$ref": "#/components/schemas/LatestPostView"
+          },
+          "nr_unread": {
+            "type": "integer",
+            "description": "Number of unread posts in the discussion"
+          }
+        },
+        "required": [
+          "latest_post",
+          "nr_unread"
+        ]
       },
       "DiscussionUserView": {
         "type": "object",
@@ -4441,7 +4741,10 @@
       },
       "PostReplyInput": {
         "type": "object",
-        "required": ["title", "content"],
+        "required": [
+          "title",
+          "content"
+        ],
         "properties": {
           "content": {
             "type": "string",
@@ -4534,7 +4837,11 @@
           },
           "type": {
             "type": "string",
-            "enum": ["Private", "Fixed", "Public"]
+            "enum": [
+              "Private",
+              "Fixed",
+              "Public"
+            ]
           },
           "users": {
             "type": "array",
@@ -4568,7 +4875,11 @@
       },
       "CreateDiscussion": {
         "type": "object",
-        "required": ["community_id", "title", "private_discussion_users_final"],
+        "required": [
+          "community_id",
+          "title",
+          "private_discussion_users_final"
+        ],
         "properties": {
           "community_id": {
             "type": "string",
@@ -4591,7 +4902,10 @@
               "type": "string"
             },
             "nullable": true,
-            "example": ["user1", "user2"]
+            "example": [
+              "user1",
+              "user2"
+            ]
           },
           "private_discussion_users_final": {
             "type": "boolean",
@@ -4614,7 +4928,9 @@
       },
       "DiscussionUsers": {
         "type": "object",
-        "required": ["user_ids"],
+        "required": [
+          "user_ids"
+        ],
         "properties": {
           "user_ids": {
             "type": "array",
@@ -4627,7 +4943,9 @@
       },
       "TaskRequestInput": {
         "type": "object",
-        "required": ["content"],
+        "required": [
+          "content"
+        ],
         "properties": {
           "content": {
             "type": "string",
@@ -4664,7 +4982,9 @@
       },
       "WithdrawData": {
         "type": "object",
-        "required": ["amount"],
+        "required": [
+          "amount"
+        ],
         "properties": {
           "amount": {
             "type": "integer",
@@ -4675,7 +4995,9 @@
       },
       "DepositData": {
         "type": "object",
-        "required": ["amount"],
+        "required": [
+          "amount"
+        ],
         "properties": {
           "amount": {
             "type": "integer",
@@ -4689,7 +5011,9 @@
       },
       "OtpValidationInput": {
         "type": "object",
-        "required": ["token"],
+        "required": [
+          "token"
+        ],
         "properties": {
           "token": {
             "type": "string",
@@ -4747,7 +5071,9 @@
       },
       "ReplyLikeResponse": {
         "type": "object",
-        "required": ["likes_count"],
+        "required": [
+          "likes_count"
+        ],
         "properties": {
           "likes_count": {
             "type": "integer",
