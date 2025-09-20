@@ -321,7 +321,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/UserNotificationView"
+                    "$ref": "#/components/schemas/Notification"
                   }
                 }
               }
@@ -402,7 +402,7 @@
           "Notifications"
         ],
         "summary": "Server-sent events for notifications",
-        "description": "Real-time notification stream using Server-Sent Events",
+        "description": "Real-time notification stream using Server-Sent Events. The stream consists of several event types.",
         "security": [
           {
             "cookieAuth": []
@@ -410,11 +410,21 @@
         ],
         "responses": {
           "200": {
-            "description": "SSE stream of notifications",
+            "description": "SSE stream of notifications.",
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "type": "string"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SSEEventUnreadDiscussionsCount"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SSEEventNotifications"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SSEEventUserStatus"
+                    }
+                  ]
                 }
               }
             }
@@ -3812,20 +3822,6 @@
         ],
         "description": "Type of notification event"
       },
-      "UserNotificationEvent": {
-        "type": "string",
-        "enum": [
-          "UserBalanceUpdate",
-          "UserChatMessage",
-          "UserCommunityPost",
-          "UserFollowAdded",
-          "UserLikePost",
-          "UserTaskRequestCreated",
-          "UserTaskRequestDelivered",
-          "UserTaskRequestReceived"
-        ],
-        "description": "Type of notification event"
-      },
       "TaskRequestView": {
         "type": "object",
         "properties": {
@@ -4333,6 +4329,94 @@
             "description": "User status online/offline"
           }
         }
+      },
+      "SSEEventUnreadDiscussionsCount": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "UnreadDiscussionsCount"
+            ]
+          },
+          "data": {
+            "type": "string",
+            "description": "Number of unread discussions"
+          }
+        }
+      },
+      "SSEEventNotifications": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "Notifications"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserNotification"
+          }
+        }
+      },
+      "SSEEventUserStatus": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "UserStatus"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserStatus"
+          }
+        }
+      },
+      "UserNotification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/UserNotificationEvent"
+          },
+          "title": {
+            "type": "string"
+          },
+          "is_read": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserNotificationEvent": {
+        "type": "string",
+        "enum": [
+          "UserBalanceUpdate",
+          "UserFollowAdded",
+          "UserLikePost",
+          "UserTaskRequestCreated",
+          "UserTaskRequestDelivered",
+          "DonateTaskRequest",
+          "UserTaskRequestAccepted",
+          "TaskRewardReceived",
+          "CreatedPost",
+          "CommentAdded",
+          "UserLikeComment",
+          "DepositCompleted",
+          "WithdrawCompleted"
+        ]
       },
       "GetPostsParams": {
         "type": "object",

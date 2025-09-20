@@ -9,6 +9,7 @@ use crate::entities::community::discussion_entity::{
     DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
 };
 use crate::entities::community::post_entity::{Post, PostType, TABLE_NAME as POST_TABLE_NAME};
+use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::task::task_request_entity::{
     TaskParticipantUserView, TaskRequest, TaskRequestType,
 };
@@ -118,7 +119,8 @@ where
                 &UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
                 Some(json!({
-                    "post_id": post.id.to_raw()
+                    "post_id": post.id.to_raw(),
+                    "media_links": post.media_links,
                 })),
             )
             .await?;
@@ -294,7 +296,7 @@ where
             .create(
                 &user_id.to_raw(),
                 format!("{} accepted the task.", user.username).as_str(),
-                UserNotificationEvent::UserTaskRequestDelivered.as_str(),
+                UserNotificationEvent::UserTaskRequestAccepted.as_str(),
                 &receivers,
                 Some({
                     json!({
@@ -826,6 +828,27 @@ where
             content: Some(post_json),
             receivers,
             metadata: Some(metadata),
+        });
+
+        Ok(())
+    }
+
+    pub async fn on_updated_users_discussions(
+        &self,
+        user_id: &Thing,
+        updated_data: &Vec<DiscussionUser>,
+    ) -> CtxResult<()> {
+        let receivers = updated_data
+            .iter()
+            .map(|d| d.user.id.to_raw())
+            .collect::<Vec<String>>();
+
+        let _ = self.event_sender.send(AppEvent {
+            user_id: user_id.to_raw(),
+            event: AppEventType::UpdateDiscussionsUsers(updated_data.clone()),
+            content: None,
+            receivers,
+            metadata: None,
         });
 
         Ok(())

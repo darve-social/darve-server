@@ -150,20 +150,6 @@ impl<'a> DiscussionDbService<'a> {
         Ok(data)
     }
 
-    pub async fn delete(&self, id: &str) -> CtxResult<()> {
-        let thing = Thing::try_from(id).map_err(|_| AppError::Generic {
-            description: "error into Thing".to_string(),
-        })?;
-        let _ = self
-            .db
-            .delete::<Option<Discussion>>((thing.tb, thing.id.to_raw()))
-            .await
-            .map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            });
-
-        Ok(())
-    }
 
     pub async fn create(&self, data: CreateDiscussionEntity) -> CtxResult<Discussion> {
         let disc: Option<Discussion> = self

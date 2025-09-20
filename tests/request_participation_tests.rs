@@ -364,7 +364,7 @@ test_with_server!(
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)
             .collect();
-        assert_eq!(task_delivered_evt.len(), 2);
+        assert_eq!(task_delivered_evt.len(), 1);
 
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server

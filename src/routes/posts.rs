@@ -399,6 +399,12 @@ async fn post_mark_as_deliver(
         &auth_data.ctx,
         &state.db.post_users,
         &state.db.discussion_users,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
     service
         .deliver(&auth_data.user_thing_id(), &post_id)
@@ -416,6 +422,12 @@ async fn post_mark_as_read(
         &auth_data.ctx,
         &state.db.post_users,
         &state.db.discussion_users,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
     service.read(&auth_data.user_thing_id(), &post_id).await?;
     Ok(())
