@@ -45,6 +45,7 @@ pub struct PostAccessView {
     pub r#type: PostType,
     pub discussion: DiscussionAccessView,
     pub users: Vec<AccessUser>,
+    pub media_links: Option<Vec<String>>,
 }
 
 impl PostAccessView {

@@ -119,7 +119,8 @@ where
                 &UserNotificationEvent::UserLikePost.as_str(),
                 &receivers,
                 Some(json!({
-                    "post_id": post.id.to_raw()
+                    "post_id": post.id.to_raw(),
+                    "media_links": post.media_links,
                 })),
             )
             .await?;
@@ -295,7 +296,7 @@ where
             .create(
                 &user_id.to_raw(),
                 format!("{} accepted the task.", user.username).as_str(),
-                UserNotificationEvent::UserTaskRequestDelivered.as_str(),
+                UserNotificationEvent::UserTaskRequestAccepted.as_str(),
                 &receivers,
                 Some({
                     json!({

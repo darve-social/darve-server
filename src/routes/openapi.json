@@ -4335,7 +4335,9 @@
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["UnreadDiscussionsCount"]
+            "enum": [
+              "UnreadDiscussionsCount"
+            ]
           },
           "data": {
             "type": "string",
@@ -4348,7 +4350,9 @@
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["Notifications"]
+            "enum": [
+              "Notifications"
+            ]
           },
           "data": {
             "$ref": "#/components/schemas/UserNotification"
@@ -4360,7 +4364,9 @@
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["UserStatus"]
+            "enum": [
+              "UserStatus"
+            ]
           },
           "data": {
             "$ref": "#/components/schemas/UserStatus"
@@ -4398,7 +4404,6 @@
         "type": "string",
         "enum": [
           "UserBalanceUpdate",
-          "UserCommunityPost",
           "UserFollowAdded",
           "UserLikePost",
           "UserTaskRequestCreated",
@@ -4659,19 +4664,6 @@
           "latest_post",
           "nr_unread"
         ]
-      },
-      "DiscussionUserView": {
-        "type": "object",
-        "properties": {
-          "latest_post": {
-            "$ref": "#/components/schemas/LatestPostView"
-          },
-          "nr_unread": {
-            "type": "integer",
-            "description": "Number of unread posts in the discussion"
-          }
-        },
-        "required": ["latest_post", "nr_unread"]
       },
       "LatestPostView": {
         "type": "object",

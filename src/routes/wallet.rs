@@ -199,6 +199,12 @@ async fn withdraw(
         db: &state.db.client,
         ctx: &ctx,
     };
+    let notification_service = NotificationService::new(
+        &state.db.client,
+        &ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+    );
 
     let gateway_tx = gateway_tx_service
         .user_withdraw_tx_start(
@@ -208,6 +214,10 @@ async fn withdraw(
             state.withdraw_fee,
         )
         .await?;
+
+    let _ = notification_service
+        .on_update_balance(user.id.as_ref().unwrap())
+        .await;
 
     let paypal = Paypal::new(
         &state.paypal_client_id,
@@ -248,13 +258,6 @@ async fn withdraw(
                 .user_withdraw_tx_revert(gateway_tx.id.as_ref().unwrap().clone(), Some(e.clone()))
                 .await;
             if tx_res.is_ok() {
-                let notification_service = NotificationService::new(
-                    &state.db.client,
-                    &ctx,
-                    &state.event_sender,
-                    &state.db.user_notifications,
-                );
-
                 notification_service
                     .on_update_balance(user.id.as_ref().unwrap())
                     .await?;
