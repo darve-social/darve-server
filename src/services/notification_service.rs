@@ -15,6 +15,7 @@ use crate::entities::task::task_request_entity::{
 };
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
+use crate::middleware::error::AppResult;
 use crate::middleware::mw_ctx::AppEventMetadata;
 use crate::models::view::access::{DiscussionAccessView, PostAccessView, TaskAccessView};
 use crate::models::view::post::PostView;
@@ -223,16 +224,14 @@ where
                 format!("{} delivered the task.", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "task_id": task_view.id,
-                        "result_post_id": result.id.to_raw(),
-                        "result_links": result.media_links,
-                        "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
-                        "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
+                Some(json!({
+                    "task_id": task_view.id,
+                    "result_post_id": result.id.to_raw(),
+                    "result_links": result.media_links,
+                    "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
+                    "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
 
-                    })
-                }),
+                })),
             )
             .await?;
 
@@ -298,13 +297,11 @@ where
                 format!("{} accepted the task.", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestAccepted.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "task_id": task_view.id,
-                        "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
-                        "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
-                    })
-                }),
+                Some(json!({
+                    "task_id": task_view.id,
+                    "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
+                    "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
+                })),
             )
             .await?;
 
@@ -384,13 +381,11 @@ where
                 format!("{} donated to the task.", user.username).as_str(),
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "task_id": task_view.id,
-                        "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
-                        "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
-                    })
-                }),
+                Some(json!({
+                    "task_id": task_view.id,
+                    "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
+                    "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
+                })),
             )
             .await?;
 
@@ -429,13 +424,11 @@ where
                 format!("{} received reward for the task.", user.username).as_str(),
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "task_id": task_id.to_raw(),
-                        "post_id": post_id,
-                        "discussion_id":  discussion_id
-                    })
-                }),
+                Some(json!({
+                    "task_id": task_id.to_raw(),
+                    "post_id": post_id,
+                    "discussion_id":  discussion_id
+                })),
             )
             .await?;
 
@@ -490,11 +483,9 @@ where
                 &format!("{} created the reply", user.username),
                 UserNotificationEvent::CommentAdded.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "post_id": post.id,
-                    })
-                }),
+                Some(json!({
+                    "post_id": post.id,
+                })),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
@@ -534,11 +525,9 @@ where
                 &format!("{} liked the reply", user.username),
                 UserNotificationEvent::UserLikeComment.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "post_id": post.id,
-                    })
-                }),
+                Some(json!({
+                    "post_id": post.id,
+                })),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
@@ -637,12 +626,10 @@ where
                 &format!("{} created the post", user.username),
                 UserNotificationEvent::CreatedPost.as_str(),
                 &receivers,
-                Some({
-                    json!({
-                        "post_id": post.id,
-                        "discussion_id": post.belongs_to.to_raw()
-                    })
-                }),
+                Some(json!({
+                    "post_id": post.id,
+                    "discussion_id": post.belongs_to.to_raw()
+                })),
             )
             .await?;
         let _ = self.event_sender.send(AppEvent {
@@ -691,7 +678,7 @@ where
             }
         };
 
-        let receivers = receiver_things
+        let mut receivers = receiver_things
             .iter()
             .filter_map(|id| {
                 if id == user_id {
@@ -713,6 +700,37 @@ where
             }
         };
 
+        let metadata = Some(json!({
+            "task_id": task.id.as_ref().unwrap().to_raw(),
+            "post_id": post_id,
+            "discussion_id": discussion_id
+        }));
+
+        if let Some(p) = participant {
+            let p_id = p.id.as_ref().unwrap().id.to_raw();
+            receivers.retain(|id| id != &p_id);
+            let event = self
+                .notification_repository
+                .create(
+                    &user_id.id.to_raw(),
+                    format!("{} created a task for you", user.username).as_str(),
+                    UserNotificationEvent::UserTaskRequestReceived.as_str(),
+                    &vec![p_id.clone()],
+                    metadata.clone(),
+                )
+                .await?;
+
+            let _ = self.event_sender.send(AppEvent {
+                receivers: [p_id].to_vec(),
+                content: None,
+                user_id: user_id.id.to_raw(),
+                metadata: None,
+                event: AppEventType::UserNotificationEvent(event),
+            });
+        };
+        if receivers.is_empty() {
+            return Ok(());
+        }
         let event = self
             .notification_repository
             .create(
@@ -720,13 +738,7 @@ where
                 format!("{} created a task", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestCreated.as_str(),
                 &receivers.clone(),
-                Some({
-                    json!({
-                        "task_id": task.id.as_ref().unwrap().to_raw(),
-                        "post_id": post_id,
-                        "discussion_id": discussion_id
-                    })
-                }),
+                metadata,
             )
             .await?;
 
@@ -850,6 +862,52 @@ where
             content: None,
             receivers,
             metadata: None,
+        });
+
+        Ok(())
+    }
+
+    pub async fn on_created_discussion(
+        &self,
+        user: &LocalUser,
+        discussion_id: &Thing,
+        participators: &Vec<Thing>,
+    ) -> AppResult<()> {
+        let user_id = user.id.as_ref().expect("User id must exists");
+        let receivers = participators
+            .iter()
+            .filter_map(|id| {
+                if id == user_id {
+                    None
+                } else {
+                    Some(id.id.to_raw())
+                }
+            })
+            .collect::<Vec<String>>();
+
+        if receivers.is_empty() {
+            return Ok(());
+        }
+
+        let event = self
+            .notification_repository
+            .create(
+                &user_id.id.to_raw(),
+                format!("{} created the discussion", user.username).as_str(),
+                UserNotificationEvent::CreatedDiscussion.as_str(),
+                &receivers.clone(),
+                Some(json!({
+                    "discussion_id": discussion_id.to_raw()
+                })),
+            )
+            .await?;
+
+        let _ = self.event_sender.send(AppEvent {
+            receivers,
+            content: None,
+            user_id: user_id.id.to_raw(),
+            metadata: None,
+            event: AppEventType::UserNotificationEvent(event),
         });
 
         Ok(())

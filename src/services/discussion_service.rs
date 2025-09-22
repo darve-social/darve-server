@@ -10,10 +10,12 @@ use crate::entities::community::discussion_entity::{
 };
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
+use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::utils::db_utils::{record_exist_all, Pagination};
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
+use crate::services::notification_service::NotificationService;
 use crate::{
     entities::{
         community::discussion_entity::{Discussion, DiscussionDbService},
@@ -45,10 +47,11 @@ pub struct UpdateDiscussion {
     pub title: Option<String>,
 }
 
-pub struct DiscussionService<'a, A, U>
+pub struct DiscussionService<'a, A, U, N>
 where
     U: DiscussionUserRepositoryInterface,
     A: AccessRepositoryInterface,
+    N: UserNotificationsInterface,
 {
     ctx: &'a Ctx,
     user_repository: LocalUserDbService<'a>,
@@ -56,18 +59,21 @@ where
     community_repository: CommunityDbService<'a>,
     access_repository: &'a A,
     discussion_users: &'a U,
+    notifications_service: NotificationService<'a, N>,
 }
 
-impl<'a, A, U> DiscussionService<'a, A, U>
+impl<'a, A, U, N> DiscussionService<'a, A, U, N>
 where
     U: DiscussionUserRepositoryInterface,
     A: AccessRepositoryInterface,
+    N: UserNotificationsInterface,
 {
     pub fn new(
         state: &'a CtxState,
         ctx: &'a Ctx,
         access_repository: &'a A,
         discussion_users: &'a U,
+        user_notifications: &'a N,
     ) -> Self {
         Self {
             ctx,
@@ -85,6 +91,12 @@ where
             },
             access_repository,
             discussion_users,
+            notifications_service: NotificationService::new(
+                &state.db.client,
+                &ctx,
+                &state.event_sender,
+                user_notifications,
+            ),
         }
     }
 
@@ -332,6 +344,10 @@ where
                     Role::Member.to_string(),
                 )
                 .await?;
+            let _ = self
+                .notifications_service
+                .on_created_discussion(&user, &disc.id, &user_ids)
+                .await;
             user_ids.push(user.id.as_ref().unwrap().clone());
             self.discussion_users
                 .create(&disc.id.id.to_raw(), user_ids)

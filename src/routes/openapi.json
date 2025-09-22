@@ -394,6 +394,9 @@
                       "$ref": "#/components/schemas/SSEEventUnreadDiscussionsCount"
                     },
                     {
+                      "$ref": "#/components/schemas/SSEEventUpdatedUserBalance"
+                    },
+                    {
                       "$ref": "#/components/schemas/SSEEventNotifications"
                     },
                     {
@@ -4081,6 +4084,15 @@
           }
         }
       },
+      "SSEEventUpdatedUserBalance": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": ["UpdatedUserBalance"]
+          }
+        }
+      },
       "SSEEventNotifications": {
         "type": "object",
         "properties": {
@@ -4135,11 +4147,11 @@
       "UserNotificationEvent": {
         "type": "string",
         "enum": [
-          "UserBalanceUpdate",
           "UserFollowAdded",
           "UserLikePost",
           "UserTaskRequestCreated",
           "UserTaskRequestDelivered",
+          "UserTaskRequestReceived",
           "DonateTaskRequest",
           "UserTaskRequestAccepted",
           "TaskRewardReceived",
@@ -4147,7 +4159,8 @@
           "CommentAdded",
           "UserLikeComment",
           "DepositCompleted",
-          "WithdrawCompleted"
+          "WithdrawCompleted",
+          "CreatedDiscussion"
         ]
       },
       "GetPostsParams": {
