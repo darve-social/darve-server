@@ -157,8 +157,13 @@ async fn create_discussion(
     ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
-    let disc_service =
-        DiscussionService::new(&state, &ctx, &state.db.access, &state.db.discussion_users);
+    let disc_service = DiscussionService::new(
+        &state,
+        &ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+        &state.db.user_notifications,
+    );
     let disc = disc_service
         .create(&auth_data.user_thing_id(), data)
         .await?;
@@ -184,6 +189,7 @@ async fn get_discussions(
         &auth_data.ctx,
         &state.db.access,
         &state.db.discussion_users,
+        &state.db.user_notifications,
     );
     let pagination = Pagination {
         order_by: query.order_by,
@@ -213,6 +219,7 @@ async fn add_discussion_users(
         &auth_data.ctx,
         &state.db.access,
         &state.db.discussion_users,
+        &state.db.user_notifications,
     );
     disc_service
         .add_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
@@ -231,6 +238,7 @@ async fn delete_discussion_users(
         &auth_data.ctx,
         &state.db.access,
         &state.db.discussion_users,
+        &state.db.user_notifications,
     );
     disc_service
         .remove_chat_users(&auth_data.user_thing_id(), &discussion_id, data.user_ids)
@@ -249,6 +257,7 @@ async fn update_discussion(
         &auth_data.ctx,
         &state.db.access,
         &state.db.discussion_users,
+        &state.db.user_notifications,
     );
     disc_service
         .update(&auth_data.user_thing_id(), &discussion_id, data)

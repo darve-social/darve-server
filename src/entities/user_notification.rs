@@ -24,6 +24,7 @@ pub enum UserNotificationEvent {
     UserLikePost,
     UserTaskRequestCreated,
     UserTaskRequestDelivered,
+    UserTaskRequestReceived,
     DonateTaskRequest,
     UserTaskRequestAccepted,
     TaskRewardReceived,
@@ -32,6 +33,7 @@ pub enum UserNotificationEvent {
     UserLikeComment,
     DepositCompleted,
     WithdrawCompleted,
+    CreatedDiscussion,
 }
 
 impl UserNotificationEvent {
@@ -40,6 +42,7 @@ impl UserNotificationEvent {
             UserNotificationEvent::UserFollowAdded => "UserFollowAdded",
             UserNotificationEvent::UserTaskRequestCreated => "UserTaskRequestCreated",
             UserNotificationEvent::UserTaskRequestDelivered => "UserTaskRequestDelivered",
+            UserNotificationEvent::UserTaskRequestReceived => "UserTaskRequestReceived",
             UserNotificationEvent::UserTaskRequestAccepted => "UserTaskRequestAccepted",
             UserNotificationEvent::DonateTaskRequest => "DonateTaskRequest",
             UserNotificationEvent::TaskRewardReceived => "TaskRewardReceived",
@@ -50,6 +53,7 @@ impl UserNotificationEvent {
             UserNotificationEvent::UserLikeComment => "UserLikeComment",
             UserNotificationEvent::DepositCompleted => "DepositCompleted",
             UserNotificationEvent::WithdrawCompleted => "WithdrawCompleted",
+            UserNotificationEvent::CreatedDiscussion => "CreatedDiscussion",
         }
     }
 }
