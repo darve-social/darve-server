@@ -60,8 +60,8 @@ impl UserNotificationsInterface for UserNotificationsRepository {
     ) -> Result<UserNotification, AppError> {
         let receiver_things = receivers
             .iter()
-            .map(|id| get_str_thing(&id))
-            .collect::<Result<Vec<Thing>, AppError>>()?;
+            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
+            .collect::<Vec<Thing>>();
 
         let query = r#"
             BEGIN TRANSACTION;
@@ -88,7 +88,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .query(query)
             .bind(("event", n_type.to_string()))
             .bind(("title", title.to_string()))
-            .bind(("created_by", get_str_thing(creator)?))
+            .bind(("created_by", Thing::from((USER_TABLE_NAME, creator))))
             .bind(("metadata", metadata))
             .bind(("receivers", receiver_things))
             .await

@@ -100,7 +100,7 @@ where
                 if id == current_user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -109,7 +109,7 @@ where
             return Ok(());
         }
 
-        let user_id_str = current_user_id.to_raw();
+        let user_id_str = current_user_id.id.to_raw();
 
         let event = self
             .notification_repository
@@ -142,10 +142,10 @@ where
         follow_username: String,
         participators: Vec<Thing>,
     ) -> CtxResult<()> {
-        let user_id_str = user.id.as_ref().unwrap().to_raw();
+        let user_id_str = user.id.as_ref().unwrap().id.to_raw();
         let receivers = participators
             .iter()
-            .map(|id| id.to_raw())
+            .map(|id| id.id.to_raw())
             .collect::<Vec<String>>();
         let event = self
             .notification_repository
@@ -207,7 +207,7 @@ where
                 if id == user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -219,7 +219,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 format!("{} delivered the task.", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
@@ -238,7 +238,7 @@ where
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -282,7 +282,7 @@ where
                 if id == user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -294,7 +294,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 format!("{} accepted the task.", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestAccepted.as_str(),
                 &receivers,
@@ -310,7 +310,7 @@ where
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -368,7 +368,7 @@ where
                 if id == user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -380,7 +380,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 format!("{} donated to the task.", user.username).as_str(),
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
@@ -396,7 +396,7 @@ where
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -425,7 +425,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 format!("{} received reward for the task.", user.username).as_str(),
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
@@ -441,7 +441,7 @@ where
 
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -451,8 +451,8 @@ where
     }
 
     pub async fn on_update_balance(&self, user_id: &Thing) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-        let receivers = vec![user_id.to_raw()];
+        let user_id_str = user_id.id.to_raw();
+        let receivers = vec![user_id_str.clone()];
         let event = self
             .notification_repository
             .create(
@@ -481,7 +481,13 @@ where
 
         let receivers = receiver_things
             .iter()
-            .filter_map(|r| if r == user_id { None } else { Some(r.to_raw()) })
+            .filter_map(|r| {
+                if r == user_id {
+                    None
+                } else {
+                    Some(r.id.to_raw())
+                }
+            })
             .collect::<Vec<String>>();
 
         if receivers.is_empty() {
@@ -491,7 +497,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 &format!("{} created the reply", user.username),
                 UserNotificationEvent::CommentAdded.as_str(),
                 &receivers,
@@ -504,7 +510,7 @@ where
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -519,7 +525,13 @@ where
 
         let receivers = receiver_things
             .iter()
-            .filter_map(|r| if r == user_id { None } else { Some(r.to_raw()) })
+            .filter_map(|r| {
+                if r == user_id {
+                    None
+                } else {
+                    Some(r.id.to_raw())
+                }
+            })
             .collect::<Vec<String>>();
 
         if receivers.is_empty() {
@@ -529,7 +541,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 &format!("{} liked the reply", user.username),
                 UserNotificationEvent::UserLikeComment.as_str(),
                 &receivers,
@@ -542,7 +554,7 @@ where
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -552,11 +564,11 @@ where
     }
 
     pub async fn on_completed_deposit(&self, user: &Thing) -> CtxResult<()> {
-        let receivers = vec![user.to_raw()];
+        let receivers = vec![user.id.to_raw()];
         let event = self
             .notification_repository
             .create(
-                &user.to_raw(),
+                &user.id.to_raw(),
                 "Deposit completed",
                 UserNotificationEvent::DepositCompleted.as_str(),
                 &receivers,
@@ -565,7 +577,7 @@ where
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user.to_raw(),
+            user_id: user.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -575,11 +587,11 @@ where
     }
 
     pub async fn on_completed_withdraw(&self, user: &Thing) -> CtxResult<()> {
-        let receivers = vec![user.to_raw()];
+        let receivers = vec![user.id.to_raw()];
         let event = self
             .notification_repository
             .create(
-                &user.to_raw(),
+                &user.id.to_raw(),
                 "Withdraw completed",
                 UserNotificationEvent::WithdrawCompleted.as_str(),
                 &receivers,
@@ -588,7 +600,7 @@ where
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user.to_raw(),
+            user_id: user.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -620,7 +632,7 @@ where
                 if id == user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -632,7 +644,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 &format!("{} created the post", user.username),
                 UserNotificationEvent::CreatedPost.as_str(),
                 &receivers,
@@ -646,7 +658,7 @@ where
             .await?;
         let _ = self.event_sender.send(AppEvent {
             receivers,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
@@ -696,7 +708,7 @@ where
                 if id == user_id {
                     None
                 } else {
-                    Some(id.to_raw())
+                    Some(id.id.to_raw())
                 }
             })
             .collect::<Vec<String>>();
@@ -715,7 +727,7 @@ where
         let event = self
             .notification_repository
             .create(
-                &user_id.to_raw(),
+                &user_id.id.to_raw(),
                 format!("{} created a task", user.username).as_str(),
                 UserNotificationEvent::UserTaskRequestCreated.as_str(),
                 &receivers.clone(),
@@ -732,7 +744,7 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers,
             content: None,
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             metadata: None,
             event: AppEventType::UserNotificationEvent(event),
         });
@@ -844,7 +856,7 @@ where
             .collect::<Vec<String>>();
 
         let _ = self.event_sender.send(AppEvent {
-            user_id: user_id.to_raw(),
+            user_id: user_id.id.to_raw(),
             event: AppEventType::UpdateDiscussionsUsers(updated_data.clone()),
             content: None,
             receivers,
