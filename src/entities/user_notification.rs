@@ -19,7 +19,6 @@ pub struct UserNotification {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum UserNotificationEvent {
-    UserBalanceUpdate,
     UserFollowAdded,
     UserLikePost,
     UserTaskRequestCreated,
@@ -44,7 +43,6 @@ impl UserNotificationEvent {
             UserNotificationEvent::DonateTaskRequest => "DonateTaskRequest",
             UserNotificationEvent::TaskRewardReceived => "TaskRewardReceived",
             UserNotificationEvent::CreatedPost => "CreatedPost",
-            UserNotificationEvent::UserBalanceUpdate => "UserBalanceUpdate",
             UserNotificationEvent::UserLikePost => "UserLikePost",
             UserNotificationEvent::CommentAdded => "CommentAdded",
             UserNotificationEvent::UserLikeComment => "UserLikeComment",

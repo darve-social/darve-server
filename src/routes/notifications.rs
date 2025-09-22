@@ -201,6 +201,11 @@ async fn sse(
                     {
                         Some(Ok(get_unread_count_ev().await))
                     }
+
+                    AppEventType::UpdatedUserBalance if msg.receivers.contains(&user_id) => {
+                        Some(Ok(Event::default().event("UpdatedUserBalance")))
+                    }
+
                     _ => None,
                 },
             }

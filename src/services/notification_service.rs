@@ -453,23 +453,12 @@ where
     pub async fn on_update_balance(&self, user_id: &Thing) -> CtxResult<()> {
         let user_id_str = user_id.id.to_raw();
         let receivers = vec![user_id_str.clone()];
-        let event = self
-            .notification_repository
-            .create(
-                &user_id_str,
-                "update your balance",
-                &UserNotificationEvent::UserBalanceUpdate.as_str(),
-                &receivers,
-                None,
-            )
-            .await?;
-
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user_id_str,
             metadata: None,
             content: None,
-            event: AppEventType::UserNotificationEvent(event),
+            event: AppEventType::UpdatedUserBalance,
         });
 
         Ok(())

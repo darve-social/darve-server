@@ -353,13 +353,8 @@ test_with_server!(
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
 
-        assert_eq!(received_notifications.len(), 5);
+        assert_eq!(received_notifications.len(), 2);
 
-        let balance_updates: Vec<_> = received_notifications
-            .iter()
-            .filter(|v| v.event == UserNotificationEvent::UserBalanceUpdate)
-            .collect();
-        assert_eq!(balance_updates.len(), 3);
         let task_delivered_evt: Vec<_> = received_notifications
             .iter()
             .filter(|v| v.event == UserNotificationEvent::UserTaskRequestDelivered)

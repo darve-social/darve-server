@@ -21,6 +21,7 @@ pub enum AppEventType {
     DiscussionPostAdded,
     DiscussionPostReplyAdded,
     DiscussionPostReplyNrIncreased,
+    UpdatedUserBalance,
     UpdateDiscussionsUsers(Vec<DiscussionUser>),
     UserStatus(AppEventUsetStatus),
 }
