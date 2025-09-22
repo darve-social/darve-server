@@ -2,13 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::entities::user_auth::local_user_entity::{self};
-use crate::entities::user_notification::UserNotificationEvent;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::gateway_transaction_entity::{
     GatewayTransaction, GatewayTransactionDbService, GatewayTransactionStatus,
 };
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
-use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::{AppError, CtxResult};
@@ -409,17 +407,14 @@ async fn test_deposit(
 
     let user1_bal = wallet_service.get_user_balance(&another_user_thing).await?;
 
-    let _ = ctx_state
-        .db
-        .user_notifications
-        .create(
-            &another_user_thing.to_raw(),
-            "update balance",
-            &UserNotificationEvent::UserBalanceUpdate.as_str(),
-            &vec![another_user_thing.to_raw()],
-            None,
-        )
-        .await?;
+    NotificationService::new(
+        &ctx_state.db.client,
+        &ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+    )
+    .on_update_balance(&another_user_thing)
+    .await?;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
 }

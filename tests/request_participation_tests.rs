@@ -353,7 +353,7 @@ test_with_server!(
         notif_history_req.assert_status_success();
         let received_notifications = notif_history_req.json::<Vec<UserNotificationView>>();
 
-        assert_eq!(received_notifications.len(), 6);
+        assert_eq!(received_notifications.len(), 5);
 
         let balance_updates: Vec<_> = received_notifications
             .iter()
