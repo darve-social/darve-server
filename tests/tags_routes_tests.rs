@@ -172,14 +172,6 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
     let like_response = create_post_like(server, &post_2.id, None).await;
     like_response.assert_status_success();
 
-    let follow_response = server
-        .post(&format!(
-            "/api/followers/{}",
-            user.id.as_ref().unwrap().to_raw()
-        ))
-        .await;
-    follow_response.assert_status_success();
-
     let response = server.get("/api/tags").await;
     response.assert_status_success();
     let data = response.json::<Vec<String>>();
