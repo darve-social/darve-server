@@ -839,6 +839,72 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     assert_eq!(disc.alias, None);
 });
 
+test_with_server!(unset_update_alias, |server, ctx_state, config| {
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
+
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let create_response = server
+        .post("/api/discussions")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .json(&CreateDiscussion {
+            community_id: comm_id.clone(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![user2.id.as_ref().unwrap().to_raw()].into(),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    create_response.assert_status_ok();
+    let result = create_response.json::<Discussion>();
+
+    let disc_id = result.id;
+    let create_response = server
+        .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .json(&json!({ "alias": "Hello"}))
+        .await;
+
+    create_response.assert_status_ok();
+    let create_response: axum_test::TestResponse = server
+        .get("/api/discussions?type=Private")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    create_response.assert_status_ok();
+    let result = create_response.json::<Vec<DiscussionView>>();
+    assert_eq!(result.len(), 1);
+    let id = disc_id.clone();
+    let disc = result.into_iter().find(|item| item.id == id).unwrap();
+
+    assert_eq!(disc.alias, Some("Hello".to_string()));
+    let create_response = server
+        .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .json(&json!({ "alias": null}))
+        .await;
+    create_response.assert_status_ok();
+
+    let create_response: axum_test::TestResponse = server
+        .get("/api/discussions?type=Private")
+        .add_header("Accept", "application/json")
+        .add_header("Cookie", format!("jwt={}", token1))
+        .await;
+
+    create_response.assert_status_ok();
+    let result = create_response.json::<Vec<DiscussionView>>();
+    assert_eq!(result.len(), 1);
+    let id = disc_id.clone();
+    let disc = result.into_iter().find(|item| item.id == id).unwrap();
+
+    assert_eq!(disc.alias, None);
+});
+
 test_with_server!(
     try_to_update_alias_for_public_disc,
     |server, ctx_state, config| {

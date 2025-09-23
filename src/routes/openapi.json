@@ -2273,6 +2273,53 @@
         }
       }
     },
+    "/api/discussions/{discussion_id}/alias": {
+      "post": {
+        "tags": ["Discussions"],
+        "summary": "Update discussion alias for current user",
+        "description": "Update a discussion alias",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "discussion_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the discussion",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "alias": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Discussion updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/discussions/{discussion_id}/tasks": {
       "post": {
         "tags": ["Discussions"],
@@ -4546,7 +4593,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["Private", "Fixed", "Public"]
+            "enum": ["Private", "Public"]
           },
           "users": {
             "type": "array",
@@ -4558,6 +4605,10 @@
             "type": "string"
           },
           "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "alias": {
             "type": "string",
             "nullable": true
           },

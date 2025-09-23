@@ -31,7 +31,7 @@ use middleware::ctx::Ctx;
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use validator::Validate;
 
@@ -267,9 +267,9 @@ async fn update_discussion(
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdateAliasData {
-    alias: Option<String>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UpdateAliasData {
+    pub alias: Option<String>,
 }
 async fn update_alias(
     auth_data: AuthWithLoginAccess,
