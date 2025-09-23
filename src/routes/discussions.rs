@@ -41,6 +41,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/discussions", get(get_discussions))
         .route("/api/discussions", post(create_discussion))
         .route("/api/discussions/:discussion_id", patch(update_discussion))
+        .route("/api/discussions/:discussion_id/alias", post(update_alias))
         .route("/api/discussions/:discussion_id/tasks", post(create_task))
         .route("/api/discussions/:discussion_id/tasks", get(get_tasks))
         .route(
@@ -261,6 +262,30 @@ async fn update_discussion(
     );
     disc_service
         .update(&auth_data.user_thing_id(), &discussion_id, data)
+        .await?;
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateAliasData {
+    alias: Option<String>,
+}
+async fn update_alias(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Path(discussion_id): Path<String>,
+    Json(data): Json<UpdateAliasData>,
+) -> CtxResult<()> {
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+        &state.db.user_notifications,
+    );
+    disc_service
+        .update_alias(&auth_data.user_thing_id(), &discussion_id, data.alias)
         .await?;
 
     Ok(())

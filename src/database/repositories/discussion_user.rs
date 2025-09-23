@@ -30,8 +30,10 @@ impl DiscussionUserRepository {
         DEFINE FIELD IF NOT EXISTS created_at ON TABLE {DISC_USER_TABLE_NAME} TYPE datetime DEFAULT time::now();
         DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {DISC_USER_TABLE_NAME} TYPE datetime DEFAULT time::now();
         DEFINE FIELD IF NOT EXISTS latest_post ON TABLE {DISC_USER_TABLE_NAME} TYPE option<record<{POST_TABLE_NAME}>>;
+        DEFINE FIELD IF NOT EXISTS alias ON TABLE {DISC_USER_TABLE_NAME} TYPE option<string>;
 
         DEFINE INDEX IF NOT EXISTS latest_post_idx ON {DISC_USER_TABLE_NAME} COLUMNS latest_post;
+        DEFINE INDEX IF NOT EXISTS alias_idx ON {DISC_USER_TABLE_NAME} COLUMNS alias;
         DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {DISC_USER_TABLE_NAME} FIELDS in, out UNIQUE;
 ");
         let mutation = self.client.query(sql).await?;
@@ -116,6 +118,24 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .await?;
         let data = res.take::<Vec<DiscussionUser>>(0)?;
         Ok(data)
+    }
+
+    async fn update_alias(
+        &self,
+        disc_id: &str,
+        user_id: &str,
+        alias: Option<String>,
+    ) -> AppResult<()> {
+        let _ = self
+            .client
+            .query(format!(
+                "UPDATE $disc->{DISC_USER_TABLE_NAME} SET alias=$alias WHERE out=$user"
+            ))
+            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("alias", alias))
+            .await?;
+        Ok(())
     }
 
     async fn decrease_unread_count(

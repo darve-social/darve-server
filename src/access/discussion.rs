@@ -59,6 +59,11 @@ impl<'a> DiscussionAccess<'a> {
         self.access_control.can(&path, &Permission::Edit)
     }
 
+    pub fn can_set_alias(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control.can(&path, &Permission::Alias)
+    }
+
     pub fn can_add_member(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
         self.access_control.can(&path, &Permission::AddMember)
