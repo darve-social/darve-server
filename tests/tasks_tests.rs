@@ -1755,3 +1755,56 @@ test_with_server!(
         assert_eq!(tasks.len(), 0);
     }
 );
+
+test_with_server!(get_task_by_id, |server, ctx_state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let (server, _user1, _, token1) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
+    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap().clone());
+    let create_response = server
+        .post("/api/discussions")
+        .json(&json!({
+            "community_id": comm_id.to_raw(),
+            "title": "The Discussion".to_string(),
+            "chat_user_ids": [ user0.id.as_ref().unwrap().to_raw()],
+            "private_discussion_users_final": false,
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    let disc_id = create_response.json::<Discussion>().id;
+
+    let task_request = server
+        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
+        .json(&json!({
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+    let task = task_request.json::<TaskRequest>();
+    let task_id = task.id.as_ref().unwrap().to_raw();
+    let get_task_response = server
+        .get(&format!("/api/tasks/{}", task_id))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    get_task_response.assert_status_success();
+    let task_view = get_task_response.json::<TaskRequestView>();
+    assert_eq!(task_view.id, task.id.unwrap());
+
+    let get_task_response = server
+        .get(&format!("/api/tasks/{}", task_id))
+        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Accept", "application/json")
+        .await;
+    get_task_response.assert_status_success();
+    let task_view = get_task_response.json::<TaskRequestView>();
+    assert_eq!(task_view.id, get_str_thing(&task_id).unwrap());
+
+    let get_task_response = server
+        .get(&format!("/api/tasks/{}", task_id))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    get_task_response.assert_status_forbidden();
+});

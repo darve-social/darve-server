@@ -21,6 +21,7 @@ use validator::Validate;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
+        .route("/api/tasks/:task_id", get(get_task))
         .route("/api/tasks/received", get(user_requests_received))
         .route("/api/tasks/given", get(user_requests_given))
         .route("/api/tasks/:task_id/accept", post(accept_task_request))
@@ -216,4 +217,26 @@ async fn upsert_donor(
         .await?;
 
     Ok(())
+}
+
+async fn get_task(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Path(task_id): Path<String>,
+) -> CtxResult<Json<TaskRequestView>> {
+    let task_service = TaskService::new(
+        &state.db.client,
+        &auth_data.ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.access,
+    );
+
+    let task_view = task_service
+        .get(&auth_data.user_thing_id(), &task_id)
+        .await?;
+
+    Ok(Json(task_view))
 }
