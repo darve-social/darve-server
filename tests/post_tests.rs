@@ -571,3 +571,33 @@ test_with_server!(get_latest_posts, |server, state, config| {
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].latest_post.id.to_raw(), post.id);
 });
+
+test_with_server!(get_post_by_id_test, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let default_discussion =
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+    // Create a test post
+    let created_post = create_fake_post(server, &default_discussion, None, None).await;
+
+    // Test successful retrieval
+    let response = server.get(&format!("/api/posts/{}", created_post.id)).await;
+
+    response.assert_status_ok();
+    let post_view = response.json::<PostView>();
+    assert_eq!(post_view.id.to_raw(), created_post.id);
+    assert_eq!(post_view.created_by.id, user.id.as_ref().unwrap().clone());
+    assert!(!post_view.title.is_empty());
+});
+
+test_with_server!(
+    get_post_by_id_not_found_test,
+    |server, ctx_state, config| {
+        let (server, _, _, _) = create_fake_login_test_user(&server).await;
+
+        let fake_post_id = "post:nonexistent";
+        let response = server.get(&format!("/api/posts/{}", fake_post_id)).await;
+
+        response.assert_status_not_found();
+    }
+);

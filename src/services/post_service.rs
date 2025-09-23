@@ -523,6 +523,23 @@ where
         Ok(post)
     }
 
+    pub async fn get(&self, user_id: &str, post_id: &str) -> AppResult<PostView> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id)
+            .await?;
+
+        if !PostAccess::new(&post).can_view(&user) {
+            return Err(AppError::Forbidden.into());
+        }
+
+        self.posts_repository
+            .get_view_by_id::<PostView>(post_id)
+            .await
+            .map_err(|e| e.into())
+    }
+
     async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {
         data.validate()?;
         if data.content.is_none() && data.file_1.is_none() {
