@@ -19,4 +19,5 @@ pub enum Permission {
     CreateReply,
     Like,
     Donate,
+    Alias,
 }

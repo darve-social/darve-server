@@ -123,6 +123,29 @@ where
         Ok(())
     }
 
+    pub async fn update_alias(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        data: Option<String>,
+    ) -> AppResult<()> {
+        let user = self.user_repository.get_by_id(&user_id).await?;
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
+
+        if !DiscussionAccess::new(&disc).can_set_alias(&user) {
+            return Err(AppError::Forbidden);
+        }
+
+        self.discussion_users
+            .update_alias(&disc.id.id.to_raw(), user_id, data)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn add_chat_users(
         &self,
         user_id: &str,

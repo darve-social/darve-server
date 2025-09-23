@@ -558,7 +558,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::AddMember));
         assert!(permissions.contains(&Permission::RemoveMember));
-        assert_eq!(permissions.len(), 8);
+        assert!(permissions.contains(&Permission::Alias));
+        assert_eq!(permissions.len(), 9);
     }
 
     #[test]
@@ -572,7 +573,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePrivatePost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert_eq!(permissions.len(), 5);
+        assert!(permissions.contains(&Permission::Alias));
+        assert_eq!(permissions.len(), 6);
     }
 
     // Private discussion POST tests

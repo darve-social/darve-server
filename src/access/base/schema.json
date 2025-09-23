@@ -4,33 +4,23 @@
       "permissions": [],
       "DISCUSSION:PUBLIC": {
         "GUEST": {
-          "permissions": [
-            "VIEW"
-          ],
+          "permissions": ["VIEW"],
           "POST:PUBLIC": {
             "GUEST": {
-              "permissions": [
-                "VIEW"
-              ],
+              "permissions": ["VIEW"],
               "TASK:PUBLIC": {
                 "GUEST": {
-                  "permissions": [
-                    "VIEW"
-                  ]
+                  "permissions": ["VIEW"]
                 }
               }
             }
           },
           "POST:IDEA": {
             "GUEST": {
-              "permissions": [
-                "VIEW"
-              ],
+              "permissions": ["VIEW"],
               "TASK:PUBLIC": {
                 "GUEST": {
-                  "permissions": [
-                    "VIEW"
-                  ]
+                  "permissions": ["VIEW"]
                 }
               }
             }
@@ -39,9 +29,7 @@
       }
     },
     "MEMBER": {
-      "permissions": [
-        "CREATE_DISCUSSION"
-      ],
+      "permissions": ["CREATE_DISCUSSION"],
       "DISCUSSION:PUBLIC": {
         "OWNER": {
           "permissions": [
@@ -65,64 +53,33 @@
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "VIEW", "DONATE"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               },
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "REJECT_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "REJECT_TASK", "VIEW"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               }
             },
@@ -136,65 +93,33 @@
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "VIEW", "DONATE"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "DELIVER_TASK", "VIEW"]
                 }
               },
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "REJECT_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "REJECT_TASK", "VIEW"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               }
             }
@@ -210,36 +135,19 @@
               ],
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "VIEW",
-                    "ACCEPT_TASK",
-                    "REJECT_TASK"
-                  ]
+                  "permissions": ["VIEW", "ACCEPT_TASK", "REJECT_TASK"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "VIEW",
-                    "DELIVER_TASK"
-                  ]
+                  "permissions": ["VIEW", "DELIVER_TASK"]
                 }
               }
             },
@@ -252,36 +160,19 @@
               ],
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "VIEW",
-                    "ACCEPT_TASK",
-                    "REJECT_TASK"
-                  ]
+                  "permissions": ["VIEW", "ACCEPT_TASK", "REJECT_TASK"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "VIEW",
-                    "DELIVER_TASK"
-                  ]
+                  "permissions": ["VIEW", "DELIVER_TASK"]
                 }
               }
             }
@@ -297,47 +188,28 @@
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "ACCEPT_TASK"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "ACCEPT_TASK"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "VIEW",
-                    "DELIVER_TASK"
-                  ]
+                  "permissions": ["VIEW", "DELIVER_TASK"]
                 }
               }
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ],
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"],
               "TASK:PUBLIC": {
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 }
               }
             }
           }
         },
         "GUEST": {
-          "permissions": [
-            "VIEW"
-          ],
+          "permissions": ["VIEW"],
           "POST:PUBLIC": {
             "GUEST": {
               "permissions": [
@@ -348,59 +220,32 @@
               ],
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "VIEW",
-                    "ACCEPT_TASK",
-                    "REJECT_TASK"
-                  ]
+                  "permissions": ["VIEW", "ACCEPT_TASK", "REJECT_TASK"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "VIEW",
-                    "DELIVER_TASK"
-                  ]
+                  "permissions": ["VIEW", "DELIVER_TASK"]
                 }
               }
             }
           },
           "POST:IDEA": {
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ],
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"],
               "TASK:PUBLIC": {
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 }
               }
             }
@@ -419,64 +264,33 @@
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "VIEW", "DONATE"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               },
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "REJECT_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "REJECT_TASK", "VIEW"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               }
             },
@@ -490,65 +304,33 @@
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "VIEW", "DONATE"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "DELIVER_TASK", "VIEW"]
                 }
               },
               "TASK:PRIVATE": {
                 "OWNER": {
-                  "permissions": [
-                    "VIEW",
-                    "EDIT",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "EDIT", "DONATE"]
                 },
                 "DONOR": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "GUEST": {
-                  "permissions": [
-                    "VIEW",
-                    "DONATE"
-                  ]
+                  "permissions": ["VIEW", "DONATE"]
                 },
                 "CANDIDATE": {
-                  "permissions": [
-                    "ACCEPT_TASK",
-                    "REJECT_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["ACCEPT_TASK", "REJECT_TASK", "VIEW"]
                 },
                 "PARTICIPANT": {
-                  "permissions": [
-                    "DELIVER_TASK",
-                    "VIEW"
-                  ]
+                  "permissions": ["DELIVER_TASK", "VIEW"]
                 }
               }
             }
@@ -563,7 +345,8 @@
             "CREATE_PUBLIC_POST",
             "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
-            "CREATE_PRIVATE_TASK"
+            "CREATE_PRIVATE_TASK",
+            "ALIAS"
           ],
           "POST:PRIVATE": {
             "OWNER": {
@@ -577,90 +360,46 @@
               ]
             },
             "MEMBER": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "TASK:PRIVATE": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "CANDIDATE": {
-              "permissions": [
-                "VIEW",
-                "ACCEPT_TASK",
-                "REJECT_TASK"
-              ]
+              "permissions": ["VIEW", "ACCEPT_TASK", "REJECT_TASK"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "VIEW",
-                "DELIVER_TASK"
-              ]
+              "permissions": ["VIEW", "DELIVER_TASK"]
             }
           },
           "TASK:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "ACCEPT_TASK",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "ACCEPT_TASK", "DONATE"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "VIEW",
-                "DELIVER_TASK"
-              ]
+              "permissions": ["VIEW", "DELIVER_TASK"]
             }
           }
         },
@@ -673,7 +412,8 @@
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
             "ADD_MEMBER",
-            "REMOVE_MEMBER"
+            "REMOVE_MEMBER",
+            "ALIAS"
           ],
           "POST:PRIVATE": {
             "OWNER": {
@@ -687,90 +427,46 @@
               ]
             },
             "MEMBER": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "TASK:PRIVATE": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "CANDIDATE": {
-              "permissions": [
-                "VIEW",
-                "ACCEPT_TASK",
-                "REJECT_TASK"
-              ]
+              "permissions": ["VIEW", "ACCEPT_TASK", "REJECT_TASK"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "VIEW",
-                "DELIVER_TASK"
-              ]
+              "permissions": ["VIEW", "DELIVER_TASK"]
             }
           },
           "TASK:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "ACCEPT_TASK",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "ACCEPT_TASK", "DONATE"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "VIEW",
-                "DELIVER_TASK"
-              ]
+              "permissions": ["VIEW", "DELIVER_TASK"]
             }
           }
         },
@@ -780,7 +476,8 @@
             "CREATE_PUBLIC_POST",
             "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
-            "CREATE_PRIVATE_TASK"
+            "CREATE_PRIVATE_TASK",
+            "ALIAS"
           ],
           "POST:PRIVATE": {
             "OWNER": {
@@ -794,90 +491,46 @@
               ]
             },
             "MEMBER": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "CREATE_REPLY",
-                "LIKE"
-              ]
+              "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
             }
           },
           "TASK:PRIVATE": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "CANDIDATE": {
-              "permissions": [
-                "VIEW",
-                "REJECT_TASK",
-                "ACCEPT_TASK"
-              ]
+              "permissions": ["VIEW", "REJECT_TASK", "ACCEPT_TASK"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "DELIVER_TASK",
-                "VIEW"
-              ]
+              "permissions": ["DELIVER_TASK", "VIEW"]
             }
           },
           "TASK:PUBLIC": {
             "OWNER": {
-              "permissions": [
-                "VIEW",
-                "EDIT",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "EDIT", "DONATE"]
             },
             "DONOR": {
-              "permissions": [
-                "VIEW",
-                "DONATE"
-              ]
+              "permissions": ["VIEW", "DONATE"]
             },
             "GUEST": {
-              "permissions": [
-                "DONATE",
-                "VIEW",
-                "ACCEPT_TASK"
-              ]
+              "permissions": ["DONATE", "VIEW", "ACCEPT_TASK"]
             },
             "PARTICIPANT": {
-              "permissions": [
-                "VIEW",
-                "DELIVER_TASK"
-              ]
+              "permissions": ["VIEW", "DELIVER_TASK"]
             }
           }
         }

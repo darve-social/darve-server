@@ -27,6 +27,13 @@ pub trait DiscussionUserRepositoryInterface {
         user_ids: Vec<String>,
     ) -> AppResult<Vec<DiscussionUser>>;
 
+    async fn update_alias(
+        &self,
+        disc_id: &str,
+        user_id: &str,
+        alias: Option<String>,
+    ) -> AppResult<()>;
+
     async fn decrease_unread_count(
         &self,
         disc_id: &str,

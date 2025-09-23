@@ -1,3 +1,4 @@
+use crate::database::table_names::DISC_USER_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::wallet::wallet_entity::UserView;
 use crate::middleware::utils::db_utils::ViewFieldSelector;
@@ -20,16 +21,31 @@ pub struct DiscussionView {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub created_by: UserView,
+    pub alias: Option<String>,
 }
 
 impl ViewFieldSelector for DiscussionView {
     fn get_select_query_fields() -> String {
-        format!("*, created_by.* as created_by, <-{ACCESS_TABLE_NAME}.{{ user: in.*, role, created_at }} as users")
+        format!(
+            "*,
+            created_by.* as created_by,
+            <-{ACCESS_TABLE_NAME}.{{ user: in.*, role, created_at }} as users,
+            ->{DISC_USER_TABLE_NAME}[WHERE out=$user][0].alias AS alias"
+        )
     }
 }
 
 impl ViewRelateField for DiscussionView {
     fn get_fields() -> &'static str {
-        " id, type, belongs_to, title, image_uri, created_at, updated_at, created_by: created_by.*, users: <-has_access.{user: in.*, role, created_at}"
+        "id,
+        type,
+        belongs_to,
+        title,
+        image_uri,
+        created_at,
+        updated_at,
+        created_by: created_by.*,
+        users: <-has_access.{user: in.*, role, created_at},
+        alias: ->discussion_user[WHERE out=$user][0].alias"
     }
 }
