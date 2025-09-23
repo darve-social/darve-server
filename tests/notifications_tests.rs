@@ -198,3 +198,34 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .find(|n| n.event == UserNotificationEvent::CreatedDiscussion)
         .is_none());
 });
+
+test_with_server!(on_follow, |server, ctx_state, config| {
+    let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+    let (server, _user2, _, token2) = create_fake_login_test_user(&server).await;
+
+    server
+        .post(format!("/api/followers/{}", user0.id.as_ref().unwrap().to_raw()).as_str())
+        .await
+        .assert_status_success();
+
+    let notifications = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await
+        .json::<Vec<UserNotificationView>>();
+    assert!(notifications
+        .iter()
+        .find(|n| n.event == UserNotificationEvent::UserFollowAdded)
+        .is_some());
+    let notifications = server
+        .get("/api/notifications")
+        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Accept", "application/json")
+        .await
+        .json::<Vec<UserNotificationView>>();
+    assert!(notifications
+        .iter()
+        .find(|n| n.event == UserNotificationEvent::UserFollowAdded)
+        .is_none());
+});

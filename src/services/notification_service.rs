@@ -137,27 +137,19 @@ where
         Ok(())
     }
 
-    pub async fn on_follow(
-        &self,
-        user: &LocalUser,
-        follow_username: String,
-        participators: Vec<Thing>,
-    ) -> CtxResult<()> {
+    pub async fn on_follow(&self, user: &LocalUser, follow: &LocalUser) -> CtxResult<()> {
         let user_id_str = user.id.as_ref().unwrap().id.to_raw();
-        let receivers = participators
-            .iter()
-            .map(|id| id.id.to_raw())
-            .collect::<Vec<String>>();
+        let receivers = vec![follow.id.as_ref().unwrap().id.to_raw()];
         let event = self
             .notification_repository
             .create(
                 &user_id_str,
-                format!("{} started following {}", user.username, follow_username).as_str(),
+                format!("{} started following {}", user.username, follow.username).as_str(),
                 UserNotificationEvent::UserFollowAdded.as_str(),
                 &receivers,
                 Some(json!({
                     "username": user.username.clone(),
-                    "follows_username": follow_username
+                    "follows_username": follow.username
                 })),
             )
             .await?;

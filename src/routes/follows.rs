@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::error::AppError;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use askama_axum::Template;
@@ -133,11 +134,15 @@ async fn follow_user(
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
-    let from_user = local_user_db_service.get_ctx_user().await?;
+    let current_user = local_user_db_service.get_ctx_user().await?;
     let following_thing = get_str_thing(&follow_user_id)?;
     let following_user = local_user_db_service
         .get_by_id(&following_thing.id.to_raw())
         .await?;
+
+    if current_user.id == following_user.id {
+        return Err(AppError::Forbidden.into());
+    }
 
     let follow_db_service = FollowDbService {
         db: &ctx_state.db.client,
@@ -146,7 +151,7 @@ async fn follow_user(
 
     let is_following = follow_db_service
         .is_following(
-            from_user.id.as_ref().unwrap().clone(),
+            current_user.id.as_ref().unwrap().clone(),
             following_user.id.as_ref().unwrap().clone(),
         )
         .await?;
@@ -156,22 +161,17 @@ async fn follow_user(
     }
 
     let _ = follow_db_service
-        .create_follow(from_user.id.clone().unwrap(), following_thing.clone())
+        .create_follow(current_user.id.clone().unwrap(), following_thing.clone())
         .await?;
 
-    let mut follower_ids = follow_db_service
-        .user_follower_ids(from_user.id.clone().unwrap())
-        .await?;
-    follower_ids.push(following_thing.clone());
     let n_service = NotificationService::new(
         &ctx_state.db.client,
         &auth_data.ctx,
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
     );
-    n_service
-        .on_follow(&from_user, following_user.username, follower_ids)
-        .await?;
+
+    n_service.on_follow(&current_user, &following_user).await?;
 
     Ok(())
 }
