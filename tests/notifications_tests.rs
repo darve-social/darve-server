@@ -199,9 +199,9 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .is_none());
 });
 
-test_with_server!(on_follow, |server, ctx_state, config| {
+test_with_server!(filter_by_types_notification, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let (server, _user2, _, token2) = create_fake_login_test_user(&server).await;
+    let (server, _user2, _, _token2) = create_fake_login_test_user(&server).await;
 
     server
         .post(format!("/api/followers/{}", user0.id.as_ref().unwrap().to_raw()).as_str())
@@ -210,22 +210,42 @@ test_with_server!(on_follow, |server, ctx_state, config| {
 
     let notifications = server
         .get("/api/notifications")
+        .add_query_param(
+            "filter_by_types",
+            UserNotificationEvent::UserFollowAdded.as_str(),
+        )
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await
         .json::<Vec<UserNotificationView>>();
-    assert!(notifications
-        .iter()
-        .find(|n| n.event == UserNotificationEvent::UserFollowAdded)
-        .is_some());
+
+    assert_eq!(notifications.len(), 1);
     let notifications = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_query_param(
+            "filter_by_types",
+            UserNotificationEvent::UserFollowAdded.as_str(),
+        )
+        .add_query_param(
+            "filter_by_types",
+            UserNotificationEvent::UserLikePost.as_str(),
+        )
+        .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await
         .json::<Vec<UserNotificationView>>();
-    assert!(notifications
-        .iter()
-        .find(|n| n.event == UserNotificationEvent::UserFollowAdded)
-        .is_none());
+
+    assert_eq!(notifications.len(), 1);
+    let notifications = server
+        .get("/api/notifications")
+        .add_query_param(
+            "filter_by_types",
+            UserNotificationEvent::UserLikePost.as_str(),
+        )
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await
+        .json::<Vec<UserNotificationView>>();
+
+    assert_eq!(notifications.len(), 0);
 });

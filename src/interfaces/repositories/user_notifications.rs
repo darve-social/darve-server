@@ -8,9 +8,11 @@ use crate::{
     models::view::notification::UserNotificationView,
 };
 
+#[derive(Debug)]
 pub struct GetNotificationOptions {
     pub limit: u8,
     pub start: DateTime<Utc>,
+    pub filter_by_types: Option<Vec<String>>,
     pub is_read: Option<bool>,
     pub order_dir: QryOrder,
 }

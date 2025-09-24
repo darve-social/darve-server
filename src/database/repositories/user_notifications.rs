@@ -116,15 +116,19 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         } else {
             ""
         };
+        let types_query = if options.filter_by_types.is_some() {
+            "AND out.event IN $types"
+        } else {
+            ""
+        };
 
         let fields = UserNotificationView::get_fields();
         let query = format!(
-            " SELECT  out.created_at as created_at, out.{{{fields}}}, is_read as out.is_read
-                FROM user_notifications
-                WHERE in=$user AND created_at < $start {}
-                ORDER BY created_at DESC
-                LIMIT $limit;",
-            is_read_query
+            "SELECT out.{{{fields}}}, out.created_at as created_at, is_read as out.is_read
+             FROM user_notifications
+             WHERE in=$user AND created_at < $start {is_read_query} {types_query}
+             ORDER BY created_at DESC
+             LIMIT $limit;"
         );
         let mut res = self
             .client
@@ -133,10 +137,12 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .bind(("start", options.start))
             .bind(("limit", options.limit))
             .bind(("is_read", options.is_read))
+            .bind(("types", options.filter_by_types.unwrap_or_default()))
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
             })?;
+
         let data = res.take::<Vec<UserNotificationView>>((0, "out"))?;
         Ok(data)
     }
