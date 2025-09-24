@@ -51,7 +51,7 @@ impl AppConfig {
         let upload_file_size_max_mb: u64 = std::env::var("UPLOAD_MAX_SIZE_MB")
             .unwrap_or("15".to_string())
             .parse()
-            .expect("to be number");
+            .expect("UPLOAD_MAX_SIZE_MB should be number");
 
         let apple_mobile_client_id =
             std::env::var("APPLE_MOBILE_CLIENT_ID").expect("Missing APPLE_MOBILE_CLIENT_ID in env");
