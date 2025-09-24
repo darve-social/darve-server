@@ -1,11 +1,8 @@
 use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
-use crate::middleware::utils::db_utils::ViewRelateField;
+use crate::middleware::utils::db_utils::{Pagination, ViewRelateField};
 use chrono::{DateTime, Utc};
-use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, Pagination,
-    QryOrder, ViewFieldSelector,
-};
+use middleware::utils::db_utils::{QryOrder, ViewFieldSelector};
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxError, CtxResult},
@@ -137,31 +134,27 @@ impl<'a> PostDbService<'a> {
         Ok(())
     }
 
-    pub async fn must_exist(&self, ident: IdentIdName) -> CtxResult<Thing> {
-        let opt = exists_entity(self.db, TABLE_NAME.to_string(), &ident).await?;
-        with_not_found_err(opt, self.ctx, ident.to_string().as_str())
-    }
-
-    pub async fn get(&self, ident_id_name: IdentIdName) -> CtxResult<Post> {
-        let opt = get_entity::<Post>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
-        with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
-    }
-
     pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
-        id: &str,
+        post_id: &str,
+        current_user_id: Option<&str>,
     ) -> CtxResult<T> {
-        let thing = get_str_thing(id)?;
-        let ident = IdentIdName::Id(thing);
-        self.get_view(ident).await
-    }
+        let fields = T::get_select_query_fields();
+        let user = current_user_id.map(|id| Thing::from((TABLE_COL_USER, id)));
+        let mut res = self
+            .db
+            .query(format!("SELECT {fields} FROM $post"))
+            .bind(("post", get_str_thing(post_id)?))
+            .bind(("user", user))
+            .await?;
 
-    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
-        &self,
-        ident_id_name: IdentIdName,
-    ) -> CtxResult<T> {
-        let opt = get_entity_view::<T>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
-        with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
+        let data = res
+            .take::<Option<T>>(0)?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: post_id.to_string(),
+            })?;
+
+        Ok(data)
     }
 
     pub async fn get_by_disc(
