@@ -58,7 +58,7 @@ async fn like(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw())
+        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw(), None)
         .await?;
 
     let likes = body.count.unwrap_or(1);
@@ -125,7 +125,7 @@ async fn unlike(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw())
+        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw(), None)
         .await?;
 
     if !PostAccess::new(&post).can_like(&user) {

@@ -102,7 +102,7 @@ async fn get_post_tasks(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&post_id)
+        .get_view_by_id::<PostAccessView>(&post_id, None)
         .await?;
 
     if !PostAccess::new(&post).can_view(&user) {
@@ -215,7 +215,7 @@ async fn get_replies(
         ctx: &auth_data.ctx,
     };
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&post_id)
+        .get_view_by_id::<PostAccessView>(&post_id, None)
         .await?;
 
     if !PostAccess::new(&post).can_view(&user) {
@@ -263,7 +263,7 @@ async fn create_reply(
         ctx: &auth_data.ctx,
     };
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&post_id)
+        .get_view_by_id::<PostAccessView>(&post_id, None)
         .await?;
 
     if !PostAccess::new(&post).can_create_reply(&user) {

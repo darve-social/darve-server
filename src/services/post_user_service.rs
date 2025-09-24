@@ -61,7 +61,7 @@ where
         let user_thing = user.id.as_ref().unwrap().clone();
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
         let post_access = PostAccess::new(&post);
 
@@ -95,7 +95,7 @@ where
         let user_thing = user.id.as_ref().unwrap().clone();
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
         let post_access = PostAccess::new(&post);
         if !post_access.can_view(&user) {

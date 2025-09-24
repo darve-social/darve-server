@@ -671,7 +671,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
     }
-    .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str())
+    .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str(), None)
     .await
     .unwrap();
 
@@ -1447,7 +1447,7 @@ test_with_server!(
             db: &ctx_state.db.client,
             ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
         }
-        .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str())
+        .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str(), None)
         .await
         .unwrap();
 

@@ -133,7 +133,7 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         let likes = data.count.unwrap_or(1);
@@ -172,7 +172,7 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         if !PostAccess::new(&post).can_like(&user) {
@@ -197,7 +197,7 @@ where
 
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         let post_access = PostAccess::new(&post);
@@ -251,7 +251,7 @@ where
 
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         let post_access = PostAccess::new(&post);
@@ -341,7 +341,7 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
         if !PostAccess::new(&post).can_view(&user) {
             return Err(AppError::Forbidden.into());
@@ -349,7 +349,7 @@ where
 
         let post = self
             .posts_repository
-            .get_view_by_id::<PostUsersView>(post_id)
+            .get_view_by_id::<PostUsersView>(post_id, None)
             .await?;
 
         Ok(post
@@ -527,7 +527,7 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         if !PostAccess::new(&post).can_view(&user) {
@@ -535,7 +535,7 @@ where
         }
 
         self.posts_repository
-            .get_view_by_id::<PostView>(post_id)
+            .get_view_by_id::<PostView>(post_id, Some(user_id))
             .await
             .map_err(|e| e.into())
     }

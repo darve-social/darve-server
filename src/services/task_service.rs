@@ -169,7 +169,7 @@ where
 
         let post = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(post_id)
+            .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
         let (participant, r#type) = self.get_participant_and_type(&data).await?;
@@ -574,7 +574,7 @@ where
 
         let result = self
             .posts_repository
-            .get_view_by_id::<PostView>(&data.post_id)
+            .get_view_by_id::<PostView>(&data.post_id, Some(user_id))
             .await?;
 
         self.check_delivery_post(&data.post_id, &task_view).await?;
@@ -963,7 +963,7 @@ where
     ) -> AppResult<()> {
         let post_view = self
             .posts_repository
-            .get_view_by_id::<PostAccessView>(&post_id)
+            .get_view_by_id::<PostAccessView>(&post_id, None)
             .await?;
 
         if post_view.r#type == PostType::Idea {
