@@ -4,6 +4,7 @@ use std::{
 };
 
 use config::AppConfig;
+use darve_server::utils::blocked_words::init_blocked_words;
 use database::client::{Database, DbConfig};
 use middleware::mw_ctx::{self};
 use routes::user_auth::webauthn::webauthn_routes::{self};
@@ -23,6 +24,7 @@ pub mod services;
 pub mod utils;
 
 fn main() {
+    init_blocked_words();
     let config = AppConfig::from_env();
 
     let _guard: Option<ClientInitGuard> = if let Some(ref link) = config.sentry_project_link {

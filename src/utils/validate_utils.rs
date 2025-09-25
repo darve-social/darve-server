@@ -1,4 +1,7 @@
-use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
+use crate::{
+    entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
+    utils::blocked_words::BLOCKED_WORDS,
+};
 use chrono::{DateTime, Months, Utc};
 use core::fmt;
 use regex::Regex;
@@ -12,13 +15,20 @@ use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
 
 pub fn validate_username(u: &String) -> Result<(), ValidationError> {
-    if Regex::new(r"^[A-Za-z0-9\_]{6,}$").unwrap().is_match(u) {
-        Ok(())
-    } else {
-        let error = ValidationError::new("")
-            .with_message("Letters, numbers and '_'. Minimum 6 characters".into());
-        Err(error)
+    let regex = Regex::new(r"^[A-Za-z0-9_]{6,}$").unwrap();
+
+    if !regex.is_match(u) {
+        return Err(ValidationError::new("")
+            .with_message("Letters, numbers and '_'. Minimum 6 characters".into()));
     }
+    let username_lower = u.to_lowercase();
+    if BLOCKED_WORDS.contains(&username_lower) {
+        return Err(
+            ValidationError::new("").with_message("This username contains forbidden words".into())
+        );
+    }
+
+    Ok(())
 }
 
 pub fn validate_phone_number(u: &String) -> Result<(), ValidationError> {
