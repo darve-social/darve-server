@@ -623,6 +623,7 @@ where
                 Some(json!({
                    "post_id": post.id,
                    "discussion_id": post.belongs_to.to_raw(),
+                   "discussion_type": disc.r#type,
                    "is_profile": is_profile
                 })),
             )
