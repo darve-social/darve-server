@@ -611,6 +611,8 @@ where
             return Ok(());
         }
 
+        let is_profile = disc.created_by.id == disc.id.id;
+
         let event = self
             .notification_repository
             .create(
@@ -619,8 +621,10 @@ where
                 UserNotificationEvent::CreatedPost.as_str(),
                 &receivers,
                 Some(json!({
-                    "post_id": post.id,
-                    "discussion_id": post.belongs_to.to_raw()
+                   "post_id": post.id,
+                   "discussion_id": post.belongs_to.to_raw(),
+                   "discussion_type": disc.r#type,
+                   "is_profile": is_profile
                 })),
             )
             .await?;
