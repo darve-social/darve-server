@@ -310,6 +310,7 @@ where
                                 created_at: v.created_at,
                             })
                             .collect::<Vec<AccessUser>>(),
+                        created_by: user.id.as_ref().unwrap().clone(),
                     };
                     if !DiscussionAccess::new(&access_view).can_view(&user) {
                         return Err(self.ctx.to_ctx_error(AppError::Forbidden));

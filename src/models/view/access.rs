@@ -5,7 +5,7 @@ use crate::entities::community::{
 };
 use crate::entities::task::task_request_entity::TaskRequestType;
 use crate::entities::{access_user::AccessUser, community::discussion_entity::DiscussionType};
-use crate::middleware::utils::db_utils::ViewFieldSelector;
+use crate::middleware::utils::db_utils::{ViewFieldSelector, ViewRelateField};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
@@ -13,6 +13,7 @@ use surrealdb::sql::Thing;
 pub struct DiscussionAccessView {
     pub id: Thing,
     pub r#type: DiscussionType,
+    pub created_by: Thing,
     pub users: Vec<AccessUser>,
 }
 
@@ -35,7 +36,13 @@ impl DiscussionAccessView {
 
 impl ViewFieldSelector for DiscussionAccessView {
     fn get_select_query_fields() -> String {
-        format!("*, <-{ACCESS_TABLE_NAME}.* as users")
+        format!("id, type, created_by, <-{ACCESS_TABLE_NAME}.* as users")
+    }
+}
+
+impl ViewRelateField for DiscussionAccessView {
+    fn get_fields() -> &'static str {
+        "id, type, created_by, users: <-has_access.*"
     }
 }
 
@@ -67,7 +74,8 @@ impl PostAccessView {
 
 impl ViewFieldSelector for PostAccessView {
     fn get_select_query_fields() -> String {
-        format!("*, <-{ACCESS_TABLE_NAME}.* as users, belongs_to.{{ id, type, users: <-{ACCESS_TABLE_NAME}.*}} as discussion")
+        let disc_fields = DiscussionAccessView::get_fields();
+        format!("*, <-{ACCESS_TABLE_NAME}.* as users, belongs_to.{{{disc_fields}}} as discussion")
     }
 }
 
@@ -98,23 +106,16 @@ impl TaskAccessView {
 
 impl ViewFieldSelector for TaskAccessView {
     fn get_select_query_fields() -> String {
+        let disc_fields = DiscussionAccessView::get_fields();
         format!(
             "id, type, <-{ACCESS_TABLE_NAME}.* as users, 
                 IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{ 
                         id, 
-                        type, 
+                        type,
                         users: <-{ACCESS_TABLE_NAME}.*, 
-                        discussion: belongs_to.{{ 
-                            id, 
-                            type, 
-                            users: <-{ACCESS_TABLE_NAME}.* 
-                     }} 
+                        discussion: belongs_to.{{{disc_fields}}} 
                 }} END AS post,
-                IF record::tb(belongs_to) = '{DISC_TABLE_NAME}' THEN belongs_to.{{ 
-                        id, 
-                        type, 
-                        users: <-{ACCESS_TABLE_NAME}.* 
-                }} END AS discussion"
+                IF record::tb(belongs_to) = '{DISC_TABLE_NAME}' THEN belongs_to.{{{disc_fields}}} END AS discussion"
         )
     }
 }
