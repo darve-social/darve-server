@@ -236,6 +236,7 @@ async fn get_task(
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
+        &state.db.tags,
     );
 
     let task_view = task_service
