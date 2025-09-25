@@ -38,6 +38,7 @@ use crate::{
     models::view::{
         access::{DiscussionAccessView, PostAccessView, TaskAccessView},
         post::PostView,
+        task::TaskRequestView,
     },
     services::notification_service::{NotificationService, OnCreatedTaskView},
 };
@@ -162,6 +163,26 @@ where
             access_repository,
             tags_repository,
         }
+    }
+
+    pub async fn get(&self, user_thing_id: &str, task_id: &str) -> AppResult<TaskRequestView> {
+        let user = self.users_repository.get_by_id(user_thing_id).await?;
+        let task_thing = get_str_thing(&task_id)?;
+        let task_view = self
+            .tasks_repository
+            .get_by_id::<TaskAccessView>(&task_thing)
+            .await?;
+
+        if !TaskAccess::new(&task_view).can_view(&user) {
+            return Err(AppError::Forbidden);
+        }
+
+        let task = self
+            .tasks_repository
+            .get_by_id::<TaskRequestView>(&task_thing)
+            .await?;
+
+        Ok(task)
     }
 
     pub async fn create_for_post(
