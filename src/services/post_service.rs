@@ -8,6 +8,7 @@ use crate::{
             discussion_entity::DiscussionDbService,
             post_entity::{CreatePost, Post, PostDbService, PostType},
         },
+        tag::SystemTags,
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     },
     interfaces::{
@@ -542,6 +543,24 @@ where
 
     async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {
         data.validate()?;
+        let system_tags = data
+            .tags
+            .iter()
+            .filter_map(|d| SystemTags::try_from(d.as_str()).ok())
+            .collect::<Vec<SystemTags>>();
+
+        if !system_tags.is_empty() {
+            let tags_str = system_tags
+                .iter()
+                .map(|t| t.as_str().to_string())
+                .collect::<Vec<String>>()
+                .join(", ");
+            return Err(AppError::Generic {
+                description: format!("The following system tags are not allowed: {}", tags_str),
+            }
+            .into());
+        }
+
         if data.content.is_none() && data.file_1.is_none() {
             return Err(AppError::Generic {
                 description: "Empty content and missing file".to_string(),

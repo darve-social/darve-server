@@ -1,6 +1,7 @@
 mod helpers;
 
 use crate::helpers::create_fake_login_test_user;
+use crate::helpers::post_helpers::build_fake_post;
 use crate::helpers::post_helpers::create_fake_post_with_large_file;
 use crate::helpers::post_helpers::create_post;
 use axum_test::multipart::MultipartForm;
@@ -10,6 +11,7 @@ use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::entities::community::post_entity::PostType;
+use darve_server::entities::tag::SystemTags;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::string_utils::get_string_thing;
@@ -599,5 +601,24 @@ test_with_server!(
         let response = server.get(&format!("/api/posts/{}", fake_post_id)).await;
 
         response.assert_status_not_found();
+    }
+);
+
+test_with_server!(
+    try_to_create_post_with_system_tags,
+    |server, ctx_state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let default_discussion =
+            DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+        let _ = create_fake_post(server, &default_discussion, None, None).await;
+        let tags = vec![
+            SystemTags::Delivery.as_str().to_string(),
+            "tag6".to_string(),
+        ];
+        let post_data = build_fake_post(None, Some(tags));
+        let res = create_post(server, &default_discussion, post_data).await;
+        res.assert_status_failure();
+        assert!(res.text().contains(SystemTags::Delivery.as_str()))
     }
 );
