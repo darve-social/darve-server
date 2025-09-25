@@ -2,6 +2,7 @@ pub mod access_user;
 pub mod community;
 pub mod discussion_user;
 pub mod reply;
+pub mod tag;
 pub mod task;
 pub mod task_donor;
 pub mod task_request_user;

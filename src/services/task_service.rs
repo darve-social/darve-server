@@ -7,6 +7,7 @@ use crate::{
             discussion_entity::DiscussionDbService,
             post_entity::{PostDbService, PostType},
         },
+        tag::SystemTags,
         task::task_request_entity::{
             DeliverableType, RewardType, TaskForReward, TaskParticipantForReward, TaskRequest,
             TaskRequestCreate, TaskRequestDbService, TaskRequestStatus, TaskRequestType,
@@ -20,7 +21,8 @@ use crate::{
         },
     },
     interfaces::repositories::{
-        access::AccessRepositoryInterface, task_donors::TaskDonorsRepositoryInterface,
+        access::AccessRepositoryInterface, tags::TagsRepositoryInterface,
+        task_donors::TaskDonorsRepositoryInterface,
         task_participants::TaskParticipantsRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
@@ -104,12 +106,13 @@ pub struct TaskRequestInput {
     pub delivery_period: Option<u16>,
 }
 
-pub struct TaskService<'a, T, N, P, A>
+pub struct TaskService<'a, T, N, P, A, TG>
 where
     T: TaskParticipantsRepositoryInterface,
     P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
     A: AccessRepositoryInterface,
+    TG: TagsRepositoryInterface,
 {
     tasks_repository: TaskRequestDbService<'a>,
     users_repository: LocalUserDbService<'a>,
@@ -121,14 +124,16 @@ where
     task_participants_repository: &'a T,
     default_period_hours: u16,
     access_repository: &'a A,
+    tags_repository: &'a TG,
 }
 
-impl<'a, T, N, P, A> TaskService<'a, T, N, P, A>
+impl<'a, T, N, P, A, TG> TaskService<'a, T, N, P, A, TG>
 where
     T: TaskParticipantsRepositoryInterface,
     N: UserNotificationsInterface,
     P: TaskDonorsRepositoryInterface,
     A: AccessRepositoryInterface,
+    TG: TagsRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -138,6 +143,7 @@ where
         task_donors_repository: &'a P,
         task_participants_repository: &'a T,
         access_repository: &'a A,
+        tags_repository: &'a TG,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
@@ -155,6 +161,7 @@ where
             discussions_repository: DiscussionDbService { db: &db, ctx },
             default_period_hours: 48,
             access_repository,
+            tags_repository,
         }
     }
 
@@ -598,7 +605,7 @@ where
             .get_view_by_id::<PostView>(&data.post_id, Some(user_id))
             .await?;
 
-        self.check_delivery_post(&data.post_id, &task_view).await?;
+        self.handle_delivery_post(&data.post_id, &task_view).await?;
 
         let task = self
             .tasks_repository
@@ -974,10 +981,11 @@ where
             }
             _ => (),
         }
+
         Ok(())
     }
 
-    async fn check_delivery_post(
+    async fn handle_delivery_post(
         &self,
         post_id: &str,
         task_view: &TaskAccessView,
@@ -994,6 +1002,14 @@ where
         self.check_delivery_post_access(&post_view, task_view)?;
 
         self.update_role_for_delivery_post(&post_view).await?;
+
+        let _ = self
+            .tags_repository
+            .create_with_relate(
+                [SystemTags::Delivery.as_str().to_string()].to_vec(),
+                post_view.id.clone(),
+            )
+            .await;
 
         Ok(())
     }
