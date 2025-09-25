@@ -1,3 +1,4 @@
+use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
@@ -14,6 +15,7 @@ use axum::response::sse::{Event, KeepAlive};
 use axum::response::Sse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_extra::extract::Query as ExQuery;
 use chrono::{DateTime, Utc};
 use futures::{stream, Stream};
 use middleware::ctx::Ctx;
@@ -73,6 +75,7 @@ async fn read_all(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<()>
 
 #[derive(Debug, Deserialize)]
 struct GetNotificationsQuery {
+    filter_by_types: Option<Vec<UserNotificationEvent>>,
     start: Option<DateTime<Utc>>,
     count: Option<u8>,
     is_read: Option<bool>,
@@ -82,7 +85,7 @@ struct GetNotificationsQuery {
 async fn get_notifications(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
-    Query(query): Query<GetNotificationsQuery>,
+    ExQuery(query): ExQuery<GetNotificationsQuery>,
 ) -> CtxResult<Json<Vec<UserNotificationView>>> {
     let _ = LocalUserDbService {
         db: &state.db.client,
@@ -101,10 +104,14 @@ async fn get_notifications(
                 start: query.start.unwrap_or(Utc::now()),
                 order_dir: query.order_dir.map_or(QryOrder::DESC, |v| v),
                 is_read: query.is_read,
+                filter_by_types: query.filter_by_types.map(|e| {
+                    e.iter()
+                        .map(|e| e.as_str().to_string())
+                        .collect::<Vec<String>>()
+                }),
             },
         )
         .await?;
-
     Ok(Json(notifications))
 }
 

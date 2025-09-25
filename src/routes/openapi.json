@@ -252,6 +252,20 @@
         ],
         "parameters": [
           {
+            "name": "filter_by_types",
+            "in": "query",
+            "description": "Filter by notification types",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/UserNotificationEvent"
+              }
+            }
+          },
+          {
             "name": "start",
             "in": "query",
             "description": "Pagination start",
