@@ -75,6 +75,7 @@ async fn create_task(
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
+        &state.db.tags,
     );
 
     let task = task_service
