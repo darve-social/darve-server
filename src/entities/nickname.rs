@@ -1,10 +1,10 @@
 use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Nickname {
     #[serde(alias = "out")]
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    user_id: String,
-    name: String,
+    pub user_id: String,
+    pub name: String,
 }

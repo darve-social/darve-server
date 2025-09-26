@@ -260,6 +260,18 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
     response.assert_status_success();
     let nicknames: Vec<Nickname> = response.json();
     assert_eq!(nicknames.len(), 3, "Should have three nicknames");
+    assert!(nicknames
+        .iter()
+        .find(|n| n.user_id == user2_id && n.name == "Best Friend")
+        .is_some());
+    assert!(nicknames
+        .iter()
+        .find(|n| n.user_id == user3_id && n.name == "Colleague")
+        .is_some());
+    assert!(nicknames
+        .iter()
+        .find(|n| n.user_id == user4_id && n.name == "Neighbor")
+        .is_some());
 });
 
 test_with_server!(
