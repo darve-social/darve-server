@@ -1,6 +1,7 @@
 pub mod access_user;
 pub mod community;
 pub mod discussion_user;
+pub mod nickname;
 pub mod reply;
 pub mod task;
 pub mod task_donor;

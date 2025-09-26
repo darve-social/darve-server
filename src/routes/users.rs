@@ -1,6 +1,11 @@
 use crate::{
-    entities::community::post_entity::{PostDbService, PostType},
-    interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface,
+    entities::{
+        community::post_entity::{PostDbService, PostType},
+        nickname::Nickname,
+    },
+    interfaces::repositories::{
+        discussion_user::DiscussionUserRepositoryInterface, nickname::NicknamesRepositoryInterface,
+    },
     middleware::{
         auth_with_login_access::AuthWithLoginAccess,
         utils::{
@@ -13,7 +18,7 @@ use crate::{
 };
 
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Path as ExPath, Query, State},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
     Json, Router,
@@ -79,6 +84,8 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
         .route("/api/users/status", get(get_users_status))
+        .route("/api/users/:user_id/nickname", post(set_nickname))
+        .route("/api/users/current/nicknames", get(get_nicknames))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -655,4 +662,74 @@ async fn get_users_status(
         .collect::<Vec<UserStatus>>();
 
     Ok(Json(users_status))
+}
+
+#[derive(Debug, Deserialize)]
+struct SetNicknameData {
+    nickname: Option<String>,
+}
+
+async fn set_nickname(
+    auth_data: AuthWithLoginAccess,
+    ExPath(user_id): ExPath<String>,
+    State(state): State<Arc<CtxState>>,
+    Json(body): Json<SetNicknameData>,
+) -> CtxResult<()> {
+    let user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let current_user = user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+
+    let to_user = user_db_service.get_by_id(&user_id).await?;
+
+    let to_user_id = to_user.id.as_ref().unwrap().id.to_raw();
+    let current_user_id = current_user.id.as_ref().unwrap().id.to_raw();
+
+    match body.nickname {
+        Some(value) => {
+            if value.trim().is_empty() {
+                return Err(AppError::Generic {
+                    description: "The nickname must not be empty".into(),
+                }
+                .into());
+            }
+            state
+                .db
+                .nicknames
+                .upsert(&current_user_id, &to_user_id, value)
+                .await?
+        }
+        None => {
+            state
+                .db
+                .nicknames
+                .remove(&current_user_id, &to_user_id)
+                .await?
+        }
+    }
+    Ok(())
+}
+
+async fn get_nicknames(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<Json<Vec<Nickname>>> {
+    let user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let current_user = user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+
+    let nicknames = state
+        .db
+        .nicknames
+        .get_by_user(current_user.id.as_ref().unwrap().id.to_raw().as_str())
+        .await?;
+
+    Ok(Json(nicknames))
 }

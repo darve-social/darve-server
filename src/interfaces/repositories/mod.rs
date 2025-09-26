@@ -1,6 +1,7 @@
 pub mod access;
 pub mod discussion_user;
 pub mod like;
+pub mod nickname;
 pub mod post_user;
 pub mod tags;
 pub mod task_donors;

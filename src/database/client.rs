@@ -7,6 +7,7 @@ use crate::database::repositories::post_user::PostUserRepository;
 use crate::database::repositories::reply::RepliesRepository;
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
+use crate::database::repositories::user_nicknames::NicknamesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::repository_impl::Repository;
@@ -43,6 +44,7 @@ pub struct Database {
     pub access: AccessRepository,
     pub post_users: PostUserRepository,
     pub discussion_users: DiscussionUserRepository,
+    pub nicknames: NicknamesRepository,
 }
 
 impl Database {
@@ -81,6 +83,7 @@ impl Database {
             likes: LikesRepository::new(client.clone()),
             access: AccessRepository::new(client.clone()),
             post_users: PostUserRepository::new(client.clone()),
+            nicknames: NicknamesRepository::new(client.clone()),
             discussion_users: DiscussionUserRepository::new(client),
         }
     }
@@ -96,6 +99,7 @@ impl Database {
         self.access.mutate_db().await?;
         self.post_users.mutate_db().await?;
         self.discussion_users.mutate_db().await?;
+        self.nicknames.mutate_db().await?;
         Ok(())
     }
 }
