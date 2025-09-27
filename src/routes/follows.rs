@@ -201,7 +201,7 @@ async fn is_following_user(
     State(ctx_state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(follow_user_id): Path<String>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<bool>> {
     let user_id = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
@@ -209,11 +209,11 @@ async fn is_following_user(
     .get_ctx_user_thing()
     .await?;
     let follows_user = get_string_thing(follow_user_id.clone())?;
-    let _ = FollowDbService {
+    let is_following = FollowDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     }
     .is_following(user_id, follows_user.clone())
     .await?;
-    Ok(())
+    Ok(Json(is_following))
 }
