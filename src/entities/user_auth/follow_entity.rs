@@ -42,7 +42,7 @@ impl<'a> FollowDbService<'a> {
     }
 
     pub async fn is_following(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
-        let qry = format!("SELECT count() FROM ONLY {TABLE_NAME} where in=<record>$in AND out=<record>$out LIMIT 1;");
+        let qry = format!("SELECT count() FROM $in->{TABLE_NAME} WHERE out=$out GROUP ALL ;");
         let mut res = self
             .db
             .query(qry)

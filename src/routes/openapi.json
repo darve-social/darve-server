@@ -3356,7 +3356,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Following status checked successfully"
+            "description": "Following status checked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
