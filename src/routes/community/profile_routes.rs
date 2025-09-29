@@ -32,7 +32,7 @@ use post_entity::PostDbService;
 use utils::askama_filter_util::filters;
 
 pub fn routes() -> Router<Arc<CtxState>> {
-    Router::new().route("/u/:username_or_id", get(display_profile))
+    Router::new().route("/u/{username_or_id}", get(display_profile))
 }
 
 #[derive(Template, TryFromMultipart)]

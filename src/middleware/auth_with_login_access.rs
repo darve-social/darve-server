@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{
-    async_trait,
     extract::{FromRequestParts, State},
     http::request::Parts,
 };
@@ -27,7 +26,6 @@ impl AuthWithLoginAccess {
     }
 }
 
-#[async_trait]
 impl FromRequestParts<Arc<CtxState>> for AuthWithLoginAccess {
     type Rejection = StatusCode;
 

@@ -33,8 +33,8 @@ pub mod filters {
                 if replace_with.len() > 0 {
                     Ok(format!("{}", replace_with))
                 } else {
-                    let mut rng = rand::thread_rng();
-                    let random_string_index: usize = rng.gen_range(0..VALUES.len());
+                    let mut rng = rand::rng();
+                    let random_string_index: usize = rng.random_range(0..VALUES.len());
                     Ok(VALUES[random_string_index].to_string())
                 }
             }

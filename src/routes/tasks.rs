@@ -21,13 +21,13 @@ use validator::Validate;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/tasks/:task_id", get(get_task))
+        .route("/api/tasks/{task_id}", get(get_task))
         .route("/api/tasks/received", get(user_requests_received))
         .route("/api/tasks/given", get(user_requests_given))
-        .route("/api/tasks/:task_id/accept", post(accept_task_request))
-        .route("/api/tasks/:task_id/reject", post(reject_task_request))
-        .route("/api/tasks/:task_id/deliver", post(deliver_task_request))
-        .route("/api/tasks/:task_id/donor", post(upsert_donor))
+        .route("/api/tasks/{task_id}/accept", post(accept_task_request))
+        .route("/api/tasks/{task_id}/reject", post(reject_task_request))
+        .route("/api/tasks/{task_id}/deliver", post(deliver_task_request))
+        .route("/api/tasks/{task_id}/donor", post(upsert_donor))
 }
 
 #[derive(Deserialize, Serialize, Validate)]

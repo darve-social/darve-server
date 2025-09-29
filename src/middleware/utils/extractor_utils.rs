@@ -3,7 +3,6 @@ use axum::extract::{self, FromRequest, Request};
 use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::{
-    async_trait,
     response::{IntoResponse, Response},
     Form, Json, RequestExt,
 };
@@ -18,7 +17,6 @@ use crate::middleware::mw_ctx::CtxState;
 #[derive(Debug)]
 pub struct JsonOrFormValidated<T>(pub T);
 
-#[async_trait]
 impl<S, T> FromRequest<S> for JsonOrFormValidated<T>
 where
     S: Send + Sync,

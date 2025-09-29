@@ -40,24 +40,24 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/discussions", get(get_discussions))
         .route("/api/discussions", post(create_discussion))
-        .route("/api/discussions/:discussion_id", patch(update_discussion))
-        .route("/api/discussions/:discussion_id/alias", post(update_alias))
-        .route("/api/discussions/:discussion_id/tasks", post(create_task))
-        .route("/api/discussions/:discussion_id/tasks", get(get_tasks))
+        .route("/api/discussions/{discussion_id}", patch(update_discussion))
+        .route("/api/discussions/{discussion_id}/alias", post(update_alias))
+        .route("/api/discussions/{discussion_id}/tasks", post(create_task))
+        .route("/api/discussions/{discussion_id}/tasks", get(get_tasks))
         .route(
-            "/api/discussions/:discussion_id/chat_users",
+            "/api/discussions/{discussion_id}/chat_users",
             post(add_discussion_users),
         )
         .route(
-            "/api/discussions/:discussion_id/chat_users",
+            "/api/discussions/{discussion_id}/chat_users",
             delete(delete_discussion_users),
         )
-        .route("/api/discussions/:discussion_id/sse", get(discussion_sse))
+        .route("/api/discussions/{discussion_id}/sse", get(discussion_sse))
         .route(
-            "/api/discussions/:discussion_id/posts",
+            "/api/discussions/{discussion_id}/posts",
             post(create_post).layer(DefaultBodyLimit::max(max_bytes_val)),
         )
-        .route("/api/discussions/:discussion_id/posts", get(get_posts))
+        .route("/api/discussions/{discussion_id}/posts", get(get_posts))
 }
 
 pub async fn discussion_sse(

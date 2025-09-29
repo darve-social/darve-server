@@ -67,11 +67,10 @@ use middleware::utils::string_utils::get_string_thing;
 // the challenge to the browser.
 
 pub async fn start_register(
+    ctx: Ctx,
     State(state): State<Arc<CtxState>>,
     Extension(app_state): Extension<AppState>,
     session: Session,
-    _cookies: Cookies,
-    ctx: Ctx,
     Path(username): Path<String>,
 ) -> Result<impl IntoResponse, WebauthnError> {
     println!("Start register passkey");
@@ -189,9 +188,8 @@ pub async fn start_register(
 // to verify these and persist them.
 
 pub async fn finish_register(
-    State(state): State<Arc<CtxState>>,
-    _cookies: Cookies,
     ctx: Ctx,
+    State(state): State<Arc<CtxState>>,
     Extension(app_state): Extension<AppState>,
     session: Session,
     Json(reg): Json<RegisterPublicKeyCredential>,
@@ -429,9 +427,9 @@ pub async fn start_authentication(
 // this is an authentication failure.
 
 pub async fn finish_authentication(
-    State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     cookies: Cookies,
+    State(state): State<Arc<CtxState>>,
     Extension(app_state): Extension<AppState>,
     session: Session,
     Json(auth): Json<PublicKeyCredential>,

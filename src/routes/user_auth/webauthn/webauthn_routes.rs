@@ -55,12 +55,12 @@ pub fn routes(wa_config: WebauthnConfig, wasm_dir_path: &str) -> Router<Arc<CtxS
     // build our application with a route
     let webauthn_app_routes = Router::new()
         .route(
-            "/api/passkey/register_start/:username",
+            "/api/passkey/register_start/{username}",
             post(start_register),
         )
         .route("/api/passkey/register_finish", post(finish_register))
         .route(
-            "/api/passkey/login_start/:username",
+            "/api/passkey/login_start/{username}",
             post(start_authentication),
         )
         .route("/api/passkey/login_finish", post(finish_authentication))

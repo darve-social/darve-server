@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{
-    async_trait,
     extract::{FromRequestParts, State},
     http::request::Parts,
 };
@@ -23,7 +22,6 @@ impl AuthWithOtpAccess {
     }
 }
 
-#[async_trait]
 impl FromRequestParts<Arc<CtxState>> for AuthWithOtpAccess {
     type Rejection = StatusCode;
 
