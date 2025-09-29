@@ -29,6 +29,21 @@ pub fn validate_phone_number(u: &String) -> Result<(), ValidationError> {
     }
 }
 
+pub fn validate_tags(tags: &Vec<String>) -> Result<(), ValidationError> {
+    for tag in tags {
+        if tag.trim().is_empty() {
+            return Err(
+                ValidationError::new("invalid_tags").with_message("Tag cannot be empty".into())
+            );
+        }
+        if tag.starts_with("_") {
+            return Err(ValidationError::new("invalid_tags")
+                .with_message("Tag cannot start with underscore".into()));
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_birth_date(date: &DateTime<Utc>) -> Result<(), ValidationError> {
     let min = Utc::now()
         .checked_sub_months(Months::new(120 * 12))

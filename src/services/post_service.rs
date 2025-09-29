@@ -33,7 +33,10 @@ use crate::{
         user::UserView,
     },
     services::notification_service::NotificationService,
-    utils::file::convert::{convert_field_file_data, FileUpload},
+    utils::{
+        file::convert::{convert_field_file_data, FileUpload},
+        validate_utils::validate_tags,
+    },
 };
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
@@ -65,6 +68,7 @@ pub struct PostInput {
     #[validate(length(min = 1, message = "Content cannot be empty"))]
     pub content: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
+    #[validate(custom(function=validate_tags))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
