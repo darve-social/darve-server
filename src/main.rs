@@ -63,7 +63,7 @@ async fn async_main(config: AppConfig) {
     init::create_default_profiles(&ctx_state, &config.init_server_password.as_str()).await;
 
     let wa_config = webauthn_routes::create_webauth_config();
-    let routes_all = init::main_router(&ctx_state, wa_config).await;
+    let routes_all = init::main_router(&ctx_state, wa_config, 10, 20);
 
     let addr = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();

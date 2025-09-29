@@ -55,6 +55,8 @@ sentry = { version = "0.43.0", default-features = false, features = [
 argon2 = "0.5.3"
 totp-rs = { version = "5.7.0", features = ["gen_secret", "otpauth"] }
 dashmap = "6.1.0"
+tower_governor = "0.8.0"
+governor = "0.10.1"
 
 [dev-dependencies]
 fake = { version = "4.3.0", features = ["chrono"] }
