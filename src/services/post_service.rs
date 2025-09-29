@@ -8,7 +8,6 @@ use crate::{
             discussion_entity::DiscussionDbService,
             post_entity::{CreatePost, Post, PostDbService, PostType},
         },
-        tag::SystemTags,
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     },
     interfaces::{
@@ -34,7 +33,10 @@ use crate::{
         user::UserView,
     },
     services::notification_service::NotificationService,
-    utils::file::convert::{convert_field_file_data, FileUpload},
+    utils::{
+        file::convert::{convert_field_file_data, FileUpload},
+        validate_utils::validate_tags,
+    },
 };
 
 use axum_typed_multipart::{FieldData, TryFromMultipart};
@@ -66,6 +68,7 @@ pub struct PostInput {
     #[validate(length(min = 1, message = "Content cannot be empty"))]
     pub content: Option<String>,
     #[validate(length(max = 5, message = "Max 5 tags"))]
+    #[validate(custom(function=validate_tags))]
     pub tags: Vec<String>,
     #[form_data(limit = "unlimited")]
     pub file_1: Option<FieldData<NamedTempFile>>,
@@ -543,24 +546,6 @@ where
 
     async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {
         data.validate()?;
-        let system_tags = data
-            .tags
-            .iter()
-            .filter_map(|d| SystemTags::try_from(d.as_str()).ok())
-            .collect::<Vec<SystemTags>>();
-
-        if !system_tags.is_empty() {
-            let tags_str = system_tags
-                .iter()
-                .map(|t| t.as_str().to_string())
-                .collect::<Vec<String>>()
-                .join(", ");
-            return Err(AppError::Generic {
-                description: format!("The following system tags are not allowed: {}", tags_str),
-            }
-            .into());
-        }
-
         if data.content.is_none() && data.file_1.is_none() {
             return Err(AppError::Generic {
                 description: "Empty content and missing file".to_string(),

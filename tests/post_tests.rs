@@ -619,6 +619,6 @@ test_with_server!(
         let post_data = build_fake_post(None, Some(tags));
         let res = create_post(server, &default_discussion, post_data).await;
         res.assert_status_failure();
-        assert!(res.text().contains(SystemTags::Delivery.as_str()))
+        assert!(res.text().contains("Tag cannot start with underscore"))
     }
 );
