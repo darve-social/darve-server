@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use askama::Template;
 use axum::extract::Query;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
 use serde::Serialize;
@@ -42,7 +42,7 @@ pub async fn display_register_page(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(
+    let data = ProfileFormPage::new(
         Box::new(RegisterForm {
             username: qry.remove("u"),
             email: None,
@@ -52,8 +52,9 @@ pub async fn display_register_page(
         None,
         None,
         None,
-    )
-    .into_response())
+    );
+
+    Ok(Html(data.render().unwrap()).into_response())
 }
 
 pub async fn display_register_form(
@@ -65,13 +66,14 @@ pub async fn display_register_form(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(RegisterForm {
+    let data = RegisterForm {
         username: qry.remove("u"),
         email: None,
         next,
         loggedin: ctx.user_id().is_ok(),
-    }
-    .into_response())
+    };
+
+    Ok(Html(data.render().unwrap()).into_response())
 }
 
 pub async fn register_user(

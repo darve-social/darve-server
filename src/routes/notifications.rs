@@ -36,7 +36,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/notifications/read", post(read_all))
         .route("/api/notifications/sse", get(sse))
         .route("/api/notifications/count", get(get_count))
-        .route("/api/notifications/:notification_id/read", post(read))
+        .route("/api/notifications/{notification_id}/read", post(read))
 }
 
 async fn read(
@@ -83,8 +83,8 @@ struct GetNotificationsQuery {
 }
 
 async fn get_notifications(
-    State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
     ExQuery(query): ExQuery<GetNotificationsQuery>,
 ) -> CtxResult<Json<Vec<UserNotificationView>>> {
     let _ = LocalUserDbService {

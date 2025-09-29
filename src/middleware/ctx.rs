@@ -3,7 +3,6 @@ use std::sync::Arc;
 use super::error::{AppError, AppResult, CtxError, CtxResult};
 use crate::middleware::mw_ctx::{CtxState, JWT_KEY};
 use askama::Template;
-use async_trait::async_trait;
 use axum::{
     extract::{FromRequestParts, State},
     http::request::Parts,
@@ -66,7 +65,6 @@ impl Ctx {
     }
 }
 
-#[async_trait]
 impl FromRequestParts<Arc<CtxState>> for Ctx {
     type Rejection = StatusCode;
 
@@ -78,9 +76,7 @@ impl FromRequestParts<Arc<CtxState>> for Ctx {
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let cookies = CookieJar::from_request_parts(parts, state)
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let cookies = CookieJar::from_headers(&parts.headers);
 
         let is_htmx = parts.headers.get("hx-request").is_some();
 

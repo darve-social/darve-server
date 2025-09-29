@@ -44,7 +44,10 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
         .route("/api/gateway_wallet/count", get(gateway_wallet_count));
 
     if is_development {
-        router = router.route("/test/api/endow/:endow_user_id/:amount", get(test_deposit));
+        router = router.route(
+            "/test/api/endow/{endow_user_id}/{amount}",
+            get(test_deposit),
+        );
     }
 
     router

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use askama_axum::Template;
 use axum::extract::Query;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,7 @@ async fn login_form(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(
+    let data = ProfileFormPage::new(
         Box::new(LoginForm {
             username: qry.remove("u"),
             password: qry.remove("p"),
@@ -65,13 +65,14 @@ async fn login_form(
         None,
         None,
         None,
-    )
-    .into_response())
+    );
+
+    Ok(Html(data.render().unwrap()).into_response())
 }
 
 async fn logout_page(
-    cookies: Cookies,
     ctx: Ctx,
+    cookies: Cookies,
     Query(mut qry): Query<HashMap<String, String>>,
 ) -> CtxResult<Response> {
     cookies.remove(Cookie::new(JWT_KEY, ""));
@@ -81,13 +82,14 @@ async fn logout_page(
         return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
     }
 
-    Ok(ProfileFormPage::new(
+    let data = ProfileFormPage::new(
         Box::new(LogoutContent {
             next: qry.remove("next"),
         }),
         None,
         None,
         None,
-    )
-    .into_response())
+    );
+
+    Ok(Html(data.render().unwrap()).into_response())
 }

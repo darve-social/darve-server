@@ -22,19 +22,19 @@ use user_auth::{follow_entity, local_user_entity};
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/users/:user_id/followers", get(get_followers))
-        .route("/api/users/:user_id/following", get(get_following))
+        .route("/api/users/{user_id}/followers", get(get_followers))
+        .route("/api/users/{user_id}/following", get(get_following))
         .route(
-            "/api/users/:user_id/followers/count",
+            "/api/users/{user_id}/followers/count",
             get(get_followers_count),
         )
         .route(
-            "/api/users/:user_id/following/count",
+            "/api/users/{user_id}/following/count",
             get(get_following_count),
         )
-        .route("/api/followers/:follow_user_id", post(follow_user))
-        .route("/api/followers/:follow_user_id", delete(unfollow_user))
-        .route("/api/followers/:follow_user_id", get(is_following_user))
+        .route("/api/followers/{follow_user_id}", post(follow_user))
+        .route("/api/followers/{follow_user_id}", delete(unfollow_user))
+        .route("/api/followers/{follow_user_id}", get(is_following_user))
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]

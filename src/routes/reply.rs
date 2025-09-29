@@ -22,8 +22,8 @@ use validator::Validate;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
-        .route("/api/replies/:reply_id/unlike", delete(unlike))
-        .route("/api/replies/:reply_id/like", post(like))
+        .route("/api/replies/{reply_id}/unlike", delete(unlike))
+        .route("/api/replies/{reply_id}/like", post(like))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

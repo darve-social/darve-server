@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use askama_axum::axum_core::response::IntoResponse;
 use axum::body::Body;
 use axum::extract::{Request, State};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::Router;
 use gateway_transaction_entity::GatewayTransactionDbService;
