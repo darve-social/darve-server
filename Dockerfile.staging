@@ -14,6 +14,7 @@ COPY ./src ./src
 COPY ./templates ./templates
 COPY ./tests ./tests
 COPY ./Cargo.toml ./Cargo.lock ./
+COPY ./blocked_words.txt ./blocked_words.txt
 RUN cargo build --release
 RUN mv ./target/release/darve_server ./app
 

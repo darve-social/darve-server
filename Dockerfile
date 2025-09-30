@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY .env.production .env
-COPY blocked_words.txt blocked_words.txt
 COPY templates templates
 COPY assets assets
 COPY --from=builder /app/target/release/darve_server /usr/local/bin
