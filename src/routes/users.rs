@@ -84,7 +84,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/users/current", get(get_user))
         .route("/api/users", get(search_users))
         .route("/api/users/status", get(get_users_status))
-        .route("/api/users/:user_id/nickname", post(set_nickname))
+        .route("/api/users/{user_id}/nickname", post(set_nickname))
         .route("/api/users/current/nicknames", get(get_nicknames))
 }
 
