@@ -29,6 +29,10 @@ impl UserPresenceGuard {
             });
         }
 
+        println!(
+            "UserPresenceGuard start: user_id: {:?}, count: {:?}",
+            user_id, count
+        );
         Self { state, user_id }
     }
 }
@@ -39,6 +43,7 @@ impl Drop for UserPresenceGuard {
         let online_users = self.state.online_users.clone();
         let event = self.state.event_sender.clone();
         let db = self.state.db.client.clone();
+        println!("UserPresenceGuard drop: user_id: {:?}", user_id);
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             if let Some(mut entry) = online_users.get_mut(&user_id) {
@@ -63,6 +68,7 @@ impl Drop for UserPresenceGuard {
             if let Err(err) = user_db_service.update_last_seen(&user_id).await {
                 eprintln!("Failed to save last_seen for {}: {:?}", user_id, err);
             }
+            println!("UserPresenceGuard droped: user_id: {:?}", user_id);
         });
     }
 }
