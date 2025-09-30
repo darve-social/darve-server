@@ -53,13 +53,12 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
 
 test_with_server!(check_balance_too_low, |server, ctx_state, config| {
     let (server, user2, ..) = create_fake_login_test_user(&server).await;
-    let user = user2.clone();
 
     ctx_state
         .db
         .client
-        .query("UDPATE $user SET email_verified=$email;")
-        .bind(("user", user.id.as_ref().unwrap().to_raw()))
+        .query("UPDATE $user SET email_verified=$email;")
+        .bind(("user", user2.id.as_ref().unwrap().clone()))
         .bind(("email", "text@text.com"))
         .await
         .unwrap();
