@@ -87,7 +87,9 @@ macro_rules! test_with_server {
                 paypal_webhook_id: "".to_string(),
                 paypal_client_id: "".to_string(),
                 paypal_client_key: "".to_string(),
-                support_email: "".to_string()
+                support_email: "".to_string(),
+                rate_limit_rsp: 1000,
+                rate_limit_burst: 1000
             };
 
             let $ctx_state = {
@@ -106,7 +108,7 @@ macro_rules! test_with_server {
             };
 
             let wa_config = create_webauth_config();
-            let routes_all = darve_server::init::main_router(&$ctx_state.clone(), wa_config, 100, 200);
+            let routes_all = darve_server::init::main_router(&$ctx_state.clone(), wa_config, &$config);
 
             let $server = TestServer::new_with_config(
                 routes_all,
