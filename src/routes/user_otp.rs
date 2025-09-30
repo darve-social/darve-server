@@ -1,4 +1,5 @@
 use crate::{
+    entities::user_auth::local_user_entity::UpdateUser,
     middleware::{
         auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
     },
@@ -47,7 +48,7 @@ async fn otp_verification(
         ctx: &Ctx::new(Ok(auth_data.user_id.clone()), false),
     };
 
-    let mut user = local_user_db_service.get_by_id(&user_id).await?;
+    let user = local_user_db_service.get_by_id(&user_id).await?;
 
     if user.otp_secret.is_none() || user.is_otp_enabled {
         return Err(AppError::Forbidden.into());
@@ -60,8 +61,19 @@ async fn otp_verification(
         }
         .into());
     };
-    user.is_otp_enabled = true;
-    local_user_db_service.update(user).await?;
+
+    let update_user = UpdateUser {
+        bio: None,
+        birth_date: None,
+        full_name: None,
+        image_uri: None,
+        is_otp_enabled: Some(true),
+        otp_secret: None,
+        phone: None,
+        social_links: None,
+        username: None,
+    };
+    local_user_db_service.update(&user_id, update_user).await?;
     Ok(Json(true))
 }
 
@@ -69,18 +81,28 @@ async fn otp_disable(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<()> {
+    let user_id = auth_data.user_thing_id();
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
     };
 
-    let mut user = local_user_db_service
+    let _user = local_user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
 
-    user.is_otp_enabled = false;
-    user.otp_secret = None;
-    local_user_db_service.update(user).await?;
+    let update_user = UpdateUser {
+        bio: None,
+        birth_date: None,
+        full_name: None,
+        image_uri: None,
+        is_otp_enabled: Some(false),
+        otp_secret: Some(None),
+        phone: None,
+        social_links: None,
+        username: None,
+    };
+    local_user_db_service.update(&user_id, update_user).await?;
 
     Ok(())
 }
@@ -95,13 +117,22 @@ async fn otp_enable(
     };
 
     let user_id = auth_data.user_thing_id();
-    let mut user = local_user_db_service.get_by_id(&user_id).await?;
+    let user = local_user_db_service.get_by_id(&user_id).await?;
     let totp = Totp::new(&user_id, user.otp_secret.clone());
     let res = totp.generate();
 
-    user.otp_secret = Some(res.secret.clone());
-    local_user_db_service.update(user).await?;
-
+    let update_user = UpdateUser {
+        bio: None,
+        birth_date: None,
+        full_name: None,
+        image_uri: None,
+        is_otp_enabled: None,
+        otp_secret: Some(Some(res.secret.clone())),
+        phone: None,
+        social_links: None,
+        username: None,
+    };
+    local_user_db_service.update(&user_id, update_user).await?;
     Ok(Json(res))
 }
 

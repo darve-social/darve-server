@@ -1,10 +1,10 @@
 mod helpers;
-use darve_server::entities::user_auth::local_user_entity::LocalUserDbService;
-use darve_server::entities::wallet::gateway_transaction_entity::GatewayTransaction;
 use darve_server::entities::wallet::wallet_entity::WalletBalancesView;
 use darve_server::middleware;
-use darve_server::middleware::ctx::Ctx;
-use darve_server::models::view::balance_tx::CurrencyTransactionView;
+use darve_server::{
+    entities::wallet::gateway_transaction_entity::GatewayTransaction,
+    models::view::balance_tx::CurrencyTransactionView,
+};
 use middleware::utils::string_utils::get_string_thing;
 use serde_json::json;
 
@@ -53,15 +53,15 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
 
 test_with_server!(check_balance_too_low, |server, ctx_state, config| {
     let (server, user2, ..) = create_fake_login_test_user(&server).await;
-    let mut user = user2.clone();
-    user.email_verified = Some("text@text.com".to_string());
 
-    let _ = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok(user2.id.as_ref().unwrap().to_raw()), false),
-    }
-    .update(user)
-    .await;
+    ctx_state
+        .db
+        .client
+        .query("UPDATE $user SET email_verified=$email;")
+        .bind(("user", user2.id.as_ref().unwrap().clone()))
+        .bind(("email", "text@text.com"))
+        .await
+        .unwrap();
 
     // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
