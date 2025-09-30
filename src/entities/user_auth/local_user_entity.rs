@@ -66,6 +66,28 @@ impl LocalUser {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUser {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub birth_date: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_name: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_uri: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_otp_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub otp_secret: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub social_links: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<Option<String>>,
+}
+
 #[allow(dead_code)]
 #[derive(Deserialize)]
 struct UsernameView {
@@ -230,15 +252,8 @@ impl<'a> LocalUserDbService<'a> {
         Ok(user.unwrap())
     }
 
-    pub async fn update(&self, record: LocalUser) -> CtxResult<LocalUser> {
-        let resource = record.id.clone().ok_or(AppError::Generic {
-            description: "can not update user with no id".to_string(),
-        })?;
-        let user: Option<LocalUser> = self
-            .db
-            .update((TABLE_NAME, resource.id.to_raw()))
-            .content(record)
-            .await?;
+    pub async fn update(&self, user_id: &str, record: UpdateUser) -> CtxResult<LocalUser> {
+        let user: Option<LocalUser> = self.db.update((TABLE_NAME, user_id)).merge(record).await?;
         Ok(user.unwrap())
     }
 

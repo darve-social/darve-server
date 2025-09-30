@@ -2,6 +2,7 @@ use crate::{
     entities::{
         community::post_entity::{PostDbService, PostType},
         nickname::Nickname,
+        user_auth::local_user_entity::UpdateUser,
     },
     interfaces::repositories::{
         discussion_user::DiscussionUserRepositoryInterface, nickname::NicknamesRepositoryInterface,
@@ -456,10 +457,21 @@ async fn update_user(
         ctx: &auth_data.ctx,
     };
 
-    let mut user = local_user_db_service
+    let user = local_user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
 
+    let mut update_user = UpdateUser {
+        username: None,
+        full_name: None,
+        birth_date: None,
+        phone: None,
+        bio: None,
+        social_links: None,
+        image_uri: None,
+        is_otp_enabled: None,
+        otp_secret: None,
+    };
     if let Some(username) = form.username {
         if local_user_db_service
             .get_by_username(&username)
@@ -471,29 +483,31 @@ async fn update_user(
             }
             .into());
         }
-        user.username = username.trim().to_string();
+        update_user.username = Some(Some(username.trim().to_string()));
     }
 
     match form.full_name {
-        UpdateField::Set(value) => user.full_name = Some(value.trim().to_string()),
-        UpdateField::Unset => user.full_name = None,
+        UpdateField::Set(value) => update_user.full_name = Some(Some(value.trim().to_string())),
+        UpdateField::Unset => update_user.full_name = Some(None),
         _ => (),
     };
 
     match form.bio {
-        UpdateField::Set(value) => user.bio = Some(value.trim().to_string()),
-        UpdateField::Unset => user.bio = None,
+        UpdateField::Set(value) => update_user.bio = Some(Some(value.trim().to_string())),
+        UpdateField::Unset => update_user.bio = Some(None),
         _ => (),
     };
 
     match form.birth_date {
-        UpdateField::Set(value) => user.birth_date = Some(value.date_naive().to_string()),
-        UpdateField::Unset => user.birth_date = None,
+        UpdateField::Set(value) => {
+            update_user.birth_date = Some(Some(value.date_naive().to_string()))
+        }
+        UpdateField::Unset => update_user.birth_date = Some(None),
         _ => (),
     };
 
     if form.social_links.is_some() {
-        user.social_links = form.social_links;
+        update_user.social_links = form.social_links;
     }
 
     match form.image_url {
@@ -511,7 +525,7 @@ async fn update_user(
                     description: e.to_string(),
                 })?;
 
-            user.image_uri = Some(result);
+            update_user.image_uri = Some(Some(result));
         }
         UpdateField::Unset => {
             if let Some(url) = user.image_uri {
@@ -523,11 +537,14 @@ async fn update_user(
                     )
                     .await;
             }
-            user.image_uri = None;
+            update_user.image_uri = Some(None);
         }
         _ => (),
     };
-    let user = local_user_db_service.update(user).await?;
+    let user = local_user_db_service
+        .update(user.id.as_ref().unwrap().id.to_raw().as_str(), update_user)
+        .await?;
+
     Ok(Json(UserView::from(user)))
 }
 
