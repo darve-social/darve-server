@@ -45,7 +45,7 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
 
     if is_development {
         router = router.route(
-            "/test/api/endow/{endow_user_id}/{amount}",
+            "/test/api/deposit/{username}/{amount}",
             get(test_deposit),
         );
     }
@@ -367,7 +367,7 @@ async fn deposit(
 async fn test_deposit(
     State(ctx_state): State<Arc<CtxState>>,
     ctx: Ctx,
-    Path((endow_user_id, amount)): Path<(String, i64)>,
+    Path((username, amount)): Path<(String, i64)>,
 ) -> CtxResult<Response> {
     if !ctx_state.is_development {
         return Err(AppError::AuthorizationFail {
@@ -375,8 +375,14 @@ async fn test_deposit(
         }
         .into());
     }
-
-    let another_user_thing = get_string_thing(endow_user_id)?;
+    
+    let user_id = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &ctx,
+    }
+        .get_by_username(&username)
+        .await?
+        .id.ok_or(AppError::Generic {description: "User not found".to_string()})?;
 
     let fund_service = GatewayTransactionDbService {
         db: &ctx_state.db.client,
@@ -386,7 +392,7 @@ async fn test_deposit(
     let tx = fund_service
         .user_deposit_start(
             GatewayTransactionDbService::generate_id(),
-            another_user_thing.clone(),
+            user_id.clone(),
             amount,
             CurrencySymbol::USD,
             "ext_tx_id_123".to_string(),
@@ -408,7 +414,7 @@ async fn test_deposit(
         )
         .await?;
 
-    let user1_bal = wallet_service.get_user_balance(&another_user_thing).await?;
+    let user1_bal = wallet_service.get_user_balance(&user_id).await?;
 
     NotificationService::new(
         &ctx_state.db.client,
@@ -416,7 +422,7 @@ async fn test_deposit(
         &ctx_state.event_sender,
         &ctx_state.db.user_notifications,
     )
-    .on_update_balance(&another_user_thing)
+    .on_update_balance(&user_id)
     .await?;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
