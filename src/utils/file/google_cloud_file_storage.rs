@@ -1,8 +1,8 @@
 use crate::interfaces::file_storage::FileStorageInterface;
 use async_trait::async_trait;
-use google_cloud_storage::client::google_cloud_auth::credentials::CredentialsFile;
-use google_cloud_storage::http::objects::delete::DeleteObjectRequest;
-use google_cloud_storage::{
+use gcloud_storage::client::google_cloud_auth::credentials::CredentialsFile;
+use gcloud_storage::http::objects::delete::DeleteObjectRequest;
+use gcloud_storage::{
     client::{Client, ClientConfig},
     http::objects::{
         download::Range,
