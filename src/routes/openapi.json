@@ -159,12 +159,7 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthRegisterInput"
-              }
-            },
-            "application/x-www-form-urlencoded": {
+            "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/AuthRegisterInput"
               }
@@ -3599,10 +3594,10 @@
             "minLength": 6,
             "description": "Full name (minimum 6 characters)"
           },
-          "image_uri": {
+          "image": {
             "type": "string",
-            "minLength": 6,
-            "description": "Profile image URI"
+            "format": "binary",
+            "description": "Optional file attachment"
           }
         }
       },

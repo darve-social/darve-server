@@ -3,9 +3,12 @@ use std::sync::Arc;
 use super::verification_code_service::VerificationCodeService;
 use crate::access::base::role::Role;
 use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::user_auth::local_user_entity::UpdateUser;
 use crate::entities::verification_code::VerificationCodeFor;
+use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::utils;
+use crate::utils::file::convert::{build_profile_file_name, convert_field_file_data};
 use crate::{
     database::client::Db,
     entities::{
@@ -34,14 +37,18 @@ use crate::{
         verification::{apple, facebook, google},
     },
 };
+use axum_typed_multipart::{FieldData, TryFromMultipart};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 use utils::validate_utils::validate_birth_date;
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
 
-#[derive(Debug, Deserialize, Serialize, Validate)]
+#[derive(Debug, Validate, TryFromMultipart)]
 pub struct AuthRegisterInput {
+    #[form_data(limit = "unlimited")]
+    pub image: Option<FieldData<NamedTempFile>>,
     #[validate(custom(function = validate_username))]
     pub username: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
@@ -53,8 +60,6 @@ pub struct AuthRegisterInput {
     pub birth_day: Option<DateTime<Utc>>,
     #[validate(length(min = 6, message = "Min 1 character"))]
     pub full_name: Option<String>,
-    #[validate(length(min = 6, message = "Min 6 characters"))]
-    pub image_uri: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -93,6 +98,7 @@ where
     community_repository: CommunityDbService<'a>,
     verification_code_service: VerificationCodeService<'a, V>,
     access_repository: &'a A,
+    file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
 }
 
 impl<'a, V, A> AuthService<'a, V, A>
@@ -108,6 +114,7 @@ where
         code_ttl: Duration,
         verification_code_repository: &'a V,
         access_repository: &'a A,
+        file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     ) -> AuthService<'a, V, A> {
         AuthService {
             ctx,
@@ -121,6 +128,7 @@ where
                 code_ttl,
             ),
             access_repository,
+            file_storage,
         }
     }
 
@@ -165,7 +173,6 @@ where
         input: AuthRegisterInput,
     ) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
-
         if self.is_exists_by_username(input.username.clone()).await {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
                 description: "The username is already used".to_string(),
@@ -181,11 +188,63 @@ where
         let mut user = LocalUser::default(input.username);
         user.full_name = input.full_name;
         user.bio = input.bio;
-        user.image_uri = input.image_uri;
         user.birth_date = input.birth_day.map(|d| d.date_naive().to_string());
 
+        let uploaded_image = match input.image {
+            Some(file) => Some(convert_field_file_data(file)?),
+            None => None,
+        };
+
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
-        self.register(user, AuthType::PASSWORD, &hash).await
+        let (token, mut user) = self.register(user, AuthType::PASSWORD, &hash).await?;
+
+        if let Some(email) = input.email {
+            let _ = self
+                .verification_code_service
+                .create(
+                    user.id.as_ref().unwrap().id.to_raw().as_str(),
+                    email.as_str(),
+                    VerificationCodeFor::EmailVerification,
+                )
+                .await;
+        }
+
+        if let Some(data) = uploaded_image {
+            let path = user.id.clone().unwrap().to_raw().replace(":", "_");
+            let file_name = build_profile_file_name(&data.extension);
+            let image_url = self
+                .file_storage
+                .upload(
+                    data.data,
+                    Some(&path),
+                    &file_name,
+                    data.content_type.as_deref(),
+                )
+                .await
+                .map_err(|e| AppError::Generic {
+                    description: e.to_string(),
+                })?;
+
+            self.user_repository
+                .update(
+                    &user.id.as_ref().unwrap().id.to_raw().as_str(),
+                    UpdateUser {
+                        bio: None,
+                        birth_date: None,
+                        full_name: None,
+                        image_uri: Some(Some(image_url.clone())),
+                        is_otp_enabled: None,
+                        otp_secret: None,
+                        phone: None,
+                        social_links: None,
+                        username: None,
+                    },
+                )
+                .await?;
+
+            user.image_uri = Some(image_url)
+        }
+        Ok((token, user))
     }
 
     pub async fn register_login_by_apple(

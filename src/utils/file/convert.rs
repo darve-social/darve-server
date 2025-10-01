@@ -45,3 +45,7 @@ pub fn convert_field_file_data(data: FieldData<NamedTempFile<File>>) -> CtxResul
         extension: extension.to_string(),
     })
 }
+
+pub fn build_profile_file_name(file_ext: &str) -> String {
+    format!("profile_image.{}", file_ext)
+}
