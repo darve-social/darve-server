@@ -3,7 +3,7 @@ use crate::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
-    middleware::{ctx::Ctx, error::AppResult, limit::create_rate_limit_layer, mw_ctx::CtxState},
+    middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
     routes::{
         auth_routes,
         community::profile_routes,
@@ -103,8 +103,8 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
 pub fn main_router(
     ctx_state: &Arc<CtxState>,
     wa_config: WebauthnConfig,
-    rate_limit_rsp: u32,
-    rate_limit_burst: u32,
+    // rate_limit_rsp: u32,
+    // rate_limit_burst: u32,
 ) -> Router {
     Router::new()
         .route("/hc", get(get_hc))
@@ -129,7 +129,7 @@ pub fn main_router(
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
-        .layer(create_rate_limit_layer(rate_limit_rsp, rate_limit_burst))
+        // .layer(create_rate_limit_layer(rate_limit_rsp, rate_limit_burst))
 }
 
 async fn get_hc() -> Response {
