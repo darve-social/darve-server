@@ -13,7 +13,7 @@ use crate::middleware::error::{AppError, CtxResult};
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder::{self};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
-use crate::middleware::utils::string_utils::get_string_thing;
+use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::email::WithdrawPaypal;
 use crate::models::view::balance_tx::CurrencyTransactionView;
 use crate::services::notification_service::NotificationService;
@@ -376,7 +376,7 @@ async fn test_deposit(
         .into());
     }
 
-    let another_user_thing = get_string_thing(endow_user_id)?;
+    let another_user_thing = get_str_thing(&endow_user_id)?;
 
     let fund_service = GatewayTransactionDbService {
         db: &ctx_state.db.client,
