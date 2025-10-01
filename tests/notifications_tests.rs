@@ -24,11 +24,7 @@ test_with_server!(on_create_private_task, |server, ctx_state, config| {
     let post = create_fake_post(server, &disc_id, None, None).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -68,11 +64,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, _) = create_fake_login_test_user(&server).await;
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user2.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user2.username, 1000))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
