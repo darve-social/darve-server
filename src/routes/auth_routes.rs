@@ -35,8 +35,11 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/auth/sign_with_facebook", post(sign_by_fb))
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
         .route("/api/auth/sign_with_google", post(sign_by_google))
-        .route("/api/forgot_password", post(forgot_password))
-        .route("/api/reset_password", post(reset_password))
+        .route("/api/forgot_password/start", post(forgot_password_start))
+        .route(
+            "/api/forgot_password/confirm",
+            post(forgot_password_confirm),
+        )
         .route("/api/login", post(signin))
         .route("/api/register", post(signup))
 }
@@ -207,7 +210,7 @@ async fn signup(
         .into_response())
 }
 
-async fn forgot_password(
+async fn forgot_password_start(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Json(body): Json<ForgotPasswordInput>,
@@ -226,7 +229,7 @@ async fn forgot_password(
     Ok((StatusCode::OK).into_response())
 }
 
-async fn reset_password(
+async fn forgot_password_confirm(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
     Json(body): Json<ResetPasswordInput>,

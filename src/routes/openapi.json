@@ -188,7 +188,7 @@
         }
       }
     },
-    "/api/forgot_password": {
+    "/api/forgot_password/start": {
       "post": {
         "tags": ["Authentication"],
         "summary": "Request password reset",
@@ -214,7 +214,7 @@
         }
       }
     },
-    "/api/reset_password": {
+    "/api/forgot_password/confirm": {
       "post": {
         "tags": ["Authentication"],
         "summary": "Reset password",
