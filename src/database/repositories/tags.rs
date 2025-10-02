@@ -83,7 +83,7 @@ impl TagsRepositoryInterface for TagsRepository {
     async fn get(&self, start_with: Option<String>, pag: Pagination) -> AppResult<Vec<Tag>> {
         let dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let where_condition = if start_with.is_some() {
-            "WHERE string::starts_with(record::id(id), $value)"
+            "WHERE string::starts_with(string::lowercase(record::id(id)), $value)"
         } else {
             ""
         };
@@ -95,7 +95,7 @@ impl TagsRepositoryInterface for TagsRepository {
         let mut res = self
             .client
             .query(query)
-            .bind(("value", start_with))
+            .bind(("value", start_with.map(|v| v.to_lowercase())))
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .await?;
