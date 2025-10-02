@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use surrealdb::sql::Thing;
 
-use crate::middleware::{error::AppResult, utils::db_utils::Pagination};
+use crate::{
+    entities::tag::Tag,
+    middleware::{error::AppResult, utils::db_utils::Pagination},
+};
 
 #[async_trait]
 pub trait TagsRepositoryInterface {
@@ -12,5 +15,5 @@ pub trait TagsRepositoryInterface {
         tag: &str,
         pad: Pagination,
     ) -> AppResult<Vec<T>>;
-    async fn get(&self, start_with: Option<String>, pad: Pagination) -> AppResult<Vec<String>>;
+    async fn get(&self, start_with: Option<String>, pad: Pagination) -> AppResult<Vec<Tag>>;
 }
