@@ -206,7 +206,10 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
     assert!(tags.contains(&tags[0]));
     assert!(tags.contains(&tags[1]));
     assert!(tags.contains(&tags[2]));

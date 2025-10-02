@@ -28,6 +28,6 @@ impl TryFrom<&str> for SystemTags {
 pub struct Tag {
     #[serde(alias = "id")]
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    name: String,
-    image_url: Option<String>,
+    pub name: String,
+    pub image_url: Option<String>,
 }
