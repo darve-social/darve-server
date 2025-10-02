@@ -3,7 +3,11 @@ use crate::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
-    middleware::{ctx::Ctx, error::AppResult, mw_ctx::CtxState},
+    middleware::{
+        ctx::Ctx,
+        error::{AppError, AppResult},
+        mw_ctx::CtxState,
+    },
     routes::{
         auth_routes,
         community::profile_routes,
@@ -31,8 +35,10 @@ use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_cookies::CookieManagerLayer;
-use tower_http::services::ServeDir;
+use tower_http::{classify::ServerErrorsFailureClass, services::ServeDir, trace::TraceLayer};
+use tracing::{debug, error, info, warn};
 
 use crate::database::client::Database;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
@@ -130,6 +136,60 @@ pub fn main_router(
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    let random = rand::random::<u32>();
+                    let connection_id = format!("conn_{random:x}");
+                    tracing::info_span!(
+                        "http_request",
+                        connection_id = %connection_id,
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                })
+                .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
+                    debug!(
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        "HTTP request started"
+                    );
+                })
+                .on_response(
+                    |response: &axum::http::Response<_>,
+                     latency: Duration,
+                     _span: &tracing::Span| {
+                        let status = response.status();
+                        if status.is_client_error() || status.is_server_error() {
+                            let error_msg = response
+                                .extensions()
+                                .get::<AppError>()
+                                .map_or("".to_string(), |e| e.to_string());
+                            warn!(
+                                status = %status,
+                                error_msg = %error_msg,
+                                latency_ms = latency.as_millis(),
+                                "HTTP request failed"
+                            );
+                        } else {
+                            info!(
+                                status = %status,
+                                latency_ms = latency.as_millis(),
+                                "HTTP request completed"
+                            );
+                        }
+                    },
+                )
+                .on_failure(
+                    |error: ServerErrorsFailureClass, latency: Duration, _span: &tracing::Span| {
+                        error!(
+                            latency = ?latency,
+                            error = ?error,
+                            "request failed"
+                        );
+                    },
+                ),
+        )
     // .layer(create_rate_limit_layer(rate_limit_rsp, rate_limit_burst))
 }
 
