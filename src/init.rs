@@ -48,6 +48,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         ctx_state.verification_code_ttl,
         &ctx_state.db.verification_code,
         &ctx_state.db.access,
+        ctx_state.file_storage.clone(),
     );
 
     let _ = auth_service
@@ -58,7 +59,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
             bio: None,
             birth_day: None,
             full_name: None,
-            image_uri: None,
+            image: None,
         })
         .await;
 
@@ -70,7 +71,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
             bio: None,
             birth_day: None,
             full_name: None,
-            image_uri: None,
+            image: None,
         })
         .await;
 }
@@ -129,7 +130,7 @@ pub fn main_router(
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
-        // .layer(create_rate_limit_layer(rate_limit_rsp, rate_limit_burst))
+    // .layer(create_rate_limit_layer(rate_limit_rsp, rate_limit_burst))
 }
 
 async fn get_hc() -> Response {

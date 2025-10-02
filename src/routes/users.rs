@@ -15,7 +15,7 @@ use crate::{
         },
     },
     models::view::{discussion_user::DiscussionUserView, post::PostView, user::UserView},
-    utils::validate_utils::validate_social_links,
+    utils::{file::convert::build_profile_file_name, validate_utils::validate_social_links},
 };
 
 use axum::{
@@ -517,7 +517,7 @@ async fn update_user(
                 .upload(
                     file.data,
                     Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
-                    &format!("profile_image.{}", file.extension),
+                    &build_profile_file_name(&file.extension),
                     file.content_type.as_deref(),
                 )
                 .await

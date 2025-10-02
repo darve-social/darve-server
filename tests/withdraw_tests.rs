@@ -20,11 +20,7 @@ test_with_server!(
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user.id.as_ref().unwrap().to_raw(),
-                100000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user.username, 100000))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -55,11 +51,7 @@ test_with_server!(withdraw_complete, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let amount: u64 = 100000;
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            amount
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, amount))
         .add_header("Accept", "application/json")
         .await;
 
@@ -145,11 +137,7 @@ test_with_server!(withdraw_revert, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let amount: u64 = 100000;
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            amount
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, amount))
         .add_header("Accept", "application/json")
         .await;
 

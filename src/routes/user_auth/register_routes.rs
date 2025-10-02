@@ -91,6 +91,7 @@ pub async fn register_user(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let (_, user) = auth_service.register_password(payload).await?;

@@ -13,7 +13,6 @@ use crate::middleware::error::{AppError, CtxResult};
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder::{self};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
-use crate::middleware::utils::string_utils::get_string_thing;
 use crate::models::email::WithdrawPaypal;
 use crate::models::view::balance_tx::CurrencyTransactionView;
 use crate::services::notification_service::NotificationService;
@@ -44,10 +43,7 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
         .route("/api/gateway_wallet/count", get(gateway_wallet_count));
 
     if is_development {
-        router = router.route(
-            "/test/api/deposit/{username}/{amount}",
-            get(test_deposit),
-        );
+        router = router.route("/test/api/deposit/{username}/{amount}", get(test_deposit));
     }
 
     router
@@ -375,14 +371,17 @@ async fn test_deposit(
         }
         .into());
     }
-    
+
     let user_id = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     }
-        .get_by_username(&username)
-        .await?
-        .id.ok_or(AppError::Generic {description: "User not found".to_string()})?;
+    .get_by_username(&username)
+    .await?
+    .id
+    .ok_or(AppError::Generic {
+        description: "User not found".to_string(),
+    })?;
 
     let fund_service = GatewayTransactionDbService {
         db: &ctx_state.db.client,
