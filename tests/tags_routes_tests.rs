@@ -1,8 +1,9 @@
 mod helpers;
 
-use crate::helpers::post_helpers::create_fake_post;
+use crate::helpers::post_helpers::{build_fake_post, create_fake_post, create_post};
 use crate::helpers::{create_fake_login_test_user, post_helpers::create_post_like};
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
+use darve_server::entities::tag::Tag;
 use darve_server::entities::user_auth::local_user_entity::LocalUserDbService;
 use darve_server::middleware::ctx::Ctx;
 use darve_server::middleware::utils::string_utils::get_string_thing;
@@ -14,7 +15,7 @@ test_with_server!(get_tags_empty, |server, ctx_state, config| {
     let response = server.get("/api/tags").await;
 
     response.assert_status_success();
-    let tags = response.json::<Vec<String>>();
+    let tags = response.json::<Vec<Tag>>();
     assert_eq!(tags.len(), 0);
 });
 
@@ -37,7 +38,11 @@ test_with_server!(
         let response = server.get("/api/tags").await;
 
         response.assert_status_success();
-        let tags = response.json::<Vec<String>>();
+        let tags = response
+            .json::<Vec<Tag>>()
+            .into_iter()
+            .map(|t| t.name)
+            .collect::<Vec<String>>();
 
         // We should have 4 unique tags: rust, programming, javascript, web, backend
         assert_eq!(tags.len(), 5);
@@ -67,7 +72,11 @@ test_with_server!(get_tags_with_profile_posts, |server, ctx_state, config| {
     let response = server.get("/api/tags").await;
 
     response.assert_status_success();
-    let tags = response.json::<Vec<String>>();
+    let tags = response
+        .json::<Vec<Tag>>()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
 
     assert_eq!(tags.len(), 3);
     assert!(tags.contains(&"profile".to_string()));
@@ -89,18 +98,11 @@ test_with_server!(
             "tag123".to_string(),
             "UPPERCASE".to_string(),
         ];
-        let _ = create_fake_post(server, &result, None, Some(tags)).await;
 
-        let response = server.get("/api/tags").await;
-
-        response.assert_status_success();
-        let tags = response.json::<Vec<String>>();
-
-        assert_eq!(tags.len(), 4);
-        assert!(tags.contains(&"tag-with-dash".to_string()));
-        assert!(tags.contains(&"tag_with_underscore".to_string()));
-        assert!(tags.contains(&"tag123".to_string()));
-        assert!(tags.contains(&"UPPERCASE".to_string()));
+        let post_data = build_fake_post(None, Some(tags));
+        let response = create_post(server, &result, post_data).await;
+        response.assert_status_failure();
+        assert!(response.text().contains("Tag contains forbidden symbol"))
     }
 );
 
@@ -120,8 +122,11 @@ test_with_server!(
         let response = server.get("/api/tags").await;
 
         response.assert_status_success();
-        let tags = response.json::<Vec<String>>();
-
+        let tags = response
+            .json::<Vec<Tag>>()
+            .into_iter()
+            .map(|t| t.name)
+            .collect::<Vec<String>>();
         // Should have 3 unique tags: user1tag, user2tag, shared
         assert_eq!(tags.len(), 3);
         assert!(tags.contains(&"user1tag".to_string()));
@@ -141,7 +146,7 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
         Some(vec![
             "js".to_string(),
             "rust".to_string(),
-            "c++".to_string(),
+            "c_plus_plus".to_string(),
         ]),
     )
     .await;
@@ -174,8 +179,8 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
 
     let response = server.get("/api/tags").await;
     response.assert_status_success();
-    let data = response.json::<Vec<String>>();
-    assert_eq!(data[0], "js");
-    assert_eq!(data[1], "c++");
-    assert_eq!(data[2], "rust");
+    let data = response.json::<Vec<Tag>>();
+    assert_eq!(data[0].name, "js");
+    assert_eq!(data[1].name, "c_plus_plus");
+    assert_eq!(data[2].name, "rust");
 });

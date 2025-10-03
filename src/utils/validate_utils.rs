@@ -39,16 +39,21 @@ pub fn validate_phone_number(u: &String) -> Result<(), ValidationError> {
     }
 }
 
-pub fn validate_tags(tags: &Vec<String>) -> Result<(), ValidationError> {
+pub fn validate_tags(tags: &[String]) -> Result<(), ValidationError> {
+    let rex = Regex::new(r"^[A-Za-z0-9]\w*$").unwrap();
+
     for tag in tags {
-        if tag.trim().is_empty() {
+        let trimmed = tag.trim();
+
+        if trimmed.is_empty() {
             return Err(
                 ValidationError::new("invalid_tags").with_message("Tag cannot be empty".into())
             );
         }
-        if tag.starts_with("_") {
+
+        if !rex.is_match(trimmed) {
             return Err(ValidationError::new("invalid_tags")
-                .with_message("Tag cannot start with underscore".into()));
+                .with_message("Tag contains forbidden symbol".into()));
         }
     }
     Ok(())

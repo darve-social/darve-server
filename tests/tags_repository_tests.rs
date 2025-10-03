@@ -39,7 +39,10 @@ test_with_server!(test_create_with_relate, |server, ctx_state, config| {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
     assert!(saved_tags.contains(&"rust".to_string()));
     assert!(saved_tags.contains(&"backend".to_string()));
 });
@@ -134,7 +137,10 @@ test_with_server!(filter_tags_by_start_with, |server, ctx_state, config| {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
     assert!(saved_tags.contains(&"java".to_string()));
     assert!(saved_tags.contains(&"javascript".to_string()));
 
@@ -151,7 +157,10 @@ test_with_server!(filter_tags_by_start_with, |server, ctx_state, config| {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
     assert_eq!(saved_tags[3], "rust".to_string());
     assert_eq!(saved_tags[2], "javascript".to_string());
     assert_eq!(saved_tags[1], "java".to_string());

@@ -3450,17 +3450,38 @@
         }
       }
     },
+    "/api/editor_tags": {
+      "get": {
+        "tags": ["Editor Tags"],
+        "summary": "Get tags",
+        "description": "Get a list of tags, with optional filtering and pagination.",
+        "responses": {
+          "200": {
+            "description": "A list of editor tags.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditorTag"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tags": {
       "get": {
         "tags": ["Tags"],
-        "summary": "Get tags with optional filtering and pagination",
-        "description": "Retrieve a list of tags with optional filtering by prefix and pagination support",
-        "security": [],
+        "summary": "Get tags",
+        "description": "Get a list of tags, with optional filtering and pagination.",
         "parameters": [
           {
             "name": "start_with",
             "in": "query",
-            "description": "Filter tags that start with this string",
+            "description": "Filter tags that start with the given string.",
             "required": false,
             "schema": {
               "type": "string"
@@ -3469,7 +3490,7 @@
           {
             "name": "order_dir",
             "in": "query",
-            "description": "Order direction",
+            "description": "Order direction for the tags.",
             "required": false,
             "schema": {
               "type": "string",
@@ -3479,35 +3500,33 @@
           {
             "name": "start",
             "in": "query",
-            "description": "Pagination start index",
+            "description": "The starting index for pagination.",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0
+              "format": "uint32"
             }
           },
           {
             "name": "count",
             "in": "query",
-            "description": "Number of transactions to return",
+            "description": "The number of tags to return.",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 1,
-              "default": 20
+              "format": "uint16"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "List of tags matching the specified criteria",
+            "description": "A list of tags.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "$ref": "#/components/schemas/Tag"
                   }
                 }
               }
@@ -3519,6 +3538,27 @@
   },
   "components": {
     "schemas": {
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
+      "EditorTag": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
       "TotpResponse": {
         "type": "object",
         "properties": {
@@ -5171,6 +5211,10 @@
     },
     {
       "name": "Tags",
+      "description": "Tags"
+    },
+    {
+      "name": "Editor Tags",
       "description": "Tags"
     },
     {
