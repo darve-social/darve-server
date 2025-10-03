@@ -11,7 +11,7 @@ use crate::{
     routes::{
         auth_routes,
         community::profile_routes,
-        discussions, follows, notifications, posts, reply, swagger, tags, tasks,
+        discussions, editor_tags, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
             login_routes, register_routes,
             webauthn::webauthn_routes::{self, WebauthnConfig},
@@ -133,6 +133,7 @@ pub fn main_router(
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
         .merge(tags::routes())
+        .merge(editor_tags::routes())
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())

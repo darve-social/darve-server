@@ -21,12 +21,8 @@ impl TagsRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
             "
-            DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        
+            DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;    
             DEFINE TABLE IF NOT EXISTS {TAG_TABLE_NAME} SCHEMAFULL;
-            DEFINE FIELD IF NOT EXISTS image_url ON TABLE {TAG_TABLE_NAME} TYPE option<string>;
-            DEFINE FIELD IF NOT EXISTS order ON TABLE {TAG_TABLE_NAME} TYPE option<int>;
-            DEFINE INDEX IF NOT EXISTS idx_order ON {TAG_TABLE_NAME} COLUMNS order;
             "
         );
         let mutation = self.client.query(sql).await?;
@@ -88,9 +84,9 @@ impl TagsRepositoryInterface for TagsRepository {
             ""
         };
         let query = format!(
-            "SELECT *, record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
+            "SELECT *,  record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
             {where_condition}
-            ORDER BY order {dir}, count {dir}, tag ASC LIMIT $limit START $start;",
+            ORDER BY count {dir}, tag ASC LIMIT $limit START $start;",
         );
         let mut res = self
             .client

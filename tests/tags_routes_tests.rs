@@ -1,6 +1,6 @@
 mod helpers;
 
-use crate::helpers::post_helpers::create_fake_post;
+use crate::helpers::post_helpers::{build_fake_post, create_fake_post, create_post};
 use crate::helpers::{create_fake_login_test_user, post_helpers::create_post_like};
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::tag::Tag;
@@ -98,22 +98,11 @@ test_with_server!(
             "tag123".to_string(),
             "UPPERCASE".to_string(),
         ];
-        let _ = create_fake_post(server, &result, None, Some(tags)).await;
 
-        let response = server.get("/api/tags").await;
-
-        response.assert_status_success();
-        let tags = response
-            .json::<Vec<Tag>>()
-            .into_iter()
-            .map(|t| t.name)
-            .collect::<Vec<String>>();
-
-        assert_eq!(tags.len(), 4);
-        assert!(tags.contains(&"tag-with-dash".to_string()));
-        assert!(tags.contains(&"tag_with_underscore".to_string()));
-        assert!(tags.contains(&"tag123".to_string()));
-        assert!(tags.contains(&"UPPERCASE".to_string()));
+        let post_data = build_fake_post(None, Some(tags));
+        let response = create_post(server, &result, post_data).await;
+        response.assert_status_failure();
+        assert!(response.text().contains("Tag contains forbidden symbol"))
     }
 );
 
@@ -157,7 +146,7 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
         Some(vec![
             "js".to_string(),
             "rust".to_string(),
-            "c++".to_string(),
+            "c_plus_plus".to_string(),
         ]),
     )
     .await;
@@ -192,6 +181,6 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
     response.assert_status_success();
     let data = response.json::<Vec<Tag>>();
     assert_eq!(data[0].name, "js");
-    assert_eq!(data[1].name, "c++");
+    assert_eq!(data[1].name, "c_plus_plus");
     assert_eq!(data[2].name, "rust");
 });

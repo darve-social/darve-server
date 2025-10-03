@@ -3450,6 +3450,28 @@
         }
       }
     },
+    "/api/editor_tags": {
+      "get": {
+        "tags": ["Editor Tags"],
+        "summary": "Get tags",
+        "description": "Get a list of tags, with optional filtering and pagination.",
+        "responses": {
+          "200": {
+            "description": "A list of editor tags.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditorTag"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tags": {
       "get": {
         "tags": ["Tags"],
@@ -3517,6 +3539,15 @@
   "components": {
     "schemas": {
       "Tag": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
+      "EditorTag": {
         "type": "object",
         "properties": {
           "name": {
@@ -5180,6 +5211,10 @@
     },
     {
       "name": "Tags",
+      "description": "Tags"
+    },
+    {
+      "name": "Editor Tags",
       "description": "Tags"
     },
     {
