@@ -63,6 +63,7 @@ pub struct TaskRequestCreate {
     pub currency: CurrencySymbol,
     pub acceptance_period: u16,
     pub delivery_period: u16,
+    pub increase_tasks_nr_for_belongs: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -167,14 +168,14 @@ impl<'a> TaskRequestDbService<'a> {
         let hours = (record.delivery_period + record.acceptance_period) as i64;
         let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
         let id = Id::rand().to_raw();
-        let mut res = self
+        let mut query = self
             .db
             .query("BEGIN TRANSACTION")
             .query(format!(
                 "CREATE ONLY $wallet SET {TRANSACTION_HEAD_F} = {{{{}}}};"
             ))
             .query(format!(
-                "CREATE $task SET
+                "LET $res = CREATE $task SET
                     delivery_period=$delivery_period,
                     belongs_to=$belongs_to,
                     wallet_id=$wallet,
@@ -187,8 +188,15 @@ impl<'a> TaskRequestDbService<'a> {
                     acceptance_period=$acceptance_period,
                     due_at=$due_at,
                     status=$status;"
-            ))
+            ));
+
+        if record.increase_tasks_nr_for_belongs {
+            query = query.query("UPDATE $belongs_to SET tasks_nr += 1;")
+        }
+
+        query = query
             .query("COMMIT TRANSACTION")
+            .query("RETURN $res;")
             .bind(("delivery_period", record.delivery_period))
             .bind(("belongs_to", record.belongs_to))
             .bind(("created_by", record.from_user.clone()))
@@ -201,10 +209,11 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("status", TaskRequestStatus::Init))
             .bind(("due_at", Datetime::from(due_at.unwrap())))
             .bind(("wallet", Thing::from((WALLET_TABLE_NAME, id.as_str()))))
-            .bind(("task", Thing::from((TABLE_NAME, id.as_str()))))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
+            .bind(("task", Thing::from((TABLE_NAME, id.as_str()))));
+
+        let mut res = query.await.map_err(CtxError::from(self.ctx))?;
         let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;
+
         Ok(data.unwrap())
     }
 

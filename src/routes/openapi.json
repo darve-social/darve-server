@@ -4627,6 +4627,11 @@
             "format": "int64",
             "description": "Number of replies"
           },
+          "tasks_nr": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of tasks"
+          },
           "likes_nr": {
             "type": "integer",
             "format": "int64",
