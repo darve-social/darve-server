@@ -4,11 +4,15 @@ use crate::{
         self, community::community_entity::CommunityDbService,
         user_auth::local_user_entity::LocalUserDbService,
     },
-    middleware::{ctx::Ctx, error::AppResult, limit::create_rate_limit_layer, mw_ctx::CtxState},
+    middleware::{
+        ctx::Ctx,
+        error::{AppError, AppResult},
+        mw_ctx::CtxState,
+    },
     routes::{
         auth_routes,
         community::profile_routes,
-        discussions, follows, notifications, posts, reply, swagger, tags, tasks,
+        discussions, editor_tags, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
             login_routes, register_routes,
             webauthn::webauthn_routes::{self, WebauthnConfig},
@@ -32,8 +36,10 @@ use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
 use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_cookies::CookieManagerLayer;
-use tower_http::services::ServeDir;
+use tower_http::{classify::ServerErrorsFailureClass, services::ServeDir, trace::TraceLayer};
+use tracing::{debug, error, info, warn};
 
 use crate::database::client::Database;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
@@ -49,6 +55,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         ctx_state.verification_code_ttl,
         &ctx_state.db.verification_code,
         &ctx_state.db.access,
+        ctx_state.file_storage.clone(),
     );
 
     let _ = auth_service
@@ -59,7 +66,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
             bio: None,
             birth_day: None,
             full_name: None,
-            image_uri: None,
+            image: None,
         })
         .await;
 
@@ -71,7 +78,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
             bio: None,
             birth_day: None,
             full_name: None,
-            image_uri: None,
+            image: None,
         })
         .await;
 }
@@ -104,7 +111,7 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
 pub fn main_router(
     ctx_state: &Arc<CtxState>,
     wa_config: WebauthnConfig,
-    config: &AppConfig,
+    _config: &AppConfig,
 ) -> Router {
     Router::new()
         .route("/hc", get(get_hc))
@@ -126,13 +133,68 @@ pub fn main_router(
         .merge(wallet::routes(ctx_state.is_development))
         .merge(user_otp::routes())
         .merge(tags::routes())
+        .merge(editor_tags::routes())
         .merge(reply::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
-        .layer(create_rate_limit_layer(
-            config.rate_limit_rsp,
-            config.rate_limit_burst,
-        ))
+        // .layer(create_rate_limit_layer(
+        //     config.rate_limit_rsp,
+        //     config.rate_limit_burst,
+        // ))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    let random = rand::random::<u32>();
+                    let connection_id = format!("conn_{random:x}");
+                    tracing::info_span!(
+                        "http_request",
+                        connection_id = %connection_id,
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                })
+                .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
+                    debug!(
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        "HTTP request started"
+                    );
+                })
+                .on_response(
+                    |response: &axum::http::Response<_>,
+                     latency: Duration,
+                     _span: &tracing::Span| {
+                        let status = response.status();
+                        if status.is_client_error() || status.is_server_error() {
+                            let error_msg = response
+                                .extensions()
+                                .get::<AppError>()
+                                .map_or("".to_string(), |e| e.to_string());
+                            warn!(
+                                status = %status,
+                                error_msg = %error_msg,
+                                latency_ms = latency.as_millis(),
+                                "HTTP request failed"
+                            );
+                        } else {
+                            info!(
+                                status = %status,
+                                latency_ms = latency.as_millis(),
+                                "HTTP request completed"
+                            );
+                        }
+                    },
+                )
+                .on_failure(
+                    |error: ServerErrorsFailureClass, latency: Duration, _span: &tracing::Span| {
+                        error!(
+                            latency = ?latency,
+                            error = ?error,
+                            "request failed"
+                        );
+                    },
+                ),
+        )
 }
 
 async fn get_hc() -> Response {

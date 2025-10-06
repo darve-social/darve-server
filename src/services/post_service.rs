@@ -565,7 +565,11 @@ where
         Ok(PostCreationData {
             id: PostDbService::get_new_post_thing(),
             title: data.title,
-            tags: data.tags,
+            tags: data
+                .tags
+                .iter()
+                .map(|t| t.to_lowercase())
+                .collect::<Vec<String>>(),
             file: data
                 .file_1
                 .map(|v| convert_field_file_data(v))

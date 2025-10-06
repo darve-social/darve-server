@@ -1,6 +1,7 @@
 pub mod auth_routes;
 pub mod community;
 pub mod discussions;
+pub mod editor_tags;
 pub mod follows;
 pub mod notifications;
 pub mod posts;

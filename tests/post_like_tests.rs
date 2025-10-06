@@ -47,11 +47,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
     server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await
@@ -140,11 +136,7 @@ test_with_server!(
         let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
         server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await
@@ -200,11 +192,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
     server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await

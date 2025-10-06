@@ -206,7 +206,10 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
             },
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
     assert!(tags.contains(&tags[0]));
     assert!(tags.contains(&tags[1]));
     assert!(tags.contains(&tags[2]));
@@ -619,6 +622,45 @@ test_with_server!(
         let post_data = build_fake_post(None, Some(tags));
         let res = create_post(server, &default_discussion, post_data).await;
         res.assert_status_failure();
-        assert!(res.text().contains("Tag cannot start with underscore"))
+        assert!(res.text().contains("Tag contains forbidden symbol"))
     }
 );
+
+test_with_server!(tags_must_be_lowercase, |server, ctx_state, config| {
+    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let default_discussion =
+        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+
+    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let tags = vec!["Rust".to_string(), "tag1".to_string()];
+    let _ = create_fake_post(server, &default_discussion, None, Some(tags.clone())).await;
+
+    let posts = server
+        .get(&format!(
+            "/api/discussions/{}/posts",
+            default_discussion.to_raw()
+        ))
+        .await
+        .json::<Vec<PostView>>();
+    assert_eq!(posts.len(), 2);
+
+    let tags = ctx_state
+        .db
+        .tags
+        .get(
+            None,
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                count: 10,
+                start: 0,
+            },
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect::<Vec<String>>();
+    assert_eq!(tags[0], "rust");
+    assert!(tags.contains(&tags[1]));
+});

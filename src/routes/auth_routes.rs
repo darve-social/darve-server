@@ -1,20 +1,18 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     response::{IntoResponse, Response},
     routing::post,
     Json, Router,
 };
+use axum_typed_multipart::TypedMultipart;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::{
-    entities::user_auth::{
-        authentication_entity::AuthenticationDbService, local_user_entity::LocalUserDbService,
-    },
     middleware::{
         ctx::Ctx,
         error::CtxResult,
@@ -22,11 +20,8 @@ use crate::{
         utils::extractor_utils::JsonOrFormValidated,
     },
     models::view::user::UserView,
-    services::{
-        auth_service::{
-            AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
-        },
-        user_service::UserService,
+    services::auth_service::{
+        AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
     },
 };
 
@@ -38,7 +33,10 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/forgot_password", post(forgot_password))
         .route("/api/reset_password", post(reset_password))
         .route("/api/login", post(signin))
-        .route("/api/register", post(signup))
+        .route(
+            "/api/register",
+            post(signup).layer(DefaultBodyLimit::max(1024 * 1024 * 8)),
+        )
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -58,6 +56,7 @@ async fn sign_by_fb(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
@@ -78,6 +77,7 @@ async fn sign_by_apple(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
     let (token, user) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
@@ -103,6 +103,7 @@ async fn sign_by_google(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let (token, user) = auth_service
@@ -136,6 +137,7 @@ async fn signin(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let (token, user) = auth_service.login_password(body).await?;
@@ -158,9 +160,8 @@ async fn signup(
     State(state): State<Arc<CtxState>>,
     cookies: Cookies,
     ctx: Ctx,
-    JsonOrFormValidated(body): JsonOrFormValidated<AuthRegisterInput>,
+    TypedMultipart(body): TypedMultipart<AuthRegisterInput>,
 ) -> CtxResult<Response> {
-    let email = body.email.clone();
     let auth_service = AuthService::new(
         &state.db.client,
         &ctx,
@@ -169,28 +170,10 @@ async fn signup(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let (token, user) = auth_service.register_password(body).await?;
-    if let Some(email) = email {
-        let user_service = UserService::new(
-            LocalUserDbService {
-                db: &state.db.client,
-                ctx: &ctx,
-            },
-            state.email_sender.clone(),
-            state.verification_code_ttl,
-            AuthenticationDbService {
-                db: &state.db.client,
-                ctx: &ctx,
-            },
-            &state.db.verification_code,
-        );
-
-        let _ = user_service
-            .start_email_verification(&user.id.as_ref().unwrap().id.to_raw(), &email)
-            .await?;
-    }
 
     cookies.add(
         Cookie::build((JWT_KEY, token.clone()))
@@ -220,6 +203,7 @@ async fn forgot_password(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let _ = auth_service.forgot_password(body).await?;
@@ -239,6 +223,7 @@ async fn reset_password(
         state.verification_code_ttl,
         &state.db.verification_code,
         &state.db.access,
+        state.file_storage.clone(),
     );
 
     let _ = auth_service.reset_password(body).await?;

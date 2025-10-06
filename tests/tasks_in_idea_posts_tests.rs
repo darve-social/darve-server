@@ -19,11 +19,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user1.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -67,11 +63,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user1.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -112,11 +104,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
@@ -125,11 +113,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -168,11 +152,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
@@ -181,11 +161,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -226,11 +202,7 @@ test_with_server!(
         let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await;
@@ -239,11 +211,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user1.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -294,11 +262,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
@@ -307,11 +271,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
@@ -363,11 +323,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            1000
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;

@@ -13,23 +13,16 @@ use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 test_with_server!(test_wallet_history, |server, ctx_state, config| {
     // create 2 users with user1 and user2 names
     let username1 = "userrr1".to_string();
-    let username2 = "userrr2".to_string();
 
     let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
 
-    let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
-
+    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let username2 = user2.username.clone();
     let _ = get_string_thing(user_ident1.clone()).expect("user1");
-    let user2_id = get_string_thing(user_ident2.clone()).expect("user2");
 
-    // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
     let endow_user_response = server
-        .get(&format!(
-            "/test/api/endow/{}/{}",
-            user2_id.to_string(),
-            endow_amt
-        ))
+        .get(&format!("/test/api/deposit/{}/{}", username2, endow_amt))
         .add_header("Accept", "application/json")
         .json("")
         .await;
@@ -63,13 +56,11 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
         .await
         .unwrap();
 
-    // endow using user2 by calling /api/dev/endow/:user_id/:amount
     let endow_amt = 32;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user2.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user2.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")
@@ -108,9 +99,8 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let endow_amt = 32;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")
@@ -119,9 +109,8 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")
@@ -130,9 +119,8 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")
@@ -144,9 +132,8 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let endow_amt = 32;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user1.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")
@@ -155,9 +142,8 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user1.id.as_ref().unwrap().to_raw(),
-            endow_amt
+            "/test/api/deposit/{}/{}",
+            user1.username, endow_amt
         ))
         .add_header("Accept", "application/json")
         .json("")

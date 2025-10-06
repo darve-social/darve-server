@@ -1,5 +1,6 @@
 use crate::database::client::Db;
 use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
+use crate::entities::tag::Tag;
 use crate::interfaces::repositories::tags::TagsRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -19,8 +20,10 @@ impl TagsRepository {
     }
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
-            "DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-            DEFINE TABLE IF NOT EXISTS {TAG_TABLE_NAME} SCHEMAFULL;"
+            "
+            DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;    
+            DEFINE TABLE IF NOT EXISTS {TAG_TABLE_NAME} SCHEMAFULL;
+            "
         );
         let mutation = self.client.query(sql).await?;
 
@@ -73,27 +76,27 @@ impl TagsRepositoryInterface for TagsRepository {
         Ok(data)
     }
 
-    async fn get(&self, start_with: Option<String>, pag: Pagination) -> AppResult<Vec<String>> {
+    async fn get(&self, start_with: Option<String>, pag: Pagination) -> AppResult<Vec<Tag>> {
         let dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let where_condition = if start_with.is_some() {
-            "WHERE string::starts_with(record::id(id), $value)"
+            "WHERE string::starts_with(string::lowercase(record::id(id)), $value)"
         } else {
             ""
         };
         let query = format!(
-            "SELECT record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
+            "SELECT *,  record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
             {where_condition}
             ORDER BY count {dir}, tag ASC LIMIT $limit START $start;",
         );
         let mut res = self
             .client
             .query(query)
-            .bind(("value", start_with))
+            .bind(("value", start_with.map(|v| v.to_lowercase())))
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .await?;
 
-        let data = res.take::<Vec<String>>((0, "tag"))?;
+        let data = res.take::<Vec<Tag>>(0)?;
         Ok(data)
     }
 }

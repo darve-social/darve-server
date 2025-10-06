@@ -91,11 +91,7 @@ test_with_server!(
         let disc = disc_res.json::<Discussion>().id;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user0.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -243,11 +239,7 @@ test_with_server!(
         let disc = disc_res.json::<Discussion>().id;
 
         let endow_user_response = server
-            .get(&format!(
-                "/test/api/endow/{}/{}",
-                user0.id.as_ref().unwrap().to_raw(),
-                1000
-            ))
+            .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -346,9 +338,8 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let start_wallet_amount = 1000;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            user0.id.as_ref().unwrap().to_raw(),
-            start_wallet_amount
+            "/test/api/deposit/{}/{}",
+            user0.username, start_wallet_amount
         ))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -415,9 +406,8 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor0.id.as_ref().unwrap().to_raw(),
-            donor0_amount
+            "/test/api/deposit/{}/{}",
+            donor0.username, donor0_amount
         ))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -442,9 +432,8 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let donor1_amount = 100;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor1.id.as_ref().unwrap().to_raw(),
-            donor1_amount
+            "/test/api/deposit/{}/{}",
+            donor1.username, donor1_amount
         ))
         .add_header("Cookie", format!("jwt={}", donor1_token))
         .add_header("Accept", "application/json")
@@ -515,9 +504,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor0.id.as_ref().unwrap().to_raw(),
-            donor0_amount
+            "/test/api/deposit/{}/{}",
+            donor0.username, donor0_amount
         ))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -542,9 +530,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let donor1_amount = 100;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor1.id.as_ref().unwrap().to_raw(),
-            donor1_amount
+            "/test/api/deposit/{}/{}",
+            donor1.username, donor1_amount
         ))
         .add_header("Accept", "application/json")
         .await;
@@ -563,9 +550,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let donor2_amount = 100;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor2.id.as_ref().unwrap().to_raw(),
-            donor2_amount
+            "/test/api/deposit/{}/{}",
+            donor2.username, donor2_amount
         ))
         .add_header("Accept", "application/json")
         .await;
@@ -585,9 +571,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let donor3_amount = 100;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor3.id.as_ref().unwrap().to_raw(),
-            donor3_amount
+            "/test/api/deposit/{}/{}",
+            donor3.username, donor3_amount
         ))
         .add_header("Accept", "application/json")
         .await;
@@ -607,9 +592,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let donor4_amount = 100;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor4.id.as_ref().unwrap().to_raw(),
-            donor4_amount
+            "/test/api/deposit/{}/{}",
+            donor4.username, donor4_amount
         ))
         .add_header("Accept", "application/json")
         .await;
@@ -712,9 +696,8 @@ test_with_server!(
         let donor0_amount = 1000;
         let endow_user_response = server
             .get(&format!(
-                "/test/api/endow/{}/{}",
-                donor0.id.as_ref().unwrap().to_raw(),
-                donor0_amount
+                "/test/api/deposit/{}/{}",
+                donor0.username, donor0_amount
             ))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -738,9 +721,8 @@ test_with_server!(
         let donor1_amount = 100;
         let endow_user_response = server
             .get(&format!(
-                "/test/api/endow/{}/{}",
-                donor1.id.as_ref().unwrap().to_raw(),
-                donor1_amount
+                "/test/api/deposit/{}/{}",
+                donor1.username, donor1_amount
             ))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -821,9 +803,8 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
-            "/test/api/endow/{}/{}",
-            donor0.id.as_ref().unwrap().to_raw(),
-            donor0_amount
+            "/test/api/deposit/{}/{}",
+            donor0.username, donor0_amount
         ))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")

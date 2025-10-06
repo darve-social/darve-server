@@ -34,7 +34,6 @@ test_with_server!(
         // let user_ident3 = user3.id.as_ref().unwrap().to_raw();
         // let username3 = user3.username.to_string();
 
-        let username2 = "usnnnn2".to_string();
         let username4 = "usnnnn4".to_string();
 
         // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
@@ -82,16 +81,15 @@ test_with_server!(
 
         ////////// user 2 creates offer for user 0
 
-        let (server, user_ident2) = create_login_test_user(&server, username2.clone()).await;
-        let user2_thing = get_string_thing(user_ident2).unwrap();
+        let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+        let username2 = user2.username;
 
         // endow user 2
         let user2_endow_amt = 200;
         let endow_user_response = server
             .get(&format!(
-                "/test/api/endow/{}/{}",
-                user2_thing.to_string(),
-                user2_endow_amt
+                "/test/api/deposit/{}/{}",
+                username2, user2_endow_amt
             ))
             .add_header("Accept", "application/json")
             .json("")
@@ -156,9 +154,8 @@ test_with_server!(
         let user3_offer_amt: i64 = 100;
         let endow_user_response = server
             .get(&format!(
-                "/test/api/endow/{}/{}",
-                user3_thing.to_string(),
-                user3_endow_amt
+                "/test/api/deposit/{}/{}",
+                user3.username, user3_endow_amt
             ))
             .add_header("Accept", "application/json")
             .json("")

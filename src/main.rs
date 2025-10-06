@@ -46,6 +46,8 @@ fn main() {
 }
 
 async fn async_main(config: AppConfig) {
+    tracing_subscriber::fmt::init();
+
     let db = Database::connect(DbConfig {
         url: &config.db_url,
         database: &config.db_database,

@@ -8,6 +8,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
+    entities::tag::Tag,
     interfaces::repositories::tags::TagsRepositoryInterface,
     middleware::{
         error::CtxResult,
@@ -31,7 +32,7 @@ struct TagGetQuery {
 async fn get_tags(
     State(state): State<Arc<CtxState>>,
     Query(query): Query<TagGetQuery>,
-) -> CtxResult<Json<Vec<String>>> {
+) -> CtxResult<Json<Vec<Tag>>> {
     let tags = state
         .db
         .tags
@@ -45,5 +46,6 @@ async fn get_tags(
             },
         )
         .await?;
+
     Ok(Json(tags))
 }
