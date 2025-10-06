@@ -23,6 +23,7 @@ use darve_server::{
     },
     models::view::{
         access::PostAccessView,
+        post::PostView,
         task::{TaskRequestView, TaskViewForParticipant},
     },
 };
@@ -1779,3 +1780,52 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     get_task_response.assert_status_forbidden();
 });
+
+test_with_server!(
+    update_post_tasks_nr_on_task_creation,
+    |server, ctx_state, config| {
+        let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, _token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
+        let disc_id =
+            DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap().clone());
+        let post_id = create_fake_post(server, &disc_id, None, None).await;
+
+        server
+            .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participant": user1.id.as_ref().unwrap().to_raw()
+            }))
+            .add_header("Accept", "application/json")
+            .await
+            .assert_status_success();
+
+        let get_post_res = server
+            .get(format!("/api/posts/{}", &post_id.id).as_str())
+            .await;
+
+        get_post_res.assert_status_success();
+        let post = get_post_res.json::<PostView>();
+
+        assert_eq!(post.tasks_nr, 1);
+        server
+            .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participant": user0.id.as_ref().unwrap().to_raw()
+            }))
+            .add_header("Accept", "application/json")
+            .await
+            .assert_status_success();
+
+        let get_post_res = server
+            .get(format!("/api/posts/{}", &post_id.id).as_str())
+            .await;
+
+        get_post_res.assert_status_success();
+        let post = get_post_res.json::<PostView>();
+
+        assert_eq!(post.tasks_nr, 2);
+    }
+);

@@ -235,7 +235,7 @@ where
         }
 
         let task = self
-            .create(&user, participant.as_ref(), r#type, data, post_id)
+            .create(&user, participant.as_ref(), r#type, data, post_id, true)
             .await?;
 
         let _ = self
@@ -303,7 +303,7 @@ where
         }
 
         let task = self
-            .create(&user, participant.as_ref(), r#type, data, disc_id)
+            .create(&user, participant.as_ref(), r#type, data, disc_id, false)
             .await?;
 
         let _ = self
@@ -800,6 +800,7 @@ where
         r#type: TaskRequestType,
         data: TaskRequestInput,
         belongs_to: Thing,
+        increase_tasks_nr_for_belongs: bool,
     ) -> CtxResult<TaskRequest> {
         let offer_currency = CurrencySymbol::USD;
         let user_thing = user.id.as_ref().unwrap();
@@ -815,6 +816,7 @@ where
                 currency: offer_currency.clone(),
                 acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
                 delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
+                increase_tasks_nr_for_belongs,
             })
             .await?;
 

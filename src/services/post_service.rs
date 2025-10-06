@@ -505,6 +505,7 @@ where
             replies_nr: post.replies_nr,
             likes_nr: post.likes_nr,
             liked_by: None,
+            tasks_nr: 0,
             r#type: post.r#type.clone(),
             users: None,
         };
