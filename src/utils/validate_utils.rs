@@ -40,7 +40,7 @@ pub fn validate_phone_number(u: &String) -> Result<(), ValidationError> {
 }
 
 pub fn validate_tags(tags: &[String]) -> Result<(), ValidationError> {
-    let rex = Regex::new(r"^[A-Za-z0-9]\w*$").unwrap();
+    let rex = Regex::new(r"^[A-Za-z0-9]\w{0,20}$").unwrap();
 
     for tag in tags {
         let trimmed = tag.trim();

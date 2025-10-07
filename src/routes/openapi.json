@@ -967,6 +967,15 @@
         ],
         "parameters": [
           {
+            "name": "search_text",
+            "in": "query",
+            "description": "Search by usernames or alias",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "start",
             "in": "query",
             "description": "Pagination start offset",
