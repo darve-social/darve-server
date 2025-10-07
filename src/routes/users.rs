@@ -605,7 +605,7 @@ async fn get_user(
 
 #[derive(Debug, Deserialize)]
 struct GetPostsQuery {
-    search_test: Option<String>,
+    search_text: Option<String>,
     start: Option<u32>,
     count: Option<u16>,
 }
@@ -637,7 +637,7 @@ async fn get_latest_posts(
             &user.id.as_ref().unwrap().id.to_raw(),
             pagination,
             true,
-            query.search_test,
+            query.search_text,
         )
         .await?;
 
