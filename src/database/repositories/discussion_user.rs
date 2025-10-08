@@ -105,7 +105,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
             .collect::<Vec<Thing>>();
         let mut res = self
-            .client
+             .client
             .query(format!("UPDATE $disc->{DISC_USER_TABLE_NAME}
                     SET nr_unread-= (IF latest_post->{POST_USER_TABLE_NAME}[WHERE out=$parent.out AND status=$read_status] THEN 0 ELSE 1 END),
                         latest_post=(SELECT id FROM {POST_TABLE_NAME} WHERE belongs_to=$disc AND (type=$public_type OR $parent.out IN <-{ACCESS_TABLE_NAME}.in) ORDER BY id DESC LIMIT 1)[0].id,
@@ -174,6 +174,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         user_id: &str,
         pad: Pagination,
         require_latest_post: bool,
+        search_text: Option<String>,
     ) -> AppResult<Vec<T>> {
         let fields = T::get_select_query_fields();
         let order_dir = pad.order_dir.unwrap_or(QryOrder::DESC);
@@ -182,15 +183,22 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         } else {
             ""
         };
+
+        let search_text_cond = match search_text {
+            Some(_) => "AND (string::starts_with(alias ?? '', $search_text) OR in<-has_access.in[WHERE string::starts_with(username, $search_text)])" ,
+            None => "",
+        };
+
         let mut res = self
             .client
             .query(format!(
                 "SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME} 
-                WHERE out=$user {latest_post_cond} ORDER BY updated_at {order_dir} 
+                WHERE out=$user {latest_post_cond} {search_text_cond} ORDER BY updated_at {order_dir} 
                 LIMIT $limit START $start;"
             ))
             .bind(("limit", pad.count))
             .bind(("start", pad.start))
+            .bind(("search_text", search_text))
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
             .await?;
 

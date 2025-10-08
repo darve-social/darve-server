@@ -68,6 +68,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             user1.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -83,6 +84,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -98,6 +100,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -112,6 +115,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             user4.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -127,6 +131,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             user5.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -161,6 +166,7 @@ test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -206,6 +212,7 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -252,6 +259,7 @@ test_with_server!(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -294,6 +302,7 @@ test_with_server!(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -308,6 +317,7 @@ test_with_server!(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -322,6 +332,7 @@ test_with_server!(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -373,6 +384,7 @@ test_with_server!(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -387,6 +399,7 @@ test_with_server!(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -401,6 +414,7 @@ test_with_server!(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -462,6 +476,7 @@ test_with_server!(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -476,6 +491,7 @@ test_with_server!(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -490,6 +506,7 @@ test_with_server!(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -561,6 +578,7 @@ test_with_server!(
                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -575,6 +593,7 @@ test_with_server!(
                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -589,6 +608,7 @@ test_with_server!(
                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
                 PAGINATION,
                 false,
+                None,
             )
             .await
             .unwrap();
@@ -649,6 +669,7 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
             user2.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -663,6 +684,7 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
             user1.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -677,6 +699,7 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
             user3.id.as_ref().unwrap().id.to_raw().as_str(),
             PAGINATION,
             false,
+            None,
         )
         .await
         .unwrap();
@@ -684,4 +707,184 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
     assert_eq!(disc_user3.len(), 1);
     assert_eq!(disc_user3[0].nr_unread, 0);
     assert_eq!(disc_user3[0].latest_post, private_post.id);
+});
+
+test_with_server!(search_by_username, |server, ctx_state, config| {
+    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+
+    let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![
+                user1.id.as_ref().unwrap().to_raw(),
+                user2.id.as_ref().unwrap().to_raw(),
+            ]
+            .into(),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_ok();
+    let disc_id = create_response.json::<Discussion>().id;
+    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
+
+    let data = MultipartForm::new()
+        .add_text("title", "Test discussion users: create ptivate post")
+        .add_text("content", "content")
+        .add_text("users", user1.id.as_ref().unwrap().to_raw())
+        .add_text("users", user2.id.as_ref().unwrap().to_raw());
+
+    create_post(server, &disc_id, data)
+        .await
+        .assert_status_success();
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            private_discussion_users_final: true,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_ok();
+    let disc_id = create_response.json::<Discussion>().id;
+    create_fake_post(&server, &disc_id, None, None).await;
+
+    let data = MultipartForm::new()
+        .add_text("title", "Test discussion users")
+        .add_text("content", "content");
+
+    create_post(server, &disc_id, data).await;
+
+    let disc_user1 = ctx_state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(
+            user1.id.as_ref().unwrap().id.to_raw().as_str(),
+            PAGINATION,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(disc_user1.len(), 2);
+    let disc_user1 = ctx_state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(
+            user1.id.as_ref().unwrap().id.to_raw().as_str(),
+            PAGINATION,
+            false,
+            Some(user2.username[0..5].to_string()),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(disc_user1.len(), 1);
+});
+
+test_with_server!(search_by_alias, |server, ctx_state, config| {
+    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+
+    let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_ok();
+    let disc_id = create_response.json::<Discussion>().id;
+    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
+
+    let data = MultipartForm::new()
+        .add_text("title", "Test discussion users: create ptivate post")
+        .add_text("content", "content");
+    create_post(server, &disc_id, data)
+        .await
+        .assert_status_success();
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+            private_discussion_users_final: true,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_ok();
+    let disc_id = create_response.json::<Discussion>().id;
+    create_fake_post(&server, &disc_id, None, None).await;
+
+    let data = MultipartForm::new()
+        .add_text("title", "Test discussion users")
+        .add_text("content", "content");
+
+    create_post(server, &disc_id, data).await;
+
+    let disc_user1 = ctx_state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(
+            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            PAGINATION,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(disc_user1.len(), 2);
+
+    server
+        .post(format!("/api/discussions/{}/alias", disc_id).as_str())
+        .json(&json!({"alias": "Friends"}))
+        .await
+        .assert_status_success();
+
+    let disc_user1 = ctx_state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(
+            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            PAGINATION,
+            false,
+            Some("Mate".to_string()),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(disc_user1.len(), 0);
+    let disc_user1 = ctx_state
+        .db
+        .discussion_users
+        .get_by_user::<DiscussionUserView>(
+            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            PAGINATION,
+            false,
+            Some("Friends".to_string()),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(disc_user1.len(), 1);
 });

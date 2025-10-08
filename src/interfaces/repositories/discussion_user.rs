@@ -49,5 +49,6 @@ pub trait DiscussionUserRepositoryInterface {
         user_id: &str,
         pad: Pagination,
         require_latest_post: bool,
+        search_text: Option<String>,
     ) -> AppResult<Vec<T>>;
 }

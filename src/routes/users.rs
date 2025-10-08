@@ -605,6 +605,7 @@ async fn get_user(
 
 #[derive(Debug, Deserialize)]
 struct GetPostsQuery {
+    search_text: Option<String>,
     start: Option<u32>,
     count: Option<u16>,
 }
@@ -632,7 +633,12 @@ async fn get_latest_posts(
     let data = state
         .db
         .discussion_users
-        .get_by_user::<DiscussionUserView>(&user.id.as_ref().unwrap().id.to_raw(), pagination, true)
+        .get_by_user::<DiscussionUserView>(
+            &user.id.as_ref().unwrap().id.to_raw(),
+            pagination,
+            true,
+            query.search_text,
+        )
         .await?;
 
     Ok(Json(data))
