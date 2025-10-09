@@ -249,7 +249,7 @@ where
             .await
     }
 
-    pub async fn get_by_id(&self, user_id: &str, disc_id: &str) -> CtxResult<DiscussionView> {
+    pub async fn get_by_id(&self, disc_id: &str, user_id: &str) -> CtxResult<DiscussionView> {
         let user = self.user_repository.get_by_id(&user_id).await?;
 
         let disc = self

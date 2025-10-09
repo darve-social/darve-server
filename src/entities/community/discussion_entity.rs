@@ -107,7 +107,7 @@ impl<'a> DiscussionDbService<'a> {
         user_id: &str,
     ) -> CtxResult<T> {
         let fields = T::get_select_query_fields();
-        let query = format!("SELECT {fields} FROM {TABLE_NAME} WHERE id=$disc");
+        let query = format!("SELECT {fields} FROM $disc");
         let mut res = self
             .db
             .query(query)
