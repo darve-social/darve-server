@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
 
 use middleware::utils::db_utils::{
-    exists_entity, get_entity, get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
+    get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
 use middleware::{
     ctx::Ctx,
@@ -85,22 +85,6 @@ impl<'a> DiscussionDbService<'a> {
         Ok(())
     }
 
-    pub async fn must_exist(&self, ident: IdentIdName) -> CtxResult<Thing> {
-        let opt = exists_entity(self.db, TABLE_NAME.to_string(), &ident).await?;
-        with_not_found_err(opt, self.ctx, ident.to_string().as_str())
-    }
-
-    pub async fn get(&self, ident_id_name: IdentIdName) -> CtxResult<Discussion> {
-        let opt = get_entity::<Discussion>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
-        with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
-    }
-
-    pub async fn get_by_id(&self, id: &str) -> CtxResult<Discussion> {
-        let thing = get_str_thing(id)?;
-        let ident = IdentIdName::Id(thing);
-        self.get(ident).await
-    }
-
     pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
         &self,
         id: &str,
@@ -116,6 +100,24 @@ impl<'a> DiscussionDbService<'a> {
     ) -> CtxResult<T> {
         let opt = get_entity_view::<T>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
+    }
+    pub async fn get_by_id_with_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        id: &str,
+        user_id: &str,
+    ) -> CtxResult<T> {
+        let fields = T::get_select_query_fields();
+        let query = format!("SELECT {fields} FROM {TABLE_NAME} WHERE id=$disc");
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("disc", Thing::from((TABLE_NAME, id))))
+            .await?;
+        let data = res.take::<Option<T>>(0)?;
+        Ok(data.ok_or(AppError::EntityFailIdNotFound {
+            ident: id.to_string(),
+        })?)
     }
 
     pub async fn get_by_type<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
@@ -149,7 +151,6 @@ impl<'a> DiscussionDbService<'a> {
         let data = res.take::<Vec<T>>(0)?;
         Ok(data)
     }
-
 
     pub async fn create(&self, data: CreateDiscussionEntity) -> CtxResult<Discussion> {
         let disc: Option<Discussion> = self

@@ -41,6 +41,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/discussions", get(get_discussions))
         .route("/api/discussions", post(create_discussion))
         .route("/api/discussions/{discussion_id}", patch(update_discussion))
+        .route("/api/discussions/{discussion_id}", get(get_discussion))
         .route("/api/discussions/{discussion_id}/alias", post(update_alias))
         .route("/api/discussions/{discussion_id}/tasks", post(create_task))
         .route("/api/discussions/{discussion_id}/tasks", get(get_tasks))
@@ -398,4 +399,22 @@ async fn get_posts(
         .get_by_disc(&disc_id, &auth_data.user_thing_id(), query)
         .await?;
     Ok(Json(posts))
+}
+
+async fn get_discussion(
+    auth_data: AuthWithLoginAccess,
+    Path(discussion_id): Path<String>,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<Json<DiscussionView>> {
+    let disc_service = DiscussionService::new(
+        &state,
+        &auth_data.ctx,
+        &state.db.access,
+        &state.db.discussion_users,
+        &state.db.user_notifications,
+    );
+    let data = disc_service
+        .get_by_id(&discussion_id, &auth_data.user_thing_id())
+        .await?;
+    Ok(Json(data))
 }

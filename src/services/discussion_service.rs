@@ -249,6 +249,23 @@ where
             .await
     }
 
+    pub async fn get_by_id(&self, user_id: &str, disc_id: &str) -> CtxResult<DiscussionView> {
+        let user = self.user_repository.get_by_id(&user_id).await?;
+
+        let disc = self
+            .discussion_repository
+            .get_view_by_id::<DiscussionAccessView>(&disc_id)
+            .await?;
+
+        if !DiscussionAccess::new(&disc).can_view(&user) {
+            return Err(self.ctx.to_ctx_error(AppError::Forbidden));
+        }
+
+        self.discussion_repository
+            .get_by_id_with_user::<DiscussionView>(&disc.id.id.to_raw(), user_id)
+            .await
+    }
+
     pub async fn create(&self, user_id: &str, data: CreateDiscussion) -> CtxResult<Discussion> {
         data.validate()?;
         let user = self.user_repository.get_by_id(&user_id).await?;
