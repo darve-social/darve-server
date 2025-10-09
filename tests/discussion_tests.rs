@@ -3,15 +3,12 @@ mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::access::base::role::Role;
 use darve_server::entities::community::{community_entity, discussion_entity};
-use darve_server::middleware;
 use darve_server::models::view::discussion::DiscussionView;
 use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 
 use community_entity::CommunityDbService;
-use discussion_entity::{Discussion, DiscussionDbService};
-use middleware::ctx::Ctx;
-use middleware::utils::db_utils::IdentIdName;
+use discussion_entity::Discussion;
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -79,26 +76,11 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
         })
         .add_header("Accept", "application/json")
         .await;
+    create_response.assert_status_success();
     let created = &create_response.json::<Discussion>();
-    // dbg!(&created);
     let disc_name = created.title.clone();
     assert_eq!(disc_name, Some("The Discussion".to_string()));
-
-    create_response.assert_status_success();
-
-    let ctx = &Ctx::new(Ok("user_ident".parse().unwrap()), false);
-
-    let disc_db = DiscussionDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
-
-    let discussion = disc_db
-        .get(IdentIdName::Id(created.id.clone()).into())
-        .await
-        .unwrap();
-
-    assert_eq!(discussion.belongs_to.eq(&comm_id.clone()), true);
+    assert_eq!(created.belongs_to.eq(&comm_id.clone()), true);
 });
 
 test_with_server!(create_chat_discussion, |server, ctx_state, config| {

@@ -2458,6 +2458,45 @@
             "description": "Unauthorized"
           }
         }
+      },
+      "get": {
+        "tags": ["Discussions"],
+        "summary": "Get discussion by ID",
+        "description": "Get a discussion by its ID",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "discussion_id",
+            "in": "path",
+            "required": true,
+            "description": "ID of the discussion",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discussion retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscussionView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Discussion not found"
+          }
+        }
       }
     },
     "/api/discussions/{discussion_id}/alias": {
@@ -4685,15 +4724,32 @@
       "DiscussionUserView": {
         "type": "object",
         "properties": {
+          "discussion": {
+            "$ref": "#/components/schemas/DiscussionView"
+          },
           "latest_post": {
             "$ref": "#/components/schemas/LatestPostView"
           },
           "nr_unread": {
             "type": "integer",
             "description": "Number of unread posts in the discussion"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         },
-        "required": ["latest_post", "nr_unread"]
+        "required": [
+          "discussion",
+          "latest_post",
+          "nr_unread",
+          "updated_at",
+          "created_at"
+        ]
       },
       "LatestPostView": {
         "type": "object",
