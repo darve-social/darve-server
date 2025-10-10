@@ -636,7 +636,7 @@ async fn get_latest_posts(
         .get_by_user::<DiscussionUserView>(
             &user.id.as_ref().unwrap().id.to_raw(),
             pagination,
-            true,
+            false,
             query.search_text,
         )
         .await?;

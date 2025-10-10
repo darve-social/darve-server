@@ -4728,6 +4728,7 @@
             "$ref": "#/components/schemas/DiscussionView"
           },
           "latest_post": {
+            "nullable": true,
             "$ref": "#/components/schemas/LatestPostView"
           },
           "nr_unread": {
