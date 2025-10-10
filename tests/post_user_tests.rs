@@ -231,6 +231,8 @@ test_with_server!(
             .as_ref()
             .unwrap()
             .latest_post
+            .as_ref()
+            .unwrap()
             .users_status
             .as_ref()
             .unwrap();

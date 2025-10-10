@@ -513,7 +513,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id.to_raw(), post.id);
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id.to_raw(), post.id);
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
@@ -524,7 +524,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id.to_raw(), post.id);
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id.to_raw(), post.id);
     let latest_posts = server
         .get("/api/users/current/latest_posts")
         .add_header("Cookie", format!("jwt={}", token2))
@@ -534,7 +534,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id.to_raw(), post.id);
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id.to_raw(), post.id);
 
     let data = MultipartForm::new()
         .add_text("title", "Hello")
@@ -553,7 +553,10 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id, *private_post.id.as_ref().unwrap());
+    assert_eq!(
+        posts[0].latest_post.as_ref().unwrap().id,
+        *private_post.id.as_ref().unwrap()
+    );
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
@@ -564,7 +567,10 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id, *private_post.id.as_ref().unwrap());
+    assert_eq!(
+        posts[0].latest_post.as_ref().unwrap().id,
+        *private_post.id.as_ref().unwrap()
+    );
     let latest_posts = server
         .get("/api/users/current/latest_posts")
         .add_header("Cookie", format!("jwt={}", token2))
@@ -574,7 +580,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(posts[0].latest_post.id.to_raw(), post.id);
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id.to_raw(), post.id);
 });
 
 test_with_server!(get_post_by_id_test, |server, ctx_state, config| {

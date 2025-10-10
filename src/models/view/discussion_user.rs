@@ -9,7 +9,7 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscussionUserView {
     pub discussion: DiscussionView,
-    pub latest_post: LatestPostView,
+    pub latest_post: Option<LatestPostView>,
     pub nr_unread: u32,
     pub updated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
