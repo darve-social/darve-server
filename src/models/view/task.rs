@@ -38,6 +38,7 @@ pub struct TaskRequestView {
     pub created_at: DateTime<Utc>,
     pub wallet_id: Thing,
     pub status: TaskRequestStatus,
+    pub belongs_to: Thing,
 }
 
 impl ViewFieldSelector for TaskRequestView {
@@ -48,6 +49,7 @@ impl ViewFieldSelector for TaskRequestView {
         delivery_period,
         acceptance_period,
         wallet_id,
+        belongs_to,
         currency,
         status,
         request_txt,
@@ -66,6 +68,7 @@ impl ViewRelateField for TaskRequestView {
         delivery_period,
         acceptance_period,
         wallet_id,
+        belongs_to,
         currency,
         status,
         request_txt,
@@ -89,6 +92,7 @@ pub struct TaskViewForParticipant {
     pub participants: Vec<TaskRequestViewParticipant>,
     pub created_at: DateTime<Utc>,
     pub status: TaskRequestStatus,
+    pub belongs_to: Thing,
 }
 
 impl TaskViewForParticipant {
@@ -126,6 +130,7 @@ impl TaskViewForParticipant {
             deliver_by,
             created_at: view.created_at,
             status: view.status,
+            belongs_to: view.belongs_to,
         }
     }
 }
