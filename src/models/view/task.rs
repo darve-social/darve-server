@@ -87,6 +87,8 @@ pub struct TaskViewForParticipant {
     pub donors: Vec<TaskRequestDonorView>,
     pub currency: CurrencySymbol,
     pub end_at: DateTime<Utc>,
+    pub acceptance_period: u16,
+    pub delivery_period: u16,
     pub accept_by: DateTime<Utc>,
     pub deliver_by: Option<DateTime<Utc>>,
     pub participants: Vec<TaskRequestViewParticipant>,
@@ -131,6 +133,8 @@ impl TaskViewForParticipant {
             created_at: view.created_at,
             status: view.status,
             belongs_to: view.belongs_to,
+            acceptance_period: view.acceptance_period,
+            delivery_period: view.delivery_period,
         }
     }
 }
