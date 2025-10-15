@@ -1,5 +1,6 @@
 use crate::database::client::Db;
 use crate::entities::task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME;
+use crate::entities::task_donor::TaskDonor;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
@@ -55,9 +56,9 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Result<String, String> {
+    ) -> Result<TaskDonor, String> {
         let sql = format!(
-            "RELATE $task->{}->$user SET amount=$amount,transaction=$tx_id,currency=$currency RETURN record::id(id) as id;",
+            "RELATE $task->{}->$user SET amount=$amount,transaction=$tx_id,currency=$currency",
             self.table_name
         );
 
@@ -73,7 +74,7 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
             .map_err(|e| e.to_string())?;
 
         let record = res
-            .take::<Option<String>>((0, "id"))
+            .take::<Option<TaskDonor>>(0)
             .map_err(|e| e.to_string())?;
 
         Ok(record.unwrap())
@@ -85,9 +86,9 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Result<(), String> {
+    ) -> Result<TaskDonor, String> {
         let query = "UPDATE $id SET amount=$amount,transaction=$tx_id,currency=$currency;";
-        let res = self
+        let mut res = self
             .client
             .query(query)
             .bind(("id", Thing::from((self.table_name.as_ref(), id))))
@@ -96,8 +97,11 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
             .bind(("currency", currency.to_string()))
             .await
             .map_err(|e| e.to_string())?;
-        res.check().map_err(|e| e.to_string())?;
 
-        Ok(())
+        let record = res
+            .take::<Option<TaskDonor>>(0)
+            .map_err(|e| e.to_string())?;
+
+        Ok(record.unwrap())
     }
 }

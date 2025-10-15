@@ -325,7 +325,7 @@ where
         task_id: &str,
         donor_id: &str,
         data: TaskDonorData,
-    ) -> AppResult<String> {
+    ) -> AppResult<TaskDonor> {
         let task_thing = get_str_thing(&task_id)?;
         let task_view = self
             .tasks_repository
@@ -353,7 +353,7 @@ where
         let participant = task.donors.iter().find(|p| &p.user == &donor_thing);
 
         let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
-        let offer_id = match participant {
+        let result = match participant {
             Some(p) => {
                 if let Some(ref tx) = p.transaction {
                     let tx = self
@@ -386,8 +386,7 @@ where
                     )
                     .await?;
 
-                let _ = self
-                    .task_donors_repository
+                self.task_donors_repository
                     .update(
                         &p.id.as_ref().unwrap().id.to_raw(),
                         &response.tx_out_id.id.to_raw(),
@@ -397,8 +396,7 @@ where
                     .await
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
-                    })?;
-                p.id.as_ref().unwrap().to_raw()
+                    })?
             }
             None => {
                 let response = self
@@ -413,8 +411,16 @@ where
                     )
                     .await?;
 
-                let id = self
-                    .task_donors_repository
+                let _ = self
+                    .access_repository
+                    .add(
+                        [donor_thing.clone()].to_vec(),
+                        [task.id.clone()].to_vec(),
+                        Role::Donor.to_string(),
+                    )
+                    .await?;
+
+                self.task_donors_repository
                     .create(
                         &task_thing.id.to_raw(),
                         &donor_thing.id.to_raw(),
@@ -425,18 +431,7 @@ where
                     .await
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
-                    })?;
-
-                let _ = self
-                    .access_repository
-                    .add(
-                        [donor_thing.clone()].to_vec(),
-                        [task.id.clone()].to_vec(),
-                        Role::Donor.to_string(),
-                    )
-                    .await?;
-
-                id
+                    })?
             }
         };
 
@@ -448,10 +443,10 @@ where
             .on_update_balance(&donor_thing)
             .await?;
 
-        Ok(offer_id)
+        Ok(result)
     }
 
-    pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<()> {
+    pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
         let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task_thing = get_str_thing(&task_id)?;
@@ -471,7 +466,8 @@ where
 
         let task_user = task.participants.iter().find(|v| v.user == user_id);
 
-        self.task_participants_repository
+        let result = self
+            .task_participants_repository
             .update(
                 &task_user.as_ref().unwrap().id,
                 TaskParticipantStatus::Rejected.as_str(),
@@ -483,6 +479,7 @@ where
             })?;
 
         let _ = self.try_to_process_reward(&task).await;
+
         self.access_repository
             .remove_by_user(
                 user.id.as_ref().unwrap().clone(),
@@ -490,10 +487,10 @@ where
             )
             .await?;
 
-        Ok(())
+        Ok(result)
     }
 
-    pub async fn accept(&self, user_id: &str, task_id: &str) -> AppResult<()> {
+    pub async fn accept(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
@@ -528,9 +525,9 @@ where
 
         let task_user = task.participants.iter().find(|v| v.user == user_id);
 
-        match task_user {
+        let result = match task_user {
             Some(value) => {
-                let _ = self
+                let result = self
                     .task_participants_repository
                     .update(&value.id, TaskParticipantStatus::Accepted.as_str(), None)
                     .await
@@ -546,9 +543,10 @@ where
                         Role::Participant.to_string(),
                     )
                     .await;
+                result
             }
             None => {
-                let _ = self
+                let result = self
                     .task_participants_repository
                     .create(
                         &task.id.id.to_raw(),
@@ -567,8 +565,9 @@ where
                         Role::Participant.to_string(),
                     )
                     .await;
+                result
             }
-        }
+        };
 
         if task.status != TaskRequestStatus::InProgress {
             self.tasks_repository
@@ -579,7 +578,7 @@ where
             .on_accepted_task(&user, &task_view)
             .await?;
 
-        Ok(())
+        Ok(result)
     }
 
     pub async fn deliver(
@@ -587,7 +586,7 @@ where
         user_id: &str,
         task_id: &str,
         data: TaskDeliveryData,
-    ) -> AppResult<()> {
+    ) -> AppResult<TaskParticipant> {
         let task_thing = get_str_thing(&task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
@@ -634,7 +633,8 @@ where
             .into());
         }
 
-        self.task_participants_repository
+        let delivery_result = self
+            .task_participants_repository
             .update(
                 &task_user.unwrap().id,
                 TaskParticipantStatus::Delivered.as_str(),
@@ -660,7 +660,7 @@ where
             .on_deliver_task(&user, &task_view, &result)
             .await?;
 
-        Ok(())
+        Ok(delivery_result)
     }
 
     pub async fn get_by_disc(

@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 
+use crate::entities::task_donor::TaskDonor;
+
 #[async_trait]
 pub trait TaskDonorsRepositoryInterface {
     async fn create(
@@ -9,7 +11,7 @@ pub trait TaskDonorsRepositoryInterface {
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Result<String, String>;
+    ) -> Result<TaskDonor, String>;
 
     async fn update(
         &self,
@@ -17,5 +19,5 @@ pub trait TaskDonorsRepositoryInterface {
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Result<(), String>;
+    ) -> Result<TaskDonor, String>;
 }
