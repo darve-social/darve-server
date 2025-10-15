@@ -2,7 +2,7 @@ use crate::{
     database::client::Db,
     entities::{
         task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
-        task_request_user::TaskParticipantResult,
+        task_request_user::{TaskParticipant, TaskParticipantResult},
         user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
         wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME,
     },
@@ -50,10 +50,14 @@ impl TaskParticipantsRepository {
 
 #[async_trait]
 impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
-    async fn create(&self, task_id: &str, user_id: &str, status: &str) -> Result<String, String> {
+    async fn create(
+        &self,
+        task_id: &str,
+        user_id: &str,
+        status: &str,
+    ) -> Result<TaskParticipant, String> {
         let sql = format!("
-            RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status
-            RETURN record::id(id) as id;", self.table_name);
+            RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status", self.table_name);
 
         let mut res = self
             .client
@@ -65,7 +69,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .map_err(|e| e.to_string())?;
 
         let record = res
-            .take::<Option<String>>((0, "id"))
+            .take::<Option<TaskParticipant>>(0)
             .map_err(|e| e.to_string())?;
 
         Ok(record.unwrap())
@@ -76,16 +80,15 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         id: &str,
         status: &str,
         result: Option<TaskParticipantResult>,
-    ) -> Result<(), String> {
+    ) -> Result<TaskParticipant, String> {
+        let update_result = match result.is_some() {
+            true => ",result=$result",
+            false => "",
+        };
         let query = format!(
-            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status {};",
-            if result.is_some() {
-                ",result=$result"
-            } else {
-                ""
-            },
-        );
-        let res = self
+            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status {update_result};");
+
+        let mut res = self
             .client
             .query(query)
             .bind(("id", Thing::from((self.table_name, id))))
@@ -94,8 +97,10 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .await
             .map_err(|e| e.to_string())?;
 
-        res.check().map_err(|e| e.to_string())?;
+        let data = res
+            .take::<Option<TaskParticipant>>(0)
+            .map_err(|e| e.to_string())?;
 
-        Ok(())
+        Ok(data.unwrap())
     }
 }

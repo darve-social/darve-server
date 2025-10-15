@@ -630,7 +630,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Task accepted successfully"
+            "description": "Task accepted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskParticipant"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -664,7 +671,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Task rejected successfully"
+            "description": "Task rejected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskParticipant"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -708,7 +722,14 @@
         },
         "responses": {
           "200": {
-            "description": "Task delivered successfully"
+            "description": "Task delivered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskParticipant"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -757,7 +778,14 @@
         },
         "responses": {
           "200": {
-            "description": "Donor added/updated successfully"
+            "description": "Donor added/updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDonor"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -5232,6 +5260,85 @@
           }
         },
         "description": "Complete user profile view with posts, followers, and profile information"
+      },
+      "TaskParticipant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskParticipantStatus"
+          },
+          "timelines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskParticipantTimeline"
+            }
+          },
+          "result": {
+            "$ref": "#/components/schemas/TaskParticipantResult"
+          },
+          "reward_tx": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskParticipantResult": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "post": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskDonor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "string"
+          },
+          "votes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RewardVote"
+            }
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RewardVote": {
+        "type": "object",
+        "properties": {
+          "deliverable_ident": {
+            "type": "string"
+          },
+          "points": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       }
     }
   },

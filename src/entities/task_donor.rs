@@ -5,6 +5,7 @@ use surrealdb::sql::Thing;
 pub struct TaskDonor {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
+    #[serde(alias = "out")]
     pub(crate) user: Thing,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) transaction: Option<Thing>,

@@ -1,5 +1,6 @@
 use crate::entities::task::task_request_entity::{self};
-use crate::entities::task_request_user::TaskParticipantStatus;
+use crate::entities::task_donor::TaskDonor;
+use crate::entities::task_request_user::{TaskParticipant, TaskParticipantStatus};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
@@ -121,7 +122,7 @@ async fn reject_task_request(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
@@ -133,18 +134,18 @@ async fn reject_task_request(
         &state.db.tags,
     );
 
-    task_service
+    let data = task_service
         .reject(&auth_data.user_thing_id(), &task_id)
         .await?;
 
-    Ok(())
+    Ok(Json(data))
 }
 
 async fn accept_task_request(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
@@ -156,11 +157,11 @@ async fn accept_task_request(
         &state.db.tags,
     );
 
-    task_service
+    let data = task_service
         .accept(&auth_data.user_thing_id(), &task_id)
         .await?;
 
-    Ok(())
+    Ok(Json(data))
 }
 
 async fn deliver_task_request(
@@ -168,7 +169,7 @@ async fn deliver_task_request(
     auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
     Json(input): Json<DeliverTaskRequestInput>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
@@ -180,7 +181,7 @@ async fn deliver_task_request(
         &state.db.tags,
     );
 
-    task_service
+    let data = task_service
         .deliver(
             &auth_data.user_thing_id(),
             &task_id,
@@ -190,7 +191,7 @@ async fn deliver_task_request(
         )
         .await?;
 
-    Ok(())
+    Ok(Json(data))
 }
 
 async fn upsert_donor(
@@ -198,7 +199,7 @@ async fn upsert_donor(
     ctx: Ctx,
     Path(task_id): Path<String>,
     JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
-) -> CtxResult<()> {
+) -> CtxResult<Json<TaskDonor>> {
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
@@ -210,7 +211,7 @@ async fn upsert_donor(
         &state.db.tags,
     );
 
-    let _ = task_service
+    let donor = task_service
         .upsert_donor(
             &task_id,
             &ctx.user_id()?,
@@ -220,7 +221,7 @@ async fn upsert_donor(
         )
         .await?;
 
-    Ok(())
+    Ok(Json(donor))
 }
 
 async fn get_task(

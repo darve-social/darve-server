@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::utils::validate_utils::deserialize_thing_or_string_id;
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskParticipantStatus {
     Requested,
@@ -22,8 +24,13 @@ impl TaskParticipantStatus {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskParticipant {
+    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub id: String,
+    #[serde(alias = "in")]
+    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub task: String,
+    #[serde(alias = "out")]
+    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub user: String,
     pub status: TaskParticipantStatus,
     #[serde(default)]
