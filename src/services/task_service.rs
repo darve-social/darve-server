@@ -203,9 +203,13 @@ where
         let (participant, r#type) = self.get_participant_and_type(&data).await?;
 
         if let Some(ref participant) = participant {
-            if !PostAccess::new(&post).can_create_private_task(&user)
-                || !PostAccess::new(&post).can_view(participant)
-            {
+            if participant.id == user.id {
+                return Err(AppError::Forbidden.into());
+            }
+            if !PostAccess::new(&post).can_view(participant) {
+                return Err(AppError::Forbidden.into());
+            }
+            if !PostAccess::new(&post).can_create_private_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
         } else {
@@ -270,9 +274,13 @@ where
         let (participant, r#type) = self.get_participant_and_type(&data).await?;
 
         if let Some(ref participant) = participant {
-            if !DiscussionAccess::new(&discussion).can_create_private_task(&user)
-                || !DiscussionAccess::new(&discussion).can_view(participant)
-            {
+            if participant.id == user.id {
+                return Err(AppError::Forbidden.into());
+            }
+            if !DiscussionAccess::new(&discussion).can_view(participant) {
+                return Err(AppError::Forbidden.into());
+            }
+            if !DiscussionAccess::new(&discussion).can_create_private_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
         } else {
