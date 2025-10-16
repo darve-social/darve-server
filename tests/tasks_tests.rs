@@ -1048,6 +1048,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
 test_with_server!(
     try_to_add_task_donor_without_balance,
     |server, state, config| {
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
@@ -1064,7 +1065,7 @@ test_with_server!(
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "participant": Some(user.id.as_ref().unwrap().to_raw()),
                 "delivery_period": 1,
             }))
             .add_header("Cookie", format!("jwt={}", token0))
@@ -1827,5 +1828,46 @@ test_with_server!(
         let post = get_post_res.json::<PostView>();
 
         assert_eq!(post.tasks_nr, 2);
+    }
+);
+test_with_server!(
+    try_to_create_task_for_youself_for_discussion,
+    |server, state, config| {
+        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let disc_id =
+            DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap().clone());
+
+        let request = server
+            .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participant": user0.id.as_ref().unwrap().to_raw(),
+            }))
+            .add_header("Accept", "application/json")
+            .await;
+        request.assert_status_failure();
+        request.assert_status(StatusCode::FORBIDDEN);
+    }
+);
+
+test_with_server!(
+    try_to_create_task_for_youself_for_post,
+    |server, state, config| {
+        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let disc_id =
+            DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap().clone());
+
+        let post = create_fake_post(server, &disc_id, None, None).await;
+
+        let request = server
+            .post(&format!("/api/posts/{}/tasks", post.id))
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participant": user0.id.as_ref().unwrap().to_raw(),
+            }))
+            .add_header("Accept", "application/json")
+            .await;
+        request.assert_status_failure();
+        request.assert_status(StatusCode::FORBIDDEN);
     }
 );
