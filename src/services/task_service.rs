@@ -354,7 +354,7 @@ where
             .get_by_id::<TaskView>(&task_thing)
             .await?;
 
-        if data.amount <= 0 || task.status != TaskRequestStatus::Init {
+        if task.status != TaskRequestStatus::Init || data.amount <= 0 {
             return Err(AppError::Forbidden.into());
         }
 
