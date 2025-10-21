@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::access::discussion::DiscussionAccess;
 use crate::entities::community::discussion_entity::{self, DiscussionType};
-use crate::entities::community::post_entity::Post;
 use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
@@ -358,7 +357,7 @@ async fn create_post(
     State(ctx_state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
-) -> CtxResult<Json<Post>> {
+) -> CtxResult<Json<PostView>> {
     let post_service = PostService::new(
         &ctx_state.db.client,
         &auth_data.ctx,

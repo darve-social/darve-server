@@ -217,7 +217,7 @@ where
                 UserNotificationEvent::UserTaskRequestDelivered.as_str(),
                 &receivers,
                 Some(json!({
-                    "task_id": task_view.id,
+                    "task_id": task_view.id.to_raw(),
                     "result_post_id": result.id.to_raw(),
                     "result_links": result.media_links,
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
@@ -290,7 +290,7 @@ where
                 UserNotificationEvent::UserTaskRequestAccepted.as_str(),
                 &receivers,
                 Some(json!({
-                    "task_id": task_view.id,
+                    "task_id": task_view.id.to_raw(),
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
                     "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
                 })),
@@ -374,7 +374,7 @@ where
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
                 Some(json!({
-                    "task_id": task_view.id,
+                    "task_id": task_view.id.to_raw(),
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
                     "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
                 })),
@@ -476,7 +476,7 @@ where
                 UserNotificationEvent::CommentAdded.as_str(),
                 &receivers,
                 Some(json!({
-                    "post_id": post.id,
+                    "post_id": post.id.to_raw(),
                 })),
             )
             .await?;
@@ -518,7 +518,7 @@ where
                 UserNotificationEvent::UserLikeComment.as_str(),
                 &receivers,
                 Some(json!({
-                    "post_id": post.id,
+                    "post_id": post.id.to_raw(),
                 })),
             )
             .await?;

@@ -4,10 +4,10 @@ use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_post;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
-use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::wallet::wallet_entity::CurrencySymbol;
+use darve_server::models::view::post::PostView;
 use darve_server::models::view::task::TaskRequestView;
 use fake::faker;
 use fake::Fake;
@@ -37,12 +37,12 @@ test_with_server!(
             );
 
         let res = create_post(server, &default_discussion, data).await;
-        let post = res.json::<Post>();
+        let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
 
         let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
                 "participant": Some(user1.id.as_ref().unwrap().to_raw()),
@@ -81,12 +81,12 @@ test_with_server!(
             );
 
         let res = create_post(server, &default_discussion, data).await;
-        let post = res.json::<Post>();
+        let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
 
         let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
@@ -131,12 +131,12 @@ test_with_server!(create_task, |server, ctx_state, config| {
         );
 
     let res = create_post(server, &default_discussion, data).await;
-    let post = res.json::<Post>();
+    let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -179,12 +179,12 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
         );
 
     let res = create_post(server, &default_discussion, data).await;
-    let post = res.json::<Post>();
+    let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -229,12 +229,12 @@ test_with_server!(
             );
 
         let res = create_post(server, &default_discussion, data).await;
-        let post = res.json::<Post>();
+        let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
 
         let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
@@ -289,12 +289,12 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
         );
 
     let res = create_post(server, &default_discussion, data).await;
-    let post = res.json::<Post>();
+    let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -341,12 +341,12 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
         );
 
     let res = create_post(server, &default_discussion, data).await;
-    let post = res.json::<Post>();
+    let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -358,7 +358,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
     task_request.assert_status_success();
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -370,7 +370,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
     task_request.assert_status_success();
 
     let task_request = server
-        .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
@@ -382,7 +382,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
     task_request.assert_status_success();
 
     let tasks_request = server
-        .get(&format!("/api/posts/{}/tasks", post.id.as_ref().unwrap()))
+        .get(&format!("/api/posts/{}/tasks", post.id.to_raw()))
         .json(&json!({
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
@@ -396,7 +396,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 3);
 
     let tasks_request = server
-        .get(&format!("/api/posts/{}/tasks", post.id.as_ref().unwrap()))
+        .get(&format!("/api/posts/{}/tasks", post.id.to_raw()))
         .json(&json!({
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),

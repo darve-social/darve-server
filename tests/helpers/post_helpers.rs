@@ -1,8 +1,8 @@
 use axum_test::multipart::MultipartForm;
 use axum_test::TestResponse;
 use axum_test::{multipart::Part, TestServer};
-use darve_server::entities::community::post_entity::Post;
 use darve_server::middleware::mw_ctx::CtxState;
+use darve_server::models::view::post::PostView;
 use darve_server::models::view::reply::ReplyView;
 use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
@@ -70,12 +70,12 @@ pub async fn create_fake_post(
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
     let create_post = create_post(&server, &discussion_id, data).await;
-    let post = create_post.json::<Post>();
+    let post = create_post.json::<PostView>();
     let _ = create_post.assert_status_success();
 
     CreateFakePostResponse {
-        id: post.id.as_ref().unwrap().to_raw(),
-        uri: post.id.as_ref().unwrap().to_raw(),
+        id: post.id.to_raw(),
+        uri: post.id.to_raw(),
     }
 }
 
@@ -124,8 +124,8 @@ pub async fn create_fake_post_with_file(
     data = data.add_part("file_1", part);
     let response = create_post(&server, &discussion_id, data).await;
     let _ = response.assert_status_success();
-    let post = response.json::<Post>();
-    post.id.as_ref().unwrap().to_raw()
+    let post = response.json::<PostView>();
+    post.id.to_raw()
 }
 
 #[allow(dead_code)]

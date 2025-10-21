@@ -3,9 +3,9 @@ mod helpers;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::Discussion;
-use darve_server::entities::community::post_entity::Post;
 use darve_server::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use darve_server::middleware::utils::db_utils::{Pagination, ViewFieldSelector};
+use darve_server::models::view::post::PostView;
 use darve_server::services::discussion_service::CreateDiscussion;
 
 use crate::helpers::create_fake_login_test_user;
@@ -375,7 +375,7 @@ test_with_server!(
             .add_text("content", "content")
             .add_text("users", user1.id.as_ref().unwrap().to_raw());
 
-        let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+        let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
         let disc_user2 = ctx_state
             .db
@@ -406,7 +406,7 @@ test_with_server!(
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(disc_user1[0].latest_post, private_post.id);
+        assert_eq!(disc_user1[0].latest_post, Some(private_post.id.clone()));
         let disc_user3 = ctx_state
             .db
             .discussion_users
@@ -421,7 +421,7 @@ test_with_server!(
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(disc_user3[0].latest_post, private_post.id);
+        assert_eq!(disc_user3[0].latest_post, Some(private_post.id.clone()));
     }
 );
 
@@ -458,12 +458,12 @@ test_with_server!(
             .add_text("users", user1.id.as_ref().unwrap().to_raw())
             .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
-        let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+        let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
         server
             .post(&format!(
                 "/api/posts/{}/remove_users",
-                private_post.id.as_ref().unwrap().to_raw()
+                private_post.id.to_raw()
             ))
             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
             .await
@@ -498,7 +498,10 @@ test_with_server!(
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(disc_user1[0].latest_post, private_post.id);
+        assert_eq!(
+            disc_user1[0].latest_post.as_ref().unwrap(),
+            &private_post.id
+        );
         let disc_user3 = ctx_state
             .db
             .discussion_users
@@ -513,7 +516,10 @@ test_with_server!(
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(disc_user3[0].latest_post, private_post.id);
+        assert_eq!(
+            disc_user3[0].latest_post.as_ref().unwrap(),
+            &private_post.id
+        );
     }
 );
 
@@ -550,13 +556,10 @@ test_with_server!(
             .add_text("users", user1.id.as_ref().unwrap().to_raw())
             .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
-        let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+        let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
         server
-            .post(&format!(
-                "/api/posts/{}/read",
-                private_post.id.as_ref().unwrap().to_raw()
-            ))
+            .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
             .add_header("Cookie", format!("jwt={}", token2))
             .await
@@ -565,7 +568,7 @@ test_with_server!(
         server
             .post(&format!(
                 "/api/posts/{}/remove_users",
-                private_post.id.as_ref().unwrap().to_raw()
+                private_post.id.to_raw()
             ))
             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
             .await
@@ -600,7 +603,7 @@ test_with_server!(
 
         assert_eq!(disc_user1.len(), 1);
         assert_eq!(disc_user1[0].nr_unread, 2);
-        assert_eq!(disc_user1[0].latest_post, private_post.id);
+        assert_eq!(disc_user1[0].latest_post, Some(private_post.id.clone()));
         let disc_user3 = ctx_state
             .db
             .discussion_users
@@ -615,7 +618,7 @@ test_with_server!(
 
         assert_eq!(disc_user3.len(), 1);
         assert_eq!(disc_user3[0].nr_unread, 0);
-        assert_eq!(disc_user3[0].latest_post, private_post.id);
+        assert_eq!(disc_user3[0].latest_post, Some(private_post.id.clone()));
     }
 );
 
@@ -650,13 +653,10 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
         .add_text("users", user1.id.as_ref().unwrap().to_raw())
         .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
-    let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+    let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
     server
-        .post(&format!(
-            "/api/posts/{}/read",
-            private_post.id.as_ref().unwrap().to_raw()
-        ))
+        .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
         .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
         .add_header("Cookie", format!("jwt={}", token2))
         .await
@@ -676,7 +676,10 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
 
     assert_eq!(disc_user2.len(), 1);
     assert_eq!(disc_user2[0].nr_unread, 1);
-    assert_eq!(disc_user2[0].latest_post, private_post.id);
+    assert_eq!(
+        disc_user2[0].latest_post.as_ref().unwrap(),
+        &private_post.id
+    );
     let disc_user1 = ctx_state
         .db
         .discussion_users
@@ -691,7 +694,10 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
 
     assert_eq!(disc_user1.len(), 1);
     assert_eq!(disc_user1[0].nr_unread, 2);
-    assert_eq!(disc_user1[0].latest_post, private_post.id);
+    assert_eq!(
+        disc_user1[0].latest_post.as_ref().unwrap(),
+        &private_post.id
+    );
     let disc_user3 = ctx_state
         .db
         .discussion_users
@@ -706,7 +712,10 @@ test_with_server!(on_seen_post, |server, ctx_state, config| {
 
     assert_eq!(disc_user3.len(), 1);
     assert_eq!(disc_user3[0].nr_unread, 0);
-    assert_eq!(disc_user3[0].latest_post, private_post.id);
+    assert_eq!(
+        disc_user3[0].latest_post.as_ref().unwrap(),
+        &private_post.id
+    );
 });
 
 test_with_server!(search_by_username, |server, ctx_state, config| {

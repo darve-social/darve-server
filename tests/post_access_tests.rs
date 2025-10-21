@@ -6,7 +6,7 @@ use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
-use darve_server::entities::community::post_entity::Post;
+// use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::models::view::post::PostView;
 use darve_server::models::web::UserView;
@@ -52,13 +52,10 @@ test_with_server!(
 
         let post = create_post(server, &default_discussion, data).await;
         post.assert_status_ok();
-        let post = post.json::<Post>();
+        let post = post.json::<PostView>();
         assert_eq!(post.r#type, PostType::Idea);
         let response = server
-            .post(&format!(
-                "/api/posts/{}/add_users",
-                post.id.as_ref().unwrap()
-            ))
+            .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
             .json(&json!({ "user_ids": [user.id.as_ref().unwrap().to_raw()] }))
             .await;
 
@@ -81,14 +78,11 @@ test_with_server!(add_users_to_post_test, |server, ctx_state, config| {
 
     let post = create_post(server, &default_discussion, data).await;
     post.assert_status_ok();
-    let post = post.json::<Post>();
+    let post = post.json::<PostView>();
     assert_eq!(post.r#type, PostType::Private);
 
     let response = server
-        .post(&format!(
-            "/api/posts/{}/add_users",
-            post.id.as_ref().unwrap().to_raw()
-        ))
+        .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
         .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
         .await;
 
@@ -123,14 +117,11 @@ test_with_server!(remove_users_from_post_test, |server, ctx_state, config| {
 
     let post = create_post(server, &default_discussion, data).await;
     post.assert_status_ok();
-    let post = post.json::<Post>();
+    let post = post.json::<PostView>();
     assert_eq!(post.r#type, PostType::Private);
 
     let response = server
-        .post(&format!(
-            "/api/posts/{}/add_users",
-            post.id.as_ref().unwrap().to_raw()
-        ))
+        .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
         .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
         .await;
 
@@ -185,14 +176,11 @@ test_with_server!(
 
         let post = create_post(server, &default_discussion, data).await;
         post.assert_status_ok();
-        let post = post.json::<Post>();
+        let post = post.json::<PostView>();
         assert_eq!(post.r#type, PostType::Private);
 
         let response = server
-            .post(&format!(
-                "/api/posts/{}/remove_users",
-                post.id.as_ref().unwrap().to_raw()
-            ))
+            .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
             .await;
 
@@ -216,7 +204,7 @@ test_with_server!(create_post_with_users_test, |server, ctx_state, config| {
 
     let response = create_post(server, &default_discussion, data).await;
     response.assert_status_success();
-    let post = response.json::<Post>();
+    let post = response.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Private);
 
@@ -252,7 +240,7 @@ test_with_server!(
 
         let response = create_post(server, &default_discussion, data).await;
         response.assert_status_success();
-        let post = response.json::<Post>();
+        let post = response.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Private);
 
@@ -343,7 +331,7 @@ test_with_server!(
         let response = create_post(server, &disc_id, data).await;
         response.assert_status_ok();
 
-        let post = response.json::<Post>();
+        let post = response.json::<PostView>();
         assert_eq!(post.r#type, PostType::Idea);
     }
 );
@@ -367,14 +355,11 @@ test_with_server!(get_users_to_post_test, |server, ctx_state, config| {
 
     let post = create_post(server, &default_discussion, data).await;
     post.assert_status_ok();
-    let post = post.json::<Post>();
+    let post = post.json::<PostView>();
     assert_eq!(post.r#type, PostType::Private);
 
     let response = server
-        .get(&format!(
-            "/api/posts/{}/users",
-            post.id.as_ref().unwrap().to_raw()
-        ))
+        .get(&format!("/api/posts/{}/users", post.id.to_raw()))
         .await;
 
     response.assert_status_ok();

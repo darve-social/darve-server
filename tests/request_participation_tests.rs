@@ -3,13 +3,13 @@ use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
-use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::task::task_request_entity::TaskRequest;
 use darve_server::entities::user_notification::UserNotificationEvent;
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::models::view::balance_tx::CurrencyTransactionView;
 use darve_server::models::view::notification::UserNotificationView;
+use darve_server::models::view::post::PostView;
 use darve_server::models::view::task::TaskRequestView;
 use darve_server::models::view::task::TaskViewForParticipant;
 use darve_server::routes::tasks::TaskRequestOfferInput;
@@ -75,9 +75,9 @@ test_with_server!(
             )
             .add_header("Accept", "application/json")
             .await;
-        let created_post = create_post.json::<Post>();
+        let created_post = create_post.json::<PostView>();
         create_post.assert_status_success();
-        let post_id = created_post.id.as_ref().unwrap().to_raw();
+        let post_id = created_post.id.to_raw();
 
         ////////// user 2 creates offer for user 0
 
@@ -305,9 +305,9 @@ test_with_server!(
             )
             .add_header("Accept", "application/json")
             .await;
-        let created_post = create_post.json::<Post>();
+        let created_post = create_post.json::<PostView>();
         create_post.assert_status_success();
-        let delivery_post_id = created_post.id.as_ref().unwrap().to_raw();
+        let delivery_post_id = created_post.id.to_raw();
         println!("DEL POST={}", delivery_post_id.clone());
 
         // deliver task
