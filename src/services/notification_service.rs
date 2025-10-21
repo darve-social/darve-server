@@ -621,7 +621,7 @@ where
                 UserNotificationEvent::CreatedPost.as_str(),
                 &receivers,
                 Some(json!({
-                   "post_id": post.id,
+                   "post_id": post.id.as_ref().unwrap().to_raw(),
                    "discussion_id": post.belongs_to.to_raw(),
                    "discussion_type": disc.r#type,
                    "is_profile": is_profile
