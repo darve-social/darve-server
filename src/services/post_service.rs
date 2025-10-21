@@ -6,7 +6,7 @@ use crate::{
     entities::{
         community::{
             discussion_entity::DiscussionDbService,
-            post_entity::{CreatePost, Post, PostDbService, PostType},
+            post_entity::{CreatePost, PostDbService, PostType},
         },
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     },
@@ -364,7 +364,12 @@ where
             .collect::<Vec<UserView>>())
     }
 
-    pub async fn create(&self, user_id: &str, disc_id: &str, data: PostInput) -> CtxResult<Post> {
+    pub async fn create(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        data: PostInput,
+    ) -> CtxResult<PostView> {
         let post_data = self.get_post_data_of_input(data).await?;
         let user = self.users_repository.get_by_id(user_id).await?;
 
@@ -525,7 +530,7 @@ where
             .on_discussion_post(&user.id.as_ref().unwrap(), &post_view)
             .await?;
 
-        Ok(post)
+        Ok(post_view)
     }
 
     pub async fn get(&self, user_id: &str, post_id: &str) -> AppResult<PostView> {

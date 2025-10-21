@@ -304,11 +304,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -519,11 +519,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw()}))
+            .json(&json!({"post_id": deliver_post.id.to_raw()}))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -615,11 +615,11 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .add_header("Cookie", format!("jwt={}", token0))
         .await
-        .json::<Post>();
+        .json::<PostView>();
 
     let delivered_response = server
         .post(&format!("/api/tasks/{}/deliver", task_id))
-        .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+        .json(&json!({"post_id": deliver_post.id.to_raw() }))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -629,7 +629,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
     }
-    .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str(), None)
+    .get_view_by_id::<PostAccessView>(deliver_post.id.to_raw().as_str(), None)
     .await
     .unwrap();
 
@@ -690,11 +690,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -736,11 +736,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -784,11 +784,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await;
@@ -1344,11 +1344,11 @@ test_with_server!(
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1358,7 +1358,7 @@ test_with_server!(
             db: &ctx_state.db.client,
             ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
         }
-        .get_view_by_id::<PostAccessView>(deliver_post.id.as_ref().unwrap().to_raw().as_str(), None)
+        .get_view_by_id::<PostAccessView>(deliver_post.id.to_raw().as_str(), None)
         .await
         .unwrap();
 
@@ -1435,11 +1435,11 @@ test_with_server!(
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1602,10 +1602,10 @@ test_with_server!(
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id.as_ref().unwrap().to_raw()).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -1640,10 +1640,7 @@ test_with_server!(
         assert_eq!(tasks.len(), 0);
 
         server
-            .post(&format!(
-                "/api/posts/{}/remove_users",
-                post.id.as_ref().unwrap().to_raw()
-            ))
+            .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
             .add_header("Cookie", format!("jwt={}", token1))
             .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()]}))
             .await
@@ -1699,11 +1696,11 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .add_header("Cookie", format!("jwt={}", token0))
             .await
-            .json::<Post>();
+            .json::<PostView>();
 
         let delivered_response = server
             .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.as_ref().unwrap().to_raw() }))
+            .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1725,7 +1722,10 @@ test_with_server!(
             .unwrap();
 
         assert_eq!(posts.len(), 1);
-        assert_eq!(posts[0].id, deliver_post.id)
+        assert_eq!(
+            posts[0].id.as_ref().unwrap().to_raw(),
+            deliver_post.id.to_raw()
+        )
     }
 );
 

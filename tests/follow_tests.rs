@@ -2,10 +2,7 @@ mod helpers;
 use crate::helpers::create_fake_login_test_user;
 use axum_test::multipart::MultipartForm;
 use darve_server::{
-    entities::{
-        community::{discussion_entity::DiscussionDbService, post_entity::Post},
-        user_auth::follow_entity,
-    },
+    entities::{community::discussion_entity::DiscussionDbService, user_auth::follow_entity},
     middleware,
     models::view::{notification::UserNotificationView, post::PostView},
     routes::{
@@ -172,7 +169,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     create_post.assert_status_success();
-    let _post = create_post.json::<Post>();
+    let _post = create_post.json::<PostView>();
 
     let response = server
         .get(&format!("/api/discussions/{disc_id}/posts"))

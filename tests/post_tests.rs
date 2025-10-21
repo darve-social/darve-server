@@ -8,7 +8,6 @@ use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::Discussion;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
-use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostDbService;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::entities::tag::SystemTags;
@@ -542,7 +541,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
         .add_text("users", user.id.as_ref().unwrap().to_raw())
         .add_text("users", user1.id.as_ref().unwrap().to_raw());
 
-    let private_post = create_post(server, &disc_id, data).await.json::<Post>();
+    let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
@@ -553,10 +552,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(
-        posts[0].latest_post.as_ref().unwrap().id,
-        *private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id, private_post.id);
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
@@ -567,10 +563,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let posts = latest_posts.json::<Vec<DiscussionUserView>>();
     assert_eq!(posts.len(), 1);
-    assert_eq!(
-        posts[0].latest_post.as_ref().unwrap().id,
-        *private_post.id.as_ref().unwrap()
-    );
+    assert_eq!(posts[0].latest_post.as_ref().unwrap().id, private_post.id);
     let latest_posts = server
         .get("/api/users/current/latest_posts")
         .add_header("Cookie", format!("jwt={}", token2))
