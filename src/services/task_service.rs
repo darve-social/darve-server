@@ -458,16 +458,16 @@ where
         let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task_thing = get_str_thing(&task_id)?;
-        let task = self
+        let task_access_view = self
             .tasks_repository
             .get_by_id::<TaskAccessView>(&task_thing)
             .await?;
 
-        if !TaskAccess::new(&task).can_reject(&user) {
+        if !TaskAccess::new(&task_access_view).can_reject(&user) {
             return Err(AppError::Forbidden);
         }
 
-        let task = self
+        let task: TaskView = self
             .tasks_repository
             .get_by_id::<TaskView>(&task_thing)
             .await?;
@@ -494,6 +494,11 @@ where
                 [task.id.clone()].to_vec(),
             )
             .await?;
+
+        let _ = self
+            .notification_service
+            .on_rejected_task(&user, &task_access_view)
+            .await;
 
         Ok(result)
     }

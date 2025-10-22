@@ -238,6 +238,72 @@ where
         Ok(())
     }
 
+    pub async fn on_rejected_task(
+        &self,
+        user: &LocalUser,
+        task_view: &TaskAccessView,
+    ) -> CtxResult<()> {
+        let user_id = user.id.as_ref().unwrap();
+
+        let mut receiver_things: HashSet<Thing> = HashSet::from_iter(task_view.get_user_ids());
+
+        if let Some(ref post_view) = task_view.post {
+            match post_view.r#type {
+                PostType::Private => receiver_things.extend(post_view.get_user_ids()),
+                _ => match post_view.discussion.r#type {
+                    DiscussionType::Private => {
+                        receiver_things.extend(post_view.discussion.get_user_ids())
+                    }
+                    _ => (),
+                },
+            }
+        } else if let Some(ref disc_view) = task_view.discussion {
+            match disc_view.r#type {
+                DiscussionType::Private => receiver_things.extend(disc_view.get_user_ids()),
+                _ => (),
+            }
+        }
+        let receivers = receiver_things
+            .iter()
+            .filter_map(|id| {
+                if id == user_id {
+                    None
+                } else {
+                    Some(id.id.to_raw())
+                }
+            })
+            .collect::<Vec<String>>();
+
+        if receivers.is_empty() {
+            return Ok(());
+        }
+
+        let event = self
+            .notification_repository
+            .create(
+                &user_id.id.to_raw(),
+                format!("{} rejected the task.", user.username).as_str(),
+                UserNotificationEvent::UserTaskRequestRejected.as_str(),
+                &receivers,
+                Some(json!({
+                    "task_id": task_view.id.to_raw(),
+                    "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
+                    "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
+                })),
+            )
+            .await?;
+
+        let _ = self.event_sender.send(AppEvent {
+            receivers,
+            user_id: user_id.id.to_raw(),
+            metadata: None,
+            content: None,
+            event: AppEventType::UserNotificationEvent(event),
+        });
+
+        Ok(())
+    }
+
     pub async fn on_accepted_task(
         &self,
         user: &LocalUser,
@@ -913,7 +979,7 @@ where
         &self,
         view: &DiscussionAccessView,
         task: &TaskRequest,
-        curernt_user_id: Thing,
+        current_user_id: Thing,
         is_current_user_donor: bool,
         participant: Option<Thing>,
     ) -> CtxResult<Vec<Thing>> {
@@ -923,7 +989,7 @@ where
                 TaskRequestType::Public => Ok(vec![]),
                 TaskRequestType::Private => {
                     let mut users = if is_current_user_donor {
-                        self.get_follower_ids(curernt_user_id).await?
+                        self.get_follower_ids(current_user_id).await?
                     } else {
                         vec![]
                     };
