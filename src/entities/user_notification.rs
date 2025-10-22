@@ -26,6 +26,7 @@ pub enum UserNotificationEvent {
     UserTaskRequestReceived,
     DonateTaskRequest,
     UserTaskRequestAccepted,
+    UserTaskRequestRejected,
     TaskRewardReceived,
     CreatedPost,
     CommentAdded,
@@ -52,6 +53,7 @@ impl UserNotificationEvent {
             UserNotificationEvent::DepositCompleted => "DepositCompleted",
             UserNotificationEvent::WithdrawCompleted => "WithdrawCompleted",
             UserNotificationEvent::CreatedDiscussion => "CreatedDiscussion",
+            UserNotificationEvent::UserTaskRequestRejected => "UserTaskRequestRejected",
         }
     }
 }
