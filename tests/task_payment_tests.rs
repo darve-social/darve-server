@@ -15,6 +15,7 @@ use darve_server::{
     },
     jobs,
     middleware::{ctx::Ctx, utils::string_utils::get_str_thing},
+    models::view::task::TaskRequestView,
     services::discussion_service::CreateDiscussion,
 };
 
@@ -795,7 +796,7 @@ test_with_server!(
 );
 
 test_with_server!(immediately_refund_on_reject, |server, state, config| {
-    let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
+    let (server, participant, _, token) = create_fake_login_test_user(&server).await;
 
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
@@ -828,7 +829,7 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -856,4 +857,61 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor0_amount);
+});
+
+test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
+    let (server, participant, _, token) = create_fake_login_test_user(&server).await;
+    let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
+    let comm_id = CommunityDbService::get_profile_community_id(&donor0.id.as_ref().unwrap());
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some(
+                [
+                    donor0.id.as_ref().unwrap().to_raw(),
+                    participant.id.as_ref().unwrap().to_raw(),
+                ]
+                .to_vec(),
+            ),
+            private_discussion_users_final: true,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    let disc = create_response.json::<Discussion>();
+
+    let task_request = server
+        .post(format!("/api/discussions/{}/tasks", disc.id.to_raw()).as_str())
+        .json(&json!({
+            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "delivery_period": 1,
+        }))
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+
+    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+
+    let response = server
+        .post(&format!("/api/tasks/{}/reject", task_id))
+        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Accept", "application/json")
+        .await;
+    response.assert_status_success();
+
+    let task_request = server
+        .get(format!("/api/tasks/{}", task_id).as_str())
+        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Accept", "application/json")
+        .await;
+    task_request.assert_status_success();
+    let task = task_request.json::<TaskRequestView>();
+
+    assert_eq!(task.status, TaskRequestStatus::Completed);
 });

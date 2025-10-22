@@ -94,7 +94,7 @@ pub struct TaskForReward {
     pub donors: Vec<TaskDonorForReward>,
     pub participants: Vec<TaskParticipantForReward>,
     pub wallet: Wallet,
-    pub balance: i64,
+    pub balance: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
