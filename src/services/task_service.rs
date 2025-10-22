@@ -717,7 +717,6 @@ where
             ]
             .contains(&u.status)
         });
-
         if !all_participants_completed {
             return Ok(());
         }
@@ -727,6 +726,14 @@ where
     }
 
     async fn process_reward(&self, task: TaskForReward) -> AppResult<()> {
+        if task.balance.is_none() {
+            let _ = self
+                .tasks_repository
+                .update_status(task.id, TaskRequestStatus::Completed)
+                .await;
+            return Ok(());
+        }
+
         let delivered_users = task
             .participants
             .iter()
@@ -764,7 +771,7 @@ where
 
             let task_donors = task.donors.iter().map(|d| &d.id).collect::<Vec<&Thing>>();
 
-            let amount: u64 = task.balance as u64 / task_users.len() as u64;
+            let amount: u64 = task.balance.unwrap() as u64 / task_users.len() as u64;
             for task_user in task_users {
                 let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user.id);
                 let res = self
@@ -792,12 +799,14 @@ where
                 }
             }
         }
+
         if is_completed {
             let _ = self
                 .tasks_repository
                 .update_status(task.id, TaskRequestStatus::Completed)
                 .await;
         }
+
         Ok(())
     }
 
