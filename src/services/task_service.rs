@@ -885,9 +885,7 @@ where
             );
         };
 
-        println!(">>>>>>>>>>>>>>>{:?} \n\n", query);
         let mut res = query.query("RETURN $task;").query("COMMIT").await?;
-        println!(">>>>>>>>>>>>>>>{:?} \n\n", res);
         check_transaction_custom_error(&mut res)?;
         let task: Option<TaskRequest> = res.take(0)?;
         let task = task.unwrap();
