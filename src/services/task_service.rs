@@ -2,6 +2,7 @@ use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
     database::client::Db,
     entities::{
+        self,
         access_user::AccessUser,
         community::{
             discussion_entity::DiscussionDbService,
@@ -11,13 +12,14 @@ use crate::{
         task::task_request_entity::{
             DeliverableType, RewardType, TaskForReward, TaskParticipantForReward, TaskRequest,
             TaskRequestCreate, TaskRequestDbService, TaskRequestStatus, TaskRequestType,
+            TABLE_NAME as TASK_TABLE_NAME,
         },
         task_donor::TaskDonor,
         task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
             balance_transaction_entity::{BalanceTransactionDbService, TransactionType},
-            wallet_entity::{CurrencySymbol, WalletDbService},
+            wallet_entity::{CurrencySymbol, WalletDbService, TABLE_NAME as WALLET_TABLE_NAME},
         },
     },
     interfaces::repositories::{
@@ -43,6 +45,7 @@ use crate::{
     services::notification_service::{NotificationService, OnCreatedTaskView},
 };
 use chrono::{DateTime, TimeDelta, Utc};
+use entities::wallet::wallet_entity::check_transaction_custom_error;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -125,6 +128,7 @@ where
     default_period_hours: u16,
     access_repository: &'a A,
     tags_repository: &'a TG,
+    db: &'a Db,
 }
 
 impl<'a, T, N, P, A, TG> TaskService<'a, T, N, P, A, TG>
@@ -162,6 +166,7 @@ where
             default_period_hours: 48,
             access_repository,
             tags_repository,
+            db: db,
         }
     }
 
@@ -361,7 +366,8 @@ where
         let participant = task.donors.iter().find(|p| &p.user == &donor_thing);
 
         let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
-        let result = match participant {
+        let mut query = self.db.query("BEGIN");
+        match participant {
             Some(p) => {
                 if let Some(ref tx) = p.transaction {
                     let tx = self
@@ -369,79 +375,78 @@ where
                         .get(IdentIdName::Id(tx.clone()))
                         .await?;
 
-                    let _ = self
-                        .transactions_repository
-                        .transfer_currency(
-                            &task.wallet_id,
-                            &user_wallet,
-                            tx.amount_out.unwrap(),
-                            &tx.currency,
-                            Some("Update donate".to_string()),
-                            TransactionType::Refund,
-                        )
-                        .await?;
+                    query = BalanceTransactionDbService::build_transfer_qry(
+                        query,
+                        &task.wallet_id,
+                        &user_wallet,
+                        tx.amount_out.unwrap(),
+                        &tx.currency,
+                        None,
+                        Some("Update donate".to_string()),
+                        TransactionType::Refund,
+                        "",
+                    );
                 }
 
-                let response = self
-                    .transactions_repository
-                    .transfer_currency(
-                        &user_wallet,
-                        &task.wallet_id,
-                        data.amount as i64,
-                        &task.currency,
-                        Some("Update donate".to_string()),
-                        TransactionType::Donate,
-                    )
-                    .await?;
+                query = BalanceTransactionDbService::build_transfer_qry(
+                    query,
+                    &user_wallet,
+                    &task.wallet_id,
+                    data.amount as i64,
+                    &task.currency,
+                    None,
+                    Some("Update donate".to_string()),
+                    TransactionType::Donate,
+                    "donate",
+                );
 
-                self.task_donors_repository
-                    .update(
-                        &p.id.as_ref().unwrap().id.to_raw(),
-                        &response.tx_out_id.id.to_raw(),
-                        data.amount as u64,
-                        &task.currency.to_string(),
-                    )
-                    .await
-                    .map_err(|e| AppError::SurrealDb {
-                        source: e.to_string(),
-                    })?
+                query = self.task_donors_repository.build_update_query(
+                    query,
+                    &p.id.as_ref().unwrap().id.to_raw(),
+                    "$donate_tx_out_id",
+                    data.amount as u64,
+                    &task.currency.to_string(),
+                );
             }
             None => {
-                let response = self
-                    .transactions_repository
-                    .transfer_currency(
-                        &user_wallet,
-                        &task.wallet_id,
-                        data.amount as i64,
-                        &task.currency,
-                        Some(format!("Donate '{}' task", task.request_txt)),
-                        TransactionType::Donate,
-                    )
-                    .await?;
+                query = BalanceTransactionDbService::build_transfer_qry(
+                    query,
+                    &user_wallet,
+                    &task.wallet_id,
+                    data.amount as i64,
+                    &task.currency,
+                    None,
+                    Some("Update donate".to_string()),
+                    TransactionType::Donate,
+                    "donate",
+                );
 
-                let _ = self
-                    .access_repository
-                    .add(
-                        [donor_thing.clone()].to_vec(),
-                        [task.id.clone()].to_vec(),
-                        Role::Donor.to_string(),
-                    )
-                    .await?;
-
-                self.task_donors_repository
-                    .create(
-                        &task_thing.id.to_raw(),
-                        &donor_thing.id.to_raw(),
-                        &response.tx_out_id.id.to_raw(),
-                        data.amount as u64,
-                        &task.currency.to_string(),
-                    )
-                    .await
-                    .map_err(|e| AppError::SurrealDb {
-                        source: e.to_string(),
-                    })?
+                query = self.task_donors_repository.build_create_query(
+                    query,
+                    &task_thing.id.to_raw(),
+                    &donor_thing.id.to_raw(),
+                    "$donate_tx_out_id",
+                    data.amount as u64,
+                    &task.currency.to_string(),
+                );
             }
         };
+
+        let mut res = query.query("RETURN $task_donor;").query("COMMIT").await?;
+        check_transaction_custom_error(&mut res)?;
+
+        let response: Option<TaskDonor> = res.take(0)?;
+
+        if participant.is_none() {
+            let _ = self
+                .access_repository
+                .add(
+                    [donor_thing.clone()].to_vec(),
+                    [task.id.clone()].to_vec(),
+                    Role::Donor.to_string(),
+                )
+                .await?;
+        }
 
         self.notification_service
             .on_donate_task(&donor, &task_view)
@@ -451,7 +456,7 @@ where
             .on_update_balance(&donor_thing)
             .await?;
 
-        Ok(result)
+        Ok(response.unwrap())
     }
 
     pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
@@ -826,52 +831,78 @@ where
     ) -> CtxResult<TaskRequest> {
         let offer_currency = CurrencySymbol::USD;
         let user_thing = user.id.as_ref().unwrap();
-        let task = self
-            .tasks_repository
-            .create(TaskRequestCreate {
-                belongs_to,
-                r#type,
-                from_user: user_thing.clone(),
-                request_txt: data.content,
-                deliverable_type: DeliverableType::PublicPost,
-                reward_type: RewardType::OnDelivery,
-                currency: offer_currency.clone(),
-                acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
-                delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
-                increase_tasks_nr_for_belongs,
-            })
-            .await?;
+        let mut query = self.db.query("BEGIN");
+
+        let id = surrealdb::sql::Id::ulid();
+        let task_data = TaskRequestCreate {
+            belongs_to,
+            r#type,
+            from_user: user_thing.clone(),
+            request_txt: data.content,
+            deliverable_type: DeliverableType::PublicPost,
+            reward_type: RewardType::OnDelivery,
+            currency: offer_currency.clone(),
+            acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
+            delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
+            increase_tasks_nr_for_belongs,
+            task_id: Thing::from((TASK_TABLE_NAME, id.clone())),
+            wallet_id: Thing::from((WALLET_TABLE_NAME, id)),
+        };
+
+        query = self.tasks_repository.build_create_query(query, &task_data);
 
         if let Some(amount) = data.offer_amount {
-            let wallet_from = WalletDbService::get_user_wallet_id(&user.id.as_ref().unwrap());
+            let user_wallet = WalletDbService::get_user_wallet_id(&user.id.as_ref().unwrap());
 
-            // TODO in db transaction
-            let response = self
-                .transactions_repository
-                .transfer_currency(
-                    &wallet_from,
-                    &task.wallet_id,
-                    amount as i64,
-                    &offer_currency,
-                    Some(format!("Donate by `{}` task`", task.request_txt)),
-                    TransactionType::Donate,
+            query = BalanceTransactionDbService::build_transfer_qry(
+                query,
+                &user_wallet,
+                &task_data.wallet_id,
+                amount as i64,
+                &task_data.currency,
+                None,
+                Some(format!("Donate by `{}` task`", task_data.request_txt)),
+                TransactionType::Donate,
+                "donate",
+            );
+
+            query = self.task_donors_repository.build_create_query(
+                query,
+                &task_data.task_id.id.to_raw(),
+                &user_thing.id.to_raw(),
+                "$donate_tx_out_id",
+                amount as u64,
+                &task_data.currency.to_string(),
+            );
+        }
+
+        if let Some(ref participant) = participant {
+            query = self.task_participants_repository.build_create_query(
+                query,
+                &task_data.task_id.id.to_raw(),
+                &participant.id.as_ref().unwrap().id.to_raw(),
+                TaskParticipantStatus::Requested.as_str(),
+            );
+        };
+
+        println!(">>>>>>>>>>>>>>>{:?} \n\n", query);
+        let mut res = query.query("RETURN $task;").query("COMMIT").await?;
+        println!(">>>>>>>>>>>>>>>{:?} \n\n", res);
+        check_transaction_custom_error(&mut res)?;
+        let task: Option<TaskRequest> = res.take(0)?;
+        let task = task.unwrap();
+
+        if let Some(ref participant) = participant {
+            self.access_repository
+                .add(
+                    [participant.id.as_ref().unwrap().clone()].to_vec(),
+                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    Role::Candidate.to_string(),
                 )
                 .await?;
+        }
 
-            let _ = self
-                .task_donors_repository
-                .create(
-                    &task.id.as_ref().unwrap().id.to_raw(),
-                    &user_thing.id.to_raw(),
-                    &response.tx_out_id.id.to_raw(),
-                    amount as u64,
-                    &offer_currency.to_string(),
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb {
-                    source: e.to_string(),
-                })?;
-
+        if let Some(_) = data.offer_amount {
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
@@ -889,28 +920,6 @@ where
                     [user.id.as_ref().unwrap().clone()].to_vec(),
                     [task.id.as_ref().unwrap().clone()].to_vec(),
                     Role::Owner.to_string(),
-                )
-                .await?;
-        }
-
-        if let Some(ref participant) = participant {
-            let _ = self
-                .task_participants_repository
-                .create(
-                    &task.id.as_ref().unwrap().id.to_raw(),
-                    &participant.id.as_ref().unwrap().id.to_raw(),
-                    TaskParticipantStatus::Requested.as_str(),
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb {
-                    source: e.to_string(),
-                })?;
-
-            self.access_repository
-                .add(
-                    [participant.id.as_ref().unwrap().clone()].to_vec(),
-                    [task.id.as_ref().unwrap().clone()].to_vec(),
-                    Role::Candidate.to_string(),
                 )
                 .await?;
         };

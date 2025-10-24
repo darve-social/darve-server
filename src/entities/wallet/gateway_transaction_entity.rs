@@ -158,47 +158,31 @@ impl<'a> GatewayTransactionDbService<'a> {
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
+        let query = self.db.query("BEGIN");
 
-        let gateway_2_user_tx = BalanceTransactionDbService::get_transfer_qry(
+        let tx_qry = BalanceTransactionDbService::build_transfer_qry(
+            query,
             &gwy_wallet,
             &user_wallet,
             amount,
             &currency_symbol,
             Some(fund_tx_id.clone()),
-            true,
             description,
             TransactionType::Deposit,
             "",
-        )?;
+        )
+        .query(format!(
+            "UPDATE $_gateway_tx_id SET 
+                    status=$_gateway_tx_status,
+                    external_tx_id=$_gateway_ext_tx,
+                    timelines+=[{{ status: $_gateway_tx_status, date: time::now() }}]"
+        ))
+        .query("COMMIT")
+        .bind(("_gateway_tx_id", tx.id.as_ref().unwrap().clone()))
+        .bind(("_gateway_ext_tx", external_tx_id))
+        .bind(("_gateway_tx_status", GatewayTransactionStatus::Completed));
 
-        let gateway_2_user_qry = gateway_2_user_tx.get_query_string();
-
-        let fund_qry = format!(
-            "
-        BEGIN TRANSACTION;
-            UPDATE $gateway_tx SET
-                status=$status,
-                external_tx_id=$ext_tx,
-                timelines+=[{{ status: $status, date: time::now() }}];
-           {gateway_2_user_qry}
-        COMMIT TRANSACTION;
-
-        "
-        );
-        let qry = self
-            .db
-            .query(fund_qry)
-            .bind(("gateway_tx", tx.id.as_ref().unwrap().clone()))
-            .bind(("ext_tx", external_tx_id))
-            .bind(("status", GatewayTransactionStatus::Completed));
-
-        let qry = gateway_2_user_tx
-            .get_bindings()
-            .iter()
-            .fold(qry, |q, item| q.bind((item.0.clone(), item.1.clone())));
-
-        let mut fund_res = qry.await?;
-
+        let mut fund_res = tx_qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
         Ok(tx.id.as_ref().unwrap().clone())
     }
@@ -215,24 +199,24 @@ impl<'a> GatewayTransactionDbService<'a> {
         let currency = CurrencySymbol::USD;
 
         let id = Self::generate_id();
-        let query = BalanceTransactionDbService::get_transfer_qry(
+        let fee_amount = (amount as f64 * withdraw_fee) as u64;
+
+        let query = self.db.query("BEGIN");
+        let mut tx_qry = BalanceTransactionDbService::build_transfer_qry(
+            query,
             &user_wallet,
             &wallet_to,
             amount as i64,
             &currency,
             Some(id.clone()),
-            true,
             description,
             TransactionType::Withdraw,
             "",
-        )?;
+        );
 
-        let user_2_lock_qry = query.get_query_string();
-
-        let qry = format!(
-            "BEGIN TRANSACTION;
-               {user_2_lock_qry}
-            LET $fund_tx = INSERT INTO {TABLE_NAME} {{
+        tx_qry = tx_qry
+            .query(format!(
+                "LET $fund_tx = INSERT INTO {TABLE_NAME} {{
                 id: $id,
                 amount: $fund_amt,
                 user: $user,
@@ -245,14 +229,9 @@ impl<'a> GatewayTransactionDbService<'a> {
                 timelines: [{{ status: $status, date: time::now() }}]
             }};
             LET $fund_tx_id = $fund_tx[0].id;
-            $fund_tx;
-        COMMIT TRANSACTION;"
-        );
-
-        let fee_amount = (amount as f64 * withdraw_fee) as u64;
-        let qry = self
-            .db
-            .query(qry)
+            $fund_tx;"
+            ))
+            .query("COMMIT")
             .bind(("id", id))
             .bind(("fund_amt", amount))
             .bind(("user", user.clone()))
@@ -263,12 +242,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             .bind(("type", TransactionType::Withdraw))
             .bind(("status", GatewayTransactionStatus::Pending));
 
-        let qry = query
-            .get_bindings()
-            .into_iter()
-            .fold(qry, |q, item| q.bind((item.0, item.1)));
-
-        let mut fund_res = qry.await?;
+        let mut fund_res = tx_qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
         let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 1)?;
@@ -292,40 +266,25 @@ impl<'a> GatewayTransactionDbService<'a> {
                     ident: "withdraw_wallet".to_string(),
                 })?;
         let user_wallet = WalletDbService::get_user_wallet_id(&withdraw_tx.user);
-
-        let query = BalanceTransactionDbService::get_transfer_qry(
+        let query = self.db.query("BEGIN");
+        let mut tx_qry = BalanceTransactionDbService::build_transfer_qry(
+            query,
             wallet_from,
             &user_wallet,
             withdraw_tx.amount,
             &withdraw_tx.currency,
             Some(withdraw_tx_id.clone()),
-            true,
             description,
             TransactionType::Withdraw,
             "",
-        )?;
-
-        let user_2_lock_qry = query.get_query_string();
-
-        let qry = format!(
-            "BEGIN TRANSACTION;
-               {user_2_lock_qry}
-               UPDATE $tx_id SET status=$status, timelines+=[{{ status: $status, date: time::now() }}];
-             COMMIT TRANSACTION;"
         );
+        tx_qry = tx_qry
+            .query("UPDATE $_withdraw_tx_id SET status=$_withdraw_tx_status, timelines+=[{{ status: $_withdraw_tx_status, date: time::now() }}]")
+            .query("COMMIT")
+            .bind(("_withdraw_tx_id", withdraw_tx_id))
+            .bind(("_withdraw_tx_status", GatewayTransactionStatus::Failed));
 
-        let qry = self
-            .db
-            .query(qry)
-            .bind(("tx_id", withdraw_tx_id))
-            .bind(("status", GatewayTransactionStatus::Failed));
-
-        let qry = query
-            .get_bindings()
-            .into_iter()
-            .fold(qry, |q, item| q.bind((item.0, item.1)));
-
-        let mut fund_res = qry.await?;
+        let mut fund_res = tx_qry.await?;
         check_transaction_custom_error(&mut fund_res)?;
 
         Ok(withdraw_tx)
@@ -348,59 +307,43 @@ impl<'a> GatewayTransactionDbService<'a> {
         let fee = withdraw_tx.fee_amount.ok_or(AppError::Generic {
             description: "Fee amount does not exist".to_string(),
         })?;
-
         let amount = withdraw_tx.amount - fee as i64;
-        let query = BalanceTransactionDbService::get_transfer_qry(
+        let query = self.db.query("BEGIN");
+        let mut qry = BalanceTransactionDbService::build_transfer_qry(
+            query,
             &wallet_from,
             &APP_GATEWAY_WALLET,
             amount,
             &withdraw_tx.currency,
             Some(withdraw_tx_id.clone()),
-            true,
             None,
             TransactionType::Withdraw,
             "withdraw",
-        )?;
+        );
 
         let fee_uniq = "fee";
-        let query_fee = BalanceTransactionDbService::get_transfer_qry(
+        qry = BalanceTransactionDbService::build_transfer_qry(
+            qry,
             &wallet_from,
             &DARVE_WALLET,
             fee as i64,
             &withdraw_tx.currency,
             Some(withdraw_tx_id.clone()),
-            true,
             None,
             TransactionType::Fee,
             fee_uniq,
-        )?;
-
-        let withdraw_qry = query.get_query_string();
-        let fee_qry = query_fee.get_query_string();
-
-        let qry = format!(
-            "BEGIN TRANSACTION;
-               {withdraw_qry}
-               {fee_qry}
-               UPDATE $tx_id SET status=$status, fee_tx=${fee_uniq}_tx_out_id, timelines+=[{{ status: $status, date: time::now() }}];
-             COMMIT TRANSACTION;"
         );
 
-        let qry = self
-            .db
-            .query(qry)
-            .bind(("tx_id", withdraw_tx_id))
-            .bind(("status", GatewayTransactionStatus::Completed));
-
-        let qry = query
-            .get_bindings()
-            .into_iter()
-            .fold(qry, |q, item| q.bind((item.0, item.1)));
-
-        let qry = query_fee
-            .get_bindings()
-            .into_iter()
-            .fold(qry, |q, item| q.bind((item.0, item.1)));
+        qry = qry
+            .query(format!(
+                "UPDATE $_withdraw_tx_id SET
+            status=$_withdraw_tx_status,
+            fee_tx=${fee_uniq}_tx_out_id,
+            timelines+=[{{ status: $_withdraw_tx_status, date: time::now() }}]"
+            ))
+            .query("COMMIT")
+            .bind(("_withdraw_tx_id", withdraw_tx_id))
+            .bind(("_withdraw_tx_status", GatewayTransactionStatus::Completed));
 
         let mut fund_res = qry.await?;
         check_transaction_custom_error(&mut fund_res)?;

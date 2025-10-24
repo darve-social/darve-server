@@ -19,11 +19,12 @@ use middleware::utils::db_utils::{
 };
 use middleware::{
     ctx::Ctx,
-    error::{AppError, CtxError, CtxResult},
+    error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
-use surrealdb::sql::{Datetime, Id, Thing};
+use surrealdb::method::Query;
+use surrealdb::sql::{Datetime, Thing};
 use wallet_entity::CurrencySymbol;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,6 +55,8 @@ pub enum TaskRequestStatus {
 
 #[derive(Debug, Serialize)]
 pub struct TaskRequestCreate {
+    pub task_id: Thing,
+    pub wallet_id: Thing,
     pub from_user: Thing,
     pub belongs_to: Thing,
     pub request_txt: String,
@@ -164,57 +167,53 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(())
     }
 
-    pub async fn create(&self, record: TaskRequestCreate) -> CtxResult<TaskRequest> {
+    pub fn build_create_query<'b>(
+        &self,
+        query: Query<'b, surrealdb::engine::any::Any>,
+        record: &TaskRequestCreate,
+    ) -> Query<'b, surrealdb::engine::any::Any> {
         let hours = (record.delivery_period + record.acceptance_period) as i64;
         let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
-        let id = Id::rand().to_raw();
-        let mut query = self
-            .db
-            .query("BEGIN TRANSACTION")
+        let mut gry = query
             .query(format!(
-                "CREATE ONLY $wallet SET {TRANSACTION_HEAD_F} = {{{{}}}};"
+                "CREATE ONLY $_task_wallet_id SET {TRANSACTION_HEAD_F} = {{{{}}}};"
             ))
             .query(format!(
-                "LET $res = CREATE $task SET
-                    delivery_period=$delivery_period,
-                    belongs_to=$belongs_to,
-                    wallet_id=$wallet,
-                    created_by=$created_by,
-                    deliverable_type=$deliverable_type,
-                    request_txt=$request_txt,
-                    reward_type=$reward_type,
-                    currency=$currency,
-                    type=$type,
-                    acceptance_period=$acceptance_period,
-                    due_at=$due_at,
-                    status=$status;"
+                "LET $task = CREATE $_task_id SET 
+                    delivery_period=$_task_delivery_period,
+                    belongs_to=$_task_belongs_to,
+                    wallet_id=$_task_wallet_id,
+                    created_by=$_task_created_by,
+                    deliverable_type=$_task_deliverable_type,
+                    request_txt=$_task_request_txt,
+                    reward_type=$_task_reward_type,
+                    currency=$_task_currency,
+                    type=$_task_type,
+                    acceptance_period=$_task_acceptance_period,
+                    due_at=$_task_due_at,
+                    status=$_task_status;"
             ));
 
         if record.increase_tasks_nr_for_belongs {
-            query = query.query("UPDATE $belongs_to SET tasks_nr += 1;")
+            gry = gry.query("UPDATE $_task_belongs_to SET tasks_nr+=1;")
         }
 
-        query = query
-            .query("COMMIT TRANSACTION")
-            .query("RETURN $res;")
-            .bind(("delivery_period", record.delivery_period))
-            .bind(("belongs_to", record.belongs_to))
-            .bind(("created_by", record.from_user.clone()))
-            .bind(("deliverable_type", record.deliverable_type.clone()))
-            .bind(("request_txt", record.request_txt.clone()))
-            .bind(("reward_type", record.reward_type.clone()))
-            .bind(("currency", record.currency.clone()))
-            .bind(("type", record.r#type.clone()))
-            .bind(("acceptance_period", record.acceptance_period))
-            .bind(("status", TaskRequestStatus::Init))
-            .bind(("due_at", Datetime::from(due_at.unwrap())))
-            .bind(("wallet", Thing::from((WALLET_TABLE_NAME, id.as_str()))))
-            .bind(("task", Thing::from((TABLE_NAME, id.as_str()))));
+        gry = gry
+            .bind(("_task_delivery_period", record.delivery_period))
+            .bind(("_task_belongs_to", record.belongs_to.clone()))
+            .bind(("_task_created_by", record.from_user.clone()))
+            .bind(("_task_deliverable_type", record.deliverable_type.clone()))
+            .bind(("_task_request_txt", record.request_txt.clone()))
+            .bind(("_task_reward_type", record.reward_type.clone()))
+            .bind(("_task_currency", record.currency.clone()))
+            .bind(("_task_type", record.r#type.clone()))
+            .bind(("_task_acceptance_period", record.acceptance_period))
+            .bind(("_task_status", TaskRequestStatus::Init))
+            .bind(("_task_due_at", Datetime::from(due_at.unwrap())))
+            .bind(("_task_wallet_id", record.wallet_id.clone()))
+            .bind(("_task_id", record.task_id.clone()));
 
-        let mut res = query.await.map_err(CtxError::from(self.ctx))?;
-        let data = res.take::<Option<TaskRequest>>(res.num_statements() - 1)?;
-
-        Ok(data.unwrap())
+        gry
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<TaskRequest> {
@@ -233,6 +232,12 @@ impl<'a> TaskRequestDbService<'a> {
         )
         .await?;
         with_not_found_err(opt, self.ctx, &id.to_raw())
+    }
+
+    pub async fn delete_by_id(&self, id: &Thing) -> CtxResult<()> {
+        let _task: Option<TaskRequest> =
+            self.db.delete((id.tb.to_string(), id.id.to_raw())).await?;
+        Ok(())
     }
 
     pub async fn get_by_post<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
