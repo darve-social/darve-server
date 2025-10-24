@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::{gateway_transaction_entity, wallet_entity};
 use crate::database::client::Db;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
@@ -5,18 +7,16 @@ use crate::middleware;
 use crate::middleware::error::CtxError;
 use crate::models::view::balance_tx::CurrencyTransactionView;
 use chrono::{DateTime, Utc};
-use middleware::error::AppResult;
 use middleware::utils::db_utils::{
-    get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination, QryBindingsVal,
+    get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
 };
 use middleware::{
     ctx::Ctx,
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Display;
-use surrealdb::sql::{to_value, Thing, Value};
+use surrealdb::method::Query;
+use surrealdb::sql::Thing;
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
 #[derive(Debug, Deserialize)]
@@ -128,32 +128,25 @@ impl<'a> BalanceTransactionDbService<'a> {
         description: Option<String>,
     ) -> CtxResult<()> {
         let uniq = "id";
-        let tx_qry = Self::get_transfer_qry(
+        let query = self.db.query("BEGIN");
+        let tx_qry = Self::build_transfer_qry(
+            query,
             wallet_from,
             wallet_to,
             amount,
             currency,
             None,
-            true,
             description,
             TransactionType::Reward,
             uniq,
-        )?;
+        )
+        .query(format!(
+            "UPDATE $task_user_id SET reward_tx=${uniq}_tx_in_id"
+        ))
+        .query("COMMIT")
+        .bind(("task_user_id", task_user_id.clone()));
 
-        let mut query = self
-            .db
-            .query("BEGIN TRANSACTION")
-            .query(tx_qry.get_query_string())
-            .query(format!(
-                "UPDATE $task_user_id SET reward_tx=${uniq}_tx_in_id"
-            ))
-            .query("COMMIT TRANSACTION")
-            .bind(("task_user_id", task_user_id.clone()));
-
-        for v in tx_qry.get_bindings().into_iter() {
-            query = query.bind(v);
-        }
-        let _ = query.await?.check()?;
+        let _ = tx_qry.await?.check()?;
         Ok(())
     }
 
@@ -167,26 +160,25 @@ impl<'a> BalanceTransactionDbService<'a> {
         tx_type: TransactionType,
     ) -> CtxResult<TransferCurrencyResponse> {
         let uniq = "id";
-        let tx_qry = Self::get_transfer_qry(
+        let query = self.db.query("BEGIN");
+
+        let tx_qry = Self::build_transfer_qry(
+            query,
             wallet_from,
             wallet_to,
             amount,
             currency,
             None,
-            false,
             description,
             tx_type,
             uniq,
-        )?;
-        let mut query = self.db.query(tx_qry.get_query_string()).query(format!(
+        )
+        .query(format!(
             "RETURN {{ tx_in_id: ${uniq}_tx_in_id, tx_out_id: ${uniq}_tx_out_id }}"
-        ));
+        ))
+        .query("COMMIT");
 
-        for v in tx_qry.get_bindings().into_iter() {
-            query = query.bind(v);
-        }
-
-        let mut res = query.await?;
+        let mut res = tx_qry.await?;
         check_transaction_custom_error(&mut res)?;
         let index = res.num_statements() - 1;
         Ok(res
@@ -253,25 +245,20 @@ impl<'a> BalanceTransactionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub(crate) fn get_transfer_qry(
+    pub(crate) fn build_transfer_qry<'b>(
+        query: Query<'b, surrealdb::engine::any::Any>,
         wallet_from: &Thing,
         wallet_to: &Thing,
         amount: i64,
         currency: &CurrencySymbol,
         gateway_tx: Option<Thing>,
-        exclude_sql_transaction: bool,
         description: Option<String>,
         tx_type: TransactionType,
         uniq: &str,
-    ) -> AppResult<QryBindingsVal<Value>> {
-        let (begin_tx, commit_tx) = if exclude_sql_transaction {
-            ("", "")
-        } else {
-            ("BEGIN TRANSACTION;", "COMMIT TRANSACTION;")
-        };
-
-        let qry = format!(
-            "{begin_tx}
+    ) -> Query<'b, surrealdb::engine::any::Any> {
+        let mut qry = query
+        .query(format!(
+            "
             LET ${uniq}_lock_id = time::now() + 10s;
             UPDATE ${uniq}_w_from_id SET lock_id = ${uniq}_lock_id;
             LET ${uniq}_upd_lck = UPDATE ${uniq}_w_to_id SET lock_id = ${uniq}_lock_id;
@@ -286,6 +273,7 @@ impl<'a> BalanceTransactionDbService<'a> {
             IF ${uniq}_w_from_id != ${uniq}_app_gateway_wallet_id && ${uniq}_updated_from_balance < 0 {{
                 THROW \"{THROW_BALANCE_TOO_LOW}\";
             }};
+
             LET ${uniq}_tx_out = INSERT INTO {TABLE_NAME} {{
                 id: rand::ulid(),
                 wallet: ${uniq}_w_from_id,
@@ -303,6 +291,7 @@ impl<'a> BalanceTransactionDbService<'a> {
     
             LET ${uniq}_w_to = SELECT * FROM ONLY ${uniq}_w_to_id FETCH transaction_head[${uniq}_currency];
             LET ${uniq}_balance_to = ${uniq}_w_to.transaction_head[${uniq}_currency].balance OR 0;
+
             LET ${uniq}_tx_in = INSERT INTO {TABLE_NAME} {{
                 id: rand::ulid(),
                 wallet: ${uniq}_w_to_id,
@@ -317,58 +306,25 @@ impl<'a> BalanceTransactionDbService<'a> {
             }} RETURN id;
             LET ${uniq}_tx_in_id = ${uniq}_tx_in[0].id;
             UPDATE ${uniq}_w_to_id SET transaction_head[${uniq}_currency] = ${uniq}_tx_in_id, lock_id = NONE;
-            {commit_tx}
-         "
-        );
-        let mut bindings = HashMap::new();
-        bindings.insert(
-            format!("{uniq}_tx_type"),
-            to_value(tx_type).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_w_from_id"),
-            to_value(wallet_from.clone()).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_w_to_id"),
-            to_value(wallet_to.clone()).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_amt"),
-            to_value(amount).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_currency"),
-            to_value(currency.clone()).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_app_gateway_wallet_id"),
-            to_value(APP_GATEWAY_WALLET.clone()).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_gateway_tx_id"),
-            to_value(gateway_tx).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        bindings.insert(
-            format!("{uniq}_description"),
-            to_value(description.unwrap_or_default()).map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
-            })?,
-        );
-        Ok(QryBindingsVal::new(qry, bindings))
+        "
+        ));
+
+        qry = qry
+            .bind((format!("{uniq}_tx_type"), tx_type))
+            .bind((format!("{uniq}_w_from_id"), wallet_from.clone()))
+            .bind((format!("{uniq}_w_to_id"), wallet_to.clone()))
+            .bind((format!("{uniq}_amt"), amount))
+            .bind((format!("{uniq}_currency"), currency.clone()))
+            .bind((
+                format!("{uniq}_app_gateway_wallet_id"),
+                APP_GATEWAY_WALLET.clone(),
+            ))
+            .bind((format!("{uniq}_gateway_tx_id"), gateway_tx))
+            .bind((
+                format!("{uniq}_description"),
+                description.unwrap_or_default(),
+            ));
+
+        qry
     }
 }

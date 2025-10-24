@@ -8,6 +8,8 @@ use crate::interfaces::repositories::task_donors::TaskDonorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;
 use std::sync::Arc;
+use surrealdb::engine::any;
+use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
@@ -41,7 +43,7 @@ impl TaskDonorsRepository {
 
         mutation
             .check()
-            .expect("should mutate taskRequestParticipation");
+            .expect("should mutate taskDonorParticipation");
 
         Ok(())
     }
@@ -49,6 +51,58 @@ impl TaskDonorsRepository {
 
 #[async_trait]
 impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
+    fn build_create_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        task_id: &str,
+        user_id: &str,
+        tx_id: &str,
+        amount: u64,
+        currency: &str,
+    ) -> Query<'b, any::Any> {
+        query
+            .query(format!(
+                "LET $task_donor=RELATE $_task_donor_task_id->{}->$_task_donor_user_id SET
+                amount=$_task_donor_amount,
+                transaction={tx_id},
+                currency=$_task_donor_currency;",
+                self.table_name
+            ))
+            .bind((
+                "_task_donor_user_id",
+                Thing::from((USER_TABLE_NAME, user_id)),
+            ))
+            .bind((
+                "_task_donor_task_id",
+                Thing::from((TASK_TABLE_NAME, task_id)),
+            ))
+            .bind(("_task_donor_amount", amount))
+            .bind(("_task_donor_currency", currency.to_string()))
+    }
+
+    fn build_update_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        id: &str,
+        tx_id: &str,
+        amount: u64,
+        currency: &str,
+    ) -> Query<'b, any::Any> {
+        query
+            .query(format!(
+                "LET $task_donor=UPDATE $_task_donor_id SET
+                amount=$_task_donor_amount,
+                transaction={tx_id},
+                currency=$_task_donor_currency;"
+            ))
+            .bind((
+                "_task_donor_id",
+                Thing::from((self.table_name.as_ref(), id)),
+            ))
+            .bind(("_task_donor_amount", amount))
+            .bind(("_task_donor_currency", currency.to_string()))
+    }
+
     async fn create(
         &self,
         task_id: &str,
