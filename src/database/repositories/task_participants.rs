@@ -11,7 +11,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::{engine::any, method::Query, sql::Thing};
 
 #[derive(Debug)]
 pub struct TaskParticipantsRepository {
@@ -50,6 +50,46 @@ impl TaskParticipantsRepository {
 
 #[async_trait]
 impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
+    fn build_create_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        task_id: &str,
+        user_id: &str,
+        status: &str,
+    ) -> Query<'b, any::Any> {
+        query.query( format!("
+            LET $task_participant=RELATE $_task_participant_task_id->{}->$_task_participant_user_id SET
+                timelines=[{{ status: $_task_participant_status, date: time::now() }}],
+                status=$_task_participant_status", self.table_name))
+
+            .bind(("_task_participant_user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("_task_participant_task_id", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("_task_participant_status", status.to_string()))
+    }
+
+    fn build_update_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        id: &str,
+        status: &str,
+        result: Option<TaskParticipantResult>,
+    ) -> Query<'b, any::Any> {
+        let update_result = match result.is_some() {
+            true => ",result=$_task_participant_result",
+            false => "",
+        };
+        query
+            .query(format!(
+                "
+            LET $task_participant=UPDATE $_task_participant_id SET
+            timelines+=[{{ status: $_task_participant_status, date: time::now() }}],
+            status=$_task_participant_status {update_result};"
+            ))
+            .bind(("_task_participant_id", Thing::from((self.table_name, id))))
+            .bind(("_task_participant_status", status.to_string()))
+            .bind(("_task_participant_result", result))
+    }
+
     async fn create(
         &self,
         task_id: &str,
