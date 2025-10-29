@@ -1,34 +1,27 @@
 use std::sync::Arc;
 
+use crate::entities::community::community_entity;
+use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::user_auth::{follow_entity, local_user_entity};
+use crate::{middleware, utils};
 use askama_axum::Template;
 use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use axum_typed_multipart::TryFromMultipart;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
-
-use community::post_entity;
 use community_entity::CommunityDbService;
-use local_user_entity::LocalUserDbService;
-use middleware::ctx::Ctx;
-
-use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::post_entity::PostType;
-use crate::entities::community::{self, community_entity};
-use crate::entities::user_auth::{follow_entity, local_user_entity};
-use crate::middleware::utils::db_utils::Pagination;
-use crate::models::view::post::PostView;
-use crate::{middleware, utils};
 use follow_entity::TABLE_NAME as FOLLOW_TABLE_NAME;
+use local_user_entity::LocalUserDbService;
 use local_user_entity::TABLE_NAME as USER_TABLE_NAME;
+use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
-use post_entity::PostDbService;
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 use utils::askama_filter_util::filters;
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -76,7 +69,6 @@ pub struct ProfileView {
     #[serde(default)]
     pub following_nr: u64,
     #[serde(default)]
-    pub posts: Vec<PostView>,
     pub last_seen: Option<DateTime<Utc>>,
 }
 
@@ -122,28 +114,6 @@ async fn display_profile(
     profile_view.profile_discussion = Some(DiscussionDbService::get_profile_discussion_id(
         &profile_view.user_id,
     ));
-
-    profile_view.posts = PostDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .get_by_disc(
-        &profile_view.user_id.id.to_raw(),
-        &profile_view
-            .profile_discussion
-            .as_ref()
-            .unwrap()
-            .id
-            .to_raw(),
-        Some(PostType::Public),
-        Pagination {
-            order_by: None,
-            order_dir: None,
-            start: 0,
-            count: 20,
-        },
-    )
-    .await?;
 
     Ok(Json(profile_view))
 }

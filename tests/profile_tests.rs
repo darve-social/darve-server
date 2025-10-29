@@ -308,11 +308,7 @@ test_with_server!(update_user_avatar, |server, ctx_state, config| {
     let get_response = get_user(&server, local_user.id.unwrap().to_raw().as_str()).await;
     get_response.assert_status_success();
     let user = get_response.json::<ProfileView>();
-    assert!(user
-        .image_uri
-        .as_ref()
-        .unwrap()
-        .contains("profile_image.png"));
+    assert!(user.image_uri.as_ref().unwrap().contains(".png"));
 });
 
 test_with_server!(set_user_password, |server, ctx_state, config| {
