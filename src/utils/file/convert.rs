@@ -1,6 +1,7 @@
 use std::{fs::File, io::Read};
 
 use axum_typed_multipart::FieldData;
+use chrono::Utc;
 use tempfile::NamedTempFile;
 
 use crate::middleware::error::{AppError, CtxResult};
@@ -47,5 +48,6 @@ pub fn convert_field_file_data(data: FieldData<NamedTempFile<File>>) -> CtxResul
 }
 
 pub fn build_profile_file_name(file_ext: &str) -> String {
-    format!("profile_image.{}", file_ext)
+    let id = Utc::now().timestamp();
+    format!("{}.{}", id, file_ext)
 }
