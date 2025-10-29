@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use crate::entities::community::community_entity;
 use crate::entities::community::discussion_entity::DiscussionDbService;
-use crate::entities::community::{self, community_entity};
 use crate::entities::user_auth::{follow_entity, local_user_entity};
 use crate::{middleware, utils};
 use askama_axum::Template;
