@@ -425,6 +425,7 @@ async fn get_discussion(
 
 #[derive(Debug, Deserialize)]
 pub struct GetCountPostsParams {
+    pub user_id: String,
     pub filter_by_type: Option<PostType>,
 }
 
@@ -447,7 +448,7 @@ async fn get_count_of_posts(
     );
 
     let count = post_service
-        .get_count(&disc_id, &auth_data.user_thing_id(), query.filter_by_type)
+        .get_count(&disc_id, &query.user_id, query.filter_by_type)
         .await?;
 
     Ok(Json(count))
