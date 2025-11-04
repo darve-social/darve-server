@@ -195,6 +195,37 @@ impl<'a> PostDbService<'a> {
         Ok(posts)
     }
 
+    pub async fn get_count(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        filter_by_type: Option<PostType>,
+    ) -> CtxResult<u64> {
+        let query_by_type = match filter_by_type {
+            Some(_) => "AND type=$filter_by_type",
+            None => "",
+        };
+        let query = format!(
+            "count(SELECT id FROM {TABLE_NAME} WHERE 
+                belongs_to=$disc {query_by_type} 
+                AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
+            )"
+        );
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("filter_by_type", filter_by_type))
+            .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
+            .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .await?;
+
+        let posts = res.take::<Option<u64>>(0)?;
+
+        Ok(posts.unwrap_or_default())
+    }
+
     pub async fn get_by_followers(
         &self,
         user_id: &str,

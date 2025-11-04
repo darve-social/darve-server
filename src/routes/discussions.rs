@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::access::discussion::DiscussionAccess;
 use crate::entities::community::discussion_entity::{self, DiscussionType};
+use crate::entities::community::post_entity::PostType;
 use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
 use crate::entities::user_auth::local_user_entity;
 use crate::middleware;
@@ -58,6 +59,10 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             post(create_post).layer(DefaultBodyLimit::max(max_bytes_val)),
         )
         .route("/api/discussions/{discussion_id}/posts", get(get_posts))
+        .route(
+            "/api/discussions/{discussion_id}/posts/count",
+            get(get_count_of_posts),
+        )
 }
 
 pub async fn discussion_sse(
@@ -416,4 +421,34 @@ async fn get_discussion(
         .get_by_id(&discussion_id, &auth_data.user_thing_id())
         .await?;
     Ok(Json(data))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetCountPostsParams {
+    pub filter_by_type: Option<PostType>,
+}
+
+async fn get_count_of_posts(
+    auth_data: AuthWithLoginAccess,
+    State(ctx_state): State<Arc<CtxState>>,
+    Path(disc_id): Path<String>,
+    Query(query): Query<GetCountPostsParams>,
+) -> CtxResult<Json<u64>> {
+    let post_service = PostService::new(
+        &ctx_state.db.client,
+        &auth_data.ctx,
+        &ctx_state.event_sender,
+        &ctx_state.db.user_notifications,
+        ctx_state.file_storage.clone(),
+        &ctx_state.db.tags,
+        &ctx_state.db.likes,
+        &ctx_state.db.access,
+        &ctx_state.db.discussion_users,
+    );
+
+    let count = post_service
+        .get_count(&disc_id, &auth_data.user_thing_id(), query.filter_by_type)
+        .await?;
+
+    Ok(Json(count))
 }

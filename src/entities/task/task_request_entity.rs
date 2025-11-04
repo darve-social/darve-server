@@ -300,15 +300,15 @@ impl<'a> TaskRequestDbService<'a> {
             None => "",
         };
         let status_condition = match &status {
-            Some(_) => "AND $status IN ->task_participant.status",
+            Some(_) => "AND status=$status",
             None => "",
         };
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE $user IN ->task_participant.out {} {}
+            "SELECT {} FROM {TABLE_NAME} WHERE ->task_participant[WHERE out=$user {}] {}
              ORDER BY created_at {order_dir} LIMIT $limit START $start;",
             &T::get_select_query_fields(),
+            status_condition,
             date_condition,
-            status_condition
         );
         let mut res = self
             .db

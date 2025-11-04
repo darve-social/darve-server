@@ -341,6 +341,34 @@ where
         Ok(items)
     }
 
+    pub async fn get_count(
+        &self,
+        disc_id: &str,
+        user_id: &str,
+        filter_by_type: Option<PostType>,
+    ) -> CtxResult<u64> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let disc = self
+            .discussions_repository
+            .get_view_by_id::<DiscussionAccessView>(disc_id)
+            .await?;
+
+        if !DiscussionAccess::new(&disc).can_view(&user) {
+            return Err(AppError::Forbidden.into());
+        }
+
+        let count = self
+            .posts_repository
+            .get_count(
+                &user.id.as_ref().unwrap().id.to_raw(),
+                &disc.id.id.to_raw(),
+                filter_by_type,
+            )
+            .await?;
+
+        Ok(count)
+    }
+
     pub async fn get_users(&self, post_id: &str, user_id: &str) -> CtxResult<Vec<UserView>> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
