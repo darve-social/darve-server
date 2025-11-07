@@ -188,7 +188,13 @@ pub fn validate_social_links(social_links: &[String]) -> Result<(), validator::V
             return Err(error);
         }
         let domain = match parsed_url.domain() {
-            Some(domain) => domain.to_lowercase(),
+            Some(domain) => {
+                let mut domain = domain.to_lowercase();
+                if let Some(stripped) = domain.strip_prefix("www.") {
+                    domain = stripped.to_string();
+                }
+                domain
+            }
             None => return Err(error),
         };
 
