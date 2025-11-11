@@ -5,12 +5,9 @@ use darve_server::{
     entities::{community::discussion_entity::DiscussionDbService, user_auth::follow_entity},
     middleware,
     models::view::{notification::UserNotificationView, post::PostView},
-    routes::{
-        community::profile_routes::ProfileView, follows::UserItemView, user_auth::login_routes,
-    },
+    routes::{community::profile_routes::ProfileView, follows::UserItemView},
 };
 use follow_entity::FollowDbService;
-use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
@@ -147,12 +144,11 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     server.get("/logout").await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username1.clone(),
-            password: user1_pwd.clone(),
-            next: None,
-        })
         .add_header("Accept", "application/json")
+        .json(&serde_json::json!({
+            "username_or_email": username1.clone(),
+            "password": user1_pwd.clone()
+        }))
         .await;
     login_response.assert_status_success();
 
@@ -185,11 +181,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     server.get("/logout").await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username3.clone(),
-            password: user3_pwd.clone(),
-            next: None,
-        })
+        .json(&serde_json::json!({
+            "username_or_email": username3.clone(),
+            "password": user3_pwd.clone()
+        }))
         .add_header("Accept", "application/json")
         .await;
     login_response.assert_status_success();
@@ -210,11 +205,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username1.clone(),
-            password: user1_pwd.clone(),
-            next: None,
-        })
+        .json(&serde_json::json!({
+            "username_or_email": username1.clone(),
+            "password": user1_pwd.clone()
+        }))
         .add_header("Accept", "application/json")
         .await;
     login_response.assert_status_success();
@@ -237,11 +231,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     server.get("/logout").await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username3.clone(),
-            password: user3_pwd.clone(),
-            next: None,
-        })
+        .json(&serde_json::json!({
+            "username_or_email": username3.clone(),
+            "password": user3_pwd.clone()
+        }))
         .await;
     login_response.assert_status_success();
 
@@ -287,11 +280,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     server.get("/logout").await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username1.clone(),
-            password: user1_pwd.clone(),
-            next: None,
-        })
+        .json(&serde_json::json!({
+            "username_or_email": username1.clone(),
+            "password": user1_pwd.clone()
+        }))
         .await;
     login_response.assert_status_success();
 
@@ -313,11 +305,10 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     server.get("/logout").await;
     let login_response = server
         .post("/api/login")
-        .json(&LoginInput {
-            username: username3.clone(),
-            password: user3_pwd.clone(),
-            next: None,
-        })
+        .json(&serde_json::json!({
+            "username_or_email": username3.clone(),
+            "password": user3_pwd.clone()
+        }))
         .add_header("Accept", "application/json")
         .await;
     login_response.assert_status_success();

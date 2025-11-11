@@ -64,8 +64,8 @@ pub struct AuthRegisterInput {
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct AuthLoginInput {
-    #[validate(custom(function = validate_username))]
-    pub username: String,
+    #[validate(custom(function = validate_email_or_username))]
+    pub username_or_email: String,
     #[validate(length(min = 6, message = "Min 6 characters"))]
     pub password: String,
 }
@@ -135,10 +135,18 @@ where
     pub async fn login_password(&self, input: AuthLoginInput) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
 
-        let user = self
-            .user_repository
-            .get_by_username(&input.username)
-            .await?;
+        let user = match input.username_or_email.contains("@") {
+            false => {
+                self.user_repository
+                    .get_by_username(&input.username_or_email)
+                    .await?
+            }
+            true => {
+                self.user_repository
+                    .get_by_email(&input.username_or_email)
+                    .await?
+            }
+        };
 
         let auth = self
             .auth_repository

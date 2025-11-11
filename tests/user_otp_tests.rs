@@ -605,7 +605,7 @@ test_with_server!(
         let login_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -660,7 +660,7 @@ test_with_server!(
         let login_again_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -732,7 +732,7 @@ test_with_server!(
         let login_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -765,7 +765,7 @@ test_with_server!(
         let login_again_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -795,7 +795,7 @@ test_with_server!(
         let login_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -870,7 +870,7 @@ test_with_server!(
         let login_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -897,7 +897,7 @@ test_with_server!(
         let login_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
@@ -919,7 +919,7 @@ test_with_server!(
         let login_again_response = server
             .post("/api/login")
             .json(&json!({
-                "username": user.username,
+                "username_or_email": user.username,
                 "password": password
             }))
             .await;
