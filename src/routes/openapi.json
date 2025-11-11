@@ -3665,11 +3665,11 @@
       },
       "AuthLoginInput": {
         "type": "object",
-        "required": ["username", "password"],
+        "required": ["username_or_email", "password"],
         "properties": {
           "username": {
             "type": "string",
-            "description": "Username"
+            "description": "Username or email"
           },
           "password": {
             "type": "string",

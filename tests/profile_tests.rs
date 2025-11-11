@@ -382,7 +382,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": user.username,
+            "username_or_email": user.username,
             "password": new_password
         }))
         .add_header("Accept", "application/json")
@@ -468,7 +468,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": user.username,
+            "username_or_email": user.username,
             "password": password
         }))
         .add_header("Accept", "application/json")
@@ -479,7 +479,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let login_response = server
         .post("/api/login")
         .json(&serde_json::json!({
-            "username": user.username,
+            "username_or_email": user.username,
             "password": new_password
         }))
         .add_header("Accept", "application/json")

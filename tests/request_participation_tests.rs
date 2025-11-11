@@ -13,7 +13,6 @@ use darve_server::models::view::post::PostView;
 use darve_server::models::view::task::TaskRequestView;
 use darve_server::models::view::task::TaskViewForParticipant;
 use darve_server::routes::tasks::TaskRequestOfferInput;
-use darve_server::routes::user_auth::login_routes;
 use darve_server::services::discussion_service::CreateDiscussion;
 use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
@@ -22,7 +21,6 @@ use std::i64;
 
 use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use community_entity::CommunityDbService;
-use login_routes::LoginInput;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
 use wallet_entity::WalletDbService;
@@ -247,12 +245,11 @@ test_with_server!(
         server.get("/logout").await;
         let login_response = server
             .post("/api/login")
-            .json(&LoginInput {
-                username: username0.clone(),
-                password: user0_pwd.clone(),
-                next: None,
-            })
             .add_header("Accept", "application/json")
+            .json(&serde_json::json!({
+                "username_or_email": username0.clone(),
+                "password": user0_pwd.clone()
+            }))
             .await;
         login_response.assert_status_success();
 
@@ -332,11 +329,10 @@ test_with_server!(
         server.get("/logout").await;
         let login_response = server
             .post("/api/login")
-            .json(&LoginInput {
-                username: username3.clone(),
-                password: user3_pwd.clone(),
-                next: None,
-            })
+            .json(&serde_json::json!({
+                "username_or_email": username3.clone(),
+                "password": user3_pwd.clone()
+            }))
             .add_header("Accept", "application/json")
             .await;
         login_response.assert_status_success();
