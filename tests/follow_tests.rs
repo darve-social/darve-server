@@ -47,7 +47,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     // logged in as username2
     // follow user_ident1
     let create_response = server
-        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .add_header("Accept", "application/json")
@@ -84,7 +84,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let username3 = user3.username;
     // follow u1
     let create_response = server
-        .post(format!("/api/followers/{}", user_ident1.clone()).as_str())
+        .post(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
         .await;
@@ -107,7 +107,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // check if follows user1
     let create_response = server
-        .get(format!("/api/followers/{}", user_ident1.clone()).as_str())
+        .get(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
     create_response.assert_status_success();
@@ -248,7 +248,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // user3 unfollow user1
     let create_response = server
-        .delete(format!("/api/followers/{}", user_ident1.clone()).as_str())
+        .delete(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
     create_response.assert_status_success();
@@ -271,7 +271,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
     // check user3 unfollowed user1
     let create_response = server
-        .get(format!("/api/followers/{}", user_ident1.clone()).as_str())
+        .get(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .await;
     create_response.assert_status_success();
@@ -328,4 +328,44 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     notifications_response.assert_status_success();
     let notifications = notifications_response.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 2)
+});
+
+test_with_server!(remove_followers, |server, ctx_state, config| {
+    let (server, user1, __, token1) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let create_response = server
+        .post(format!("/api/following/{}", user1.id.as_ref().unwrap().to_raw()).as_str())
+        .add_header("Accept", "application/json")
+        .await;
+    create_response.assert_status_success();
+
+    let is_following_response = server
+        .get(&format!(
+            "/api/following/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Accept", "application/json")
+        .await;
+    is_following_response.assert_status_success();
+
+    assert!(is_following_response.json::<bool>());
+
+    let remove_response = server
+        .delete(&format!(
+            "/api/followers/{}",
+            user2.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Accept", "application/json")
+        .await;
+    remove_response.assert_status_success();
+    let is_following_response = server
+        .get(&format!(
+            "/api/following/{}",
+            user1.id.as_ref().unwrap().to_raw()
+        ))
+        .add_header("Accept", "application/json")
+        .await;
+    is_following_response.assert_status_success();
+    assert_eq!(is_following_response.json::<bool>(), false);
 });

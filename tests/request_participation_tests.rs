@@ -403,7 +403,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 
     let create_response = server
         .post(&format!(
-            "/api/followers/{}",
+            "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
@@ -464,7 +464,7 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
-            "/api/followers/{}",
+            "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
@@ -514,7 +514,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
     let create_response = server
         .post(&format!(
-            "/api/followers/{}",
+            "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))
@@ -561,7 +561,7 @@ test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
-            "/api/followers/{}",
+            "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Cookie", format!("jwt={}", token))

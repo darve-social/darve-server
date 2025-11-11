@@ -196,7 +196,7 @@ test_with_server!(filter_by_types_notification, |server, ctx_state, config| {
     let (server, _user2, _, _token2) = create_fake_login_test_user(&server).await;
 
     server
-        .post(format!("/api/followers/{}", user0.id.as_ref().unwrap().to_raw()).as_str())
+        .post(format!("/api/following/{}", user0.id.as_ref().unwrap().to_raw()).as_str())
         .await
         .assert_status_success();
 

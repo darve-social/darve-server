@@ -32,9 +32,10 @@ pub fn routes() -> Router<Arc<CtxState>> {
             "/api/users/{user_id}/following/count",
             get(get_following_count),
         )
-        .route("/api/followers/{follow_user_id}", post(follow_user))
-        .route("/api/followers/{follow_user_id}", delete(unfollow_user))
-        .route("/api/followers/{follow_user_id}", get(is_following_user))
+        .route("/api/following/{follow_user_id}", post(follow_user))
+        .route("/api/following/{follow_user_id}", delete(unfollow_user))
+        .route("/api/followers/{follow_user_id}", delete(remove_user))
+        .route("/api/following/{follow_user_id}", get(is_following_user))
 }
 
 #[derive(Template, Serialize, Deserialize, Debug)]
@@ -193,6 +194,26 @@ async fn unfollow_user(
         ctx: &auth_data.ctx,
     }
     .remove_follow(user_id, follow)
+    .await?;
+    Ok(())
+}
+async fn remove_user(
+    State(ctx_state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+    Path(follow_user_id): Path<String>,
+) -> CtxResult<()> {
+    let user_id = LocalUserDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_ctx_user_thing()
+    .await?;
+    let follow = get_string_thing(follow_user_id.clone())?;
+    let _ = FollowDbService {
+        db: &ctx_state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .remove_follow(follow, user_id)
     .await?;
     Ok(())
 }
