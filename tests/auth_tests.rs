@@ -29,7 +29,7 @@ test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
         .await;
 
     let response = server
-        .post("/api/forgot_password")
+        .post("/api/forgot_password/start")
         .json(&json!({
             "email_or_username": email
         }))
@@ -72,7 +72,7 @@ test_with_server!(
             .await;
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": user.username.clone()
             }))
@@ -104,7 +104,7 @@ test_with_server!(
         let email = faker::internet::en::FreeEmail().fake::<String>();
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": email
             }))
@@ -120,7 +120,7 @@ test_with_server!(
         let (_, _, _password, _) = create_fake_login_test_user(&server).await;
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": "email"
             }))
@@ -158,7 +158,7 @@ test_with_server!(
             .unwrap();
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": email
             }))
@@ -187,7 +187,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .await;
 
     let response = server
-        .post("/api/forgot_password")
+        .post("/api/forgot_password/start")
         .json(&json!({
             "email_or_username": email
         }))
@@ -206,7 +206,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .unwrap();
 
     let response = server
-        .post("/api/reset_password")
+        .post("/api/forgot_password/confirm")
         .json(&json!({
             "email_or_username": email,
             "code": user_code.code,
@@ -271,7 +271,7 @@ test_with_server!(
             .await;
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": user.username
             }))
@@ -287,7 +287,7 @@ test_with_server!(
             .unwrap();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": email,
                 "code": user_code.code,
@@ -352,7 +352,7 @@ test_with_server!(
             .await;
 
         let response = server
-            .post("/api/forgot_password")
+            .post("/api/forgot_password/start")
             .json(&json!({
                 "email_or_username": email
             }))
@@ -361,7 +361,7 @@ test_with_server!(
         response.assert_status_success();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": email,
                 "code": "000000",
@@ -372,7 +372,7 @@ test_with_server!(
         response.assert_status_failure();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": email,
                 "code": "000000",
@@ -383,7 +383,7 @@ test_with_server!(
         response.assert_status_failure();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": email,
                 "code": "000000",
@@ -394,7 +394,7 @@ test_with_server!(
         response.assert_status_failure();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": email,
                 "code": "000000",
@@ -415,7 +415,7 @@ test_with_server!(
         let _ = create_fake_login_test_user(&server).await;
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": "email",
                 "code": "000000",
@@ -426,7 +426,7 @@ test_with_server!(
         response.assert_status_unprocessable_entity();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": "asdasd@asd.com",
                 "code": "0000",
@@ -437,7 +437,7 @@ test_with_server!(
         response.assert_status_unprocessable_entity();
 
         let response = server
-            .post("/api/reset_password")
+            .post("/api/forgot_password/confirm")
             .json(&json!({
                 "email_or_username": "asdasd@asd.com",
                 "code": "000000",
