@@ -9,7 +9,6 @@ use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use post_entity::{Post, PostDbService};
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 
 use crate::access::post::PostAccess;
 use crate::entities::community::post_entity::{self};
@@ -26,6 +25,7 @@ use crate::models::view::post::PostView;
 use crate::models::view::reply::ReplyView;
 use crate::models::view::task::TaskRequestView;
 use crate::models::view::user::UserView;
+use crate::routes::reply::ReplyInput;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{PostLikeData, PostService};
 use crate::services::post_user_service::PostUserService;
@@ -228,7 +228,7 @@ async fn get_replies(
         .replies
         .get(
             &auth_data.user_thing_id(),
-            post.id.id.to_raw().as_ref(),
+            post.id,
             Pagination {
                 order_by: None,
                 order_dir: None,
@@ -240,17 +240,11 @@ async fn get_replies(
     Ok(Json(replies))
 }
 
-#[derive(Deserialize, Serialize, Validate)]
-pub struct PostReplyInput {
-    #[validate(length(min = 5, message = "Min 5 characters"))]
-    pub content: String,
-}
-
 async fn create_reply(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
-    JsonOrFormValidated(reply_input): JsonOrFormValidated<PostReplyInput>,
+    JsonOrFormValidated(reply_input): JsonOrFormValidated<ReplyInput>,
 ) -> CtxResult<Json<ReplyView>> {
     let user = LocalUserDbService {
         db: &state.db.client,
@@ -258,6 +252,7 @@ async fn create_reply(
     }
     .get_by_id(&auth_data.user_thing_id())
     .await?;
+
     let created_by = user.id.as_ref().unwrap().clone();
     let post_db_service = PostDbService {
         db: &state.db.client,
@@ -275,7 +270,7 @@ async fn create_reply(
         .db
         .replies
         .create(
-            post.id.id.to_raw().as_ref(),
+            post.id.clone(),
             user.id.as_ref().unwrap().id.to_raw().as_ref(),
             &reply_input.content,
         )
@@ -298,21 +293,11 @@ async fn create_reply(
         created_at: reply.created_at,
         updated_at: reply.updated_at,
         liked_by: None,
+        replies_nr: reply.replies_nr,
     };
 
     n_service
         .on_discussion_post_reply(&created_by, &post.id, &post.discussion.id, &reply_view)
-        .await?;
-
-    let post = post_db_service.increase_replies_nr(post.id.clone()).await?;
-
-    n_service
-        .on_discussion_post_reply_nr_increased(
-            &created_by,
-            &post.id.as_ref().unwrap(),
-            &post.belongs_to,
-            &post.replies_nr.to_string(),
-        )
         .await?;
 
     Ok(Json(reply_view))

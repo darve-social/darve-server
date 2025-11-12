@@ -1,18 +1,24 @@
 use std::sync::Arc;
 
 use crate::access::post::PostAccess;
+use crate::database::table_names::REPLY_TABLE_NAME;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::like::LikesRepositoryInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::AppError;
+use crate::middleware::utils::db_utils::Pagination;
+use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::PostAccessView;
+use crate::models::view::reply::ReplyView;
+use crate::models::view::user::UserView;
 use crate::services::notification_service::NotificationService;
 use crate::services::post_service::PostLikeData;
-use axum::extract::{Path, State};
-use axum::routing::{delete, post};
+use crate::utils::validate_utils::trim_string;
+use axum::extract::{Path, Query, State};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use local_user_entity::LocalUserDbService;
 use middleware::error::CtxResult;
@@ -23,6 +29,8 @@ use validator::Validate;
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/replies/{reply_id}/unlike", delete(unlike))
+        .route("/api/comments/{comment_id}/replies", post(create_reply))
+        .route("/api/comments/{comment_id}/replies", get(get_replies))
         .route("/api/replies/{reply_id}/like", post(like))
 }
 
@@ -46,11 +54,19 @@ async fn like(
 
     let reply_thing = get_str_thing(&reply_id)?;
 
-    let reply = ctx_state
+    let mut reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
+
+    if reply.belongs_to.tb == REPLY_TABLE_NAME {
+        reply = ctx_state
+            .db
+            .replies
+            .get_by_id(&reply.id.id.to_raw())
+            .await?;
+    }
 
     let post_db_service = PostDbService {
         db: &ctx_state.db.client,
@@ -113,11 +129,19 @@ async fn unlike(
     .await?;
     let reply_thing = get_str_thing(&reply_id)?;
 
-    let reply = ctx_state
+    let mut reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
+
+    if reply.belongs_to.tb == REPLY_TABLE_NAME {
+        reply = ctx_state
+            .db
+            .replies
+            .get_by_id(&reply.id.id.to_raw())
+            .await?;
+    }
 
     let post_db_service = PostDbService {
         db: &ctx_state.db.client,
@@ -139,4 +163,121 @@ async fn unlike(
         .await?;
 
     Ok(Json(LikeResponse { likes_count: count }))
+}
+
+#[derive(Deserialize, Serialize, Validate)]
+pub struct ReplyInput {
+    #[serde(deserialize_with = "trim_string")]
+    #[validate(length(min = 1, message = "Content can not be empty"))]
+    pub content: String,
+}
+
+async fn create_reply(
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+    Path(comment_id): Path<String>,
+    JsonOrFormValidated(reply_input): JsonOrFormValidated<ReplyInput>,
+) -> CtxResult<Json<ReplyView>> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+    let comment_thing = get_str_thing(&comment_id)?;
+    let comment = state
+        .db
+        .replies
+        .get_by_id(&comment_thing.id.to_raw())
+        .await?;
+
+    let post_db_service = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let post = post_db_service
+        .get_view_by_id::<PostAccessView>(&comment.belongs_to.to_raw(), None)
+        .await?;
+
+    if !PostAccess::new(&post).can_create_reply_for_reply(&user) {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let reply = state
+        .db
+        .replies
+        .create(
+            comment.id,
+            user.id.as_ref().unwrap().id.to_raw().as_ref(),
+            &reply_input.content,
+        )
+        .await?;
+
+    let reply_view = ReplyView {
+        id: reply.id,
+        user: UserView::from(user),
+        likes_nr: reply.likes_nr,
+        content: reply.content,
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+        liked_by: None,
+        replies_nr: reply.replies_nr,
+    };
+
+    Ok(Json(reply_view))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetRepliesQuery {
+    pub start: Option<u32>,
+    pub count: Option<u16>,
+}
+
+async fn get_replies(
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+    Path(comment_id): Path<String>,
+    Query(query): Query<GetRepliesQuery>,
+) -> CtxResult<Json<Vec<ReplyView>>> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    }
+    .get_by_id(&auth_data.user_thing_id())
+    .await?;
+
+    let comment_thing = get_str_thing(&comment_id)?;
+    let comment = state
+        .db
+        .replies
+        .get_by_id(&comment_thing.id.to_raw())
+        .await?;
+
+    let post_db_service = PostDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let post = post_db_service
+        .get_view_by_id::<PostAccessView>(&comment.belongs_to.to_raw(), None)
+        .await?;
+
+    if !PostAccess::new(&post).can_view(&user) {
+        return Err(AppError::Forbidden.into());
+    }
+
+    let replies = state
+        .db
+        .replies
+        .get(
+            &auth_data.user_thing_id(),
+            comment.id,
+            Pagination {
+                order_by: None,
+                order_dir: None,
+                count: query.count.unwrap_or(50),
+                start: query.start.unwrap_or(0),
+            },
+        )
+        .await?;
+    Ok(Json(replies))
 }

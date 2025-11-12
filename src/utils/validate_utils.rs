@@ -14,6 +14,14 @@ use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
 
+pub fn trim_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    Ok(s.trim().to_string())
+}
+
 pub fn validate_username(u: &String) -> Result<(), ValidationError> {
     let regex = Regex::new(r"^[A-Za-z0-9_]{6,}$").unwrap();
 

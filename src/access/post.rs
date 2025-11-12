@@ -69,6 +69,12 @@ impl<'a> PostAccess<'a> {
         self.access_control.can(&path, &Permission::CreateReply)
     }
 
+    pub fn can_create_reply_for_reply(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_post(self.post, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreateReplyForReply)
+    }
+
     pub fn can_create_public_task(&self, user: &LocalUser) -> bool {
         let path = AccessPath::from_post(self.post, Some(&user), None);
         self.access_control

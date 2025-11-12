@@ -17,6 +17,7 @@ pub enum Permission {
     RejectTask,
     DeliverTask,
     CreateReply,
+    CreateReplyForReply,
     Like,
     Donate,
     Alias,

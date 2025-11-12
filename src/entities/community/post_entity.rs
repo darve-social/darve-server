@@ -9,7 +9,6 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize, Serializer};
 use surrealdb::err::Error::IndexExists;
-use surrealdb::opt::PatchOp;
 use surrealdb::sql::{Id, Thing};
 use surrealdb::Error as ErrorSrl;
 use validator::Validate;
@@ -300,32 +299,6 @@ impl<'a> PostDbService<'a> {
                 _ => CtxError::from(self.ctx)(e),
             })
             .map(|v: Option<Post>| v.unwrap())
-    }
-
-    pub async fn increase_replies_nr(&self, record: Thing) -> CtxResult<Post> {
-        let curr_nr = self
-            .db
-            .query("SELECT replies_nr FROM <record>$rec".to_string())
-            .bind(("rec", record.clone().to_raw()))
-            .await?
-            .take::<Option<i64>>("replies_nr")?
-            .ok_or_else(|| {
-                self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                    ident: record.clone().to_raw(),
-                })
-            })?;
-
-        let res: Option<Post> = self
-            .db
-            .update((record.tb.clone(), record.id.clone().to_raw()))
-            .patch(PatchOp::replace("/replies_nr", curr_nr + 1))
-            .await
-            .map_err(CtxError::from(self.ctx))?;
-        res.ok_or_else(|| {
-            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
-                ident: record.to_raw(),
-            })
-        })
     }
 
     pub fn get_new_post_thing() -> Thing {

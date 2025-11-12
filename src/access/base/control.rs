@@ -189,7 +189,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Like));
         assert!(permissions.contains(&Permission::AddMember));
         assert!(permissions.contains(&Permission::RemoveMember));
-        assert_eq!(permissions.len(), 8);
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
+        assert_eq!(permissions.len(), 9);
     }
 
     #[test]
@@ -203,7 +204,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReply));
         assert!(permissions.contains(&Permission::Like));
-        assert_eq!(permissions.len(), 5);
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
+        assert_eq!(permissions.len(), 6);
     }
 
     #[test]
@@ -217,7 +219,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReply));
         assert!(permissions.contains(&Permission::Like));
-        assert_eq!(permissions.len(), 5);
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
+        assert_eq!(permissions.len(), 6);
     }
 
     #[test]
@@ -243,7 +246,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreateReply));
         assert!(permissions.contains(&Permission::Like));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert_eq!(permissions.len(), 4);
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
+        assert_eq!(permissions.len(), 5);
     }
 
     #[test]

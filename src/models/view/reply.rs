@@ -7,6 +7,7 @@ use surrealdb::sql::Thing;
 pub struct ReplyView {
     pub id: Thing,
     pub user: UserView,
+    pub replies_nr: u32,
     pub likes_nr: u32,
     pub content: String,
     pub created_at: DateTime<Utc>,
@@ -15,11 +16,7 @@ pub struct ReplyView {
 }
 impl ViewFieldSelector for ReplyView {
     fn get_select_query_fields() -> String {
-        "id,
-         content,
-         likes_nr,
-         created_at,
-         updated_at,
+        "*,
          created_by.* as user,
          <-like[WHERE in=$user].in as liked_by"
             .to_string()
