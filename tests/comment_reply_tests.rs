@@ -9,7 +9,10 @@ use darve_server::{
 };
 use serde_json::json;
 
-use crate::helpers::{create_fake_login_test_user, post_helpers::create_fake_post};
+use crate::helpers::{
+    create_fake_login_test_user,
+    post_helpers::{create_fake_post, create_reply_like, delete_reply_like},
+};
 
 test_with_server!(create_reply_for_comment, |server, ctx_state, config| {
     let (server, user_ident, _, _) = create_fake_login_test_user(&server).await;
@@ -124,3 +127,62 @@ test_with_server!(
         create_reply_response.assert_status_forbidden();
     }
 );
+
+test_with_server!(like_reply_for_comment, |server, ctx_state, config| {
+    let (server, user_ident, _, _) = create_fake_login_test_user(&server).await;
+    let disc_id = DiscussionDbService::get_profile_discussion_id(&user_ident.id.as_ref().unwrap());
+    let created_post = create_fake_post(&server, &disc_id, None, None).await;
+
+    let create_comment_response = server
+        .post(format!("/api/posts/{}/replies", created_post.uri).as_str())
+        .json(&json!({
+            "content": "This is a comment.",
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    create_comment_response.assert_status_success();
+    let comment = create_comment_response.json::<ReplyView>();
+
+    let create_reply_response = server
+        .post(format!("/api/comments/{}/replies", comment.id.to_raw()).as_str())
+        .json(&json!({
+            "content": "This is a reply to the comment.",
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    create_reply_response.assert_status_success();
+
+    let reply = create_reply_response.json::<ReplyView>();
+    let like_response = create_reply_like(server, &reply.id.to_raw(), None).await;
+    like_response.assert_status_success();
+});
+
+test_with_server!(unlike_reply_for_comment, |server, ctx_state, config| {
+    let (server, user_ident, _, _) = create_fake_login_test_user(&server).await;
+    let disc_id = DiscussionDbService::get_profile_discussion_id(&user_ident.id.as_ref().unwrap());
+    let created_post = create_fake_post(&server, &disc_id, None, None).await;
+
+    let create_comment_response = server
+        .post(format!("/api/posts/{}/replies", created_post.uri).as_str())
+        .json(&json!({
+            "content": "This is a comment.",
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    create_comment_response.assert_status_success();
+    let comment = create_comment_response.json::<ReplyView>();
+
+    let create_reply_response = server
+        .post(format!("/api/comments/{}/replies", comment.id.to_raw()).as_str())
+        .json(&json!({
+            "content": "This is a reply to the comment.",
+        }))
+        .add_header("Accept", "application/json")
+        .await;
+    create_reply_response.assert_status_success();
+
+    let reply = create_reply_response.json::<ReplyView>();
+
+    let like_response = delete_reply_like(server, &reply.id.to_raw()).await;
+    like_response.assert_status_success();
+});

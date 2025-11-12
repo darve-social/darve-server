@@ -64,7 +64,7 @@ async fn like(
         reply = ctx_state
             .db
             .replies
-            .get_by_id(&reply.id.id.to_raw())
+            .get_by_id(&reply.belongs_to.id.to_raw())
             .await?;
     }
 
@@ -139,7 +139,7 @@ async fn unlike(
         reply = ctx_state
             .db
             .replies
-            .get_by_id(&reply.id.id.to_raw())
+            .get_by_id(&reply.belongs_to.id.to_raw())
             .await?;
     }
 
