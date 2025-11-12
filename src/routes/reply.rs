@@ -54,18 +54,21 @@ async fn like(
 
     let reply_thing = get_str_thing(&reply_id)?;
 
-    let mut reply = ctx_state
+    let reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
 
-    if reply.belongs_to.tb == REPLY_TABLE_NAME {
-        reply = ctx_state
+    let mut belongs_to = reply.belongs_to.clone();
+
+    if belongs_to.tb == REPLY_TABLE_NAME {
+        belongs_to = ctx_state
             .db
             .replies
-            .get_by_id(&reply.belongs_to.id.to_raw())
-            .await?;
+            .get_by_id(&belongs_to.id.to_raw())
+            .await?
+            .belongs_to;
     }
 
     let post_db_service = PostDbService {
@@ -74,7 +77,7 @@ async fn like(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&belongs_to.to_raw(), None)
         .await?;
 
     let likes = body.count.unwrap_or(1);
@@ -129,18 +132,21 @@ async fn unlike(
     .await?;
     let reply_thing = get_str_thing(&reply_id)?;
 
-    let mut reply = ctx_state
+    let reply = ctx_state
         .db
         .replies
         .get_by_id(&reply_thing.id.to_raw())
         .await?;
 
-    if reply.belongs_to.tb == REPLY_TABLE_NAME {
-        reply = ctx_state
+    let mut belongs_to = reply.belongs_to.clone();
+
+    if belongs_to.tb == REPLY_TABLE_NAME {
+        belongs_to = ctx_state
             .db
             .replies
-            .get_by_id(&reply.belongs_to.id.to_raw())
-            .await?;
+            .get_by_id(&belongs_to.id.to_raw())
+            .await?
+            .belongs_to;
     }
 
     let post_db_service = PostDbService {
@@ -149,7 +155,7 @@ async fn unlike(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&reply.belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&belongs_to.to_raw(), None)
         .await?;
 
     if !PostAccess::new(&post).can_like(&user) {
