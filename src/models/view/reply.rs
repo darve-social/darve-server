@@ -6,6 +6,7 @@ use surrealdb::sql::Thing;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReplyView {
     pub id: Thing,
+    pub belongs_to: Thing,
     pub user: UserView,
     pub replies_nr: u32,
     pub likes_nr: u32,
