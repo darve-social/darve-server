@@ -231,9 +231,10 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreateReply));
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::Like));
-        assert_eq!(permissions.len(), 4);
+        assert_eq!(permissions.len(), 5);
     }
 
     #[test]
