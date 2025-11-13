@@ -29,6 +29,8 @@ pub struct AppConfig {
     pub paypal_client_id: String,
     pub paypal_client_key: String,
     pub support_email: String,
+    pub rate_limit_rsp: u32,
+    pub rate_limit_burst: u32,
 }
 
 impl AppConfig {
@@ -97,6 +99,13 @@ impl AppConfig {
         let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").unwrap_or("".to_string());
         let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").unwrap_or("".to_string());
         let support_email = std::env::var("SUPPORT_EMAIL").unwrap_or("".to_string());
+        let rate_limit_rsp = std::env::var("RATE_LIMIT_RSP").map_or(100, |t| {
+            t.parse::<u32>().expect("RATE_LIMIT_RSP must be number")
+        });
+
+        let rate_limit_burst = std::env::var("RATE_LIMIT_BURST").map_or(200, |t| {
+            t.parse::<u32>().expect("RATE_LIMIT_RSP must be number")
+        });
 
         Self {
             db_namespace,
@@ -126,6 +135,8 @@ impl AppConfig {
             paypal_client_id,
             paypal_client_key,
             support_email,
+            rate_limit_rsp,
+            rate_limit_burst,
         }
     }
 }
