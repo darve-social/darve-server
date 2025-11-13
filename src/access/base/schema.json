@@ -250,6 +250,7 @@
               "permissions": [
                 "VIEW",
                 "CREATE_REPLY",
+                "CREATE_REPLY_FOR_REPLY",
                 "LIKE",
                 "CREATE_PRIVATE_TASK"
               ],
@@ -319,6 +320,7 @@
               "permissions": [
                 "VIEW",
                 "CREATE_REPLY",
+                "CREATE_REPLY_FOR_REPLY",
                 "LIKE"
               ],
               "TASK:PUBLIC": {

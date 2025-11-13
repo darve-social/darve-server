@@ -228,6 +228,7 @@ async fn create_reply(
         updated_at: reply.updated_at,
         liked_by: None,
         replies_nr: reply.replies_nr,
+        belongs_to: reply.belongs_to,
     };
 
     Ok(Json(reply_view))
