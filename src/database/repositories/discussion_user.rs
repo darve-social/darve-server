@@ -152,8 +152,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .collect::<Vec<Thing>>();
         query
             .query(format!(
-                "LET $discussion_users = UPDATE $_disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $_users;
-                RETURN $discussion_users;"
+                "LET $discussion_users = UPDATE $_disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $_users;"
             ))
             .bind(("_disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("_users", users))

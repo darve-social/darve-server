@@ -127,9 +127,10 @@ where
             vec![user_id.to_string()],
         );
 
-        query = query.query("COMMIT");
+        query = query.query("COMMIT").query("RETURN $discussion_users;");
+
         let mut res = query.await?;
-        let data = res.take::<Vec<DiscussionUser>>(0)?;
+        let data = res.take::<Vec<DiscussionUser>>(res.num_statements() - 1)?;
         let _ = self
             .notification_service
             .on_updated_users_discussions(&user_thing, &data)

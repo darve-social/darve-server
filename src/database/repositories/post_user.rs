@@ -75,14 +75,14 @@ impl PostUserRepositoryInterface for PostUserRepository {
             "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
              LET $is_upserted = IF $edge[0] {{
                  IF $edge[0].status == $status {{
-                     RETURN false;
+                     false
                  }} ELSE {{
                      UPDATE $edge[0].id SET status = $status;
-                     RETURN true;
+                     true
                  }};
              }} ELSE {{
                  RELATE $post->{POST_USER_TABLE_NAME}->$user SET status = $status;
-                 RETURN true;
+                 true
              }};"
         ))
         .bind(("post", post))
