@@ -12,6 +12,8 @@ use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
+use surrealdb::engine::any;
+use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
@@ -138,6 +140,25 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         Ok(())
     }
 
+    fn build_decrease_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> Query<'b, any::Any> {
+        let users = user_ids
+            .into_iter()
+            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
+            .collect::<Vec<Thing>>();
+        query
+            .query(format!(
+                "LET $discussion_users = UPDATE $_disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $_users;
+                RETURN $discussion_users;"
+            ))
+            .bind(("_disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("_users", users))
+    }
+
     async fn decrease_unread_count(
         &self,
         disc_id: &str,
@@ -193,7 +214,8 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .client
             .query(format!(
                 "SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME} 
-                WHERE out=$user {latest_post_cond} {search_text_cond} ORDER BY updated_at {order_dir} 
+                WHERE out=$user {latest_post_cond} {search_text_cond} 
+                ORDER BY updated_at {order_dir} 
                 LIMIT $limit START $start;"
             ))
             .bind(("limit", pad.count))

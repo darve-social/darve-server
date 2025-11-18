@@ -1,8 +1,9 @@
 use crate::{
     access::post::PostAccess,
-    database::repositories::user_notifications::UserNotificationsRepository,
+    database::{client::Db, repositories::user_notifications::UserNotificationsRepository},
     entities::{
         community::post_entity::{PostDbService, PostUserStatus},
+        discussion_user::DiscussionUser,
         user_auth::local_user_entity::LocalUserDbService,
     },
     interfaces::repositories::{
@@ -27,6 +28,7 @@ where
     posts_repository: PostDbService<'a>,
     users_repository: LocalUserDbService<'a>,
     notification_service: NotificationService<'a, UserNotificationsRepository>,
+    db: &'a Db,
 }
 
 impl<'a, PU, DU> PostUserService<'a, PU, DU>
@@ -53,6 +55,7 @@ where
                 ctx: ctx,
             },
             notification_service,
+            db: &state.db.client,
         }
     }
 
@@ -97,8 +100,7 @@ where
             .posts_repository
             .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
-        let post_access = PostAccess::new(&post);
-        if !post_access.can_view(&user) {
+        if !PostAccess::new(&post).can_view(&user) {
             return Err(AppError::Forbidden);
         }
         let status = self
@@ -110,35 +112,27 @@ where
             return Ok(());
         }
 
-        match status {
-            Some(_) => {
-                self.post_user_repository
-                    .update(
-                        user.id.unwrap(),
-                        post.id.clone(),
-                        PostUserStatus::Seen as u8,
-                    )
-                    .await?;
-            }
-            None => {
-                self.post_user_repository
-                    .create(
-                        user.id.unwrap(),
-                        post.id.clone(),
-                        PostUserStatus::Seen as u8,
-                    )
-                    .await?;
-            }
-        };
+        let mut query = self.db.query("BEGIN");
 
-        let updated_discs_users = self
-            .discussion_users
-            .decrease_unread_count(&post.discussion.id.id.to_raw(), vec![user_id.to_string()])
-            .await?;
+        query = self.post_user_repository.build_upsert_query(
+            query,
+            user.id.unwrap(),
+            post.id.clone(),
+            PostUserStatus::Seen as u8,
+        );
 
+        query = self.discussion_users.build_decrease_query(
+            query,
+            &post.discussion.id.id.to_raw(),
+            vec![user_id.to_string()],
+        );
+
+        query = query.query("COMMIT");
+        let mut res = query.await?;
+        let data = res.take::<Vec<DiscussionUser>>(0)?;
         let _ = self
             .notification_service
-            .on_updated_users_discussions(&user_thing, &updated_discs_users)
+            .on_updated_users_discussions(&user_thing, &data)
             .await?;
         Ok(())
     }

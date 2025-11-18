@@ -7,7 +7,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use serde::Deserialize;
-use surrealdb::sql::Thing;
+use surrealdb::{engine::any, method::Query, sql::Thing};
 
 #[async_trait]
 pub trait DiscussionUserRepositoryInterface {
@@ -39,6 +39,13 @@ pub trait DiscussionUserRepositoryInterface {
         disc_id: &str,
         user_ids: Vec<String>,
     ) -> AppResult<Vec<DiscussionUser>>;
+
+    fn build_decrease_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        disc_id: &str,
+        user_ids: Vec<String>,
+    ) -> Query<'b, any::Any>;
 
     async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<Vec<Thing>>;
 

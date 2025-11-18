@@ -6,6 +6,8 @@ use crate::interfaces::repositories::post_user::PostUserRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
+use surrealdb::engine::any;
+use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
@@ -60,6 +62,60 @@ impl PostUserRepositoryInterface for PostUserRepository {
             .await?;
 
         Ok(())
+    }
+
+    fn build_upsert_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        user: Thing,
+        post: Thing,
+        status: u8,
+    ) -> Query<'b, any::Any> {
+        query.query(format!(
+            "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
+             LET $is_upserted = IF $edge[0] {{
+                 IF $edge[0].status == $status {{
+                     RETURN false;
+                 }} ELSE {{
+                     UPDATE $edge[0].id SET status = $status;
+                     RETURN true;
+                 }};
+             }} ELSE {{
+                 RELATE $post->{POST_USER_TABLE_NAME}->$user SET status = $status;
+                 RETURN true;
+             }};"
+        ))
+        .bind(("post", post))
+        .bind(("user", user))
+        .bind(("status", status))
+    }
+
+    async fn upsert(&self, user: Thing, post: Thing, status: u8) -> AppResult<bool> {
+        let result = self
+        .client
+        .query(format!(
+            "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
+             IF $edge[0] {{
+                 IF $edge[0].status == $status {{
+                     RETURN false;
+                 }} ELSE {{
+                     UPDATE $edge[0].id SET status = $status;
+                     RETURN true;
+                 }};
+             }} ELSE {{
+                 RELATE $post->{POST_USER_TABLE_NAME}->$user SET status = $status;
+                 RETURN true;
+             }};"
+        ))
+        .bind(("post", post))
+        .bind(("user", user))
+        .bind(("status", status))
+        .await?;
+
+        let mut response = result.check()?;
+
+        let res: Option<bool> = response.take(0)?;
+        Ok(res.unwrap_or(true))
     }
 
     async fn get(&self, user: Thing, post: Thing) -> AppResult<Option<PostUserStatus>> {
