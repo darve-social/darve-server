@@ -13,7 +13,6 @@ pub trait PostUserRepositoryInterface {
         post: Thing,
         status: u8,
     ) -> Query<'b, any::Any>;
-    async fn upsert(&self, user: Thing, post: Thing, status: u8) -> AppResult<bool>;
     async fn get(&self, user: Thing, post: Thing) -> AppResult<Option<PostUserStatus>>;
     async fn remove(&self, user: Thing, posts: Vec<Thing>) -> AppResult<()>;
 }
