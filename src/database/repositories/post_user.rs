@@ -6,6 +6,8 @@ use crate::interfaces::repositories::post_user::PostUserRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
+use surrealdb::engine::any;
+use surrealdb::method::Query;
 use surrealdb::sql::Thing;
 
 #[derive(Debug)]
@@ -60,6 +62,32 @@ impl PostUserRepositoryInterface for PostUserRepository {
             .await?;
 
         Ok(())
+    }
+
+    fn build_upsert_query<'b>(
+        &self,
+        query: Query<'b, any::Any>,
+        user: Thing,
+        post: Thing,
+        status: u8,
+    ) -> Query<'b, any::Any> {
+        query.query(format!(
+            "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
+             LET $is_upserted = IF $edge[0] {{
+                 IF $edge[0].status == $status {{
+                     false
+                 }} ELSE {{
+                     UPDATE $edge[0].id SET status = $status;
+                     true
+                 }};
+             }} ELSE {{
+                 RELATE $post->{POST_USER_TABLE_NAME}->$user SET status = $status;
+                 true
+             }};"
+        ))
+        .bind(("post", post))
+        .bind(("user", user))
+        .bind(("status", status))
     }
 
     async fn get(&self, user: Thing, post: Thing) -> AppResult<Option<PostUserStatus>> {
