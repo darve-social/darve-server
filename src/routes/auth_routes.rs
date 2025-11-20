@@ -19,7 +19,7 @@ use crate::{
         mw_ctx::{CtxState, JWT_KEY},
         utils::extractor_utils::JsonOrFormValidated,
     },
-    models::view::user::UserView,
+    models::view::user::LoggedUserView,
     services::auth_service::{
         AuthLoginInput, AuthRegisterInput, AuthService, ForgotPasswordInput, ResetPasswordInput,
     },
@@ -62,9 +62,13 @@ async fn sign_by_fb(
         state.file_storage.clone(),
     );
 
-    let (token, user) = auth_service.sign_by_facebook(&body.token).await?;
+    let (token, user, has_password) = auth_service.sign_by_facebook(&body.token).await?;
 
-    Ok((StatusCode::OK, Json(json!({"token": token, "user": user }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),
+    )
+        .into_response())
 }
 
 async fn sign_by_apple(
@@ -82,13 +86,13 @@ async fn sign_by_apple(
         &state.db.access,
         state.file_storage.clone(),
     );
-    let (token, user) = auth_service
+    let (token, user, has_password) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
         .await?;
 
     Ok((
         StatusCode::OK,
-        Json(json!({"token": token, "user": UserView::from(user) })),
+        Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),
     )
         .into_response())
 }
@@ -109,7 +113,7 @@ async fn sign_by_google(
         state.file_storage.clone(),
     );
 
-    let (token, user) = auth_service
+    let (token, user, has_password) = auth_service
         .sign_by_google(
             &body.token,
             &vec![
@@ -121,7 +125,7 @@ async fn sign_by_google(
 
     Ok((
         StatusCode::OK,
-        Json(json!({"token": token, "user": UserView::from(user) })),
+        Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),
     )
         .into_response())
 }
@@ -154,7 +158,7 @@ async fn signin(
     );
     Ok((
         StatusCode::OK,
-        Json(json!({"token": token, "user": UserView::from(user) })),
+        Json(json!({"token": token, "user": LoggedUserView::from((user, true)) })),
     )
         .into_response())
 }
@@ -188,7 +192,7 @@ async fn signup(
 
     Ok((
         StatusCode::OK,
-        Json(json!({"token": token, "user": UserView::from(user) })),
+        Json(json!({"token": token, "user": LoggedUserView::from((user, true)) })),
     )
         .into_response())
 }

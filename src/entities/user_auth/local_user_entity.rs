@@ -5,6 +5,7 @@ use surrealdb::sql::Thing;
 use crate::database::client::Db;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::surrdb_utils::{get_entity, get_str_id_thing};
+use crate::entities::user_auth::authentication_entity::{AuthType, Authentication};
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
 use crate::middleware::utils::db_utils::{record_exists, Pagination};
@@ -173,6 +174,67 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
+    }
+
+    pub async fn get_by_id_with_auth(
+        &self,
+        user_id: &str,
+        auth_type: AuthType,
+    ) -> CtxResult<(LocalUser, Option<Authentication>)> {
+        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY $user;")
+            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
+            .query("RETURN { user: $u, auth: $a };")
+            .bind(("user", Thing::from((TABLE_NAME, user_id)))).bind(("auth_type", auth_type )).await?;
+
+        let user = res
+            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: user_id.to_string(),
+            })?;
+        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+
+        Ok((user, auth))
+    }
+
+    pub async fn get_by_email_with_auth(
+        &self,
+        email: &str,
+        auth_type: AuthType,
+    ) -> CtxResult<(LocalUser, Option<Authentication>)> {
+        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE email_verified=$email;")
+            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
+            .query("RETURN { user: $u, auth: $a};")
+            .bind(("email", email.to_string())).bind(("auth_type", auth_type )).await?;
+
+        let user = res
+            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: email.to_string(),
+            })?;
+        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+
+        Ok((user, auth))
+    }
+
+    pub async fn get_by_username_with_auth(
+        &self,
+        username: &str,
+        auth_type: AuthType,
+    ) -> CtxResult<(LocalUser, Option<Authentication>)> {
+        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE username=$username;")
+            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
+            .query("RETURN { user: $u, auth: $a };")
+            .bind(("username", username.to_string())).bind(("auth_type", auth_type )).await?;
+
+        let user = res
+            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: username.to_string(),
+            })?;
+
+        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+
+        Ok((user, auth))
     }
 
     // param id is a id of the thing

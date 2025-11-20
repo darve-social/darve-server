@@ -100,9 +100,7 @@ test_with_server!(
     test_forgot_password_not_exists_email,
     |server, ctx_state, config| {
         let (_, _, _password, _) = create_fake_login_test_user(&server).await;
-
         let email = faker::internet::en::FreeEmail().fake::<String>();
-
         let response = server
             .post("/api/forgot_password/start")
             .json(&json!({
@@ -165,7 +163,6 @@ test_with_server!(
             .await;
 
         response.assert_status_failure();
-        println!(">{}", response.text());
         assert!(response.text().contains("User has not set password yet"));
     }
 );

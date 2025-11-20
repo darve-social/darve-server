@@ -4,7 +4,7 @@ use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::user_auth::local_user_entity::{LocalUser, LocalUserDbService},
     middleware::ctx::Ctx,
-    utils::totp::{Totp, TotpResposne},
+    utils::totp::{Totp, TotpResponse},
 };
 use serde_json::json;
 
@@ -18,7 +18,7 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
         .await;
 
     response.assert_status_success();
-    let otp = response.json::<TotpResposne>();
+    let otp = response.json::<TotpResponse>();
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
@@ -50,7 +50,7 @@ test_with_server!(
             .await;
 
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -101,7 +101,7 @@ test_with_server!(
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         response1.assert_status_success();
-        let otp1 = response1.json::<TotpResposne>();
+        let otp1 = response1.json::<TotpResponse>();
 
         // Enable OTP second time - should still work and return same URL
         let response2 = server
@@ -110,7 +110,7 @@ test_with_server!(
             .await;
 
         response2.assert_status_success();
-        let otp2 = response1.json::<TotpResposne>();
+        let otp2 = response1.json::<TotpResponse>();
 
         assert_eq!(otp1.url, otp2.url);
 
@@ -140,7 +140,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
         .await;
 
     response.assert_status_success();
-    let otp = response.json::<TotpResposne>();
+    let otp = response.json::<TotpResponse>();
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
@@ -233,7 +233,7 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
         .await;
 
     response.assert_status_success();
-    let otp = response.json::<TotpResposne>();
+    let otp = response.json::<TotpResponse>();
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
@@ -362,7 +362,7 @@ test_with_server!(
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -409,7 +409,7 @@ test_with_server!(
             .add_header("Cookie", &format!("jwt={}", token))
             .await;
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -463,7 +463,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
         .add_header("Cookie", &format!("jwt={}", login_token))
         .await;
     response.assert_status_success();
-    let otp = response.json::<TotpResposne>();
+    let otp = response.json::<TotpResponse>();
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
@@ -543,7 +543,7 @@ test_with_server!(
             .await;
         response.assert_status_success();
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -624,7 +624,7 @@ test_with_server!(
             .await;
 
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -746,7 +746,7 @@ test_with_server!(
             .await;
 
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -808,7 +808,7 @@ test_with_server!(
             .add_header("Cookie", &format!("jwt={}", login_token))
             .await;
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
@@ -911,7 +911,7 @@ test_with_server!(
             .await;
 
         response.assert_status_success();
-        let otp = response.json::<TotpResposne>();
+        let otp = response.json::<TotpResponse>();
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 

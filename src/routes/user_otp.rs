@@ -1,10 +1,10 @@
 use crate::{
-    entities::user_auth::local_user_entity::UpdateUser,
+    entities::user_auth::{authentication_entity::AuthType, local_user_entity::UpdateUser},
     middleware::{
         auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
     },
-    models::view::user::UserView,
-    utils::totp::{Totp, TotpResposne},
+    models::view::user::LoggedUserView,
+    utils::totp::{Totp, TotpResponse},
 };
 use axum::{
     extract::State,
@@ -110,7 +110,7 @@ async fn otp_disable(
 async fn otp_enable(
     auth_data: AuthWithLoginAccess,
     State(state): State<Arc<CtxState>>,
-) -> CtxResult<Json<TotpResposne>> {
+) -> CtxResult<Json<TotpResponse>> {
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -152,7 +152,9 @@ async fn otp_validate(
         ctx: &Ctx::new(Ok(auth_data.user_id.clone()), false),
     };
 
-    let user = local_user_db_service.get_by_id(&user_id).await?;
+    let (user, auth) = local_user_db_service
+        .get_by_id_with_auth(&user_id, AuthType::PASSWORD)
+        .await?;
 
     if !user.is_otp_enabled {
         return Err(AppError::Forbidden.into());
@@ -173,7 +175,7 @@ async fn otp_validate(
 
     Ok((
         StatusCode::OK,
-        Json(json!({"token": token, "user": UserView::from(user) })),
+        Json(json!({"token": token, "user": LoggedUserView::from((user, auth.is_some())) })),
     )
         .into_response())
 }
