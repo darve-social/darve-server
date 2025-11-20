@@ -88,7 +88,10 @@ where
     }
 
     pub async fn start_set_password(&self, user_id: &str) -> Result<(), AppError> {
-        let user = self.user_repository.get_by_id(user_id).await?;
+        let (user, auth) = self
+            .user_repository
+            .get_by_id_with_auth(user_id, AuthType::PASSWORD)
+            .await?;
 
         if user.email_verified.is_none() {
             return Err(AppError::Generic {
@@ -96,11 +99,6 @@ where
             }
             .into());
         }
-
-        let auth = self
-            .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
-            .await?;
 
         if !auth.is_none() {
             return Err(AppError::Generic {
@@ -119,7 +117,10 @@ where
     }
 
     pub async fn start_update_password(&self, user_id: &str) -> Result<(), AppError> {
-        let user = self.user_repository.get_by_id(user_id).await?;
+        let (user, auth) = self
+            .user_repository
+            .get_by_id_with_auth(user_id, AuthType::PASSWORD)
+            .await?;
 
         if user.email_verified.is_none() {
             return Err(AppError::Generic {
@@ -127,11 +128,6 @@ where
             }
             .into());
         }
-
-        let auth = self
-            .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
-            .await?;
 
         if auth.is_none() {
             return Err(AppError::Generic {
@@ -151,11 +147,9 @@ where
     }
 
     pub async fn set_password(&self, user_id: &str, password: &str, code: &str) -> AppResult<()> {
-        let user = self.user_repository.get_by_id(user_id).await?;
-
-        let auth = self
-            .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+        let (user, auth) = self
+            .user_repository
+            .get_by_id_with_auth(user_id, AuthType::PASSWORD)
             .await?;
 
         if auth.is_some() {
@@ -198,11 +192,9 @@ where
         old_pass: &str,
         code: &str,
     ) -> AppResult<()> {
-        let user = self.user_repository.get_by_id(user_id).await?;
-
-        let auth = self
-            .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+        let (_r, auth) = self
+            .user_repository
+            .get_by_id_with_auth(user_id, AuthType::PASSWORD)
             .await?;
 
         if auth.is_none() {

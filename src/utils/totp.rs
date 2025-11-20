@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use totp_rs::{Algorithm, Secret, TOTP};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TotpResposne {
+pub struct TotpResponse {
     pub token: String,
     pub url: String,
     pub secret: String,
@@ -32,9 +32,9 @@ impl Totp {
         Self { client }
     }
 
-    pub fn generate(&self) -> TotpResposne {
+    pub fn generate(&self) -> TotpResponse {
         let token = self.client.generate_current().unwrap();
-        TotpResposne {
+        TotpResponse {
             token,
             url: self.client.get_url(),
             secret: self.client.get_secret_base32(),

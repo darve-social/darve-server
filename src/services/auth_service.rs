@@ -3,6 +3,7 @@ use std::sync::Arc;
 use super::verification_code_service::VerificationCodeService;
 use crate::access::base::role::Role;
 use crate::entities::community::discussion_entity::DiscussionDbService;
+use crate::entities::user_auth::authentication_entity::Authentication;
 use crate::entities::user_auth::local_user_entity::UpdateUser;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::interfaces::file_storage::FileStorageInterface;
@@ -25,10 +26,7 @@ use crate::{
     middleware::{
         ctx::Ctx,
         error::{AppError, CtxResult},
-        utils::{
-            db_utils::{IdentIdName, UsernameIdent},
-            string_utils::get_string_thing,
-        },
+        utils::db_utils::{IdentIdName, UsernameIdent},
     },
     utils::{
         hash::{hash_password, verify_password},
@@ -259,12 +257,12 @@ where
         &self,
         token: &str,
         client_id: &str,
-    ) -> CtxResult<(String, LocalUser)> {
+    ) -> CtxResult<(String, LocalUser, bool)> {
         let apple_user = apple::verify_token(token, client_id)
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let res_user_id = self
+        let res = self
             .get_user_id_by_social_auth(
                 AuthType::APPLE,
                 apple_user.id.clone(),
@@ -272,15 +270,10 @@ where
             )
             .await;
 
-        match res_user_id {
-            Ok(user_id) => {
-                let user = self
-                    .user_repository
-                    .get(IdentIdName::Id(get_string_thing(user_id)?))
-                    .await?;
-
+        match res {
+            Ok((user, pass_auth)) => {
                 let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
-                Ok((token, user))
+                Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
@@ -291,21 +284,23 @@ where
 
                     new_user.full_name = apple_user.name;
                     new_user.email_verified = apple_user.email;
-                    return self
+                    let (token, user) = self
                         .register(new_user, AuthType::APPLE, &apple_user.id)
-                        .await;
+                        .await?;
+
+                    Ok((token, user, false))
                 }
                 _ => Err(err),
             },
         }
     }
 
-    pub async fn sign_by_facebook(&self, token: &str) -> CtxResult<(String, LocalUser)> {
+    pub async fn sign_by_facebook(&self, token: &str) -> CtxResult<(String, LocalUser, bool)> {
         let fb_user = facebook::verify_token(token)
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let res_user_id = self
+        let res = self
             .get_user_id_by_social_auth(
                 AuthType::FACEBOOK,
                 fb_user.id.clone(),
@@ -313,15 +308,10 @@ where
             )
             .await;
 
-        match res_user_id {
-            Ok(user_id) => {
-                let user = self
-                    .user_repository
-                    .get(IdentIdName::Id(get_string_thing(user_id)?))
-                    .await?;
-
+        match res {
+            Ok((user, pass_auth)) => {
                 let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
-                Ok((token, user))
+                Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
@@ -331,9 +321,10 @@ where
                     );
 
                     new_user.full_name = Some(fb_user.name.clone());
-                    return self
+                    let (token, user) = self
                         .register(new_user, AuthType::FACEBOOK, &fb_user.id)
-                        .await;
+                        .await?;
+                    Ok((token, user, false))
                 }
                 _ => Err(err),
             },
@@ -344,12 +335,12 @@ where
         &self,
         token: &str,
         google_client_ids: &Vec<&str>,
-    ) -> CtxResult<(String, LocalUser)> {
+    ) -> CtxResult<(String, LocalUser, bool)> {
         let google_user = google::verify_token(token, google_client_ids)
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
 
-        let res_user_id = self
+        let res = self
             .get_user_id_by_social_auth(
                 AuthType::GOOGLE,
                 google_user.sub.clone(),
@@ -357,15 +348,10 @@ where
             )
             .await;
 
-        match res_user_id {
-            Ok(user_id) => {
-                let user = self
-                    .user_repository
-                    .get(IdentIdName::Id(get_string_thing(user_id)?))
-                    .await?;
-
+        match res {
+            Ok((user, pass_auth)) => {
                 let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
-                Ok((token, user))
+                Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
                 AppError::EntityFailIdNotFound { .. } => {
@@ -376,9 +362,10 @@ where
                     new_user.full_name = google_user.name;
                     new_user.email_verified = google_user.email;
                     new_user.image_uri = google_user.picture;
-                    return self
+                    let (token, user) = self
                         .register(new_user, AuthType::GOOGLE, &google_user.sub)
-                        .await;
+                        .await?;
+                    Ok((token, user, false))
                 }
                 _ => Err(err),
             },
@@ -427,13 +414,13 @@ where
     pub async fn forgot_password(&self, data: ForgotPasswordInput) -> CtxResult<()> {
         data.validate()?;
 
-        let user = if data.email_or_username.validate_email() {
+        let (user, auth) = if data.email_or_username.validate_email() {
             self.user_repository
-                .get_by_email(&data.email_or_username)
+                .get_by_email_with_auth(&data.email_or_username, AuthType::PASSWORD)
                 .await?
         } else {
             self.user_repository
-                .get_by_username(&data.email_or_username)
+                .get_by_username_with_auth(&data.email_or_username, AuthType::PASSWORD)
                 .await?
         };
 
@@ -443,11 +430,6 @@ where
             }
             .into());
         }
-
-        let auth = self
-            .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
-            .await?;
 
         if auth.is_none() {
             return Err(AppError::Generic {
@@ -473,24 +455,21 @@ where
         auth: AuthType,
         token: String,
         email: Option<String>,
-    ) -> CtxResult<String> {
+    ) -> CtxResult<(LocalUser, Option<Authentication>)> {
         let auth = self.auth_repository.get_by_token(auth, token).await?;
 
         if auth.is_some() {
-            return Ok(auth.unwrap().local_user.to_raw());
+            return self
+                .user_repository
+                .get_by_id_with_auth(&auth.unwrap().local_user.id.to_raw(), AuthType::PASSWORD)
+                .await;
         }
 
         match email {
             Some(val) => {
-                let user = self
-                    .user_repository
-                    .get(IdentIdName::ColumnIdent {
-                        column: "email_verified".to_string(),
-                        val,
-                        rec: false,
-                    })
-                    .await?;
-                Ok(user.id.unwrap().to_raw())
+                self.user_repository
+                    .get_by_email_with_auth(&val, AuthType::PASSWORD)
+                    .await
             }
             None => Err(self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
                 ident: "".to_string(),

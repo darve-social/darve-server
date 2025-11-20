@@ -2,19 +2,17 @@ use crate::{
     entities::{
         community::post_entity::{PostDbService, PostType},
         nickname::Nickname,
-        user_auth::local_user_entity::UpdateUser,
+        user_auth::{authentication_entity::AuthType, local_user_entity::UpdateUser},
     },
     interfaces::repositories::{
         discussion_user::DiscussionUserRepositoryInterface, nickname::NicknamesRepositoryInterface,
     },
-    middleware::{
-        auth_with_login_access::AuthWithLoginAccess,
-        utils::{
-            db_utils::{IdentIdName, Pagination},
-            string_utils::get_str_thing,
-        },
+    middleware::{auth_with_login_access::AuthWithLoginAccess, utils::db_utils::Pagination},
+    models::view::{
+        discussion_user::DiscussionUserView,
+        post::PostView,
+        user::{LoggedUserView, UserView},
     },
-    models::view::{discussion_user::DiscussionUserView, post::PostView, user::UserView},
     utils::{file::convert::build_profile_file_name, validate_utils::validate_social_links},
 };
 
@@ -450,15 +448,15 @@ async fn update_user(
     State(ctx_state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     mut multipart: Multipart,
-) -> CtxResult<Json<UserView>> {
+) -> CtxResult<Json<LoggedUserView>> {
     let form = ProfileSettingsFormInput::try_from_multipart(&mut multipart).await?;
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
 
-    let user = local_user_db_service
-        .get_by_id(&auth_data.user_thing_id())
+    let (user, auth) = local_user_db_service
+        .get_by_id_with_auth(&auth_data.user_thing_id(), AuthType::PASSWORD)
         .await?;
 
     let mut update_user = UpdateUser {
@@ -545,7 +543,7 @@ async fn update_user(
         .update(user.id.as_ref().unwrap().id.to_raw().as_str(), update_user)
         .await?;
 
-    Ok(Json(UserView::from(user)))
+    Ok(Json(LoggedUserView::from((user, auth.is_some()))))
 }
 
 #[derive(Deserialize, Serialize, Validate, Debug)]
@@ -588,19 +586,17 @@ async fn search_users(
 async fn get_user(
     auth_data: AuthWithLoginAccess,
     State(ctx_state): State<Arc<CtxState>>,
-) -> CtxResult<Json<UserView>> {
+) -> CtxResult<Json<LoggedUserView>> {
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
 
-    let thing = get_str_thing(&auth_data.user_id)?;
-
-    let user = local_user_db_service
-        .get_view::<UserView>(IdentIdName::Id(thing))
+    let (user, auth) = local_user_db_service
+        .get_by_id_with_auth(&auth_data.user_thing_id(), AuthType::PASSWORD)
         .await?;
 
-    Ok(Json(user))
+    Ok(Json(LoggedUserView::from((user, auth.is_some()))))
 }
 
 #[derive(Debug, Deserialize)]
