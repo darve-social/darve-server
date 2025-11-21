@@ -34,7 +34,7 @@ test_with_server!(on_create_private_task, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -95,7 +95,7 @@ test_with_server!(
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Accept", "application/json")
