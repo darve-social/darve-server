@@ -50,7 +50,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -103,7 +103,7 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -171,7 +171,7 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -239,7 +239,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -282,7 +282,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -343,7 +343,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                 "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                 "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -381,7 +381,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -416,7 +416,7 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -449,7 +449,7 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -497,7 +497,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -558,7 +558,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -593,7 +593,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -668,7 +668,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -721,7 +721,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -768,7 +768,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -817,7 +817,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -837,7 +837,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post1.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-             "participant": Some(user.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -857,7 +857,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post2.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -869,7 +869,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post3.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -963,7 +963,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
             "acceptance_period": 1,
@@ -1011,7 +1011,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -1065,7 +1065,7 @@ test_with_server!(
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": Some(user.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user.id.as_ref().unwrap().to_raw()],
                 "delivery_period": 1,
             }))
             .add_header("Cookie", format!("jwt={}", token0))
@@ -1250,8 +1250,8 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+           "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -1265,8 +1265,8 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(user0.id.as_ref().unwrap().to_raw()),
-            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+           "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
         .add_header("Cookie", format!("jwt={}", token1))
@@ -1315,7 +1315,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -1406,7 +1406,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -1470,7 +1470,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -1674,7 +1674,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user0.id.as_ref().unwrap().to_raw()),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
             .add_header("Cookie", format!("jwt={}", token1))
@@ -1796,7 +1796,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": user1.id.as_ref().unwrap().to_raw()
+            "participants": vec![user1.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
             .await
@@ -1813,8 +1813,8 @@ test_with_server!(
         server
             .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
             .json(&json!({
-                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": user0.id.as_ref().unwrap().to_raw()
+                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
             .await
@@ -1840,8 +1840,8 @@ test_with_server!(
         let request = server
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({
-                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": user0.id.as_ref().unwrap().to_raw(),
+                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
             .await;
@@ -1863,7 +1863,7 @@ test_with_server!(
             .post(&format!("/api/posts/{}/tasks", post.id))
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-                "participant": user0.id.as_ref().unwrap().to_raw(),
+            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
             .await;

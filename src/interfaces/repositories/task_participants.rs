@@ -9,7 +9,7 @@ pub trait TaskParticipantsRepositoryInterface {
         &self,
         query: Query<'b, any::Any>,
         task_id: &str,
-        user_id: &str,
+        user_ids: Vec<String>,
         status: &str,
     ) -> Query<'b, any::Any>;
     fn build_update_query<'b>(

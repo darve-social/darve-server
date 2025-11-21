@@ -710,50 +710,10 @@ where
         user: &LocalUser,
         task: &TaskRequest,
         view: OnCreatedTaskView<'_>,
-        participant: Option<&LocalUser>,
+        participants: Vec<&LocalUser>,
         is_current_user_donor: bool,
     ) -> CtxResult<()> {
         let user_id = user.id.as_ref().expect("User id must exists");
-        let receiver_things = match view {
-            OnCreatedTaskView::Post(view) => match view.r#type {
-                PostType::Private => view.get_user_ids(),
-                _ => {
-                    self.get_receivers_of_disc_access_view(
-                        &view.discussion,
-                        &task,
-                        user_id.clone(),
-                        is_current_user_donor,
-                        participant.map(|u| u.id.as_ref().expect("User id must exists").clone()),
-                    )
-                    .await?
-                }
-            },
-            OnCreatedTaskView::Disc(view) => {
-                self.get_receivers_of_disc_access_view(
-                    &view,
-                    &task,
-                    user_id.clone(),
-                    is_current_user_donor,
-                    participant.map(|u| u.id.as_ref().expect("User id must exists").clone()),
-                )
-                .await?
-            }
-        };
-
-        let mut receivers = receiver_things
-            .iter()
-            .filter_map(|id| {
-                if id == user_id {
-                    None
-                } else {
-                    Some(id.id.to_raw())
-                }
-            })
-            .collect::<Vec<String>>();
-
-        if receivers.is_empty() {
-            return Ok(());
-        }
 
         let (post_id, discussion_id) = match view {
             OnCreatedTaskView::Post(post_access_view) => (Some(post_access_view.id.to_raw()), None),
@@ -768,28 +728,72 @@ where
             "discussion_id": discussion_id
         }));
 
-        if let Some(p) = participant {
-            let p_id = p.id.as_ref().unwrap().id.to_raw();
-            receivers.retain(|id| id != &p_id);
+        let participant_ids = participants
+            .iter()
+            .map(|u| u.id.as_ref().unwrap())
+            .collect::<Vec<&Thing>>();
+
+        if !participant_ids.is_empty() {
+            let ids = participant_ids
+                .iter()
+                .map(|id| id.id.to_raw())
+                .collect::<Vec<String>>();
+
             let event = self
                 .notification_repository
                 .create(
                     &user_id.id.to_raw(),
                     format!("{} created a task for you", user.username).as_str(),
                     UserNotificationEvent::UserTaskRequestReceived.as_str(),
-                    &vec![p_id.clone()],
+                    &ids,
                     metadata.clone(),
                 )
                 .await?;
 
             let _ = self.event_sender.send(AppEvent {
-                receivers: [p_id].to_vec(),
+                receivers: ids,
                 content: None,
                 user_id: user_id.id.to_raw(),
                 metadata: None,
                 event: AppEventType::UserNotificationEvent(event),
             });
         };
+
+        let receiver_things = match view {
+            OnCreatedTaskView::Post(view) => match view.r#type {
+                PostType::Private => view.get_user_ids(),
+                _ => {
+                    self.get_receivers_of_disc_access_view(
+                        &view.discussion,
+                        &task,
+                        user_id.clone(),
+                        is_current_user_donor,
+                    )
+                    .await?
+                }
+            },
+            OnCreatedTaskView::Disc(view) => {
+                self.get_receivers_of_disc_access_view(
+                    &view,
+                    &task,
+                    user_id.clone(),
+                    is_current_user_donor,
+                )
+                .await?
+            }
+        };
+
+        let receivers = receiver_things
+            .iter()
+            .filter_map(|id| {
+                if id == user_id || participant_ids.contains(&id) {
+                    None
+                } else {
+                    Some(id.id.to_raw())
+                }
+            })
+            .collect::<Vec<String>>();
+
         if receivers.is_empty() {
             return Ok(());
         }
@@ -981,20 +985,17 @@ where
         task: &TaskRequest,
         current_user_id: Thing,
         is_current_user_donor: bool,
-        participant: Option<Thing>,
     ) -> CtxResult<Vec<Thing>> {
         match view.r#type {
             DiscussionType::Private => Ok(view.get_user_ids()),
             DiscussionType::Public => match task.r#type {
                 TaskRequestType::Public => Ok(vec![]),
                 TaskRequestType::Private => {
-                    let mut users = if is_current_user_donor {
-                        self.get_follower_ids(current_user_id).await?
+                    if is_current_user_donor {
+                        self.get_follower_ids(current_user_id).await
                     } else {
-                        vec![]
-                    };
-                    users.push(participant.expect("Participant must exists for private task"));
-                    Ok(users)
+                        Ok(vec![])
+                    }
                 }
             },
         }

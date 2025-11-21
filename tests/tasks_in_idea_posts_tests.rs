@@ -45,7 +45,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-                "participant": Some(user1.id.as_ref().unwrap().to_raw()),
+                "participants": vec![user1.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))

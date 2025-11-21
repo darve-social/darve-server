@@ -351,7 +351,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "participants": vec![participant.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -419,7 +419,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "participants": vec![participant.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -517,7 +517,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(100),
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "participants": vec![participant.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -709,7 +709,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": donor0_task_amount,
-                "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+                "participants": vec![participant.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -816,7 +816,7 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": donor0_task_amount,
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "participants": vec![participant.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -887,7 +887,7 @@ test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
     let task_request = server
         .post(format!("/api/discussions/{}/tasks", disc.id.to_raw()).as_str())
         .json(&json!({
-            "participant": Some(participant.id.as_ref().unwrap().to_raw()),
+            "participants": vec![participant.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))

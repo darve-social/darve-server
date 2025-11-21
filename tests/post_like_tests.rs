@@ -57,8 +57,8 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     let task = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
-            "offer_amount": Some(500),
-            "participant": user1.id.as_ref().unwrap().to_raw(),
+            "offer_amount": Some(1000),
+            "participants": vec![user1.id.as_ref().unwrap().to_raw()],
             "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -74,14 +74,16 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
         ))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
-        .await;
+        .await
+        .assert_status_success();
 
     server
         .post(&format!("/api/tasks/{}/deliver", task.id.as_ref().unwrap()))
         .json(&json!({"post_id": deliver.id }))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
-        .await;
+        .await
+        .assert_status_success();
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
@@ -147,7 +149,7 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(600),
-                "participant": user1.id.as_ref().unwrap().to_raw(),
+                "participants": vec![user1.id.as_ref().unwrap().to_raw()],
                 "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
@@ -203,7 +205,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
         .json(&json!({
             "offer_amount": Some(600),
-            "participant": user1.id.as_ref().unwrap().to_raw(),
+            "participants": vec![user1.id.as_ref().unwrap().to_raw()],
             "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
@@ -219,14 +221,16 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         ))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
-        .await;
+        .await
+        .assert_status_success();
 
     server
         .post(&format!("/api/tasks/{}/deliver", task.id.as_ref().unwrap()))
         .json(&json!({"post_id": deliver.id }))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
-        .await;
+        .await
+        .assert_status_success();
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())

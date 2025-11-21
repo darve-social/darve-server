@@ -54,15 +54,20 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         &self,
         query: Query<'b, any::Any>,
         task_id: &str,
-        user_id: &str,
+        user_ids: Vec<String>,
         status: &str,
     ) -> Query<'b, any::Any> {
+        let users = user_ids
+            .into_iter()
+            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
+            .collect::<Vec<Thing>>();
+
         query.query( format!("
-            LET $task_participant=RELATE $_task_participant_task_id->{}->$_task_participant_user_id SET
+            LET $task_participant=RELATE $_task_participant_task_id->{}->$_task_participant_user_ids SET
                 timelines=[{{ status: $_task_participant_status, date: time::now() }}],
                 status=$_task_participant_status", self.table_name))
 
-            .bind(("_task_participant_user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("_task_participant_user_ids", users))
             .bind(("_task_participant_task_id", Thing::from((TASK_TABLE_NAME, task_id))))
             .bind(("_task_participant_status", status.to_string()))
     }

@@ -100,7 +100,8 @@ pub struct TaskDeliveryData {
 pub struct TaskRequestInput {
     #[validate(length(min = 5, message = "Min 5 characters for content"))]
     pub content: String,
-    pub participant: Option<String>,
+    #[serde(default)]
+    pub participants: Vec<String>,
     #[validate(range(min = 100))]
     pub offer_amount: Option<u64>,
     #[validate(range(min = 1))]
@@ -205,23 +206,31 @@ where
             .get_view_by_id::<PostAccessView>(post_id, None)
             .await?;
 
-        let (participant, r#type) = self.get_participant_and_type(&data).await?;
+        let participants = self.get_participants(&data).await?;
 
-        if let Some(ref participant) = participant {
-            if participant.id == user.id {
+        if participants.is_empty() {
+            if !PostAccess::new(&post).can_create_public_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
-            if !PostAccess::new(&post).can_view(participant) {
-                return Err(AppError::Forbidden.into());
+        } else {
+            for participant in participants.iter() {
+                if participant.id == user.id {
+                    return Err(AppError::Forbidden.into());
+                }
+                if !PostAccess::new(&post).can_view(participant) {
+                    return Err(AppError::Forbidden.into());
+                }
             }
             if !PostAccess::new(&post).can_create_private_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
+        };
+
+        let r#type = if participants.is_empty() {
+            TaskRequestType::Public
         } else {
-            if !PostAccess::new(&post).can_create_public_task(&user) {
-                return Err(AppError::Forbidden.into());
-            }
-        }
+            TaskRequestType::Private
+        };
 
         let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
         let post_id = post.id.clone();
@@ -244,7 +253,14 @@ where
         }
 
         let task = self
-            .create(&user, participant.as_ref(), r#type, data, post_id, true)
+            .create(
+                &user,
+                participants.iter().map(|u| u).collect(),
+                r#type,
+                data,
+                post_id,
+                true,
+            )
             .await?;
 
         let _ = self
@@ -253,7 +269,7 @@ where
                 &user,
                 &task,
                 OnCreatedTaskView::Post(&post),
-                participant.as_ref(),
+                participants.iter().map(|u| u).collect(),
                 is_donate_value,
             )
             .await;
@@ -276,24 +292,30 @@ where
             .get_view_by_id::<DiscussionAccessView>(disc_id)
             .await?;
 
-        let (participant, r#type) = self.get_participant_and_type(&data).await?;
+        let participants = self.get_participants(&data).await?;
 
-        if let Some(ref participant) = participant {
-            if participant.id == user.id {
+        if participants.is_empty() {
+            if !DiscussionAccess::new(&discussion).can_create_public_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
-            if !DiscussionAccess::new(&discussion).can_view(participant) {
-                return Err(AppError::Forbidden.into());
+        } else {
+            for participant in participants.iter() {
+                if participant.id == user.id {
+                    return Err(AppError::Forbidden.into());
+                }
+                if !DiscussionAccess::new(&discussion).can_view(participant) {
+                    return Err(AppError::Forbidden.into());
+                }
             }
             if !DiscussionAccess::new(&discussion).can_create_private_task(&user) {
                 return Err(AppError::Forbidden.into());
             }
+        };
+        let r#type = if participants.is_empty() {
+            TaskRequestType::Public
         } else {
-            if !DiscussionAccess::new(&discussion).can_create_public_task(&user) {
-                return Err(AppError::Forbidden.into());
-            }
-        }
-
+            TaskRequestType::Private
+        };
         let disc_id = discussion.id.clone();
 
         let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
@@ -316,7 +338,14 @@ where
         }
 
         let task = self
-            .create(&user, participant.as_ref(), r#type, data, disc_id, false)
+            .create(
+                &user,
+                participants.iter().map(|u| u).collect(),
+                r#type,
+                data,
+                disc_id,
+                false,
+            )
             .await?;
 
         let _ = self
@@ -325,7 +354,7 @@ where
                 &user,
                 &task,
                 OnCreatedTaskView::Disc(&discussion),
-                participant.as_ref(),
+                participants.iter().map(|u| u).collect(),
                 is_donate_value,
             )
             .await;
@@ -560,7 +589,7 @@ where
                         task.id.clone(),
                         Role::Participant.to_string(),
                     )
-                    .await;
+                    .await?;
                 result
             }
             None => {
@@ -582,7 +611,7 @@ where
                         [task.id.clone()].to_vec(),
                         Role::Participant.to_string(),
                     )
-                    .await;
+                    .await?;
                 result
             }
         };
@@ -823,7 +852,7 @@ where
     async fn create(
         &self,
         user: &LocalUser,
-        participant: Option<&LocalUser>,
+        participants: Vec<&LocalUser>,
         r#type: TaskRequestType,
         data: TaskRequestInput,
         belongs_to: Thing,
@@ -876,11 +905,19 @@ where
             );
         }
 
-        if let Some(ref participant) = participant {
+        let participant_ids = participants
+            .into_iter()
+            .map(|u| u.id.as_ref().unwrap().clone())
+            .collect::<Vec<Thing>>();
+
+        if !participant_ids.is_empty() {
             query = self.task_participants_repository.build_create_query(
                 query,
                 &task_data.task_id.id.to_raw(),
-                &participant.id.as_ref().unwrap().id.to_raw(),
+                participant_ids
+                    .iter()
+                    .map(|id| id.id.to_raw())
+                    .collect::<Vec<String>>(),
                 TaskParticipantStatus::Requested.as_str(),
             );
         };
@@ -890,10 +927,10 @@ where
         let task: Option<TaskRequest> = res.take(0)?;
         let task = task.unwrap();
 
-        if let Some(ref participant) = participant {
+        if !participant_ids.is_empty() {
             self.access_repository
                 .add(
-                    [participant.id.as_ref().unwrap().clone()].to_vec(),
+                    participant_ids,
                     [task.id.as_ref().unwrap().clone()].to_vec(),
                     Role::Candidate.to_string(),
                 )
@@ -925,21 +962,20 @@ where
         Ok(task)
     }
 
-    async fn get_participant_and_type(
-        &self,
-        data: &TaskRequestInput,
-    ) -> AppResult<(Option<LocalUser>, TaskRequestType)> {
-        match data.participant {
-            Some(ref participant) if !participant.is_empty() => {
-                let to_user_thing = get_str_thing(&participant)?;
-                let user = self
-                    .users_repository
-                    .get_by_id(&to_user_thing.id.to_raw())
-                    .await?;
-                Ok((Some(user), TaskRequestType::Private))
-            }
-            _ => Ok((None, TaskRequestType::Public)),
+    async fn get_participants(&self, data: &TaskRequestInput) -> AppResult<Vec<LocalUser>> {
+        let ids = data
+            .participants
+            .iter()
+            .filter_map(|id| get_str_thing(id).ok())
+            .collect::<Vec<Thing>>();
+
+        if ids.is_empty() {
+            return Ok(vec![]);
         }
+        self.users_repository
+            .get_by_ids(ids)
+            .await
+            .map_err(|e| e.into())
     }
 
     fn can_still_use(&self, start: DateTime<Utc>, period: Option<u16>) -> bool {

@@ -100,7 +100,7 @@ test_with_server!(
             .post(&format!("/api/posts/{post_id}/tasks"))
             .json(&TaskRequestInput {
                 offer_amount: Some(user2_offer_amt as u64),
-                participant: Some(user_ident0.clone()),
+                participants: vec![user_ident0.clone()],
                 content: offer_content.clone(),
                 acceptance_period: None,
                 delivery_period: None,
