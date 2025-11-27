@@ -19,7 +19,13 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum UserRole {
+    Admin,
+    User,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Thing>,
@@ -45,6 +51,7 @@ pub struct LocalUser {
     pub credits: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_seen: Option<DateTime<Utc>>,
+    pub role: UserRole,
 }
 
 impl LocalUser {
@@ -63,6 +70,7 @@ impl LocalUser {
             otp_secret: None,
             credits: 0,
             last_seen: None,
+            role: UserRole::User,
         }
     }
 }
@@ -129,6 +137,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS credits ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS last_seen ON TABLE {TABLE_NAME} TYPE option<datetime>;
+    DEFINE FIELD IF NOT EXISTS role ON TABLE {TABLE_NAME} TYPE string;
 
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
@@ -239,7 +248,7 @@ impl<'a> LocalUserDbService<'a> {
 
     // param id is a id of the thing
     pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
-        let ident = IdentIdName::Id(get_str_id_thing(TABLE_NAME, id)?);
+        let ident = IdentIdName::Id(Thing::from((TABLE_NAME, id)));
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
@@ -275,6 +284,13 @@ impl<'a> LocalUserDbService<'a> {
             rec: false,
         };
         self.get(ident).await
+    }
+
+    pub async fn get_by_role(&self, role: UserRole) -> CtxResult<Vec<LocalUser>> {
+        let qry = format!("SELECT * FROM {TABLE_NAME} WHERE role=$role");
+        let mut res = self.db.query(qry).bind(("role", role)).await?;
+        let data = res.take::<Vec<LocalUser>>(0)?;
+        Ok(data)
     }
 
     pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(

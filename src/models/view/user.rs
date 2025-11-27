@@ -1,5 +1,5 @@
 use crate::{
-    entities::user_auth::local_user_entity::LocalUser,
+    entities::user_auth::local_user_entity::{LocalUser, UserRole},
     middleware::utils::db_utils::ViewFieldSelector,
 };
 use chrono::{DateTime, Utc};
@@ -55,6 +55,7 @@ pub struct LoggedUserView {
     pub is_otp_enabled: bool,
     pub last_seen: Option<DateTime<Utc>>,
     pub has_password: bool,
+    pub role: UserRole,
 }
 
 impl From<(LocalUser, bool)> for LoggedUserView {
@@ -72,6 +73,7 @@ impl From<(LocalUser, bool)> for LoggedUserView {
             is_otp_enabled: user.is_otp_enabled,
             last_seen: user.last_seen,
             has_password: has_password,
+            role: user.role,
         }
     }
 }

@@ -4,7 +4,7 @@ use super::verification_code_service::VerificationCodeService;
 use crate::access::base::role::Role;
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::user_auth::authentication_entity::Authentication;
-use crate::entities::user_auth::local_user_entity::UpdateUser;
+use crate::entities::user_auth::local_user_entity::{UpdateUser, UserRole};
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
@@ -177,6 +177,7 @@ where
     pub async fn register_password(
         &self,
         input: AuthRegisterInput,
+        role: Option<UserRole>,
     ) -> CtxResult<(String, LocalUser)> {
         input.validate()?;
         if self.is_exists_by_username(input.username.clone()).await {
@@ -192,6 +193,7 @@ where
         };
 
         let mut user = LocalUser::default(input.username);
+        user.role = role.unwrap_or(UserRole::User);
         user.full_name = input.full_name;
         user.bio = input.bio;
         user.birth_date = input.birth_day.map(|d| d.date_naive().to_string());

@@ -5,6 +5,7 @@ use std::fmt::Display;
 #[serde(rename_all = "UPPERCASE")]
 pub enum Role {
     Guest,
+    Admin,
     Member,
     Owner,
     Donor,
@@ -23,6 +24,7 @@ impl Display for Role {
             Role::Participant => write!(f, "PARTICIPANT"),
             Role::Donor => write!(f, "DONOR"),
             Role::Editor => write!(f, "EDITOR"),
+            Role::Admin => write!(f, "ADMIN"),
         }
     }
 }
@@ -37,6 +39,7 @@ impl From<&str> for Role {
             "PARTICIPANT" => Role::Participant,
             "DONOR" => Role::Donor,
             "EDITOR" => Role::Editor,
+            "ADMIN" => Role::Admin,
             _ => panic!("Unknown role: {}", value),
         }
     }

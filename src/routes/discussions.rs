@@ -326,9 +326,30 @@ async fn get_tasks(
         db: &state.db.client,
     };
 
-    let tasks: Vec<_> = task_db_service
-        .get_by_disc(disc.id, user.id.as_ref().unwrap().clone())
-        .await?;
+    let tasks = match disc.r#type {
+        DiscussionType::Private => {
+            task_db_service
+                .get_by_private_disc::<TaskRequestView>(
+                    &disc.id.id.to_raw(),
+                    &user.id.as_ref().unwrap().id.to_raw(),
+                    None,
+                    None,
+                    None,
+                )
+                .await?
+        }
+        DiscussionType::Public => {
+            task_db_service
+                .get_by_public_disc::<TaskRequestView>(
+                    &disc.id.id.to_raw(),
+                    &user.id.as_ref().unwrap().id.to_raw(),
+                    None,
+                    None,
+                    None,
+                )
+                .await?
+        }
+    };
 
     Ok(Json(tasks))
 }

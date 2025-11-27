@@ -4,7 +4,8 @@ use crate::{
         resource::Resource, role::Role,
     },
     entities::{
-        community::discussion_entity::DiscussionType, user_auth::local_user_entity::LocalUser,
+        community::discussion_entity::DiscussionType,
+        user_auth::local_user_entity::{LocalUser, UserRole},
     },
     models::view::access::DiscussionAccessView,
 };
@@ -17,7 +18,10 @@ impl AccessPath {
     ) -> Self {
         let (user_role, disc_role) = match user {
             Some(user) => (
-                Role::Member,
+                match user.role {
+                    UserRole::Admin => Role::Admin,
+                    UserRole::User => Role::Member,
+                },
                 disc.users
                     .iter()
                     .find(|u| u.user == *user.id.as_ref().unwrap())

@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod auth_routes;
 pub mod community;
 pub mod discussions;

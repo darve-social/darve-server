@@ -11,6 +11,7 @@ macro_rules! test_with_server {
             use async_trait::async_trait;
             use darve_server::interfaces::send_email::SendEmailInterface;
             use darve_server::{
+                init::create_default_profiles,
                 middleware::mw_ctx::CtxState,
                 utils::{file::local_file_storage::LocalFileStorage, jwt::JWT},
             };
@@ -75,7 +76,7 @@ macro_rules! test_with_server {
                 verification_code_ttl: 3,
                 google_ios_client_id: "".to_string(),
                 google_android_client_id: "".to_string(),
-                init_server_password: "".to_string(),
+                init_server_password: "123456".to_string(),
                 is_development: true,
                 sendgrid_api_key: "".to_string(),
                 sendgrid_api_url: "".to_string(),
@@ -105,7 +106,10 @@ macro_rules! test_with_server {
                 create_ctx_state(db, &$config)
             };
 
+            create_default_profiles(&$ctx_state, &$config.init_server_password.as_str()).await;
+
             let wa_config = create_webauth_config();
+
             let routes_all = darve_server::init::main_router(&$ctx_state.clone(), wa_config);
 
             let $server = TestServer::new_with_config(

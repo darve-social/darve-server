@@ -23,11 +23,11 @@ where
 }
 
 pub fn validate_username(u: &String) -> Result<(), ValidationError> {
-    let regex = Regex::new(r"^[A-Za-z0-9_]{6,}$").unwrap();
+    let regex = Regex::new(r"^[A-Za-z0-9_]{5,}$").unwrap();
 
     if !regex.is_match(u) {
         return Err(ValidationError::new("")
-            .with_message("Letters, numbers and '_'. Minimum 6 characters".into()));
+            .with_message("Letters, numbers and '_'. Minimum 5 characters".into()));
     }
     let username_lower = u.to_lowercase();
     if BLOCKED_WORDS.contains(&username_lower) {

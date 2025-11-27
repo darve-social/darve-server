@@ -2,7 +2,10 @@ use crate::{
     access::base::{
         access_control, path::AccessPath, permission::Permission, resource::Resource, role::Role,
     },
-    entities::{community::community_entity::Community, user_auth::local_user_entity::LocalUser},
+    entities::{
+        community::community_entity::Community,
+        user_auth::local_user_entity::{LocalUser, UserRole},
+    },
 };
 
 pub struct CommunityAccess<'a> {
@@ -14,7 +17,10 @@ impl AccessPath {
         AccessPath {
             name: Resource::App,
             role: match user {
-                Some(_) => Role::Member,
+                Some(u) => match u.role {
+                    UserRole::Admin => Role::Admin,
+                    UserRole::User => Role::Member,
+                },
                 None => Role::Guest,
             },
             next: None,

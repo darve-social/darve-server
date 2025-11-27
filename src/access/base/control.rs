@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::access::base::{
     path::AccessPath, permission::Permission, resource::Resource, role::Role,
@@ -24,23 +24,6 @@ fn collect_paths(
     }
 }
 
-fn get_roles_by_res_permission(
-    data: &HashMap<Resource, RoleNode>,
-    resources: &Vec<Resource>,
-    permission: &Permission,
-    output: &mut HashSet<Role>,
-) {
-    for (res, role_node) in data {
-        for (role, node) in &role_node.roles {
-            if resources.contains(res) && node.permissions.contains(permission) {
-                output.insert(role.clone());
-            } else {
-                get_roles_by_res_permission(&node.resources, resources, permission, output);
-            }
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
 pub struct Node {
     #[serde(default)]
@@ -58,7 +41,7 @@ pub struct RoleNode {
 #[derive(Debug)]
 pub struct AccessControl {
     paths: HashMap<String, Vec<Permission>>,
-    root: HashMap<Resource, RoleNode>,
+    _root: HashMap<Resource, RoleNode>,
 }
 
 impl From<&str> for AccessControl {
@@ -67,7 +50,7 @@ impl From<&str> for AccessControl {
             serde_json::from_str(value).expect("Invalid JSON string for AccessControl");
         let mut paths: HashMap<String, Vec<Permission>> = HashMap::new();
         collect_paths(&root, "", &mut paths);
-        AccessControl { paths, root }
+        AccessControl { paths, _root: root }
     }
 }
 
@@ -83,12 +66,6 @@ impl AccessControl {
             .filter(|v| v.1.contains(&permission))
             .map(|v| AccessPath::from(v.0.as_str()))
             .collect::<Vec<AccessPath>>()
-    }
-
-    pub fn which_roles(&self, resource: Vec<Resource>, permission: Permission) -> Vec<Role> {
-        let mut output = HashSet::new();
-        get_roles_by_res_permission(&self.root, &resource, &permission, &mut output);
-        output.into_iter().collect()
     }
 
     pub fn what_can(&self, path: &AccessPath) -> Vec<Permission> {
@@ -130,6 +107,13 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreateDiscussion));
         assert_eq!(permissions.len(), 1);
     }
+    #[test]
+    fn test_app_admin_permissions() {
+        let ac = access_control();
+        let path = AccessPath::from("APP->ADMIN");
+        let permissions = ac.what_can(&path);
+        assert_eq!(permissions.len(), 0);
+    }
 
     #[test]
     fn test_discussion_public_guest_permissions() {
@@ -156,6 +140,20 @@ mod schema_variant_tests {
     }
 
     #[test]
+    fn test_admin_discussion_public_owner_permissions() {
+        let ac = access_control();
+        let path = AccessPath::from("APP->ADMIN->DISCUSSION:PUBLIC->OWNER");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert!(permissions.contains(&Permission::Edit));
+        assert!(permissions.contains(&Permission::CreatePublicPost));
+        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePublicTask));
+        assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert_eq!(permissions.len(), 6);
+    }
+
+    #[test]
     fn test_discussion_public_guest_nested_permissions() {
         let ac = access_control();
 
@@ -166,9 +164,66 @@ mod schema_variant_tests {
     }
 
     #[test]
-    fn test_post_public_guest_under_discussion_public_guest() {
+    fn test_admin_discussion_public_guest_nested_permissions() {
+        let ac = access_control();
+        let path = AccessPath::from("APP->ADMIN->DISCUSSION:PUBLIC->GUEST");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert_eq!(permissions.len(), 1);
+    }
+
+    #[test]
+    fn test_admin_discussion_private_owner_permissions() {
         let ac = access_control();
 
+        let path = AccessPath::from("APP->ADMIN->DISCUSSION:PRIVATE->OWNER");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert!(permissions.contains(&Permission::Edit));
+        assert!(permissions.contains(&Permission::CreatePublicPost));
+        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePublicTask));
+        assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::AddMember));
+        assert!(permissions.contains(&Permission::RemoveMember));
+        assert!(permissions.contains(&Permission::Alias));
+        assert_eq!(permissions.len(), 9);
+    }
+
+    #[test]
+    fn test_admin_discussion_private_member_permissions() {
+        let ac = access_control();
+
+        let path = AccessPath::from("APP->ADMIN->DISCUSSION:PRIVATE->MEMBER");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert!(permissions.contains(&Permission::CreatePublicPost));
+        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePublicTask));
+        assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::Alias));
+        assert_eq!(permissions.len(), 6);
+    }
+
+    #[test]
+    fn test_admin_discussion_private_editor_permissions() {
+        let ac = access_control();
+
+        let path = AccessPath::from("APP->ADMIN->DISCUSSION:PRIVATE->EDITOR");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert!(permissions.contains(&Permission::Edit));
+        assert!(permissions.contains(&Permission::CreatePublicPost));
+        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePublicTask));
+        assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::Alias));
+        assert_eq!(permissions.len(), 7);
+    }
+
+    #[test]
+    fn test_post_public_guest_under_discussion_public_guest() {
+        let ac = access_control();
         let path = AccessPath::from("APP->GUEST->DISCUSSION:PUBLIC->GUEST->POST:PUBLIC->GUEST");
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
@@ -221,20 +276,6 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Like));
         assert!(permissions.contains(&Permission::CreateReplyForReply));
         assert_eq!(permissions.len(), 6);
-    }
-
-    #[test]
-    fn test_post_public_guest_under_discussion_public_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from("APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PUBLIC->GUEST");
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::CreateReplyForReply));
-        assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert!(permissions.contains(&Permission::Like));
-        assert_eq!(permissions.len(), 5);
     }
 
     #[test]

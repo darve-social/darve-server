@@ -180,7 +180,7 @@ async fn signup(
         state.file_storage.clone(),
     );
 
-    let (token, user) = auth_service.register_password(body).await?;
+    let (token, user) = auth_service.register_password(body, None).await?;
 
     cookies.add(
         Cookie::build((JWT_KEY, token.clone()))

@@ -14,8 +14,7 @@ use crate::middleware;
 use crate::middleware::utils::db_utils::{get_entity_view, QryOrder};
 use chrono::{DateTime, TimeDelta, Utc};
 use middleware::utils::db_utils::{
-    get_entity, get_entity_list_view, with_not_found_err, IdentIdName, Pagination,
-    ViewFieldSelector,
+    get_entity, with_not_found_err, IdentIdName, Pagination, ViewFieldSelector,
 };
 use middleware::{
     ctx::Ctx,
@@ -240,20 +239,20 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_by_post<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    pub async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
         &self,
-        post: Thing,
+        posts: Vec<Thing>,
         user: Thing,
     ) -> CtxResult<Vec<T>> {
         let query = format!("
             SELECT {} FROM {TABLE_NAME} 
-            WHERE belongs_to = $post
+            WHERE belongs_to IN $posts
                 AND (belongs_to.type IN $public_post_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in) 
                 AND (belongs_to.belongs_to.type=$disc_type OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in)", T::get_select_query_fields());
         let mut res = self
             .db
             .query(query)
-            .bind(("post", post))
+            .bind(("posts", posts))
             .bind(("user", user))
             .bind(("disc_type", DiscussionType::Public))
             .bind(("public_post_types", [PostType::Public, PostType::Idea]))
@@ -261,23 +260,92 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    pub async fn get_by_public_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
         &self,
-        disc: Thing,
-        user: Thing,
+        disc_id: &str,
+        user_id: &str,
+        filter_by_type: Option<TaskRequestType>,
+        pag: Option<Pagination>,
+        is_ended: Option<bool>,
     ) -> CtxResult<Vec<T>> {
+        let date_condition = match is_ended {
+            Some(value) => match value {
+                true => "AND due_at <= time::now()",
+                false => "AND due_at > time::now()",
+            },
+            None => "",
+        };
+        let type_condition = match &filter_by_type {
+            Some(_) => "AND type=$filter_by_type",
+            None => "",
+        };
+
+        let pagination_str = match pag.as_ref() {
+            Some(_) => "ORDER BY created_at $order_dir LIMIT $limit START $start",
+            None => "",
+        };
+
+        let fields = T::get_select_query_fields();
+        let query = format!("
+               SELECT {fields} FROM {TABLE_NAME}
+                WHERE belongs_to=$disc {type_condition} {date_condition} AND (type=$task_type OR $user IN <-{ACCESS_TABLE_NAME}.in)
+                {pagination_str}");
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("task_type", TaskRequestType::Public))
+            .bind(("filter_by_type", filter_by_type))
+            .bind(("limit", pag.as_ref().map(|p| p.count)))
+            .bind(("start", pag.as_ref().map(|p| p.start)))
+            .bind(("order_by", pag.map(|p| p.order_dir)))
+            .await?;
+
+        Ok(res.take::<Vec<T>>(0)?)
+    }
+
+    pub async fn get_by_private_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+        &self,
+        disc_id: &str,
+        user_id: &str,
+        filter_by_type: Option<TaskRequestType>,
+        pag: Option<Pagination>,
+        is_ended: Option<bool>,
+    ) -> CtxResult<Vec<T>> {
+        let date_condition = match is_ended {
+            Some(value) => match value {
+                true => "AND due_at <= time::now()",
+                false => "AND due_at > time::now()",
+            },
+            None => "",
+        };
+        let type_condition = match &filter_by_type {
+            Some(_) => "AND type=$filter_by_type",
+            None => "",
+        };
+
+        let pagination_str = match pag.as_ref() {
+            Some(_) => "ORDER BY created_at $order_dir LIMIT $limit START $start",
+            None => "",
+        };
+
+        let fields = T::get_select_query_fields();
         let query = format!(
-            "
-            SELECT {} FROM {TABLE_NAME} 
-            WHERE belongs_to=$disc AND (belongs_to.type=$disc_type OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)",
-            T::get_select_query_fields()
+            "SELECT {fields} FROM {TABLE_NAME}
+            WHERE belongs_to=$disc {type_condition} {date_condition} AND $user IN belongs_to<-{ACCESS_TABLE_NAME}.in
+            {pagination_str};"
         );
         let mut res = self
             .db
             .query(query)
-            .bind(("user", user))
-            .bind(("disc", disc))
-            .bind(("disc_type", DiscussionType::Public))
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("filter_by_type", filter_by_type))
+            .bind(("limit", pag.as_ref().map(|p| p.count)))
+            .bind(("start", pag.as_ref().map(|p| p.start)))
+            .bind(("order_by", pag.map(|p| p.order_dir)))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
@@ -348,23 +416,6 @@ impl<'a> TaskRequestDbService<'a> {
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
-    }
-
-    pub async fn on_post_list_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
-        &self,
-        post_id: Thing,
-    ) -> CtxResult<Vec<T>> {
-        get_entity_list_view::<T>(
-            self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::ColumnIdent {
-                column: "on_post".to_string(),
-                val: post_id.to_raw(),
-                rec: true,
-            },
-            None,
-        )
-        .await
     }
 
     pub async fn update_status(&self, task: Thing, status: TaskRequestStatus) -> CtxResult<()> {
