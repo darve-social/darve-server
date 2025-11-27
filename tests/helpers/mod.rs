@@ -21,7 +21,6 @@ pub async fn create_login_test_user(
 
     let create_user = &server.post("/api/register").multipart(data).await;
 
-    println!("Creating user with username: {username} {:?}", create_user);
     create_user.assert_status_success();
     let auth_response = create_user.json::<Value>();
     let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();

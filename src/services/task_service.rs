@@ -710,29 +710,6 @@ where
         Ok(delivery_result)
     }
 
-    pub async fn get_by_disc(
-        &self,
-        user_id: &str,
-        disc_id: &str,
-    ) -> AppResult<Vec<TaskAccessView>> {
-        let user = self.users_repository.get_by_id(&user_id).await?;
-        let disc = self
-            .discussions_repository
-            .get_view_by_id::<DiscussionAccessView>(&disc_id)
-            .await?;
-
-        if !DiscussionAccess::new(&disc).can_view(&user) {
-            return Err(AppError::Forbidden);
-        }
-
-        let tasks = self
-            .tasks_repository
-            .get_by_disc(disc.id, user.id.as_ref().unwrap().clone())
-            .await?;
-
-        Ok(tasks)
-    }
-
     pub(crate) async fn distribute_expired_tasks_rewards(&self) -> AppResult<()> {
         let tasks = self.tasks_repository.get_ready_for_payment().await?;
         join_all(tasks.into_iter().map(|t| self.process_reward(t))).await;

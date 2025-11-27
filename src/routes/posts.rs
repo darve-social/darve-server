@@ -116,7 +116,7 @@ async fn get_post_tasks(
     };
 
     let tasks = task_db_service
-        .get_by_post(post.id, user.id.as_ref().unwrap().clone())
+        .get_by_posts(vec![post.id], user.id.as_ref().unwrap().clone())
         .await?;
 
     Ok(Json(tasks))

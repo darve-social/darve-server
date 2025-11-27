@@ -1,7 +1,8 @@
 use crate::{
     entities::{
-        self, community::community_entity::CommunityDbService,
-        user_auth::local_user_entity::LocalUserDbService,
+        self,
+        community::community_entity::CommunityDbService,
+        user_auth::local_user_entity::{LocalUserDbService, UserRole},
     },
     middleware::{
         ctx::Ctx,
@@ -9,7 +10,7 @@ use crate::{
         mw_ctx::CtxState,
     },
     routes::{
-        auth_routes,
+        admin, auth_routes,
         community::profile_routes,
         discussions, editor_tags, follows, notifications, posts, reply, swagger, tags, tasks,
         user_auth::{
@@ -58,28 +59,23 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     );
 
     let _ = auth_service
-        .register_password(AuthRegisterInput {
-            username: "darve-starter".to_string(),
-            password: password.to_string(),
-            email: None,
-            bio: None,
-            birth_day: None,
-            full_name: None,
-            image: None,
-        })
-        .await;
-
-    let _ = auth_service
-        .register_password(AuthRegisterInput {
-            username: "darve-super".to_string(),
-            password: password.to_string(),
-            email: None,
-            bio: None,
-            birth_day: None,
-            full_name: None,
-            image: None,
-        })
-        .await;
+        .register_password(
+            AuthRegisterInput {
+                username: "darve".to_string(),
+                password: password.to_string(),
+                email: None,
+                bio: None,
+                birth_day: None,
+                full_name: None,
+                image: None,
+            },
+            Some(UserRole::Admin),
+        )
+        .await
+        .map_err(|e| {
+            println!(">>>>>>>{:?}", e);
+            e
+        });
 }
 
 pub async fn run_migrations(database: &Database) -> AppResult<()> {
@@ -135,6 +131,7 @@ pub fn main_router(
         .merge(tags::routes())
         .merge(editor_tags::routes())
         .merge(reply::routes())
+        .merge(admin::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
         .layer(

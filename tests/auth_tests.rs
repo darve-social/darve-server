@@ -120,7 +120,7 @@ test_with_server!(
         let response = server
             .post("/api/forgot_password/start")
             .json(&json!({
-                "email_or_username": "email"
+                "email_or_username": "emai"
             }))
             .await;
 
@@ -414,7 +414,7 @@ test_with_server!(
         let response = server
             .post("/api/forgot_password/confirm")
             .json(&json!({
-                "email_or_username": "email",
+                "email_or_username": "emai",
                 "code": "000000",
                 "password": "newPassword124"
             }))

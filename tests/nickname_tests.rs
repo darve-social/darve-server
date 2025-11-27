@@ -1,7 +1,7 @@
 mod helpers;
 
 use darve_server::entities::nickname::Nickname;
-use helpers::{create_fake_login_test_user, create_login_test_user};
+use helpers::create_fake_login_test_user;
 use serde_json::json;
 
 test_with_server!(test_get_nicknames_empty, |server, ctx_state, config| {
@@ -157,7 +157,7 @@ test_with_server!(
     test_set_empty_nickname_error,
     |server, ctx_state, config| {
         // Create two users
-        let (server, user2_id) = create_login_test_user(&server, "testuser2".to_string()).await;
+        let (server, user2, _pwd2, _token2) = create_fake_login_test_user(&server).await;
         let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
 
         // Try to set empty nickname
@@ -166,7 +166,10 @@ test_with_server!(
         });
 
         let response = server
-            .post(&format!("/api/users/{}/nickname", user2_id))
+            .post(&format!(
+                "/api/users/{}/nickname",
+                user2.id.as_ref().unwrap().id.to_raw()
+            ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
             .await;
@@ -179,7 +182,10 @@ test_with_server!(
         });
 
         let response = server
-            .post(&format!("/api/users/{}/nickname", user2_id))
+            .post(&format!(
+                "/api/users/{}/nickname",
+                user2.id.as_ref().unwrap().id.to_raw()
+            ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
             .await;

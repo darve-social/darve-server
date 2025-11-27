@@ -10,14 +10,10 @@ use serde::Serialize;
 
 use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
-use middleware::utils::request_utils::CreatedResponse;
 use utils::askama_filter_util::filters;
 use utils::template_utils::ProfileFormPage;
-use validator::Validate;
 
 use crate::middleware::mw_ctx::CtxState;
-use crate::services::auth_service::{AuthRegisterInput, AuthService};
-
 use crate::{middleware, utils};
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -74,30 +70,4 @@ pub async fn display_register_form(
     };
 
     Ok(Html(data.render().unwrap()).into_response())
-}
-
-pub async fn register_user(
-    state: &Arc<CtxState>,
-    ctx: &Ctx,
-    payload: AuthRegisterInput,
-) -> CtxResult<CreatedResponse> {
-    payload.validate()?;
-
-    let auth_service = AuthService::new(
-        &state.db.client,
-        &ctx,
-        &state.jwt,
-        state.email_sender.clone(),
-        state.verification_code_ttl,
-        &state.db.verification_code,
-        &state.db.access,
-        state.file_storage.clone(),
-    );
-
-    let (_, user) = auth_service.register_password(payload).await?;
-    Ok(CreatedResponse {
-        success: true,
-        id: user.id.unwrap().to_raw(),
-        uri: None,
-    })
 }
