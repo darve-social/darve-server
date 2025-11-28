@@ -151,15 +151,14 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
         }))
         .await
         .assert_status_success();
-    let disc_id = DiscussionDbService::get_profile_discussion_id(admin.id.as_ref().unwrap());
 
-    let content = faker::lorem::en::Sentence(7..20).fake::<String>();
     server
-        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
-        .json(&json!({"content": content}))
+        .get(&format!("/test/api/deposit/{}/{}", admin.username, 1000))
         .add_header("Accept", "application/json")
+        .json("")
         .await
         .assert_status_success();
+
     let (_, _, _password, _) = create_fake_login_test_user(&server).await;
     let res = server
         .get("/api/admin/tasks")
@@ -167,7 +166,7 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
         .await;
     res.assert_status_success();
     let tasks = res.json::<Vec<TaskRequestView>>();
-    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks.len(), 4);
 
     let super_tasks = tasks
         .iter()
@@ -187,8 +186,6 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
 });
 
 test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
-    let (_, user, _user_pwd, user_token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _user1_pwd, user1_token) = create_fake_login_test_user(&server).await;
     let user_repository = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("".to_string()), false),
@@ -205,40 +202,15 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
         }))
         .await
         .assert_status_success();
-    let disc_id = DiscussionDbService::get_profile_discussion_id(admin.id.as_ref().unwrap());
 
-    let content = faker::lorem::en::Sentence(7..20).fake::<String>();
     server
-        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
-        .json(&json!({"content": content}))
+        .get(&format!("/test/api/deposit/{}/{}", admin.username, 1000))
         .add_header("Accept", "application/json")
+        .json("")
         .await
         .assert_status_success();
-    server
-        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
-        .json(
-            &json!({"content": content, "participants": vec![user.id.as_ref().unwrap().to_raw()]}),
-        )
-        .add_header("Accept", "application/json")
-        .await
-        .assert_status_success();
-    server
-        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
-        .json(
-            &json!({"content": content, "participants": vec![user.id.as_ref().unwrap().to_raw()]}),
-        )
-        .add_header("Accept", "application/json")
-        .await
-        .assert_status_success();
-    server
-        .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
-        .json(
-            &json!({"content": content, "participants": vec![user1.id.as_ref().unwrap().to_raw()]}),
-        )
-        .add_header("Accept", "application/json")
-        .await
-        .assert_status_success();
-
+    let (_, _user, _user_pwd, user_token) = create_fake_login_test_user(&server).await;
+    let (_, _user1, _user1_pwd, user1_token) = create_fake_login_test_user(&server).await;
     let res = server
         .get("/api/admin/tasks")
         .add_header("Cookie", format!("jwt={}", user_token))
@@ -246,7 +218,7 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
         .await;
     res.assert_status_success();
     let tasks = res.json::<Vec<TaskRequestView>>();
-    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks.len(), 4);
 
     let super_tasks = tasks
         .iter()
@@ -258,7 +230,7 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
         .collect::<Vec<&TaskRequestView>>();
 
     assert_eq!(super_tasks.len(), 1);
-    assert_eq!(weekly_tasks.len(), 2);
+    assert_eq!(weekly_tasks.len(), 3);
     let res = server
         .get("/api/admin/tasks")
         .add_header("Cookie", format!("jwt={}", user1_token))
@@ -266,7 +238,7 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
         .await;
     res.assert_status_success();
     let tasks = res.json::<Vec<TaskRequestView>>();
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.len(), 4);
 
     let super_tasks = tasks
         .iter()
@@ -278,5 +250,5 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
         .collect::<Vec<&TaskRequestView>>();
 
     assert_eq!(super_tasks.len(), 1);
-    assert_eq!(weekly_tasks.len(), 1);
+    assert_eq!(weekly_tasks.len(), 3);
 });
