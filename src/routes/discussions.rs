@@ -15,6 +15,7 @@ use crate::models::view::discussion::DiscussionView;
 use crate::models::view::post::PostView;
 use crate::models::view::task::TaskRequestView;
 use crate::services::discussion_service::{CreateDiscussion, DiscussionService, UpdateDiscussion};
+use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{GetPostsParams, PostInput, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
@@ -335,6 +336,7 @@ async fn get_tasks(
                     None,
                     None,
                     None,
+                    None,
                 )
                 .await?
         }
@@ -343,6 +345,7 @@ async fn get_tasks(
                 .get_by_public_disc::<TaskRequestView>(
                     &disc.id.id.to_raw(),
                     &user.id.as_ref().unwrap().id.to_raw(),
+                    None,
                     None,
                     None,
                     None,
@@ -363,12 +366,16 @@ async fn create_task(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let task = task_service

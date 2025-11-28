@@ -31,7 +31,6 @@ use crate::{
     middleware::{
         ctx::Ctx,
         error::{AppError, AppResult, CtxResult},
-        mw_ctx::AppEvent,
         utils::{
             db_utils::{IdentIdName, ViewFieldSelector},
             string_utils::get_str_thing,
@@ -49,7 +48,6 @@ use entities::wallet::wallet_entity::check_transaction_custom_error;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use tokio::sync::broadcast::Sender;
 use validator::Validate;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -62,8 +60,8 @@ pub struct TaskView {
     pub r#type: TaskRequestType,
     pub donors: Vec<TaskDonor>,
     pub participants: Vec<TaskParticipant>,
-    pub acceptance_period: u16,
-    pub delivery_period: u16,
+    pub acceptance_period: u64,
+    pub delivery_period: u64,
     pub created_at: DateTime<Utc>,
     pub related_to: Option<Thing>,
     pub status: TaskRequestStatus,
@@ -105,9 +103,9 @@ pub struct TaskRequestInput {
     #[validate(range(min = 100))]
     pub offer_amount: Option<u64>,
     #[validate(range(min = 1))]
-    pub acceptance_period: Option<u16>,
+    pub acceptance_period: Option<u64>,
     #[validate(range(min = 1))]
-    pub delivery_period: Option<u16>,
+    pub delivery_period: Option<u64>,
 }
 
 pub struct TaskService<'a, T, N, P, A, TG>
@@ -126,7 +124,7 @@ where
     discussions_repository: DiscussionDbService<'a>,
     task_donors_repository: &'a P,
     task_participants_repository: &'a T,
-    default_period_hours: u16,
+    default_period_seconds: u64,
     access_repository: &'a A,
     tags_repository: &'a TG,
     db: &'a Db,
@@ -143,30 +141,24 @@ where
     pub fn new(
         db: &'a Db,
         ctx: &'a Ctx,
-        event_sender: &'a Sender<AppEvent>,
-        notification_repository: &'a N,
         task_donors_repository: &'a P,
         task_participants_repository: &'a T,
         access_repository: &'a A,
         tags_repository: &'a TG,
+        notification_service: NotificationService<'a, N>,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
             posts_repository: PostDbService { db: &db, ctx: &ctx },
             transactions_repository: BalanceTransactionDbService { db: &db, ctx: &ctx },
-            notification_service: NotificationService::new(
-                db,
-                ctx,
-                event_sender,
-                notification_repository,
-            ),
             task_donors_repository,
             task_participants_repository,
             discussions_repository: DiscussionDbService { db: &db, ctx },
-            default_period_hours: 48,
+            default_period_seconds: 48 * 60 * 60,
             access_repository,
             tags_repository,
+            notification_service: notification_service,
             db: db,
         }
     }
@@ -192,7 +184,7 @@ where
     }
 
     pub async fn create_for_post(
-        self,
+        &self,
         user_id: &str,
         post_id: &str,
         data: TaskRequestInput,
@@ -278,7 +270,7 @@ where
     }
 
     pub async fn create_for_disc(
-        self,
+        &self,
         user_id: &str,
         disc_id: &str,
         data: TaskRequestInput,
@@ -363,7 +355,7 @@ where
     }
 
     pub async fn upsert_donor(
-        self,
+        &self,
         task_id: &str,
         donor_id: &str,
         data: TaskDonorData,
@@ -848,8 +840,10 @@ where
             deliverable_type: DeliverableType::PublicPost,
             reward_type: RewardType::OnDelivery,
             currency: offer_currency.clone(),
-            acceptance_period: data.acceptance_period.unwrap_or(self.default_period_hours),
-            delivery_period: data.delivery_period.unwrap_or(self.default_period_hours),
+            acceptance_period: data
+                .acceptance_period
+                .unwrap_or(self.default_period_seconds),
+            delivery_period: data.delivery_period.unwrap_or(self.default_period_seconds),
             increase_tasks_nr_for_belongs,
             task_id: Thing::from((TASK_TABLE_NAME, id.clone())),
             wallet_id: Thing::from((WALLET_TABLE_NAME, id)),
@@ -955,11 +949,11 @@ where
             .map_err(|e| e.into())
     }
 
-    fn can_still_use(&self, start: DateTime<Utc>, period: Option<u16>) -> bool {
+    fn can_still_use(&self, start: DateTime<Utc>, period: Option<u64>) -> bool {
         match period {
             Some(value) => {
                 start
-                    .checked_add_signed(TimeDelta::hours(value.into()))
+                    .checked_add_signed(TimeDelta::seconds(value as i64))
                     .unwrap()
                     > Utc::now()
             }

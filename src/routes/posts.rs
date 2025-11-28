@@ -70,12 +70,16 @@ async fn create_task(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let task = task_service

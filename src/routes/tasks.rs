@@ -6,6 +6,7 @@ use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
+use crate::services::notification_service::NotificationService;
 use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
@@ -126,12 +127,16 @@ async fn reject_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let data = task_service
@@ -149,12 +154,16 @@ async fn accept_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let data = task_service
@@ -173,12 +182,16 @@ async fn deliver_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let data = task_service
@@ -203,12 +216,16 @@ async fn upsert_donor(
     let task_service = TaskService::new(
         &state.db.client,
         &ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let donor = task_service
@@ -232,12 +249,16 @@ async fn get_task(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
-        &state.event_sender,
-        &state.db.user_notifications,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
     );
 
     let task_view = task_service

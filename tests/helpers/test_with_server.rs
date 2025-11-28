@@ -11,9 +11,10 @@ macro_rules! test_with_server {
             use async_trait::async_trait;
             use darve_server::interfaces::send_email::SendEmailInterface;
             use darve_server::{
+
                 init::create_default_profiles,
                 middleware::mw_ctx::CtxState,
-                utils::{file::local_file_storage::LocalFileStorage, jwt::JWT},
+                utils::{file::local_file_storage::LocalFileStorage, jwt::JWT, darve_tasks},
             };
             use tokio::sync::broadcast;
             use axum_test::{TestServer, TestServerConfig};
@@ -35,8 +36,9 @@ macro_rules! test_with_server {
 
             fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
                 let (event_sender, _) = broadcast::channel(100);
+                let database = Arc::new(db);
                 let ctx_state = CtxState {
-                    db,
+                    db: database.clone(),
                     start_password: config.init_server_password.clone(),
                     is_development: config.is_development,
                     stripe_secret_key: config.stripe_secret_key.clone(),
@@ -56,7 +58,9 @@ macro_rules! test_with_server {
                     event_sender,
                     withdraw_fee: 0.05,
                     online_users: Arc::new(DashMap::new()),
-                    support_email: config.support_email.clone()
+                    support_email: config.support_email.clone(),
+                    darve_tasks: Arc::new(darve_tasks::DarveTasksUtils::new(database)),
+
                 };
                 Arc::new(ctx_state)
             }

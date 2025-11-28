@@ -2,16 +2,8 @@ use axum::{extract::State, routing::get, Json, Router};
 use std::sync::Arc;
 
 use crate::{
-    entities::{
-        community::discussion_entity::DiscussionDbService,
-        task::task_request_entity::{TaskRequestDbService, TaskRequestType},
-        user_auth::local_user_entity::{LocalUserDbService, UserRole},
-    },
-    middleware::{
-        auth_with_login_access::AuthWithLoginAccess,
-        error::{AppError, CtxResult},
-        mw_ctx::CtxState,
-    },
+    entities::user_auth::local_user_entity::LocalUserDbService,
+    middleware::{auth_with_login_access::AuthWithLoginAccess, error::CtxResult, mw_ctx::CtxState},
     models::view::task::TaskRequestView,
 };
 
@@ -31,40 +23,13 @@ async fn get_tasks(
 
     let _ = user_repository.get_by_id(&user_id).await?;
 
-    let admins = user_repository.get_by_role(UserRole::Admin).await?;
-
-    let admin_disc = admins
-        .first()
-        .map(|u| DiscussionDbService::get_profile_discussion_id(u.id.as_ref().unwrap()));
-
-    if admin_disc.is_none() {
-        return Err(AppError::Forbidden.into());
-    }
-
-    let admin_disc_id = admin_disc.as_ref().unwrap().id.to_raw();
-
-    let task_repository = TaskRequestDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    };
-
-    let weekly_tasks = task_repository
-        .get_by_public_disc::<TaskRequestView>(
-            &admin_disc_id,
-            &user_id,
-            Some(TaskRequestType::Private),
-            None,
-            Some(false),
-        )
+    let super_tasks = state
+        .darve_tasks
+        .create_public(&user_id, &state.event_sender)
         .await?;
-    let super_tasks = task_repository
-        .get_by_public_disc::<TaskRequestView>(
-            &admin_disc_id,
-            &user_id,
-            Some(TaskRequestType::Public),
-            None,
-            Some(false),
-        )
+    let weekly_tasks = state
+        .darve_tasks
+        .create_private(&user_id, &state.event_sender)
         .await?;
 
     let tasks = super_tasks
