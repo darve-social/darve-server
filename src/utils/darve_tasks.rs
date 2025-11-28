@@ -1,10 +1,10 @@
+use chrono::{Datelike, Local, TimeZone, Weekday};
 use rand::{rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use surrealdb::sql::Thing;
-
-use chrono::{Datelike, Local, TimeZone, Weekday};
 use tokio::sync::broadcast::Sender;
+use tokio::sync::Mutex;
 
 use crate::{
     database::client::Database,
@@ -52,6 +52,7 @@ pub struct DarveTasksUtils {
     db: Arc<Database>,
     darve_id: Arc<RwLock<Option<String>>>,
     ctx: Ctx,
+    create_public_lock: Arc<Mutex<()>>,
 }
 
 impl DarveTasksUtils {
@@ -64,6 +65,7 @@ impl DarveTasksUtils {
             darve_id: Arc::new(RwLock::new(None)),
             weekly_data: serde_json::from_str(weekly).expect("Darve weekly tasks parse error"),
             super_data: serde_json::from_str(super_tasks).expect("Darve super tasks parse error"),
+            create_public_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -72,6 +74,7 @@ impl DarveTasksUtils {
         user_id: &str,
         sender_event: &Sender<AppEvent>,
     ) -> AppResult<Vec<TaskRequestView>> {
+        let _lock = self.create_public_lock.lock().await;
         let darve_id = self.get_darve_profile_id().await?;
 
         let task_repository = TaskRequestDbService {

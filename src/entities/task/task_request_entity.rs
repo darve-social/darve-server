@@ -324,8 +324,8 @@ impl<'a> TaskRequestDbService<'a> {
     ) -> CtxResult<Vec<T>> {
         let acceptance_condition = match is_acceptance_expired {
             Some(value) => match value {
-                true => "AND (created_at + type::duration(string::concat(acceptance_period, 'h'))) <= time::now()",
-                false => "AND (created_at + type::duration(string::concat(acceptance_period, 'h'))) > time::now()",
+                true => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) <= time::now()",
+                false => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) > time::now()",
             },
             None => "",
         };
