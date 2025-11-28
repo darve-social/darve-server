@@ -173,6 +173,20 @@ mod schema_variant_tests {
     }
 
     #[test]
+    fn test_post_public_guest_under_discussion_public_owner() {
+        let ac = access_control();
+
+        let path = AccessPath::from("APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PUBLIC->GUEST");
+        let permissions = ac.what_can(&path);
+        assert!(permissions.contains(&Permission::View));
+        assert!(permissions.contains(&Permission::CreateReply));
+        assert!(permissions.contains(&Permission::CreateReplyForReply));
+        assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::Like));
+        assert_eq!(permissions.len(), 5);
+    }
+
+    #[test]
     fn test_admin_discussion_private_owner_permissions() {
         let ac = access_control();
 
