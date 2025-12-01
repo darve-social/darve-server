@@ -147,7 +147,7 @@ impl DarveTasksUtils {
             ),
         );
 
-        let acceptance_period = self.hours_until_end_of_week();
+        let acceptance_period = self.seconds_until_end_of_week();
         let task = task_service
             .create_for_disc(
                 &darve_id,
@@ -231,7 +231,7 @@ impl DarveTasksUtils {
         for task in random_tasks {
             let participants = vec![Thing::from((USER_TABLE_NAME, user_id)).to_raw()];
 
-            let acceptance_period = self.hours_until_end_of_week();
+            let acceptance_period = self.seconds_until_end_of_week();
             let task = task_service
                 .create_for_disc(
                     &darve_id,
@@ -308,7 +308,7 @@ impl DarveTasksUtils {
         unset_tasks.into_iter().take(3).cloned().collect()
     }
 
-    fn hours_until_end_of_week(&self) -> u64 {
+    fn seconds_until_end_of_week(&self) -> u64 {
         let now = Local::now();
         let weekday = now.weekday();
         let days_until_sunday = (Weekday::Sun.number_from_monday() as i64
