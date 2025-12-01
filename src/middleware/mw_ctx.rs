@@ -4,6 +4,7 @@ use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::user_notification::UserNotification;
 use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::send_email::SendEmailInterface;
+use crate::utils::darve_tasks::DarveTasksUtils;
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
@@ -47,7 +48,7 @@ pub struct AppEvent {
 }
 
 pub struct CtxState {
-    pub db: Database,
+    pub db: Arc<Database>,
     pub start_password: String,
     pub is_development: bool,
     pub stripe_secret_key: String,
@@ -68,6 +69,7 @@ pub struct CtxState {
     pub withdraw_fee: f64,
     pub online_users: Arc<DashMap<String, usize>>,
     pub support_email: String,
+    pub darve_tasks: Arc<DarveTasksUtils>,
 }
 
 impl Debug for CtxState {
@@ -78,8 +80,9 @@ impl Debug for CtxState {
 
 pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
     let (event_sender, _) = broadcast::channel(100);
+    let database = Arc::new(db);
     let ctx_state = CtxState {
-        db,
+        db: database.clone(),
         start_password: config.init_server_password.clone(),
         is_development: config.is_development,
         stripe_secret_key: config.stripe_secret_key.clone(),
@@ -111,6 +114,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         withdraw_fee: 0.05,
         online_users: Arc::new(DashMap::new()),
         support_email: config.support_email.clone(),
+        darve_tasks: Arc::new(DarveTasksUtils::new(database)),
     };
     Arc::new(ctx_state)
 }

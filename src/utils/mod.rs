@@ -1,5 +1,6 @@
 pub mod askama_filter_util;
 pub mod blocked_words;
+pub mod darve_tasks;
 pub mod email_sender;
 pub mod file;
 pub mod generate;

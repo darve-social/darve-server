@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use crate::{
     middleware::{ctx::Ctx, mw_ctx::CtxState},
-    services::task_service::TaskService,
+    services::{notification_service::NotificationService, task_service::TaskService},
 };
 
 use tokio::task::JoinHandle;
@@ -17,12 +17,16 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
             let task_service = TaskService::new(
                 &state.db.client,
                 &ctx,
-                &state.event_sender,
-                &state.db.user_notifications,
                 &state.db.task_donors,
                 &state.db.task_participants,
                 &state.db.access,
                 &state.db.tags,
+                NotificationService::new(
+                    &state.db.client,
+                    &ctx,
+                    &state.event_sender,
+                    &state.db.user_notifications,
+                ),
             );
 
             if let Err(err) = task_service.distribute_expired_tasks_rewards().await {

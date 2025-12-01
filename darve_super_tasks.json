@@ -1,0 +1,14 @@
+[
+  {
+    "description": "You have to make smoothie with random ingridients from the fridge.",
+    "amount": 100
+  },
+  {
+    "description": "You have to make american pancakes - but without eggs. you can choose whatever you want",
+    "amount": 100
+  },
+  {
+    "description": "You have to hike triglav alone and you have to lorem ipsum.",
+    "amount": 100
+  }
+]

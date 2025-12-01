@@ -38,8 +38,8 @@ pub struct TaskRequest {
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
     pub created_at: DateTime<Utc>,
-    pub acceptance_period: u16,
-    pub delivery_period: u16,
+    pub acceptance_period: u64,
+    pub delivery_period: u64,
     pub wallet_id: Thing,
     pub status: TaskRequestStatus,
     pub due_at: DateTime<Utc>,
@@ -63,8 +63,8 @@ pub struct TaskRequestCreate {
     pub r#type: TaskRequestType,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
-    pub acceptance_period: u16,
-    pub delivery_period: u16,
+    pub acceptance_period: u64,
+    pub delivery_period: u64,
     pub increase_tasks_nr_for_belongs: bool,
 }
 
@@ -171,8 +171,8 @@ impl<'a> TaskRequestDbService<'a> {
         query: Query<'b, surrealdb::engine::any::Any>,
         record: &TaskRequestCreate,
     ) -> Query<'b, surrealdb::engine::any::Any> {
-        let hours = (record.delivery_period + record.acceptance_period) as i64;
-        let due_at = Utc::now().checked_add_signed(TimeDelta::hours(hours));
+        let seconds = (record.delivery_period + record.acceptance_period) as i64;
+        let due_at = Utc::now().checked_add_signed(TimeDelta::seconds(seconds));
         let mut gry = query
             .query(format!(
                 "CREATE ONLY $_task_wallet_id SET {TRANSACTION_HEAD_F} = {{{{}}}};"
@@ -267,7 +267,15 @@ impl<'a> TaskRequestDbService<'a> {
         filter_by_type: Option<TaskRequestType>,
         pag: Option<Pagination>,
         is_ended: Option<bool>,
+        is_acceptance_expired: Option<bool>,
     ) -> CtxResult<Vec<T>> {
+        let acceptance_condition = match is_acceptance_expired {
+            Some(value) => match value {
+                true => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) <= time::now()",
+                false => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) > time::now()",
+            },
+            None => "",
+        };
         let date_condition = match is_ended {
             Some(value) => match value {
                 true => "AND due_at <= time::now()",
@@ -286,9 +294,8 @@ impl<'a> TaskRequestDbService<'a> {
         };
 
         let fields = T::get_select_query_fields();
-        let query = format!("
-               SELECT {fields} FROM {TABLE_NAME}
-                WHERE belongs_to=$disc {type_condition} {date_condition} AND (type=$task_type OR $user IN <-{ACCESS_TABLE_NAME}.in)
+        let query = format!(" SELECT {fields} FROM {TABLE_NAME}
+                WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND (type=$task_type OR $user IN <-{ACCESS_TABLE_NAME}.in)
                 {pagination_str}");
 
         let mut res = self
@@ -313,7 +320,15 @@ impl<'a> TaskRequestDbService<'a> {
         filter_by_type: Option<TaskRequestType>,
         pag: Option<Pagination>,
         is_ended: Option<bool>,
+        is_acceptance_expired: Option<bool>,
     ) -> CtxResult<Vec<T>> {
+        let acceptance_condition = match is_acceptance_expired {
+            Some(value) => match value {
+                true => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) <= time::now()",
+                false => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) > time::now()",
+            },
+            None => "",
+        };
         let date_condition = match is_ended {
             Some(value) => match value {
                 true => "AND due_at <= time::now()",
@@ -334,7 +349,7 @@ impl<'a> TaskRequestDbService<'a> {
         let fields = T::get_select_query_fields();
         let query = format!(
             "SELECT {fields} FROM {TABLE_NAME}
-            WHERE belongs_to=$disc {type_condition} {date_condition} AND $user IN belongs_to<-{ACCESS_TABLE_NAME}.in
+            WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND $user IN belongs_to<-{ACCESS_TABLE_NAME}.in
             {pagination_str};"
         );
         let mut res = self
@@ -346,6 +361,33 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("limit", pag.as_ref().map(|p| p.count)))
             .bind(("start", pag.as_ref().map(|p| p.start)))
             .bind(("order_by", pag.map(|p| p.order_dir)))
+            .await?;
+
+        Ok(res.take::<Vec<T>>(0)?)
+    }
+
+    pub async fn get_by_user_and_disc<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+        &self,
+        user_id: &str,
+        disc_id: &str,
+        status: Option<TaskParticipantStatus>,
+    ) -> CtxResult<Vec<T>> {
+        let status_condition = match &status {
+            Some(_) => "AND status=$status",
+            None => "",
+        };
+
+        let fields = T::get_select_query_fields();
+        let query = format!(
+            "SELECT {fields} FROM {TABLE_NAME} WHERE ->task_participant[WHERE out=$user {status_condition}]"
+        );
+
+        let mut res = self
+            .db
+            .query(query)
+            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("status", status))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)

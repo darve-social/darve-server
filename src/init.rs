@@ -73,7 +73,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         )
         .await
         .map_err(|e| {
-            println!(">>>>>>>{:?}", e);
+            println!("Create Darve ACCOUNT error:{:?}", e);
             e
         });
 }

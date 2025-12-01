@@ -3986,12 +3986,12 @@
           "acceptance_period": {
             "type": "integer",
             "format": "int32",
-            "description": "Acceptance period in hours"
+            "description": "Acceptance period in seconds"
           },
           "delivery_period": {
             "type": "integer",
             "format": "int32",
-            "description": "Delivery period in hours"
+            "description": "Delivery period in seconds"
           },
           "due_at": {
             "type": "string",
