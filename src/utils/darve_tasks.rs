@@ -155,7 +155,7 @@ impl DarveTasksUtils {
                 TaskRequestInput {
                     content: next_task.description.clone(),
                     acceptance_period: Some(acceptance_period),
-                    delivery_period: Some(7 * 24),
+                    delivery_period: Some(7 * 24 * 60 * 60),
                     offer_amount: next_task.amount,
                     participants: vec![],
                 },
