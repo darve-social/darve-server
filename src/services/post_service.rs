@@ -550,11 +550,6 @@ where
 
         let _ = self
             .notification_service
-            .on_created_post(&user, &post, &disc, &member_ids)
-            .await?;
-
-        let _ = self
-            .notification_service
             .on_discussion_post(&user.id.as_ref().unwrap(), &post_view)
             .await?;
 

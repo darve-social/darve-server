@@ -397,27 +397,60 @@ test_with_server!(
 );
 
 test_with_server!(get_notifications, |server, ctx_state, config| {
-    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
+    let (_, user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
 
-    let create_response = server
-        .post(&format!(
-            "/api/following/{}",
-            user1.id.as_ref().unwrap().to_raw()
-        ))
-        .add_header("Cookie", format!("jwt={}", token))
+    let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap());
+    server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
         .add_header("Accept", "application/json")
-        .json("")
-        .await;
-    create_response.assert_status_success();
+        .await
+        .assert_status_success();
+    server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
 
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
 
-    // TODO -need to follow to get post notifications-
+    server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
 
     let req = server
         .get("/api/notifications")
@@ -455,24 +488,27 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotificationView>>();
-    assert_eq!(notifications.len(), 1);
+    assert_eq!(notifications.len(), 0);
 });
 
 test_with_server!(set_read_notification, |server, ctx_state, config| {
-    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
+    let (_, user, _password, token) = create_fake_login_test_user(&server).await;
     let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
-    let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
+
+    let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap());
     let create_response = server
-        .post(&format!(
-            "/api/following/{}",
-            user1.id.as_ref().unwrap().to_raw()
-        ))
-        .add_header("Cookie", format!("jwt={}", token))
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
         .add_header("Accept", "application/json")
-        .json("")
         .await;
     create_response.assert_status_success();
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+
     let req = server
         .get("/api/notifications")
         .add_header("Cookie", format!("jwt={}", token))
@@ -482,9 +518,6 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotificationView>>();
     assert_eq!(notifications.len(), 1);
-    assert_eq!(notifications[0].is_following, true);
-    assert_eq!(notifications[0].is_follower, false);
-
     let id = &notifications.first().as_ref().unwrap().id;
 
     let req = server
@@ -535,7 +568,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotificationView>>();
-    assert_eq!(notifications.len(), 5);
+    assert_eq!(notifications.len(), 0);
 
     let req = server
         .post(&format!("/api/notifications/read"))
@@ -552,7 +585,7 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
     req.assert_status_success();
     let notifications = req.json::<Vec<UserNotificationView>>();
-    assert_eq!(notifications.len(), 5);
+    assert_eq!(notifications.len(), 0);
 });
 
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
@@ -582,7 +615,7 @@ test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
 
     req.assert_status_success();
     let count = req.json::<u64>();
-    assert_eq!(count, 5);
+    assert_eq!(count, 0);
 
     let req = server
         .get("/api/notifications/count?is_read=true")

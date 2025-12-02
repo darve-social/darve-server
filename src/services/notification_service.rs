@@ -8,7 +8,7 @@ use crate::database::client::Db;
 use crate::entities::community::discussion_entity::{
     DiscussionType, TABLE_NAME as DISC_TABLE_NAME,
 };
-use crate::entities::community::post_entity::{Post, PostType, TABLE_NAME as POST_TABLE_NAME};
+use crate::entities::community::post_entity::{PostType, TABLE_NAME as POST_TABLE_NAME};
 use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::task::task_request_entity::{
     TaskParticipantUserView, TaskRequest, TaskRequestType,
@@ -637,66 +637,6 @@ where
         let _ = self.event_sender.send(AppEvent {
             receivers,
             user_id: user.id.to_raw(),
-            metadata: None,
-            content: None,
-            event: AppEventType::UserNotificationEvent(event),
-        });
-
-        Ok(())
-    }
-
-    pub async fn on_created_post(
-        &self,
-        user: &LocalUser,
-        post: &Post,
-        disc: &DiscussionAccessView,
-        post_members: &Vec<Thing>,
-    ) -> CtxResult<()> {
-        let user_id = user.id.as_ref().unwrap();
-
-        let receiver_things = match post.r#type {
-            PostType::Private => post_members,
-            _ => match disc.r#type {
-                DiscussionType::Private => &disc.get_user_ids(),
-                DiscussionType::Public => &self.get_follower_ids(user_id.clone()).await?,
-            },
-        };
-
-        let receivers = receiver_things
-            .iter()
-            .filter_map(|id| {
-                if id == user_id {
-                    None
-                } else {
-                    Some(id.id.to_raw())
-                }
-            })
-            .collect::<Vec<String>>();
-
-        if receivers.is_empty() {
-            return Ok(());
-        }
-
-        let is_profile = disc.created_by.id == disc.id.id;
-
-        let event = self
-            .notification_repository
-            .create(
-                &user_id.id.to_raw(),
-                &format!("{} created the post", user.username),
-                UserNotificationEvent::CreatedPost.as_str(),
-                &receivers,
-                Some(json!({
-                   "post_id": post.id.as_ref().unwrap().to_raw(),
-                   "discussion_id": post.belongs_to.to_raw(),
-                   "discussion_type": disc.r#type,
-                   "is_profile": is_profile
-                })),
-            )
-            .await?;
-        let _ = self.event_sender.send(AppEvent {
-            receivers,
-            user_id: user_id.id.to_raw(),
             metadata: None,
             content: None,
             event: AppEventType::UserNotificationEvent(event),
