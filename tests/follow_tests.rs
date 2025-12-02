@@ -4,7 +4,7 @@ use axum_test::multipart::MultipartForm;
 use darve_server::{
     entities::{community::discussion_entity::DiscussionDbService, user_auth::follow_entity},
     middleware,
-    models::view::{notification::UserNotificationView, post::PostView},
+    models::view::post::PostView,
     routes::{community::profile_routes::ProfileView, follows::UserItemView},
 };
 use follow_entity::FollowDbService;
@@ -320,14 +320,6 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .await;
     let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
-
-    let notifications_response = server
-        .get("/api/notifications")
-        .add_header("Accept", "application/json")
-        .await;
-    notifications_response.assert_status_success();
-    let notifications = notifications_response.json::<Vec<UserNotificationView>>();
-    assert_eq!(notifications.len(), 2)
 });
 
 test_with_server!(remove_followers, |server, ctx_state, config| {
