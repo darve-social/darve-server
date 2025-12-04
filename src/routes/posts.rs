@@ -257,7 +257,6 @@ async fn create_reply(
     .get_by_id(&auth_data.user_thing_id())
     .await?;
 
-    let created_by = user.id.as_ref().unwrap().clone();
     let post_db_service = PostDbService {
         db: &state.db.client,
         ctx: &auth_data.ctx,
@@ -300,10 +299,6 @@ async fn create_reply(
         replies_nr: reply.replies_nr,
         belongs_to: reply.belongs_to,
     };
-
-    n_service
-        .on_discussion_post_reply(&created_by, &post.id, &post.discussion.id, &reply_view)
-        .await?;
 
     Ok(Json(reply_view))
 }

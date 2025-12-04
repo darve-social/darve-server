@@ -1,14 +1,12 @@
-use std::convert::Infallible;
 use std::sync::Arc;
 
 use crate::access::discussion::DiscussionAccess;
 use crate::entities::community::discussion_entity::{self, DiscussionType};
 use crate::entities::community::post_entity::PostType;
 use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
-use crate::entities::user_auth::local_user_entity;
+use crate::entities::user_auth::local_user_entity::LocalUserDbService;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
-use crate::middleware::mw_ctx::AppEventType;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
@@ -19,21 +17,16 @@ use crate::services::notification_service::NotificationService;
 use crate::services::post_service::{GetPostsParams, PostInput, PostService};
 use crate::services::task_service::{TaskRequestInput, TaskService};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
-use axum::response::sse::{Event, KeepAlive};
-use axum::response::Sse;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use axum_typed_multipart::TypedMultipart;
 use discussion_entity::{Discussion, DiscussionDbService};
-use futures::Stream;
-use local_user_entity::LocalUserDbService;
 use middleware::ctx::Ctx;
 
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::{Deserialize, Serialize};
-use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use validator::Validate;
 
 pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
@@ -54,7 +47,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/discussions/{discussion_id}/chat_users",
             delete(delete_discussion_users),
         )
-        .route("/api/discussions/{discussion_id}/sse", get(discussion_sse))
         .route(
             "/api/discussions/{discussion_id}/posts",
             post(create_post).layer(DefaultBodyLimit::max(max_bytes_val)),
@@ -64,98 +56,6 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
             "/api/discussions/{discussion_id}/posts/count",
             get(get_count_of_posts),
         )
-}
-
-pub async fn discussion_sse(
-    auth_data: AuthWithLoginAccess,
-    State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
-    Path(disc_id): Path<String>,
-) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
-    let user = LocalUserDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .get_by_id(&auth_data.user_thing_id())
-    .await?;
-
-    let discussion = DiscussionDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    }
-    .get_view_by_id::<DiscussionAccessView>(&disc_id)
-    .await?;
-
-    if !DiscussionAccess::new(&discussion).can_view(&user) {
-        return Err(AppError::Forbidden.into());
-    }
-
-    let discussion_id = discussion.id;
-
-    let rx = ctx_state.event_sender.subscribe();
-    let stream = BroadcastStream::new(rx)
-        .filter(move |msg| {
-            if msg.is_err() {
-                return false;
-            }
-
-            let _ = match msg.as_ref().unwrap().clone().event {
-                AppEventType::DiscussionPostAdded
-                | AppEventType::DiscussionPostReplyAdded
-                | AppEventType::DiscussionPostReplyNrIncreased => (),
-                _ => return false,
-            };
-
-            let metadata = msg.as_ref().unwrap().metadata.as_ref().unwrap();
-
-            if *metadata.discussion_id.as_ref().unwrap() != discussion_id {
-                return false;
-            }
-
-            true
-        })
-        .map(move |msg| {
-            let event_opt = match msg {
-                Err(_) => None,
-                Ok(msg) => match msg.event {
-                    AppEventType::DiscussionPostAdded => {
-                        match serde_json::from_str::<PostView>(&msg.content.clone().unwrap()) {
-                            Ok(_) => Some(if ctx.is_htmx {
-                                Event::default()
-                                    .event("DiscussionPostAdded")
-                                    .data(msg.content.unwrap())
-                            } else {
-                                Event::default().data(&serde_json::to_string(&msg).unwrap())
-                            }),
-                            Err(err) => {
-                                let msg = "ERROR converting NotificationEvent content to PostView";
-                                println!("{} ERR={err}", &msg);
-                                Some(Event::default().data(&serde_json::to_string(&msg).unwrap()))
-                            }
-                        }
-                    }
-                    AppEventType::DiscussionPostReplyNrIncreased => Some(if ctx.is_htmx {
-                        let metadata = msg.metadata.as_ref().unwrap();
-                        let post_id = metadata.post_id.as_ref().unwrap().to_raw();
-                        let id = format!("DiscussionPostReplyNrIncreased_{}", post_id);
-                        Event::default().event(id).data(&msg.content.unwrap())
-                    } else {
-                        Event::default().data(&serde_json::to_string(&msg).unwrap())
-                    }),
-                    AppEventType::DiscussionPostReplyAdded => Some(if ctx.is_htmx {
-                        Event::default()
-                            .event("DiscussionPostReplyAdded")
-                            .data(&msg.content.unwrap())
-                    } else {
-                        Event::default().data(&serde_json::to_string(&msg).unwrap())
-                    }),
-                    _ => None,
-                },
-            };
-            Ok(event_opt.unwrap_or_else(|| Event::default().data("No event".to_string())))
-        });
-
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
 async fn create_discussion(
