@@ -550,7 +550,7 @@ where
 
         let _ = self
             .notification_service
-            .on_discussion_post(&user.id.as_ref().unwrap(), &post_view)
+            .on_discussion_post(&user_id, disc_all_users, &post_view)
             .await?;
 
         Ok(post_view)

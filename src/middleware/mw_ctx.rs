@@ -20,8 +20,6 @@ use tokio::sync::broadcast;
 pub enum AppEventType {
     UserNotificationEvent(UserNotification),
     DiscussionPostAdded,
-    DiscussionPostReplyAdded,
-    DiscussionPostReplyNrIncreased,
     UpdatedUserBalance,
     UpdateDiscussionsUsers(Vec<DiscussionUser>),
     UserStatus(AppEventUsetStatus),

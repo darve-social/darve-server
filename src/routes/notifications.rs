@@ -213,6 +213,12 @@ async fn sse(
                         Some(Ok(Event::default().event("UpdatedUserBalance")))
                     }
 
+                    AppEventType::DiscussionPostAdded if msg.receivers.contains(&user_id) => {
+                        Some(Ok(Event::default()
+                            .event("DiscussionPostAdded")
+                            .data(msg.content.unwrap())))
+                    }
+
                     _ => None,
                 },
             }

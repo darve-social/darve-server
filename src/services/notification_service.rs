@@ -16,10 +16,8 @@ use crate::entities::task::task_request_entity::{
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::error::AppResult;
-use crate::middleware::mw_ctx::AppEventMetadata;
 use crate::models::view::access::{DiscussionAccessView, PostAccessView, TaskAccessView};
 use crate::models::view::post::PostView;
-use crate::models::view::reply::ReplyView;
 use crate::{
     entities::user_auth::{follow_entity::FollowDbService, local_user_entity::LocalUser},
     middleware::{
@@ -759,94 +757,24 @@ where
         Ok(())
     }
 
-    pub async fn on_discussion_post_reply(
+    pub async fn on_discussion_post(
         &self,
-        user_id: &Thing,
-        post_id: &Thing,
-        discussion_id: &Thing,
-        content: &ReplyView,
+        user_id: &str,
+        receivers: Vec<String>,
+        post: &PostView,
     ) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-
-        let follower_ids: Vec<Thing> = self
-            .follow_repository
-            .user_follower_ids(user_id.clone())
-            .await?;
-
-        let metadata = AppEventMetadata {
-            discussion_id: Some(discussion_id.clone()),
-            post_id: Some(post_id.clone()),
-        };
-        let _ = self.event_sender.send(AppEvent {
-            receivers: follower_ids.iter().map(|id| id.to_raw()).collect(),
-            user_id: user_id_str,
-            content: Some(serde_json::to_string(&content).map_err(|_| {
-                self.ctx.to_ctx_error(AppError::Generic {
-                    description: "Reply to json error for notification event".to_string(),
-                })
-            })?),
-            metadata: Some(metadata.clone()),
-            event: AppEventType::DiscussionPostReplyAdded,
-        });
-
-        Ok(())
-    }
-
-    pub async fn on_discussion_post_reply_nr_increased(
-        &self,
-        user_id: &Thing,
-        post_id: &Thing,
-        discussion_id: &Thing,
-        content: &String,
-    ) -> CtxResult<()> {
-        let user_id_str = user_id.to_raw();
-
-        let follower_ids: Vec<Thing> = self
-            .follow_repository
-            .user_follower_ids(user_id.clone())
-            .await?;
-
-        let metadata = AppEventMetadata {
-            discussion_id: Some(discussion_id.clone()),
-            post_id: Some(post_id.clone()),
-        };
-
-        let receivers = follower_ids
-            .iter()
-            .map(|id| id.to_raw())
-            .collect::<Vec<String>>();
-
-        let _ = self.event_sender.send(AppEvent {
-            receivers,
-            user_id: user_id_str,
-            metadata: Some(metadata),
-            content: Some(content.clone()),
-            event: AppEventType::DiscussionPostReplyNrIncreased,
-        });
-
-        Ok(())
-    }
-
-    pub async fn on_discussion_post(&self, user_id: &Thing, post: &PostView) -> CtxResult<()> {
-        let receivers = vec![user_id.to_raw()];
-
         let post_json = serde_json::to_string(&post).map_err(|_| {
             self.ctx.to_ctx_error(AppError::Generic {
                 description: "Post to json error for notification event".to_string(),
             })
         })?;
 
-        let metadata = AppEventMetadata {
-            discussion_id: Some(post.belongs_to.clone()),
-            post_id: Some(post.id.clone()),
-        };
-
         let _ = self.event_sender.send(AppEvent {
-            user_id: user_id.to_raw(),
+            user_id: user_id.to_string(),
             event: AppEventType::DiscussionPostAdded,
             content: Some(post_json),
             receivers,
-            metadata: Some(metadata),
+            metadata: None,
         });
 
         Ok(())
