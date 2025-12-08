@@ -1,7 +1,9 @@
 use crate::{
     entities::{
         task::task_request_entity::{TaskRequestStatus, TaskRequestType},
-        task_request_user::{TaskParticipantStatus, TaskParticipantTimeline},
+        task_request_user::{
+            TaskParticipantResult, TaskParticipantStatus, TaskParticipantTimeline,
+        },
         wallet::wallet_entity::CurrencySymbol,
     },
     middleware::utils::db_utils::{ViewFieldSelector, ViewRelateField},
@@ -16,6 +18,7 @@ pub struct TaskRequestViewParticipant {
     pub user: UserView,
     pub status: TaskParticipantStatus,
     pub timelines: Option<Vec<TaskParticipantTimeline>>,
+    pub result: Option<TaskParticipantResult>,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestDonorView {
@@ -56,7 +59,7 @@ impl ViewFieldSelector for TaskRequestView {
         type,
         request_txt,
         created_by.* as created_by,
-        ->task_participant.{ user: out.*, status, timelines } as participants,
+        ->task_participant.{ user: out.*, status, timelines, result } as participants,
         ->task_donor.{id, user: out.*, amount: transaction.amount_out} as donors"
             .to_string()
     }
@@ -76,7 +79,7 @@ impl ViewRelateField for TaskRequestView {
         status,
         request_txt,
         created_by:created_by.*,
-        participants:->task_participant.{ user: out.*, status, timelines},
+        participants:->task_participant.{ user: out.*, status, timelines, result},
         donors:->task_donor.{id, user: out.*, amount: transaction.amount_out}"
     }
 }

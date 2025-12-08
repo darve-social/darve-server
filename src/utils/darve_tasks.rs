@@ -115,19 +115,20 @@ impl DarveTasksUtils {
             .await
             .unwrap_or(vec![]);
 
-        let index = match last_super_task.first() {
+        let index: i32 = match last_super_task.first() {
             Some(v) => self
                 .super_data
                 .iter()
                 .position(|t| t.description == v.description)
-                .unwrap_or(0),
-            None => 0,
+                .map(|v| v as i32)
+                .unwrap_or(-1),
+            None => -1,
         };
 
-        let next_index = if index + 1 >= self.super_data.len() {
+        let next_index: usize = if (index + 1 as i32) >= self.super_data.len() as i32 {
             0
         } else {
-            index + 1
+            (index + 1) as usize
         };
 
         let next_task = &self.super_data[next_index];

@@ -288,15 +288,20 @@ impl<'a> TaskRequestDbService<'a> {
             None => "",
         };
 
-        let pagination_str = match pag.as_ref() {
-            Some(_) => "ORDER BY created_at $order_dir LIMIT $limit START $start",
-            None => "",
+        let pagination_str = match pag {
+            Some(ref p) => format!(
+                "ORDER BY created_at {} LIMIT {} START {}",
+                p.order_dir.as_ref().unwrap_or(&QryOrder::DESC),
+                p.count,
+                p.start
+            ),
+            None => "".into(),
         };
 
         let fields = T::get_select_query_fields();
-        let query = format!(" SELECT {fields} FROM {TABLE_NAME}
+        let query = format!("SELECT {fields}, created_at FROM {TABLE_NAME}
                 WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND (type=$task_type OR $user IN <-{ACCESS_TABLE_NAME}.in)
-                {pagination_str}");
+                {pagination_str};");
 
         let mut res = self
             .db
@@ -305,9 +310,6 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("task_type", TaskRequestType::Public))
             .bind(("filter_by_type", filter_by_type))
-            .bind(("limit", pag.as_ref().map(|p| p.count)))
-            .bind(("start", pag.as_ref().map(|p| p.start)))
-            .bind(("order_by", pag.map(|p| p.order_dir)))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
@@ -341,14 +343,19 @@ impl<'a> TaskRequestDbService<'a> {
             None => "",
         };
 
-        let pagination_str = match pag.as_ref() {
-            Some(_) => "ORDER BY created_at $order_dir LIMIT $limit START $start",
-            None => "",
+        let pagination_str = match pag {
+            Some(ref p) => format!(
+                "ORDER BY created_at {} LIMIT {} START {}",
+                p.order_dir.as_ref().unwrap_or(&QryOrder::DESC),
+                p.count,
+                p.start
+            ),
+            None => "".into(),
         };
 
         let fields = T::get_select_query_fields();
         let query = format!(
-            "SELECT {fields} FROM {TABLE_NAME}
+            "SELECT {fields}, created_at FROM {TABLE_NAME}
             WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND $user IN belongs_to<-{ACCESS_TABLE_NAME}.in
             {pagination_str};"
         );
@@ -358,9 +365,6 @@ impl<'a> TaskRequestDbService<'a> {
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
             .bind(("filter_by_type", filter_by_type))
-            .bind(("limit", pag.as_ref().map(|p| p.count)))
-            .bind(("start", pag.as_ref().map(|p| p.start)))
-            .bind(("order_by", pag.map(|p| p.order_dir)))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
