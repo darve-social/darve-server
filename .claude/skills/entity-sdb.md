@@ -9,6 +9,92 @@ Every entity consists of three components:
 2. **Repository interface trait** in `src/interfaces/repositories/`
 3. **Repository implementation** in `src/database/repositories/`
 
+## Repository Traits Overview
+
+### Understanding the Three Repository Traits
+
+When creating entities, you'll work with three repository traits:
+
+####1. RepositoryCore (Always Use This)
+
+**Purpose:** Base trait that all custom repository interfaces must extend.
+
+**Provides automatic methods:**
+- `item_by_id(id)` - Get single entity by ID
+- `item_by_ident(ident)` - Get single entity by identifier
+- `item_create(entity)` - Create new entity
+- `item_delete(id)` - Delete entity
+- `list_by_ids(ids)` - Get multiple entities
+- `list_by_ident(ident, pagination)` - Get list with pagination
+- `item_view_by_ident<T>(ident)` - Get view by identifier
+- `list_view_by_ident<T>(ident, pagination)` - Get list of views
+- `count_records()` - Count total records
+- `get_thing(id)` - Convert string ID to Thing
+
+**Always extend this trait:**
+```rust
+#[async_trait]
+pub trait MyEntityRepositoryInterface: RepositoryCore {
+    // Your custom methods here
+}
+```
+
+#### 2. RepositoryEntityId (Automatically Available)
+
+**Purpose:** Provides update and upsert methods when entity has ID.
+
+**Provides automatic methods:**
+- `update_entity(entity)` - Update entity using ID from entity itself
+- `create_update_entity(entity)` - Create or update (upsert) using ID from entity
+
+**You get these for FREE** - no need to implement:
+```rust
+// These methods are already available on Repository<E>
+let mut entity = repo.item_by_id("id").await?;
+entity.field = "new value".to_string();
+let updated = repo.update_entity(entity).await?;
+
+// Upsert pattern
+let entity = Entity { id: "custom_id".to_string(), /* ... */ };
+let result = repo.create_update_entity(entity).await?;
+```
+
+**When to use:**
+- You have the complete entity object with ID
+- Want to save all fields at once
+- Need upsert behavior (create if not exists, update if exists)
+
+**When NOT to use:**
+- Updating specific fields only (create custom `update(id, field)` method instead)
+- Complex update logic (use custom method)
+
+#### 3. RepositoryEntityView (Rarely Used)
+
+**Purpose:** For complex view-only repositories separate from main entity.
+
+**Note:** In practice, use `RepositoryCore::item_view_by_ident<T>` instead:
+```rust
+// Preferred approach - use view on regular repository
+let view: MyView = repo.item_view_by_ident(&ident).await?;
+
+// Instead of creating separate RepositoryView<MyView>
+```
+
+### Key Decision: Custom Methods vs Inherited Methods
+
+When implementing your repository interface:
+
+| Scenario | Action | Example |
+|----------|--------|---------|
+| Get entity by ID | **Use inherited** `item_by_id` | `repo.item_by_id(id).await?` |
+| Get entity by username | **Add custom method** | `async fn get_by_username(&self, username: &str)` |
+| Create entity | **Use inherited** `item_create` OR **Add custom** if complex | `repo.item_create(entity).await?` |
+| Update specific fields | **Add custom method** | `async fn update(&self, id: &str, title: &str)` |
+| Update full entity | **Use inherited** `update_entity` | `repo.update_entity(entity).await?` |
+| Delete entity | **Use inherited** `item_delete` | `repo.item_delete(id).await?` |
+| Complex queries | **Add custom method** | `async fn find_by_status_and_date(...)` |
+| Get view | **Use inherited** `item_view_by_ident<T>` | `repo.item_view_by_ident::<MyView>(&ident).await?` |
+
 ## Instructions
 
 When creating a new entity, follow these steps systematically:
@@ -359,6 +445,67 @@ let data: Entity = res.take::<Option<Entity>>(0)?.expect("message");
 ```
 
 ## Common Patterns
+
+### Using RepositoryEntityId Methods
+
+#### Update Full Entity Pattern
+```rust
+// Get entity, modify it, then update
+async fn update_entity_example(repo: &Repository<MyEntity>, id: &str) -> Result<MyEntity, surrealdb::Error> {
+    // Get existing entity
+    let mut entity = repo.item_by_id(id).await?;
+
+    // Modify fields
+    entity.title = "New Title".to_string();
+    entity.status = Status::Active;
+
+    // Update using entity's ID
+    let updated = repo.update_entity(entity).await?;
+    Ok(updated)
+}
+```
+
+#### Upsert Pattern
+```rust
+// Create or update with specific ID
+async fn upsert_example(repo: &Repository<MyEntity>) -> Result<MyEntity, surrealdb::Error> {
+    let entity = MyEntity {
+        id: "custom_id".to_string(),  // Specific ID
+        title: "Title".to_string(),
+        // ... other fields
+    };
+
+    // Will create if doesn't exist, update if exists
+    let result = repo.create_update_entity(entity).await?;
+    Ok(result)
+}
+```
+
+#### When to Use Custom Update Instead
+```rust
+// For updating specific fields only, create custom method
+#[async_trait]
+pub trait MyEntityRepositoryInterface: RepositoryCore {
+    async fn update_title(&self, id: &str, title: &str) -> Result<MyEntity, surrealdb::Error>;
+}
+
+#[async_trait]
+impl MyEntityRepositoryInterface for Repository<MyEntity> {
+    async fn update_title(&self, id: &str, title: &str) -> Result<MyEntity, surrealdb::Error> {
+        let thing = self.get_thing(id);
+        let qry = "UPDATE $id SET title=$title;";
+
+        let mut res = self.client
+            .query(qry)
+            .bind(("id", thing))
+            .bind(("title", title))
+            .await?;
+
+        let data: MyEntity = res.take::<Option<MyEntity>>(0)?.expect("record updated");
+        Ok(data)
+    }
+}
+```
 
 ### Increment Field
 ```rust
