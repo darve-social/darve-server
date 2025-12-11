@@ -6,10 +6,27 @@ This skill transforms old `*DbService` entity files (single-file pattern with mi
 
 **Purpose:** Migrate old entity files like `src/entities/community/community_entity.rs` that contain both entity structs and `*DbService` implementations into the clean layered architecture pattern.
 
+## ⚠️ CRITICAL WARNING: DO NOT RENAME FIELDS
+
+**THE #1 RULE OF ENTITY TRANSFORMATION:**
+
+**NEVER rename struct fields, database field names, or query field names from the old code.**
+
+This is the most common cause of transformation failures:
+- ❌ Changing `created_at` to `r_created` breaks view models
+- ❌ Renaming any field breaks existing queries and views
+- ❌ Unit tests will pass, integration tests will fail mysteriously with 400 errors
+- ✅ Always keep the EXACT same field names from old entity
+- ✅ Preserve all field names in schema, queries, entities, and views
+
+**Before starting transformation, read the old entity carefully and commit to memory all field names. These are sacred and must not change.**
+
+See the detailed section "CRITICAL: Field Name Mismatch Between Schema and Views" (line 2004) for full explanation.
+
 **Process:**
 1. Analyze the old entity service file
 2. Call `entity-sdb` skill to create base entity structure
-3. Migrate database operations to repository implementation
+3. Migrate database operations to repository implementation **KEEPING ALL FIELD NAMES IDENTICAL**
 4. Create optional service layer for business logic
 5. Replace all usages in codebase (including test files)
 6. Validate with `cargo test` and fix issues iteratively
@@ -256,7 +273,7 @@ Read and analyze the old entity file to extract:
 // 1. ENTITY STRUCT (will become *Entity)
 pub struct Community {
     pub id: Thing,
-    pub created_at: DateTime<Utc>,  // → r_created
+    pub created_at: DateTime<Utc>,  // → KEEP AS created_at (DO NOT RENAME!)
     pub created_by: Thing,
 }
 
@@ -294,15 +311,26 @@ impl<'a> CommunityDbService<'a> {
 
 **Step 1.2: Identify Field Transformations**
 
-Map old entity fields to new entity pattern:
+**⚠️ CRITICAL: DO NOT RENAME FIELD NAMES!**
+
+Map old entity fields to new entity pattern, **KEEPING THE EXACT SAME FIELD NAMES**:
 
 ```rust
-// OLD                           NEW
+// OLD                           NEW (TYPE CHANGES ONLY, NAMES STAY IDENTICAL!)
 id: Thing                    →  id: String with deserialize_thing_id/serialize_string_id
-created_at: DateTime<Utc>    →  r_created: DateTime<Utc>
+created_at: DateTime<Utc>    →  created_at: DateTime<Utc>  // ✅ NAME UNCHANGED!
 created_by: Thing            →  created_by: String with serialize_to_user_thing
 some_ref: Thing              →  some_ref: String with serialize_to_{table}_thing
+
+// ❌ WRONG - DO NOT DO THIS:
+created_at: DateTime<Utc>    →  r_created: DateTime<Utc>  // ❌ Field name changed!
 ```
+
+**Rule:** Only change the Rust type (Thing → String). Never change the field name itself. The new entity field names must match:
+- Old entity field names (for backwards compatibility)
+- View model field names (for deserialization)
+- Query SELECT field names (for database queries)
+- Schema DEFINE FIELD names (for schema definitions)
 
 **Step 1.3: Determine Service Layer Necessity**
 
@@ -322,12 +350,16 @@ Create service layer if ANY of these apply:
 Extract from analysis:
 - Entity name (e.g., "community")
 - Table name (e.g., "community")
-- Fields with types
+- **⚠️ CRITICAL: Fields with EXACT names from old entity (DO NOT RENAME!)**
 - Foreign key relationships
 - Enums (if any)
 - Indexes and constraints
 
+**IMPORTANT:** When extracting field information, copy the EXACT field names from the old entity. Do not "improve" or "standardize" field names. If the old entity has `created_at`, use `created_at`. If it has `r_created`, use `r_created`. Field name consistency is more important than naming conventions.
+
 **Step 2.2: Call entity-sdb Skill**
+
+**⚠️ WARNING:** When calling the entity-sdb skill, use the EXACT field names from the old entity!
 
 Construct a prompt for the entity-sdb skill with all extracted information:
 
@@ -383,12 +415,14 @@ pub async fn mutate_db(&self) -> Result<(), AppError> {
 }
 
 // NEW: src/database/repositories/community_repo.rs
+// ⚠️ CRITICAL: Keep field name "created_at" EXACTLY THE SAME!
 impl Repository<CommunityEntity> {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
             DEFINE TABLE IF NOT EXISTS {COMMUNITY_TABLE_NAME} SCHEMAFULL;
             DEFINE FIELD IF NOT EXISTS created_by ON TABLE {COMMUNITY_TABLE_NAME} TYPE record<local_user>;
-            DEFINE FIELD IF NOT EXISTS r_created ON TABLE {COMMUNITY_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+            DEFINE FIELD IF NOT EXISTS created_at ON TABLE {COMMUNITY_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+            // ✅ Field name is "created_at" - same as old code!
         ");
         let mutation = self.client.query(sql).await?;
         mutation.check().expect("should mutate community");
@@ -944,7 +978,7 @@ fn make_test_community(id: &str) -> CommunityEntity {
     CommunityEntity {
         id: id.to_string(),
         created_by: "test_user".to_string(),  // Serde will convert to Thing
-        r_created: Utc::now(),
+        created_at: Utc::now(),  // ✅ Same field name as old entity
     }
 }
 ```
@@ -1293,7 +1327,7 @@ fn make_test_community(id: &str) -> CommunityEntity {
     CommunityEntity {
         id: id.to_string(),
         created_by: "test_user".to_string(),  // Was missing
-        r_created: Utc::now(),                // Was missing
+        created_at: Utc::now(),                // Was missing - same field name as old entity!
     }
 }
 ```
@@ -1525,7 +1559,7 @@ impl CommunityFixture {
         self.repo.item_create(CommunityEntity {
             id: id.to_string(),
             created_by: self.test_user.clone(),
-            r_created: Utc::now(),
+            created_at: Utc::now(),  // ✅ Same field name as old entity
         }).await.unwrap()
     }
 }
@@ -1785,7 +1819,8 @@ pub struct CommunityEntity {
     #[serde(serialize_with = "serialize_to_user_thing")]
     pub created_by: String,
 
-    pub r_created: DateTime<Utc>,
+    // ⚠️ CRITICAL: Keep field name "created_at" - same as old entity!
+    pub created_at: DateTime<Utc>,  // ✅ NOT r_created!
 }
 
 impl EntityWithId for CommunityEntity {
@@ -1828,10 +1863,11 @@ pub const COMMUNITY_TABLE_NAME: &str = "community";
 
 impl Repository<CommunityEntity> {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
+        // ⚠️ CRITICAL: Field name is "created_at" - same as old entity!
         let sql = format!("
             DEFINE TABLE IF NOT EXISTS {COMMUNITY_TABLE_NAME} SCHEMAFULL;
             DEFINE FIELD IF NOT EXISTS created_by ON TABLE {COMMUNITY_TABLE_NAME} TYPE record<local_user>;
-            DEFINE FIELD IF NOT EXISTS r_created ON TABLE {COMMUNITY_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
+            DEFINE FIELD IF NOT EXISTS created_at ON TABLE {COMMUNITY_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
         ");
         let mutation = self.client.query(sql).await?;
         mutation.check().expect("should mutate community");
@@ -2363,19 +2399,32 @@ This skill provides a complete, systematic approach to transforming old entity s
 
 1. **Analyze** the old file structure
 2. **Generate** base entity files with entity-sdb skill
-3. **Migrate** database operations to repository
+3. **Migrate** database operations to repository **WITHOUT RENAMING ANY FIELDS**
 4. **Create** optional service layer for business logic
 5. **Replace** all usages in the codebase (including tests)
 6. **Cleanup** old code
 7. **Validate** with cargo test and fix issues iteratively
 8. **Verify** final implementation
 
-The key to success is the **iterative test fixing workflow** in Phase 7:
-- Categorize failures systematically
-- Fix compilation errors first
-- Then runtime errors
-- Then test setup issues
-- Run tests repeatedly until all pass
-- Use debugging techniques for stubborn failures
+## ⚠️ THE MOST IMPORTANT RULE
+
+**NEVER RENAME STRUCT FIELDS, DATABASE FIELD NAMES, OR QUERY FIELD NAMES.**
+
+This single rule prevents 90% of transformation bugs. When in doubt:
+- ✅ Keep the exact field name from old entity
+- ✅ Preserve field names in schema, queries, entities, views
+- ❌ Do not "improve" or "standardize" field names
+- ❌ Do not change `created_at` to `r_created` or vice versa
+
+The key to success is:
+1. **Field name preservation** - Never rename fields from old entity
+2. **Iterative test fixing workflow** in Phase 7:
+   - Categorize failures systematically
+   - Fix compilation errors first
+   - Then runtime errors
+   - Then test setup issues
+   - Run tests repeatedly until all pass
+   - Use debugging techniques for stubborn failures
+3. **Always run full integration tests** - Unit tests alone are not enough
 
 You can successfully modernize legacy entity code while maintaining functionality and passing all tests.
