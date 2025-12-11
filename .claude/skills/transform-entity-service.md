@@ -11,8 +11,9 @@ This skill transforms old `*DbService` entity files (single-file pattern with mi
 2. Call `entity-sdb` skill to create base entity structure
 3. Migrate database operations to repository implementation
 4. Create optional service layer for business logic
-5. Replace all usages in codebase
-6. Validate with `cargo test` and fix issues
+5. Replace all usages in codebase (including test files)
+6. Validate with `cargo test` and fix issues iteratively
+7. Final verification and cleanup
 
 ## When to Use This Skill
 
@@ -554,7 +555,7 @@ pub mod {entity_name}_service;
 
 Search for:
 - `use.*{EntityName}DbService`
-- `{EntityName}DbService\s*\{`
+- `{EntityName}DbService\\s*\\{`
 - `{EntityName}DbService::`
 
 **Step 5.2: Replace Instantiation Patterns**
@@ -661,6 +662,59 @@ use crate::database::repositories::community_repo::COMMUNITY_TABLE_NAME;
 use crate::services::community_service::CommunityService;
 ```
 
+**Step 5.5: Find and Catalog All Test Files**
+
+This is a critical step often overlooked. Test files need updating just like production code.
+
+**Action 1: Search for test files using the old entity service**
+
+Run these searches to find all test files:
+
+```bash
+# Search for test modules
+rg "{EntityName}DbService" --type rust -g "*test*.rs"
+rg "{EntityName}DbService" --type rust -g "tests/"
+
+# Search for #[cfg(test)] modules
+rg "mod tests" -A 50 | rg "{EntityName}DbService"
+
+# Search for test functions
+rg "#\[test\]" -B 5 -A 20 | rg "{EntityName}DbService"
+```
+
+**Action 2: Create a test file checklist**
+
+Document all test files that need updating:
+
+```markdown
+## Test Files to Update
+
+### Unit Tests (in src/)
+- [ ] src/entities/{entity_name}/tests.rs
+- [ ] src/services/{related_service}/tests.rs
+- [ ] ...
+
+### Integration Tests (in tests/)
+- [ ] tests/{entity_name}_tests.rs
+- [ ] tests/integration/{entity_name}_integration.rs
+- [ ] ...
+
+### Test Utilities
+- [ ] tests/common/mod.rs (test helpers)
+- [ ] tests/fixtures/{entity_name}_fixtures.rs
+- [ ] ...
+```
+
+**Action 3: Identify test helper functions**
+
+Look for:
+- Setup functions: `setup_test_db()`, `create_test_{entity}()`
+- Fixture functions: `make_test_{entity}()`
+- Assertion helpers: `assert_{entity}_equal()`
+- Mock/fake implementations
+
+These will need signature updates matching the new patterns.
+
 ### Phase 6: Cleanup Old Code
 
 **Step 6.1: Remove Old Service Struct**
@@ -700,100 +754,874 @@ Fix any compilation errors:
 - Method signature changes
 - Lifetime issues
 
-**Step 7.2: Run Tests**
+**Step 7.2: Test Compilation Check**
+
+Before running tests, ensure they compile:
 
 ```bash
-cargo test
+cargo test --no-run
 ```
 
-**Step 7.3: Analyze Test Failures**
+This compiles test code without running it, catching issues faster.
 
-Common failure patterns:
+**Step 7.3: Pre-Test Checklist**
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| "no field `{entity}` on `Database`" | Repository not registered | Add to Database struct in client.rs |
-| "trait bound not satisfied" | Missing trait implementation | Ensure repository implements interface |
-| "method not found" | Wrong method name | Use RepositoryCore methods or add custom |
-| "mismatched types Thing vs String" | Entity field type mismatch | Update serde attributes |
-| "cannot borrow as mutable" | Lifetime issues | Adjust service/repository lifetimes |
+Before running `cargo test`, verify:
 
-**Step 7.4: Fix Database Initialization**
+- [ ] All test imports updated from old entity service to new repository/service
+- [ ] Test database initialization includes new repository migrations
+- [ ] Test setup functions updated to use new repository pattern
+- [ ] Test fixture/helper functions updated with new signatures
+- [ ] Assertions updated for new entity types (Thing → String)
+- [ ] Mock implementations updated if using dependency injection
 
-If tests fail with "repository not found":
+**Step 7.4: Run Full Test Suite**
+
+```bash
+# Run all tests and capture output
+cargo test 2>&1 | tee test_output.txt
+
+# Or with more verbose output
+cargo test -- --nocapture 2>&1 | tee test_output.txt
+```
+
+**Step 7.5: Update Test Files - Comprehensive Patterns**
+
+This section provides detailed patterns for updating different types of test code.
+
+#### Pattern A: Basic Test Setup - Repository Instantiation
 
 ```rust
-// src/database/client.rs - ensure all added:
+// OLD: Test setup with DbService
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entities::community::community_entity::{Community, CommunityDbService};
 
-// 1. Import
-use crate::entities::community::CommunityEntity;
-use crate::database::repositories::community_repo::COMMUNITY_TABLE_NAME;
+    async fn setup() -> (Db, Ctx) {
+        let db = test_db().await;
+        let ctx = test_ctx();
+        (db, ctx)
+    }
 
-// 2. Field in struct
-pub struct Database {
-    pub community: Repository<CommunityEntity>,
-    // ...
+    #[tokio::test]
+    async fn test_get_community() {
+        let (db, ctx) = setup().await;
+        let service = CommunityDbService { db: &db, ctx: &ctx };
+
+        let result = service.get_by_id("test_id").await;
+        assert!(result.is_ok());
+    }
 }
 
-// 3. Initialize
-impl Database {
-    pub async fn connect(config: DbConfig<'_>) -> Self {
-        Self {
-            community: Repository::<CommunityEntity>::new(
-                client.clone(),
-                COMMUNITY_TABLE_NAME.to_string(),
-            ),
+// NEW: Test setup with Repository
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        entities::community::CommunityEntity,
+        database::{
+            repository_impl::Repository,
+            repository_traits::RepositoryCore,
+        },
+    };
+
+    async fn setup() -> Repository<CommunityEntity> {
+        let db = test_db().await;
+        Repository::<CommunityEntity>::new(
+            Arc::new(db),
+            "community".to_string()
+        )
+    }
+
+    #[tokio::test]
+    async fn test_get_community() {
+        let repo = setup().await;
+
+        let result = repo.item_by_id("test_id").await;
+        assert!(result.is_ok());
+    }
+}
+```
+
+#### Pattern B: Tests Using CRUD Operations
+
+```rust
+// OLD: Generic get/create/delete
+#[tokio::test]
+async fn test_community_lifecycle() {
+    let service = CommunityDbService { db: &db, ctx: &ctx };
+
+    // Create
+    let community = service.create(...).await.unwrap();
+
+    // Get
+    let fetched = service.get_by_id(&community.id.to_string()).await.unwrap();
+
+    // Delete
+    service.delete(&community.id.to_string()).await.unwrap();
+}
+
+// NEW: Using RepositoryCore methods
+#[tokio::test]
+async fn test_community_lifecycle() {
+    let repo = setup_repo().await;
+
+    // Create
+    let community = repo.item_create(CommunityEntity { /* ... */ }).await.unwrap();
+
+    // Get - note the entity type has String id now
+    let fetched = repo.item_by_id(&community.id).await.unwrap();
+
+    // Delete
+    repo.item_delete(&community.id).await.unwrap();
+}
+```
+
+#### Pattern C: Test Helper Functions - Signature Updates
+
+```rust
+// OLD: Helper function creating test entities
+async fn create_test_community(
+    db: &Db,
+    ctx: &Ctx,
+    user_id: &Thing,
+) -> Community {
+    let service = CommunityDbService { db, ctx };
+    service.create_profile(
+        Thing::from(("discussion", "test")),
+        user_id.clone(),
+    ).await.unwrap()
+}
+
+// NEW: Helper using repository directly
+async fn create_test_community(
+    repo: &Repository<CommunityEntity>,
+    user_id: &Thing,
+) -> CommunityEntity {
+    repo.create_profile(
+        Thing::from(("discussion", "test")),
+        user_id.clone(),
+    ).await.unwrap()
+}
+```
+
+#### Pattern D: Test Fixtures - Type Updates
+
+```rust
+// OLD: Fixture with Thing types
+fn make_test_community(id: Thing) -> Community {
+    Community {
+        id,
+        created_by: Thing::from(("local_user", "test_user")),
+        created_at: Utc::now(),
+    }
+}
+
+// NEW: Fixture with String types
+fn make_test_community(id: &str) -> CommunityEntity {
+    CommunityEntity {
+        id: id.to_string(),
+        created_by: "test_user".to_string(),  // Serde will convert to Thing
+        r_created: Utc::now(),
+    }
+}
+```
+
+#### Pattern E: Integration Tests with Multiple Entities
+
+```rust
+// OLD: Integration test with multiple services
+#[tokio::test]
+async fn test_community_with_discussions() {
+    let (db, ctx) = setup().await;
+    let comm_service = CommunityDbService { db: &db, ctx: &ctx };
+    let disc_service = DiscussionDbService { db: &db, ctx: &ctx };
+
+    let comm = comm_service.create(...).await.unwrap();
+    let disc = disc_service.create(comm.id.clone(), ...).await.unwrap();
+
+    assert_eq!(disc.belongs_to, comm.id);
+}
+
+// NEW: Integration test with multiple repositories
+#[tokio::test]
+async fn test_community_with_discussions() {
+    let test_state = setup_test_state().await;
+
+    let comm = test_state.db.community.item_create(...).await.unwrap();
+    let disc = test_state.db.discussion.item_create(
+        DiscussionEntity {
+            belongs_to: comm.id.clone(),  // Now String, not Thing
             // ...
+        }
+    ).await.unwrap();
+
+    assert_eq!(disc.belongs_to, comm.id);
+}
+```
+
+#### Pattern F: Mock/Fake Repository Implementations
+
+```rust
+// OLD: No mocking, used actual DbService
+// Tests were tightly coupled to database
+
+// NEW: Mock repository for unit testing services
+#[cfg(test)]
+mod tests {
+    use mockall::mock;
+
+    mock! {
+        CommunityRepo {}
+
+        #[async_trait]
+        impl RepositoryCore for CommunityRepo {
+            async fn item_by_id(&self, id: &str) -> Result<CommunityEntity, surrealdb::Error>;
+            // ... other RepositoryCore methods
+        }
+
+        #[async_trait]
+        impl CommunityRepositoryInterface for CommunityRepo {
+            fn get_profile_community_id(user_id: &Thing) -> Thing;
         }
     }
 
-    pub async fn run_migrations(&self) -> Result<(), AppError> {
-        self.community.mutate_db().await?;
-        // ...
+    #[tokio::test]
+    async fn test_service_with_mock() {
+        let mut mock_repo = MockCommunityRepo::new();
+        mock_repo
+            .expect_item_by_id()
+            .returning(|_| Ok(make_test_community("test_id")));
+
+        let ctx = test_ctx();
+        let service = CommunityService::new(&mock_repo, &ctx);
+
+        let result = service.get_by_id("test_id").await;
+        assert!(result.is_ok());
     }
 }
 ```
 
-**Step 7.5: Fix Tests That Use Old Pattern**
-
-Update test files:
+#### Pattern G: Assertion Updates for Type Changes
 
 ```rust
-// OLD: tests/community_tests.rs
-let comm_service = CommunityDbService {
-    db: &test_state.db.client,
-    ctx: &ctx,
-};
+// OLD: Assertions with Thing comparisons
+#[tokio::test]
+async fn test_community_owner() {
+    let service = CommunityDbService { db: &db, ctx: &ctx };
+    let user_thing = Thing::from(("local_user", "user_123"));
 
-// NEW
-use crate::database::repository_traits::RepositoryCore;
-let comm = test_state.db.community.item_by_id("test_id").await.unwrap();
+    let comm = service.create_profile(..., user_thing.clone()).await.unwrap();
+
+    assert_eq!(comm.created_by, user_thing);
+    assert_eq!(comm.created_by.tb, "local_user");
+    assert_eq!(comm.created_by.id.to_string(), "user_123");
+}
+
+// NEW: Assertions with String (Thing comparison removed)
+#[tokio::test]
+async fn test_community_owner() {
+    let repo = setup_repo().await;
+    let user_thing = Thing::from(("local_user", "user_123"));
+
+    let comm = repo.create_profile(..., user_thing.clone()).await.unwrap();
+
+    // created_by is now String, but serde deserializes from Thing
+    assert_eq!(comm.created_by, "user_123");
+    // Can't check .tb anymore, it's just a string
+}
 ```
 
-**Step 7.6: Iterative Testing**
+#### Pattern H: Test Database Initialization
 
-Run tests repeatedly, fixing issues until all pass:
+```rust
+// OLD: Test database setup
+async fn setup_test_db() -> Db {
+    let db = connect_test_db().await;
+
+    // Manual schema creation
+    let community_service = CommunityDbService { db: &db, ctx: &test_ctx() };
+    community_service.mutate_db().await.unwrap();
+
+    db
+}
+
+// NEW: Test database setup with migrations
+async fn setup_test_db() -> Database {
+    let db_client = connect_test_db().await;
+
+    // Use Database struct which includes all repositories
+    let database = Database::connect(test_config()).await;
+
+    // Run all migrations including new repository
+    database.run_migrations().await.unwrap();
+
+    database
+}
+```
+
+#### Pattern I: Tests with Static Methods
+
+```rust
+// OLD: Static method on DbService
+#[test]
+fn test_get_profile_community_id() {
+    let user_thing = Thing::from(("local_user", "user_123"));
+    let comm_id = CommunityDbService::get_profile_community_id(&user_thing);
+
+    assert_eq!(comm_id.tb, "community");
+    assert_eq!(comm_id.id.to_string(), "user_123");
+}
+
+// NEW: Static method on Repository Interface
+#[test]
+fn test_get_profile_community_id() {
+    use crate::interfaces::repositories::community_ifce::CommunityRepositoryInterface;
+    use crate::database::repository_impl::Repository;
+    use crate::entities::community::CommunityEntity;
+
+    let user_thing = Thing::from(("local_user", "user_123"));
+
+    // Call via trait (can't use :: on trait, need concrete type)
+    let comm_id = Repository::<CommunityEntity>::get_profile_community_id(&user_thing);
+
+    assert_eq!(comm_id.tb, "community");
+    assert_eq!(comm_id.id.to_string(), "user_123");
+}
+```
+
+**Step 7.6: Iterative Test Fixing Workflow**
+
+This is the core of getting tests to pass. Follow this systematic approach:
+
+#### Iteration 1: Initial Test Run and Categorization
+
+**Action 1.1: Run tests and save output**
+```bash
+cargo test 2>&1 | tee test_output.txt
+```
+
+**Action 1.2: Analyze and categorize failures**
+
+Create categories for the failures you see:
+
+```markdown
+## Test Failure Categories
+
+### Category 1: Compilation Errors (Fix First)
+- Missing imports: 15 tests
+- Type mismatches: 8 tests
+- Method not found: 12 tests
+- Lifetime errors: 3 tests
+
+### Category 2: Runtime Errors
+- EntityNotFound: 5 tests
+- SurrealDB errors: 7 tests
+- Assertion failures: 4 tests
+
+### Category 3: Test Setup Issues
+- Database not initialized: 10 tests
+- Missing migrations: 6 tests
+```
+
+#### Iteration 2: Fix Compilation Errors (Category 1)
+
+**Action 2.1: Fix missing imports**
+
+Search for all import errors and fix systematically:
+
+```bash
+# Find all files with import errors
+rg "unresolved import.*{EntityName}DbService" --type rust
+
+# Replace in each file
+# OLD import
+use crate::entities::community::community_entity::{Community, CommunityDbService};
+
+# NEW import
+use crate::{
+    entities::community::CommunityEntity,
+    database::repository_traits::RepositoryCore,
+};
+```
+
+**Action 2.2: Fix type mismatches**
+
+Common type errors and fixes:
+
+```rust
+// Error: expected Thing, found String
+// OLD
+let comm_id: Thing = community.id;
+
+// NEW
+let comm_id: String = community.id;
+// Or if you need a Thing:
+let comm_id = Thing::from(("community", community.id.as_str()));
+
+// Error: expected String, found Thing
+// OLD
+let thing = Thing::from(("community", "123"));
+repo.item_by_id(thing);
+
+// NEW
+let thing = Thing::from(("community", "123"));
+repo.item_by_id(&thing.id.to_string());
+// Or just:
+repo.item_by_id("123");
+```
+
+**Action 2.3: Fix "method not found" errors**
+
+Replace old service methods with new repository methods:
+
+```rust
+// Error: method `get_by_id` not found
+// OLD
+service.get_by_id(id).await
+
+// NEW
+repo.item_by_id(id).await
+
+// Error: method `get_view_by_id` not found
+// OLD
+service.get_view_by_id::<ProfileView>(id).await
+
+// NEW
+use crate::middleware::utils::db_utils::IdentIdName;
+let thing = Thing::from(("community", id));
+repo.item_view_by_ident::<ProfileView>(&IdentIdName::Id(thing)).await
+```
+
+**Action 2.4: Fix lifetime errors**
+
+Common lifetime issues in test helpers:
+
+```rust
+// Error: lifetime mismatch in helper function
+// OLD
+async fn create_community(db: &Db, ctx: &Ctx) -> Community {
+    let service = CommunityDbService { db, ctx };
+    service.create(...).await.unwrap()
+}
+
+// NEW - remove ctx, use repo directly
+async fn create_community(repo: &Repository<CommunityEntity>) -> CommunityEntity {
+    repo.item_create(CommunityEntity { /* ... */ }).await.unwrap()
+}
+```
+
+**Action 2.5: Compile tests again**
+
+```bash
+cargo test --no-run
+```
+
+Repeat until compilation succeeds.
+
+#### Iteration 3: Fix Runtime Errors (Category 2)
+
+**Action 3.1: Fix EntityNotFound errors**
+
+Often caused by:
+- Test data not created
+- Wrong table name
+- ID format mismatch
+
+```rust
+// Common fix: ensure test data exists
+#[tokio::test]
+async fn test_get_community() {
+    let repo = setup_repo().await;
+
+    // OLD: assumed entity exists
+    // let comm = repo.item_by_id("test_id").await.unwrap();
+
+    // NEW: create entity first
+    let created = repo.item_create(make_test_community("test_id")).await.unwrap();
+    let fetched = repo.item_by_id(&created.id).await.unwrap();
+
+    assert_eq!(created.id, fetched.id);
+}
+```
+
+**Action 3.2: Fix SurrealDB errors**
+
+Common database errors:
+
+```rust
+// Error: "Table not found"
+// Cause: Migration not run
+// Fix: Ensure mutate_db() is called in test setup
+
+async fn setup_test_db() -> Database {
+    let db = Database::connect(test_config()).await;
+
+    // MUST run migrations
+    db.run_migrations().await.unwrap();
+
+    db
+}
+
+// Error: "Field constraint violation"
+// Cause: Required field missing
+// Fix: Provide all required fields in test data
+
+fn make_test_community(id: &str) -> CommunityEntity {
+    CommunityEntity {
+        id: id.to_string(),
+        created_by: "test_user".to_string(),  // Was missing
+        r_created: Utc::now(),                // Was missing
+    }
+}
+```
+
+**Action 3.3: Fix assertion failures**
+
+Update assertions for new types:
+
+```rust
+// Error: assertion failed: `(left == right)` left: `"user_123"`, right: `Thing {...}`
+// OLD
+assert_eq!(community.created_by, Thing::from(("local_user", "user_123")));
+
+// NEW
+assert_eq!(community.created_by, "user_123");
+```
+
+#### Iteration 4: Fix Test Setup Issues (Category 3)
+
+**Action 4.1: Fix database initialization**
+
+Ensure all test setup functions use new Database struct:
+
+```rust
+// OLD: Per-test database setup
+#[tokio::test]
+async fn test_something() {
+    let db = Surreal::new::<Mem>(()).await.unwrap();
+    // ... manual setup
+}
+
+// NEW: Centralized test database setup
+// In tests/common/mod.rs or similar
+pub async fn setup_test_database() -> Database {
+    let db = Database::connect(DbConfig {
+        endpoint: "memory",
+        namespace: "test",
+        database: "test",
+    }).await;
+
+    db.run_migrations().await.unwrap();
+    db
+}
+
+// In test
+#[tokio::test]
+async fn test_something() {
+    let test_db = setup_test_database().await;
+    let result = test_db.community.item_by_id("test").await;
+    // ...
+}
+```
+
+**Action 4.2: Fix missing migrations**
+
+Add new repository migration to test setup:
+
+```rust
+// In src/database/client.rs
+impl Database {
+    pub async fn run_migrations(&self) -> Result<(), AppError> {
+        // ... existing migrations
+
+        // ADD THIS - new repository migration
+        self.community.mutate_db().await?;
+
+        Ok(())
+    }
+}
+```
+
+#### Iteration 5: Re-run and Verify
+
+**Action 5.1: Run full test suite**
 
 ```bash
 cargo test -- --nocapture
 ```
 
-For each failure:
-1. Identify the specific test and error
-2. Determine root cause (missing method, wrong type, etc.)
-3. Apply appropriate fix from the patterns above
-4. Re-run tests
-5. Repeat until all tests pass
+**Action 5.2: Track progress**
 
-**Step 7.7: Integration Testing**
-
-After all unit tests pass, test the actual application:
+Keep track of passing vs failing tests:
 
 ```bash
-# Start server
-cargo run
+# Get test count
+cargo test 2>&1 | grep "test result"
 
-# Test API endpoints manually or with integration tests
+# Example output:
+# test result: FAILED. 45 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+Create a progress tracker:
+
+```markdown
+## Test Fix Progress
+
+### Iteration 1
+- Total: 57 tests
+- Passing: 12
+- Failing: 45
+
+### Iteration 2
+- Total: 57 tests
+- Passing: 32
+- Failing: 25
+
+### Iteration 3
+- Total: 57 tests
+- Passing: 50
+- Failing: 7
+
+### Iteration 4
+- Total: 57 tests
+- Passing: 57
+- Failing: 0 ✅
+```
+
+#### Iteration 6: Check for Warnings
+
+After all tests pass, clean up warnings:
+
+```bash
+cargo test 2>&1 | grep "warning"
+```
+
+Common warnings to fix:
+- Unused imports
+- Unused variables
+- Deprecated code paths
+- Dead code
+
+**Step 7.7: Test-Specific Debugging Techniques**
+
+When individual tests fail, use these techniques:
+
+#### Technique 1: Run Single Test with Full Output
+
+```bash
+# Run specific test
+cargo test test_community_create -- --exact --nocapture
+
+# Run all tests in a module
+cargo test community_tests --nocapture
+
+# Run tests matching pattern
+cargo test community --nocapture
+```
+
+#### Technique 2: Use RUST_BACKTRACE for Detailed Errors
+
+```bash
+# Full backtrace
+RUST_BACKTRACE=1 cargo test test_name -- --exact
+
+# Full backtrace (more detail)
+RUST_BACKTRACE=full cargo test test_name -- --exact
+```
+
+#### Technique 3: Run Tests Serially to Avoid Database Conflicts
+
+```bash
+# Run tests one at a time (prevents parallel DB access issues)
+cargo test -- --test-threads=1
+```
+
+This is crucial if tests share database state or have race conditions.
+
+#### Technique 4: Add Debug Output to Tests
+
+```rust
+#[tokio::test]
+async fn test_community_create() {
+    let repo = setup_repo().await;
+
+    // Debug: print what we're creating
+    let test_entity = make_test_community("test_123");
+    println!("Creating entity: {:?}", test_entity);
+
+    let result = repo.item_create(test_entity).await;
+
+    // Debug: print result
+    println!("Create result: {:?}", result);
+
+    assert!(result.is_ok());
+}
+```
+
+Run with `--nocapture` to see output.
+
+#### Technique 5: Inspect Test Database State
+
+```rust
+#[tokio::test]
+async fn test_community_lifecycle() {
+    let test_db = setup_test_database().await;
+
+    // Create entity
+    let comm = test_db.community.item_create(...).await.unwrap();
+
+    // Debug: Query raw database to see what's there
+    let raw_query = test_db.client.query("SELECT * FROM community").await.unwrap();
+    println!("Raw DB state: {:?}", raw_query);
+
+    // Continue test...
+}
+```
+
+#### Technique 6: Use Test Fixtures for Complex Data
+
+```rust
+// In tests/common/fixtures.rs
+pub struct CommunityFixture {
+    pub repo: Repository<CommunityEntity>,
+    pub test_user: String,
+}
+
+impl CommunityFixture {
+    pub async fn new(db: &Database) -> Self {
+        let repo = &db.community;
+        let test_user = "test_user_123".to_string();
+
+        Self {
+            repo: repo.clone(),
+            test_user,
+        }
+    }
+
+    pub async fn create_test_community(&self, id: &str) -> CommunityEntity {
+        self.repo.item_create(CommunityEntity {
+            id: id.to_string(),
+            created_by: self.test_user.clone(),
+            r_created: Utc::now(),
+        }).await.unwrap()
+    }
+}
+
+// In test
+#[tokio::test]
+async fn test_with_fixture() {
+    let test_db = setup_test_database().await;
+    let fixture = CommunityFixture::new(&test_db).await;
+
+    let comm = fixture.create_test_community("test_123").await;
+    // ...
+}
+```
+
+#### Technique 7: Isolate Failing Tests
+
+If many tests fail, comment out all but one:
+
+```rust
+#[cfg(test)]
+mod tests {
+    // #[tokio::test]
+    // async fn test_1() { ... }
+
+    #[tokio::test]  // Only run this one
+    async fn test_2() { ... }
+
+    // #[tokio::test]
+    // async fn test_3() { ... }
+}
+```
+
+Fix one test at a time, then uncomment others.
+
+**Step 7.8: Cargo Test Command Reference**
+
+Quick reference for common test scenarios:
+
+```bash
+# === Compilation ===
+# Compile tests without running
+cargo test --no-run
+
+# === Running Tests ===
+# Run all tests
+cargo test
+
+# Run all tests with output
+cargo test -- --nocapture
+
+# Run specific test by exact name
+cargo test test_community_create -- --exact
+
+# Run all tests matching pattern
+cargo test community
+
+# Run all tests in a module
+cargo test community_tests::
+
+# Run tests from specific file/integration test
+cargo test --test community_integration
+
+# === Debugging ===
+# Show full backtrace
+RUST_BACKTRACE=1 cargo test
+
+# Show very detailed backtrace
+RUST_BACKTRACE=full cargo test
+
+# Run tests serially (no parallelism)
+cargo test -- --test-threads=1
+
+# Show output even for passing tests
+cargo test -- --show-output
+
+# === Filtering ===
+# Run only unit tests (in src/)
+cargo test --lib
+
+# Run only integration tests (in tests/)
+cargo test --tests
+
+# Run only doc tests
+cargo test --doc
+
+# === Performance ===
+# Run tests in release mode (faster, less debug info)
+cargo test --release
+
+# === Specific Crates ===
+# Run tests for specific crate in workspace
+cargo test -p darve-server
+
+# === Continuous Testing ===
+# Re-run tests on file changes (requires cargo-watch)
+cargo watch -x test
+
+# Re-run specific test on changes
+cargo watch -x "test test_community_create -- --exact"
+
+# === Coverage ===
+# Generate test coverage (requires cargo-tarpaulin)
+cargo tarpaulin --out Html
+
+# === Common Combinations ===
+# Debug single failing test
+RUST_BACKTRACE=1 cargo test test_name -- --exact --nocapture --test-threads=1
+
+# Quick check all tests compile
+cargo test --no-run --quiet
+
+# Run tests with verbose compiler output
+cargo test --verbose
+
+# Ignore test failures and continue
+cargo test --no-fail-fast
 ```
 
 ### Phase 8: Final Verification
@@ -810,13 +1638,19 @@ cargo run
 - [ ] Database struct has repository field
 - [ ] Repository initialized in `Database::connect()`
 - [ ] `mutate_db()` called in `Database::run_migrations()`
-- [ ] All old usages replaced
+- [ ] All old usages replaced in production code
+- [ ] All test files updated
+- [ ] All test helper functions updated
+- [ ] All test fixtures updated
+- [ ] Test database setup includes new migrations
 - [ ] Old service code removed
 - [ ] All imports updated
 - [ ] `cargo check` passes
-- [ ] `cargo test` passes
+- [ ] `cargo test` passes with 0 failures
+- [ ] `cargo test` runs with 0 warnings
 - [ ] No deprecation warnings
 - [ ] No unused imports
+- [ ] No dead code warnings
 
 **Step 8.2: Documentation**
 
@@ -839,6 +1673,23 @@ Ensure no performance regressions:
 - Query patterns are similar
 - Transactions preserved
 - Indexes still in place
+
+**Step 8.4: Final Test Run**
+
+One last comprehensive test run:
+
+```bash
+# Clean build
+cargo clean
+
+# Full rebuild and test
+cargo test --release -- --nocapture
+
+# Check for any warnings
+cargo test 2>&1 | grep -i "warning"
+```
+
+If all tests pass with no warnings, transformation is complete! ✅
 
 ## Example: Complete Transformation
 
@@ -1168,11 +2019,145 @@ where
 
 **Fix:** Ensure test fixtures create entities before querying
 
+```rust
+#[tokio::test]
+async fn test_get_entity() {
+    let repo = setup_repo().await;
+
+    // Create entity first
+    let created = repo.item_create(make_test_entity("test_id")).await.unwrap();
+
+    // Then fetch it
+    let fetched = repo.item_by_id(&created.id).await.unwrap();
+    assert_eq!(created.id, fetched.id);
+}
+```
+
 ### Issue: "Database field not found"
 
 **Cause:** Repository not registered in Database struct
 
 **Fix:** Add field, initialization, and migration call in client.rs
+
+```rust
+// In src/database/client.rs
+pub struct Database {
+    pub community: Repository<CommunityEntity>,  // Add this
+}
+
+impl Database {
+    pub async fn connect(config: DbConfig<'_>) -> Self {
+        Self {
+            community: Repository::<CommunityEntity>::new(
+                client.clone(),
+                COMMUNITY_TABLE_NAME.to_string(),
+            ),
+        }
+    }
+
+    pub async fn run_migrations(&self) -> Result<(), AppError> {
+        self.community.mutate_db().await?;  // Add this
+        Ok(())
+    }
+}
+```
+
+### Issue: "Table not found" in tests
+
+**Cause:** Test database not running migrations
+
+**Fix:** Ensure test setup calls `run_migrations()`
+
+```rust
+async fn setup_test_database() -> Database {
+    let db = Database::connect(test_config()).await;
+
+    // CRITICAL: Run migrations
+    db.run_migrations().await.unwrap();
+
+    db
+}
+```
+
+### Issue: "Tests pass individually but fail together"
+
+**Cause:** Shared database state, ID conflicts, or race conditions
+
+**Fix:** Run tests serially or ensure unique IDs
+
+```bash
+# Run serially
+cargo test -- --test-threads=1
+```
+
+Or use unique IDs per test:
+
+```rust
+#[tokio::test]
+async fn test_community_1() {
+    let repo = setup_repo().await;
+    let comm = repo.item_create(make_test_community("unique_id_1")).await.unwrap();
+    // ...
+}
+
+#[tokio::test]
+async fn test_community_2() {
+    let repo = setup_repo().await;
+    let comm = repo.item_create(make_test_community("unique_id_2")).await.unwrap();
+    // ...
+}
+```
+
+### Issue: "Type mismatch Thing vs String in tests"
+
+**Cause:** Old test code using Thing, new entity uses String
+
+**Fix:** Update test assertions
+
+```rust
+// OLD
+let user_thing = Thing::from(("local_user", "user_123"));
+assert_eq!(entity.created_by, user_thing);
+
+// NEW
+assert_eq!(entity.created_by, "user_123");
+```
+
+### Issue: "Test helper functions don't compile"
+
+**Cause:** Helper function signatures not updated
+
+**Fix:** Update helper function parameters and return types
+
+```rust
+// OLD
+async fn create_test_entity(db: &Db, ctx: &Ctx) -> OldEntity { ... }
+
+// NEW
+async fn create_test_entity(repo: &Repository<NewEntity>) -> NewEntity { ... }
+```
+
+### Issue: "Mock repository trait not satisfied"
+
+**Cause:** Mock not implementing all required traits
+
+**Fix:** Ensure mock implements both RepositoryCore and custom interface
+
+```rust
+mock! {
+    MyRepo {}
+
+    #[async_trait]
+    impl RepositoryCore for MyRepo {
+        // Implement all RepositoryCore methods
+    }
+
+    #[async_trait]
+    impl MyRepositoryInterface for MyRepo {
+        // Implement custom methods
+    }
+}
+```
 
 ## Summary
 
@@ -1182,8 +2167,17 @@ This skill provides a complete, systematic approach to transforming old entity s
 2. **Generate** base entity files with entity-sdb skill
 3. **Migrate** database operations to repository
 4. **Create** optional service layer for business logic
-5. **Replace** all usages in the codebase
-6. **Validate** with cargo test
-7. **Fix** any issues iteratively
+5. **Replace** all usages in the codebase (including tests)
+6. **Cleanup** old code
+7. **Validate** with cargo test and fix issues iteratively
+8. **Verify** final implementation
+
+The key to success is the **iterative test fixing workflow** in Phase 7:
+- Categorize failures systematically
+- Fix compilation errors first
+- Then runtime errors
+- Then test setup issues
+- Run tests repeatedly until all pass
+- Use debugging techniques for stubborn failures
 
 You can successfully modernize legacy entity code while maintaining functionality and passing all tests.
