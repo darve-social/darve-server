@@ -286,7 +286,12 @@ impl<'a> PostDbService<'a> {
     pub async fn delete(&self, post_id: &str) -> AppResult<()> {
         let _ = self
             .db
+            .query("BEGIN TRANSACTION;")
+            .query("LET $reply_ids = (SELECT VALUE id FROM reply WHERE belongs_to = $post);")
+            .query("DELETE reply WHERE belongs_to IN $reply_ids;")
+            .query("DELETE reply WHERE belongs_to = $post;")
             .query("DELETE $post WHERE tasks_nr = 0;")
+            .query("COMMIT TRANSACTION;")
             .bind(("post", Thing::from((TABLE_NAME, post_id))))
             .await
             .map_err(|e| AppError::SurrealDb {
