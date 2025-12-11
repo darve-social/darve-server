@@ -50,7 +50,8 @@
                 "CREATE_REPLY_FOR_REPLY",
                 "LIKE",
                 "ADD_MEMBER",
-                "REMOVE_MEMBER"
+                "REMOVE_MEMBER",
+                "DELETE"
               ],
               "TASK:PUBLIC": {
                 "OWNER": {
@@ -134,7 +135,8 @@
                 "CREATE_PRIVATE_TASK",
                 "CREATE_REPLY",
                 "CREATE_REPLY_FOR_REPLY",
-                "LIKE"
+                "LIKE",
+                "DELETE"
               ],
               "TASK:PRIVATE": {
                 "OWNER": {
