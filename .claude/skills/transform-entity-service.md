@@ -29,8 +29,10 @@ See the detailed section "CRITICAL: Field Name Mismatch Between Schema and Views
 3. Migrate database operations to repository implementation **KEEPING ALL FIELD NAMES IDENTICAL**
 4. Create optional service layer for business logic
 5. Replace all usages in codebase (including test files)
-6. Validate with `cargo test` and fix issues iteratively
+6. **ALWAYS run full `cargo test` (NOT `cargo test --lib`)** and fix issues iteratively
 7. Final verification and cleanup
+
+**⚠️ CRITICAL: Always run FULL test suite with `cargo test` (no flags). NEVER rely on just `cargo test --lib` for validation. Integration tests are required to catch serialization and field mismatch bugs that unit tests miss.**
 
 ## When to Use This Skill
 
@@ -798,6 +800,8 @@ cargo test --no-run
 
 This compiles test code without running it, catching issues faster.
 
+**⚠️ IMPORTANT: After fixing compilation, you MUST run `cargo test` (full suite), NOT `cargo test --lib`. See Step 7.4 for why this is critical.**
+
 **Step 7.3: Pre-Test Checklist**
 
 Before running `cargo test`, verify:
@@ -809,22 +813,28 @@ Before running `cargo test`, verify:
 - [ ] Assertions updated for new entity types (Thing → String)
 - [ ] Mock implementations updated if using dependency injection
 
-**Step 7.4: Run Full Test Suite - CRITICAL Testing Steps**
+**Step 7.4: Run Full Test Suite - MANDATORY TESTING STEPS**
 
-**IMPORTANT:** Always run BOTH unit tests and full integration tests:
+**⚠️ CRITICAL: You MUST run the full test suite. Do NOT skip this or rely only on unit tests!**
+
+**The ONLY acceptable test command after entity transformation:**
 
 ```bash
-# Step 1: Run unit tests only (fast, but incomplete validation)
-cargo test --lib
-
-# Step 2: Run FULL test suite including integration tests (required!)
+# THIS IS REQUIRED - Run FULL test suite including integration tests
 cargo test
 
-# Step 3: Capture output for analysis
+# Optional: Capture output for analysis
 cargo test 2>&1 | tee test_output.txt
 ```
 
-**Why both are necessary:**
+**❌ DO NOT DO THIS - Unit tests alone are insufficient:**
+
+```bash
+# ❌ WRONG - This will miss critical bugs!
+cargo test --lib
+```
+
+**Why `cargo test --lib` is NOT enough:**
 
 | Test Type | Command | What It Tests | Limitations |
 |-----------|---------|---------------|-------------|
@@ -838,7 +848,9 @@ cargo test 2>&1 | tee test_output.txt
 - Database constraint violations
 - Missing error conversions
 
-Never assume the transformation is complete after only `cargo test --lib` passes!
+**❌ CRITICAL ERROR: Never assume the transformation is complete after only `cargo test --lib` passes!**
+
+**✅ CORRECT: Entity transformation is ONLY complete when `cargo test` (full suite) passes with zero failures.**
 
 **Step 7.5: Update Test Files - Comprehensive Patterns**
 
@@ -1599,13 +1611,15 @@ Fix one test at a time, then uncomment others.
 
 Quick reference for common test scenarios:
 
+**⚠️ REMEMBER: For entity transformation validation, you MUST use `cargo test` (no flags) to run the full suite!**
+
 ```bash
 # === Compilation ===
 # Compile tests without running
 cargo test --no-run
 
 # === Running Tests ===
-# Run all tests
+# Run all tests (REQUIRED for entity transformation validation!)
 cargo test
 
 # Run all tests with output
@@ -1637,7 +1651,8 @@ cargo test -- --test-threads=1
 cargo test -- --show-output
 
 # === Filtering ===
-# Run only unit tests (in src/)
+# ⚠️ WARNING: These filtered test runs are for debugging ONLY, NOT for validation!
+# Run only unit tests (in src/) - DO NOT use this for entity transformation validation!
 cargo test --lib
 
 # Run only integration tests (in tests/)
@@ -1737,14 +1752,25 @@ One last comprehensive test run:
 # Clean build
 cargo clean
 
-# Full rebuild and test
+# Full rebuild and test (THIS IS MANDATORY - NO --lib FLAG!)
 cargo test --release -- --nocapture
+
+# Also run in dev mode to catch any differences
+cargo test
 
 # Check for any warnings
 cargo test 2>&1 | grep -i "warning"
 ```
 
-If all tests pass with no warnings, transformation is complete! ✅
+**✅ Transformation is ONLY complete when:**
+- `cargo test` (full suite, no flags) passes with **0 failures**
+- `cargo test` shows **0 warnings**
+- All integration tests pass (not just unit tests)
+
+**❌ Transformation is NOT complete if:**
+- You only ran `cargo test --lib`
+- Integration tests were skipped
+- Any test failures remain
 
 ## Example: Complete Transformation
 
@@ -2210,7 +2236,21 @@ Integration tests (`cargo test` without flags):
 - Perform actual serialization/deserialization
 - Catch field name mismatches
 
-**Lesson:** Always run full integration tests, not just unit tests!
+**❌ CRITICAL MISTAKE: Relying on `cargo test --lib` for validation**
+
+Many developers think:
+- "Unit tests pass, so my code is correct" ❌
+- "I'll just run `cargo test --lib` to save time" ❌
+- "Integration tests are optional" ❌
+
+**✅ CORRECT APPROACH: Always run full `cargo test`**
+
+Entity transformation is ONLY validated when:
+- You run `cargo test` (no flags)
+- All integration tests pass
+- Zero test failures
+
+**Rule:** Never consider an entity transformation complete until `cargo test` (full suite) passes with zero failures!
 
 ## Troubleshooting
 
@@ -2403,10 +2443,12 @@ This skill provides a complete, systematic approach to transforming old entity s
 4. **Create** optional service layer for business logic
 5. **Replace** all usages in the codebase (including tests)
 6. **Cleanup** old code
-7. **Validate** with cargo test and fix issues iteratively
-8. **Verify** final implementation
+7. **Validate** with **FULL `cargo test`** (NOT `cargo test --lib`) and fix issues iteratively
+8. **Verify** final implementation with **FULL `cargo test`** again
 
-## ⚠️ THE MOST IMPORTANT RULE
+## ⚠️ THE TWO MOST IMPORTANT RULES
+
+### Rule #1: NEVER RENAME FIELDS
 
 **NEVER RENAME STRUCT FIELDS, DATABASE FIELD NAMES, OR QUERY FIELD NAMES.**
 
@@ -2416,15 +2458,32 @@ This single rule prevents 90% of transformation bugs. When in doubt:
 - ❌ Do not "improve" or "standardize" field names
 - ❌ Do not change `created_at` to `r_created` or vice versa
 
-The key to success is:
+### Rule #2: ALWAYS RUN FULL TEST SUITE
+
+**ALWAYS RUN `cargo test` (full suite), NEVER just `cargo test --lib`.**
+
+This is not optional. Entity transformation is ONLY complete when:
+- ✅ You run `cargo test` (no flags)
+- ✅ All integration tests pass
+- ✅ Zero test failures
+- ✅ Zero warnings
+
+Unit tests alone (`cargo test --lib`) will NOT catch:
+- Field name mismatches between schema and views
+- Serialization/deserialization errors
+- HTTP endpoint issues
+- Real database query problems
+
+## The Key to Success
+
 1. **Field name preservation** - Never rename fields from old entity
-2. **Iterative test fixing workflow** in Phase 7:
+2. **Always run full test suite** - `cargo test` (NOT `cargo test --lib`)
+3. **Iterative test fixing workflow** in Phase 7:
    - Categorize failures systematically
    - Fix compilation errors first
    - Then runtime errors
    - Then test setup issues
-   - Run tests repeatedly until all pass
+   - Run `cargo test` repeatedly until all pass
    - Use debugging techniques for stubborn failures
-3. **Always run full integration tests** - Unit tests alone are not enough
 
 You can successfully modernize legacy entity code while maintaining functionality and passing all tests.
