@@ -775,15 +775,36 @@ Before running `cargo test`, verify:
 - [ ] Assertions updated for new entity types (Thing → String)
 - [ ] Mock implementations updated if using dependency injection
 
-**Step 7.4: Run Full Test Suite**
+**Step 7.4: Run Full Test Suite - CRITICAL Testing Steps**
+
+**IMPORTANT:** Always run BOTH unit tests and full integration tests:
 
 ```bash
-# Run all tests and capture output
-cargo test 2>&1 | tee test_output.txt
+# Step 1: Run unit tests only (fast, but incomplete validation)
+cargo test --lib
 
-# Or with more verbose output
-cargo test -- --nocapture 2>&1 | tee test_output.txt
+# Step 2: Run FULL test suite including integration tests (required!)
+cargo test
+
+# Step 3: Capture output for analysis
+cargo test 2>&1 | tee test_output.txt
 ```
+
+**Why both are necessary:**
+
+| Test Type | Command | What It Tests | Limitations |
+|-----------|---------|---------------|-------------|
+| Unit Tests | `cargo test --lib` | Code logic in isolation | Doesn't test actual HTTP endpoints, deserialization, or real database queries |
+| Integration Tests | `cargo test` (no flags) | Full application stack including HTTP routes, serialization, database | Slower but catches real-world issues |
+
+**Common Pitfall:** Unit tests may pass while integration tests fail due to:
+- **Field name mismatches** between schema and view models (see below)
+- Serialization/deserialization errors
+- HTTP request/response handling issues
+- Database constraint violations
+- Missing error conversions
+
+Never assume the transformation is complete after only `cargo test --lib` passes!
 
 **Step 7.5: Update Test Files - Comprehensive Patterns**
 
@@ -1977,6 +1998,183 @@ async fn create_with_relation(...) -> Result<Entity, surrealdb::Error> {
     Ok(entity)
 }
 ```
+
+## Critical Issues and Resolutions
+
+### CRITICAL: Field Name Mismatch Between Schema and Views
+
+**This is the most common and dangerous issue in entity transformations.**
+
+#### The Problem
+
+When transforming entities, the repository schema may use different field names than what view models expect. This causes **silent deserialization failures** that:
+
+- ✅ Pass unit tests (because they don't hit real database/HTTP layer)
+- ❌ Fail integration tests with generic "Internal error" or 400 Bad Request
+- Are difficult to debug because error messages don't indicate the root cause
+
+#### Real-World Example
+
+**The Bug:**
+```rust
+// Repository schema - uses r_created
+// src/database/repositories/task_request_repo.rs
+let sql = format!("
+    DEFINE FIELD IF NOT EXISTS r_created ON TABLE {TABLE_NAME} TYPE datetime...
+");
+
+// Query returns r_created
+let query = format!("SELECT {fields}, r_created FROM {TABLE_NAME}...");
+
+// BUT View model expects created_at!
+// src/models/view/task.rs
+pub struct TaskRequestView {
+    pub created_at: DateTime<Utc>,  // Wrong! Database has r_created
+    // ...
+}
+```
+
+**What happens:**
+1. Database stores data with field `r_created`
+2. Query returns `r_created` in results
+3. Serde tries to deserialize into `TaskRequestView.created_at`
+4. Field not found → deserialization fails
+5. HTTP endpoint returns 400 "Internal error"
+6. Unit tests pass (they don't use views)
+7. Integration tests fail mysteriously
+
+#### The Solution
+
+**Rule: Field names must match EXACTLY between:**
+1. Database schema (`DEFINE FIELD ... ON TABLE`)
+2. Query SELECT statements
+3. Entity structs
+4. View model structs
+
+**Fix for the example:**
+```rust
+// Option A: Keep created_at everywhere (RECOMMENDED)
+// Repository schema
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime...
+
+// Query
+SELECT {fields}, created_at FROM {TABLE_NAME}...
+
+// View model
+pub struct TaskRequestView {
+    pub created_at: DateTime<Utc>,  // ✅ Matches schema
+}
+
+// Option B: Use r_created everywhere (NOT recommended, breaks existing code)
+```
+
+#### How to Prevent This
+
+**Step 1: Check field naming conventions**
+
+Before transformation, verify the field naming pattern used in existing working entities:
+
+```bash
+# Check existing schemas
+rg "DEFINE FIELD.*created.*ON TABLE" --type rust
+
+# Check existing view models
+rg "pub created_at:" --type rust -g "src/models/view/*.rs"
+```
+
+**Step 2: Maintain naming consistency**
+
+When creating the new repository schema, use the SAME field names as:
+- The view models that will consume the data
+- Other similar entities in the codebase
+- The old entity (if it worked before)
+
+**Step 3: Verify in three places**
+
+After writing repository implementation, verify field names match in:
+
+```rust
+// 1. Schema definition
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE task_request...
+                           ^^^^^^^^^^
+
+// 2. Query selection
+SELECT {fields}, created_at FROM task_request...
+                 ^^^^^^^^^^
+
+// 3. View model
+pub struct TaskRequestView {
+    pub created_at: DateTime<Utc>,
+        ^^^^^^^^^^
+}
+```
+
+**Step 4: Test with integration tests**
+
+Always run full `cargo test` (not just `cargo test --lib`):
+
+```bash
+# This will miss the issue ❌
+cargo test --lib
+
+# This will catch the issue ✅
+cargo test
+```
+
+#### Debugging Field Name Mismatches
+
+If you suspect a field name mismatch:
+
+**Step 1: Check the error**
+```rust
+// Integration test failure typically shows:
+// 400 Bad Request, "Internal error"
+// OR JSON deserialization error
+```
+
+**Step 2: Compare schema vs model**
+```bash
+# Find schema definition
+rg "DEFINE FIELD.*ON TABLE task_request" --type rust -A 5
+
+# Find view model
+rg "struct TaskRequestView" --type rust -A 20
+
+# Look for mismatches
+```
+
+**Step 3: Check query field selection**
+```bash
+# Find SELECT queries
+rg "SELECT.*FROM.*task_request" --type rust
+```
+
+**Step 4: Add debug output**
+```rust
+// In repository, before returning:
+let raw_result = self.client.query(query).await?;
+println!("Raw DB result: {:?}", raw_result);  // See actual field names
+
+// In view model, add Debug
+#[derive(Debug, Serialize, Deserialize)]  // Add Debug
+pub struct TaskRequestView { ... }
+```
+
+#### Why Unit Tests Don't Catch This
+
+Unit tests (`cargo test --lib`) typically:
+- Test pure logic without database
+- Use mock data with correct structure
+- Don't go through HTTP serialization
+- Don't use real database queries
+
+Integration tests (`cargo test` without flags):
+- Hit actual HTTP endpoints
+- Use real database
+- Perform actual serialization/deserialization
+- Catch field name mismatches
+
+**Lesson:** Always run full integration tests, not just unit tests!
 
 ## Troubleshooting
 
