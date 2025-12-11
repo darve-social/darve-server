@@ -35,6 +35,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/api/posts", get(get_posts))
         .route("/api/posts/{post_id}", get(get_post))
+        .route("/api/posts/{post_id}", delete(delete_post))
         .route("/api/posts/{post_id}/tasks", post(create_task))
         .route("/api/posts/{post_id}/tasks", get(get_post_tasks))
         .route("/api/posts/{post_id}/like", post(like))
@@ -440,4 +441,25 @@ async fn get_post(
     .await?;
 
     Ok(Json(post_view))
+}
+
+async fn delete_post(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+    Path(post_id): Path<String>,
+) -> CtxResult<()> {
+    let _ = PostService::new(
+        &state.db.client,
+        &auth_data.ctx,
+        &state.event_sender,
+        &state.db.user_notifications,
+        state.file_storage.clone(),
+        &state.db.tags,
+        &state.db.likes,
+        &state.db.access,
+        &state.db.discussion_users,
+    )
+    .delete_post(&auth_data.user_thing_id(), &post_id)
+    .await?;
+    Ok(())
 }
