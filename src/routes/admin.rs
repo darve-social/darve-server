@@ -26,19 +26,12 @@ async fn get_tasks(
     let super_tasks = state
         .darve_tasks
         .create_public(&user_id, &state.event_sender)
-        .await
-        .map_err(|e| {
-            println!(">>>>>{:?}", e);
-            e
-        })?;
+        .await?;
+
     let weekly_tasks = state
         .darve_tasks
         .create_private(&user_id, &state.event_sender)
-        .await
-        .map_err(|e| {
-            println!(">>>>>{:?}", e);
-            e
-        })?;
+        .await?;
 
     let tasks = super_tasks
         .into_iter()
