@@ -21,4 +21,5 @@ pub enum Permission {
     Like,
     Donate,
     Alias,
+    Delete,
 }

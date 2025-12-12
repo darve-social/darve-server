@@ -29,6 +29,7 @@ use crate::{
     },
     models::view::{
         access::{DiscussionAccessView, PostAccessView},
+        full_post::FullPostView,
         post::{PostUsersView, PostView},
         user::UserView,
     },
@@ -556,7 +557,7 @@ where
         Ok(post_view)
     }
 
-    pub async fn get(&self, user_id: &str, post_id: &str) -> AppResult<PostView> {
+    pub async fn get(&self, user_id: &str, post_id: &str) -> AppResult<FullPostView> {
         let user = self.users_repository.get_by_id(&user_id).await?;
         let post = self
             .posts_repository
@@ -568,9 +569,23 @@ where
         }
 
         self.posts_repository
-            .get_view_by_id::<PostView>(post_id, Some(user_id))
+            .get_view_by_id::<FullPostView>(post_id, Some(user_id))
             .await
             .map_err(|e| e.into())
+    }
+
+    pub async fn delete_post(&self, user_id: &str, post_id: &str) -> AppResult<()> {
+        let user = self.users_repository.get_by_id(&user_id).await?;
+        let post = self
+            .posts_repository
+            .get_view_by_id::<PostAccessView>(post_id, None)
+            .await?;
+
+        if !PostAccess::new(&post).can_delete(&user) || post.tasks_nr > 0 {
+            return Err(AppError::Forbidden.into());
+        }
+
+        self.posts_repository.delete(&post.id.id.to_raw()).await
     }
 
     async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {

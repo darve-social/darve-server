@@ -137,6 +137,7 @@ async fn reject_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let data = task_service
@@ -164,6 +165,7 @@ async fn accept_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let data = task_service
@@ -192,6 +194,7 @@ async fn deliver_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let data = task_service
@@ -226,6 +229,7 @@ async fn upsert_donor(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let donor = task_service
@@ -259,6 +263,7 @@ async fn get_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let task_view = task_service

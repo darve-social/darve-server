@@ -41,8 +41,8 @@ impl ViewFieldSelector for DiscussionAccessView {
 }
 
 impl ViewRelateField for DiscussionAccessView {
-    fn get_fields() -> &'static str {
-        "id, type, created_by, users: <-has_access.*"
+    fn get_fields() -> String {
+        "id, type, created_by, users: <-has_access.*".to_string()
     }
 }
 
@@ -53,6 +53,7 @@ pub struct PostAccessView {
     pub discussion: DiscussionAccessView,
     pub users: Vec<AccessUser>,
     pub media_links: Option<Vec<String>>,
+    pub tasks_nr: u32,
 }
 
 impl PostAccessView {
@@ -112,7 +113,8 @@ impl ViewFieldSelector for TaskAccessView {
                 IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{ 
                         id, 
                         type,
-                        users: <-{ACCESS_TABLE_NAME}.*, 
+                        tasks_nr,
+                        users: <-{ACCESS_TABLE_NAME}.*,
                         discussion: belongs_to.{{{disc_fields}}} 
                 }} END AS post,
                 IF record::tb(belongs_to) = '{DISC_TABLE_NAME}' THEN belongs_to.{{{disc_fields}}} END AS discussion"

@@ -15,7 +15,7 @@ use crate::{
             TABLE_NAME as TASK_TABLE_NAME,
         },
         task_donor::TaskDonor,
-        task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
+        task_request_user::{TaskParticipant, TaskParticipantStatus},
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
             balance_transaction_entity::{BalanceTransactionDbService, TransactionType},
@@ -23,8 +23,8 @@ use crate::{
         },
     },
     interfaces::repositories::{
-        access::AccessRepositoryInterface, tags::TagsRepositoryInterface,
-        task_donors::TaskDonorsRepositoryInterface,
+        access::AccessRepositoryInterface, delivery_result::DeliveryResultRepositoryInterface,
+        tags::TagsRepositoryInterface, task_donors::TaskDonorsRepositoryInterface,
         task_participants::TaskParticipantsRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
@@ -108,13 +108,14 @@ pub struct TaskRequestInput {
     pub delivery_period: Option<u64>,
 }
 
-pub struct TaskService<'a, T, N, P, A, TG>
+pub struct TaskService<'a, T, N, P, A, TG, DR>
 where
     T: TaskParticipantsRepositoryInterface,
     P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
     A: AccessRepositoryInterface,
     TG: TagsRepositoryInterface,
+    DR: DeliveryResultRepositoryInterface,
 {
     tasks_repository: TaskRequestDbService<'a>,
     users_repository: LocalUserDbService<'a>,
@@ -127,16 +128,18 @@ where
     default_period_seconds: u64,
     access_repository: &'a A,
     tags_repository: &'a TG,
+    delivery_result_repository: &'a DR,
     db: &'a Db,
 }
 
-impl<'a, T, N, P, A, TG> TaskService<'a, T, N, P, A, TG>
+impl<'a, T, N, P, A, TG, DR> TaskService<'a, T, N, P, A, TG, DR>
 where
     T: TaskParticipantsRepositoryInterface,
     N: UserNotificationsInterface,
     P: TaskDonorsRepositoryInterface,
     A: AccessRepositoryInterface,
     TG: TagsRepositoryInterface,
+    DR: DeliveryResultRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -146,6 +149,7 @@ where
         access_repository: &'a A,
         tags_repository: &'a TG,
         notification_service: NotificationService<'a, N>,
+        delivery_result_repository: &'a DR,
     ) -> Self {
         Self {
             tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
@@ -158,6 +162,7 @@ where
             default_period_seconds: 48 * 60 * 60,
             access_repository,
             tags_repository,
+            delivery_result_repository,
             notification_service: notification_service,
             db: db,
         }
@@ -505,7 +510,6 @@ where
             .update(
                 &task_user.as_ref().unwrap().id,
                 TaskParticipantStatus::Rejected.as_str(),
-                None,
             )
             .await
             .map_err(|_| AppError::SurrealDb {
@@ -568,7 +572,7 @@ where
             Some(value) => {
                 let result = self
                     .task_participants_repository
-                    .update(&value.id, TaskParticipantStatus::Accepted.as_str(), None)
+                    .update(&value.id, TaskParticipantStatus::Accepted.as_str())
                     .await
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
@@ -638,7 +642,7 @@ where
             return Err(AppError::Forbidden);
         }
 
-        let result = self
+        let post = self
             .posts_repository
             .get_view_by_id::<PostView>(&data.post_id, Some(user_id))
             .await?;
@@ -672,20 +676,26 @@ where
             .into());
         }
 
-        let delivery_result = self
-            .task_participants_repository
-            .update(
-                &task_user.unwrap().id,
-                TaskParticipantStatus::Delivered.as_str(),
-                Some(TaskParticipantResult {
-                    urls: None,
-                    post: Some(data.post_id),
-                }),
-            )
-            .await
-            .map_err(|_| AppError::SurrealDb {
-                source: "deliver_task".to_string(),
-            })?;
+        let mut transaction = self.db.query("BEGIN TRANSACTION;");
+        transaction = self.task_participants_repository.build_update_query(
+            transaction,
+            &task_user.unwrap().id,
+            TaskParticipantStatus::Delivered.as_str(),
+        );
+        transaction = self.delivery_result_repository.build_create_query(
+            transaction,
+            &task_user.unwrap().id,
+            &post.id.id.to_raw(),
+            None,
+        );
+        transaction = transaction
+            .query("COMMIT TRANSACTION;")
+            .query("RETURN $task_participant;");
+
+        let mut res = transaction.await?;
+        let delivery_result = res
+            .take::<Option<TaskParticipant>>(res.num_statements() - 1)?
+            .expect("Post delivery error");
 
         let _ = self.try_to_process_reward(&task).await;
 
@@ -696,7 +706,7 @@ where
         .await;
 
         self.notification_service
-            .on_deliver_task(&user, &task_view, &result)
+            .on_deliver_task(&user, &task_view, &post)
             .await?;
 
         Ok(delivery_result)

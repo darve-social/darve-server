@@ -96,4 +96,8 @@ impl<'a> PostAccess<'a> {
         let path = AccessPath::from_post(self.post, Some(&user), None);
         self.access_control.can(&path, &Permission::RemoveMember)
     }
+    pub fn can_delete(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_post(self.post, Some(&user), None);
+        self.access_control.can(&path, &Permission::Delete)
+    }
 }

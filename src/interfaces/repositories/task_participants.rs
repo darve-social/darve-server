@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use surrealdb::{engine::any, method::Query};
 
-use crate::entities::task_request_user::{TaskParticipant, TaskParticipantResult};
+use crate::{
+    entities::task_request_user::TaskParticipant, middleware::utils::db_utils::Pagination,
+};
 
 #[async_trait]
 pub trait TaskParticipantsRepositoryInterface {
@@ -17,7 +19,6 @@ pub trait TaskParticipantsRepositoryInterface {
         query: Query<'b, any::Any>,
         id: &str,
         status: &str,
-        result: Option<TaskParticipantResult>,
     ) -> Query<'b, any::Any>;
     async fn create(
         &self,
@@ -25,10 +26,10 @@ pub trait TaskParticipantsRepositoryInterface {
         user_id: &str,
         status: &str,
     ) -> Result<TaskParticipant, String>;
-    async fn update(
+    async fn update(&self, id: &str, status: &str) -> Result<TaskParticipant, String>;
+    async fn get_by_task(
         &self,
-        id: &str,
-        status: &str,
-        result: Option<TaskParticipantResult>,
-    ) -> Result<TaskParticipant, String>;
+        task_id: &str,
+        pagination: Option<Pagination>,
+    ) -> Result<Vec<TaskParticipant>, String>;
 }

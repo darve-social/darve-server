@@ -3,6 +3,7 @@ pub mod access_user;
 pub mod balance_tx;
 pub mod discussion;
 pub mod discussion_user;
+pub mod full_post;
 pub mod notification;
 pub mod post;
 pub mod reply;

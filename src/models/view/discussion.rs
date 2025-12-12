@@ -36,7 +36,7 @@ impl ViewFieldSelector for DiscussionView {
 }
 
 impl ViewRelateField for DiscussionView {
-    fn get_fields() -> &'static str {
+    fn get_fields() -> String {
         "id,
         type,
         belongs_to,
@@ -47,5 +47,6 @@ impl ViewRelateField for DiscussionView {
         created_by: created_by.*,
         users: <-has_access.{user: in.*, role, created_at},
         alias: ->discussion_user[WHERE out=$user][0].alias"
+            .to_string()
     }
 }
