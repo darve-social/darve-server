@@ -276,6 +276,7 @@ async fn create_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let task = task_service

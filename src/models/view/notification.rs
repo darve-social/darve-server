@@ -26,7 +26,7 @@ pub struct UserNotificationView {
 }
 
 impl ViewRelateField for UserNotificationView {
-    fn get_fields() -> &'static str {
-        "id, is_following: created_by IN $user->follow.out, is_follower: created_by IN $user<-follow.in, created_by: created_by.*, title, event, is_read, metadata, created_at"
+    fn get_fields() -> String {
+        "id, is_following: created_by IN $user->follow.out, is_follower: created_by IN $user<-follow.in, created_by: created_by.*, title, event, is_read, metadata, created_at".to_string()
     }
 }

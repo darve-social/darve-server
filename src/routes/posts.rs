@@ -21,6 +21,7 @@ use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
 use crate::models::view::access::PostAccessView;
+use crate::models::view::full_post::FullPostView;
 use crate::models::view::post::PostView;
 use crate::models::view::reply::ReplyView;
 use crate::models::view::task::TaskRequestView;
@@ -81,6 +82,7 @@ async fn create_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
+        &state.db.delivery_result,
     );
 
     let task = task_service
@@ -425,7 +427,7 @@ async fn get_post(
     auth_data: AuthWithLoginAccess,
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-) -> CtxResult<Json<PostView>> {
+) -> CtxResult<Json<FullPostView>> {
     let post_view = PostService::new(
         &state.db.client,
         &auth_data.ctx,
@@ -438,7 +440,11 @@ async fn get_post(
         &state.db.discussion_users,
     )
     .get(&auth_data.user_thing_id(), &post_id)
-    .await?;
+    .await
+    .map_err(|e| {
+        println!(">>>>>{:?}", e);
+        e
+    })?;
 
     Ok(Json(post_view))
 }
