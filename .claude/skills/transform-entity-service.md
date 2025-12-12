@@ -2252,6 +2252,389 @@ Entity transformation is ONLY validated when:
 
 **Rule:** Never consider an entity transformation complete until `cargo test` (full suite) passes with zero failures!
 
+### CRITICAL: SurrealDB Schema Syntax for Object Type Definitions
+
+**This is a common syntax error that causes SurrealDB parse failures.**
+
+#### The Problem
+
+When defining SurrealDB schemas with object type definitions (like enums serialized as objects), using escaped double quotes (`\"`) causes parse errors. This breaks database migrations during `mutate_db()` calls.
+
+#### Real-World Example
+
+**The Bug:**
+```rust
+// ❌ WRONG - Escaped double quotes cause parse errors
+let sql = format!("
+    DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \\\"PublicPost\\\"}};
+    DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \\\"OnDelivery\\\"}} | {{ type: \\\"VoteWinner\\\", voting_period_min: int }};
+");
+```
+
+**Error:**
+```
+Parse error: Invalid token `\`
+ --> [5:92]
+  |
+5 | ...E { type: \"}
+  |              ^
+```
+
+**What happens:**
+1. Repository `mutate_db()` runs during migrations or test setup
+2. SurrealDB parser encounters `\"`
+3. Parser fails with "Invalid token" error
+4. Database table is not created
+5. All database operations fail
+6. Tests fail with cryptic errors like "Table not found"
+
+#### The Solution
+
+**Use single quotes for string literals in SurrealDB object type definitions:**
+
+```rust
+// ✅ CORRECT - Use single quotes for string literals
+let sql = format!("
+    DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: 'PublicPost'}};
+    DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: 'OnDelivery'}} | {{ type: 'VoteWinner', voting_period_min: int }};
+");
+```
+
+#### The Rule
+
+**In SurrealDB schema definitions:**
+- ❌ Never use `\\\"` (escaped double quotes) inside object type definitions
+- ✅ Always use `'` (single quotes) for string literals in object types
+- ✅ Double quotes `"` are fine for the outer format string, but objects inside need single quotes
+
+**Examples:**
+
+```rust
+// ✅ Correct - object types with single quotes
+DEFINE FIELD type ON TABLE task TYPE { type: 'Public' };
+DEFINE FIELD status ON TABLE task TYPE { type: 'Init' } | { type: 'InProgress' };
+DEFINE FIELD metadata ON TABLE task TYPE { type: 'PublicPost', created: datetime };
+
+// ❌ Wrong - escaped double quotes
+DEFINE FIELD type ON TABLE task TYPE { type: \"Public\" };  // Parse error!
+DEFINE FIELD type ON TABLE task TYPE { type: \\\"Public\\\" };  // Parse error!
+
+// ✅ Correct - regular string types (not objects) can use either
+DEFINE FIELD name ON TABLE task TYPE string;
+DEFINE FIELD currency ON TABLE task TYPE 'USD'|'EUR';  // Enum-like
+```
+
+#### How to Prevent This
+
+**Step 1: Check existing repository schemas**
+
+Before writing a new schema, check the pattern used in working repositories:
+
+```bash
+# Search for object type definitions
+rg "TYPE \{\{.*type:" --type rust src/database/repositories/
+
+# Look for the quote style used
+```
+
+**Step 2: Use single quotes for all object type string literals**
+
+When writing schema definitions with object types:
+
+```rust
+impl Repository<MyEntity> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
+        let sql = format!("
+            DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
+
+            -- ✅ Single quotes for object type string values
+            DEFINE FIELD IF NOT EXISTS my_enum ON TABLE {TABLE_NAME}
+                TYPE {{ type: 'VariantA' }} | {{ type: 'VariantB' }};
+
+            -- ✅ Single quotes even for complex objects
+            DEFINE FIELD IF NOT EXISTS complex ON TABLE {TABLE_NAME}
+                TYPE {{ type: 'TypeA', value: int }} | {{ type: 'TypeB', value: string }};
+        ");
+
+        self.client.query(sql).await?.check()?;
+        Ok(())
+    }
+}
+```
+
+**Step 3: Test migrations immediately**
+
+After writing a schema, test it immediately:
+
+```bash
+# This will catch parse errors right away
+cargo test --lib
+```
+
+If you see "Parse error: Invalid token", check for escaped quotes in your schema.
+
+#### Debugging Schema Parse Errors
+
+If you encounter SurrealDB parse errors:
+
+**Step 1: Check the error message**
+```
+Parse error: Invalid token `\`
+ --> [5:92]
+```
+
+The line and column number point to the issue.
+
+**Step 2: Find the schema definition**
+```bash
+# Find the repository with the error
+rg "DEFINE FIELD.*TYPE.*\\\\" --type rust
+```
+
+**Step 3: Replace escaped quotes with single quotes**
+
+Replace patterns like:
+- `\\\"` → `'`
+- `\"` → `'`
+- Any escaped quotes in object type definitions
+
+**Step 4: Verify the fix**
+```bash
+cargo test --no-run  # Compile check
+cargo test  # Full test
+```
+
+### CRITICAL: Using ViewFieldSelector in Repository Methods
+
+**This prevents deserialization failures when querying view models.**
+
+#### The Problem
+
+Repository methods that use `SELECT *` instead of explicitly selecting fields cause silent deserialization failures when view models expect joined data or specific field formatting. This leads to "Internal error" responses in integration tests.
+
+#### Real-World Example
+
+**The Bug:**
+```rust
+// ❌ WRONG - Using SELECT * for view queries
+async fn get_by_posts<T: for<'de> serde::Deserialize<'de>>(
+    &self,
+    posts: Vec<Thing>,
+    user: Thing,
+) -> Result<Vec<T>, surrealdb::Error> {
+    let query = format!("
+        SELECT * FROM {TASK_REQUEST_TABLE_NAME}
+        WHERE belongs_to IN $posts
+    ");
+
+    let mut res = self.client.query(query).bind(("posts", posts)).await?;
+    Ok(res.take::<Vec<T>>(0)?)
+}
+```
+
+**What happens:**
+1. View model `TaskRequestView` expects fields like `participants` and `donors` from joins
+2. Query returns raw database fields without joins
+3. View model fields are missing from query result
+4. Serde deserialization fails silently
+5. HTTP endpoint returns 400 "Internal error"
+6. Integration tests fail mysteriously
+
+#### The Solution
+
+**Add `ViewFieldSelector` constraint and use explicit field selection:**
+
+```rust
+// ✅ CORRECT - Use ViewFieldSelector and select specific fields
+async fn get_by_posts<T: for<'de> serde::Deserialize<'de> + ViewFieldSelector>(
+    &self,
+    posts: Vec<Thing>,
+    user: Thing,
+) -> Result<Vec<T>, surrealdb::Error> {
+    let fields = T::get_select_query_fields();  // Get fields from view model
+    let query = format!("
+        SELECT {fields} FROM {TASK_REQUEST_TABLE_NAME}
+        WHERE belongs_to IN $posts
+    ");
+
+    let mut res = self.client.query(query).bind(("posts", posts)).await?;
+    Ok(res.take::<Vec<T>>(0)?)
+}
+```
+
+**And update the interface:**
+
+```rust
+// Interface - add ViewFieldSelector constraint
+#[async_trait]
+pub trait TaskRequestRepositoryInterface: RepositoryCore {
+    async fn get_by_posts<T: for<'de> serde::Deserialize<'de> + ViewFieldSelector>(
+        &self,
+        posts: Vec<Thing>,
+        user: Thing,
+    ) -> Result<Vec<T>, surrealdb::Error>;
+}
+```
+
+#### The Rule
+
+**For repository methods that return view models:**
+
+1. ❌ Never use `SELECT *` for methods that return views
+2. ✅ Always add `ViewFieldSelector` constraint to generic type `T`
+3. ✅ Always call `T::get_select_query_fields()` to get proper field selection
+4. ✅ Use the fields in your `SELECT {fields}` query
+
+**When to apply this:**
+
+```rust
+// ✅ Apply to methods returning view models
+async fn get_by_posts<T: ViewFieldSelector>(...) -> Result<Vec<T>, ...>
+async fn get_by_creator<T: ViewFieldSelector>(...) -> Result<Vec<T>, ...>
+async fn get_by_user<T: ViewFieldSelector>(...) -> Result<Vec<T>, ...>
+
+// ✅ Apply to methods returning custom views
+async fn get_with_details<T: ViewFieldSelector>(...) -> Result<T, ...>
+
+// ❌ Don't apply to methods returning entities (not views)
+async fn get_entity(&self, id: &str) -> Result<MyEntity, ...>  // Entity, not view
+```
+
+#### How View Models Define Fields
+
+View models implement `ViewFieldSelector` to specify their required fields and joins:
+
+```rust
+// Example from src/models/view/task.rs
+impl ViewFieldSelector for TaskRequestView {
+    fn get_select_query_fields() -> String {
+        "id,
+        due_at,
+        created_at,
+        delivery_period,
+        acceptance_period,
+        wallet_id,
+        belongs_to,
+        currency,
+        status,
+        type,
+        request_txt,
+        created_by.* as created_by,
+        ->task_participant.{ user: out.*, status, timelines, result } as participants,
+        ->task_donor.{id, user: out.*, amount: transaction.amount_out} as donors"
+            .to_string()
+    }
+}
+```
+
+This ensures:
+- All needed fields are selected
+- Joins are performed (e.g., `->task_participant`)
+- Related records are fetched (e.g., `user: out.*`)
+- Complex nested data is structured correctly
+
+#### How to Prevent This
+
+**Step 1: Identify view-returning methods**
+
+When migrating repository methods, identify which ones return view models:
+
+```rust
+// In old entity service
+pub async fn get_tasks_by_post(&self, post_id: &str) -> Vec<TaskView> { ... }
+//                                                          ^^^^^^^^ View model!
+```
+
+**Step 2: Add ViewFieldSelector constraint**
+
+```rust
+// In new repository interface
+async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    &self,
+    posts: Vec<Thing>,
+    user: Thing,
+) -> Result<Vec<T>, surrealdb::Error>;
+```
+
+**Step 3: Use field selection in implementation**
+
+```rust
+// In repository implementation
+async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    &self,
+    posts: Vec<Thing>,
+    user: Thing,
+) -> Result<Vec<T>, surrealdb::Error> {
+    let fields = T::get_select_query_fields();  // ✅ Get fields from view
+
+    let query = format!("
+        SELECT {fields} FROM {TABLE_NAME}  -- ✅ Use {fields}, not *
+        WHERE belongs_to IN $posts
+    ");
+
+    let mut res = self.client.query(query).bind(("posts", posts)).await?;
+    Ok(res.take::<Vec<T>>(0)?)
+}
+```
+
+**Step 4: Apply to all view-returning methods**
+
+Common methods that need this pattern:
+- `get_by_posts` - Gets tasks by post IDs
+- `get_by_creator` - Gets tasks created by user
+- `get_by_user` - Gets tasks for user participation
+- `get_by_public_disc` - Gets tasks in public discussion
+- `get_by_private_disc` - Gets tasks in private discussion
+- Any method with generic `<T>` that returns view models
+
+#### Debugging ViewFieldSelector Issues
+
+**Symptoms:**
+- Integration tests fail with "Internal error" 400 responses
+- Unit tests pass
+- Error occurs when fetching data via HTTP endpoints
+- No clear error message about what's wrong
+
+**How to debug:**
+
+**Step 1: Check if method has ViewFieldSelector constraint**
+
+```bash
+# Find methods returning generic T
+rg "async fn.*<T.*Deserialize" --type rust src/database/repositories/
+
+# Check if they have ViewFieldSelector
+rg "ViewFieldSelector" --type rust src/interfaces/repositories/
+```
+
+**Step 2: Check if query uses SELECT ***
+
+```bash
+# Find SELECT * queries in repositories
+rg "SELECT \* FROM" --type rust src/database/repositories/
+```
+
+**Step 3: Add ViewFieldSelector and field selection**
+
+For each method found:
+
+1. Add `+ ViewFieldSelector` to the type constraint
+2. Add `let fields = T::get_select_query_fields();`
+3. Replace `SELECT *` with `SELECT {fields}`
+4. Update the interface to match
+
+**Step 4: Verify the fix**
+
+```bash
+# Full test suite to catch integration test issues
+cargo test
+```
+
+The integration tests should now pass because:
+- View models get all required fields
+- Joins are performed correctly
+- Deserialization succeeds with complete data
+
 ## Troubleshooting
 
 ### Issue: "Type annotations needed"
