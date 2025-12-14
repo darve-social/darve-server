@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::access::discussion::DiscussionAccess;
 use crate::entities::community::discussion_entity::{self, DiscussionType};
 use crate::entities::community::post_entity::PostType;
-use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
+use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::user_auth::local_user_entity::LocalUserDbService;
+use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -222,14 +223,9 @@ async fn get_tasks(
         return Err(AppError::Forbidden.into());
     }
 
-    let task_db_service = TaskRequestDbService {
-        ctx: &auth_data.ctx,
-        db: &state.db.client,
-    };
-
     let tasks = match disc.r#type {
         DiscussionType::Private => {
-            task_db_service
+            state.db.task_request
                 .get_by_private_disc::<TaskRequestView>(
                     &disc.id.id.to_raw(),
                     &user.id.as_ref().unwrap().id.to_raw(),
@@ -238,10 +234,11 @@ async fn get_tasks(
                     None,
                     None,
                 )
-                .await?
+                .await
+                .map_err(|e| AppError::SurrealDb { source: e.to_string() })?
         }
         DiscussionType::Public => {
-            task_db_service
+            state.db.task_request
                 .get_by_public_disc::<TaskRequestView>(
                     &disc.id.id.to_raw(),
                     &user.id.as_ref().unwrap().id.to_raw(),
@@ -250,7 +247,8 @@ async fn get_tasks(
                     None,
                     None,
                 )
-                .await?
+                .await
+                .map_err(|e| AppError::SurrealDb { source: e.to_string() })?
         }
     };
 
@@ -262,10 +260,11 @@ async fn create_task(
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
-) -> CtxResult<Json<TaskRequest>> {
+) -> CtxResult<Json<TaskRequestEntity>> {
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,

@@ -4,7 +4,7 @@ use crate::{
         resource::Resource, role::Role,
     },
     entities::{
-        task::task_request_entity::TaskRequestType, user_auth::local_user_entity::LocalUser,
+        task_request::TaskRequestType, user_auth::local_user_entity::LocalUser,
     },
     models::view::access::TaskAccessView,
 };

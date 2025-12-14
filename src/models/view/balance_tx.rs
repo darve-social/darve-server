@@ -1,4 +1,4 @@
-use crate::entities::task::task_request_entity::{TaskRequest, TABLE_NAME as TASK_TABLE_NAME};
+use crate::entities::task_request::{TaskRequestEntity};
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 
@@ -58,5 +58,5 @@ impl ViewFieldSelector for CurrencyTransactionView {
 pub struct WalletView {
     pub id: Thing,
     pub user: Option<UserView>,
-    pub task: Option<TaskRequest>,
+    pub task: Option<TaskRequestEntity>,
 }

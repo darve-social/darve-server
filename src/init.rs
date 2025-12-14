@@ -29,7 +29,6 @@ use axum::{
 };
 use entities::community::discussion_entity::DiscussionDbService;
 use entities::community::post_entity::PostDbService;
-use entities::task::task_request_entity::TaskRequestDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
@@ -90,9 +89,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    TaskRequestDbService { db: &db, ctx: &c }
-        .mutate_db()
-        .await?;
     WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()

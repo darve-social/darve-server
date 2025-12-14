@@ -3,7 +3,7 @@ use crate::entities::community::post_entity::PostType;
 use crate::entities::community::{
     discussion_entity::TABLE_NAME as DISC_TABLE_NAME, post_entity::TABLE_NAME as POST_TABLE_NAME,
 };
-use crate::entities::task::task_request_entity::TaskRequestType;
+use crate::entities::task_request::TaskRequestType;
 use crate::entities::{access_user::AccessUser, community::discussion_entity::DiscussionType};
 use crate::middleware::utils::db_utils::{ViewFieldSelector, ViewRelateField};
 use serde::{Deserialize, Serialize};

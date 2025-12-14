@@ -8,11 +8,13 @@ use crate::database::repositories::post_user::PostUserRepository;
 use crate::database::repositories::reply::RepliesRepository;
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 use crate::database::repositories::user_nicknames::NicknamesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::repository_impl::Repository;
 use crate::database::repository_traits::RepositoryConn;
+use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::verification_code::VerificationCodeEntity;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
@@ -36,6 +38,7 @@ pub struct DbConfig<'a> {
 pub struct Database {
     pub client: Arc<Surreal<Any>>,
     pub verification_code: Repository<VerificationCodeEntity>,
+    pub task_request: Repository<TaskRequestEntity>,
     pub user_notifications: UserNotificationsRepository,
     pub task_donors: TaskDonorsRepository,
     pub task_participants: TaskParticipantsRepository,
@@ -77,6 +80,10 @@ impl Database {
                 client.clone(),
                 VERIFICATION_CODE_TABLE_NAME.to_string(),
             ),
+            task_request: Repository::<TaskRequestEntity>::new(
+                client.clone(),
+                TASK_REQUEST_TABLE_NAME.to_string(),
+            ),
             user_notifications: UserNotificationsRepository::new(client.clone()),
             task_donors: TaskDonorsRepository::new(client.clone()),
             task_participants: TaskParticipantsRepository::new(client.clone()),
@@ -93,6 +100,7 @@ impl Database {
 
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         self.verification_code.mutate_db().await?;
+        self.task_request.mutate_db().await?;
         self.user_notifications.mutate_db().await?;
         self.task_donors.mutate_db().await?;
         self.task_participants.mutate_db().await?;
