@@ -1,6 +1,4 @@
-use crate::database::repository_traits::EntityWithId;
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
-use crate::utils::validate_utils::{deserialize_thing_or_string_id};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -9,8 +7,8 @@ use surrealdb::sql::Thing;
 /// TaskRequest entity - represents a task with rewards
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskRequestEntity {
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    pub id: String,
+    // #[serde(deserialize_with = "deserialize_thing_or_string_id")]
+    pub id: Thing,
 
     // Polymorphic reference - can point to discussion or post
     pub belongs_to: Thing,
@@ -35,15 +33,6 @@ pub struct TaskRequestEntity {
 
     pub status: TaskRequestStatus,
     pub due_at: DateTime<Utc>,
-}
-
-impl EntityWithId for TaskRequestEntity {
-    fn id_str(&self) -> Option<&str> {
-        match self.id.is_empty() {
-            true => None,
-            false => Some(self.id.as_ref()),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]

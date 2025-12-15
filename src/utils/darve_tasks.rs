@@ -78,7 +78,9 @@ impl DarveTasksUtils {
         let _lock = self.create_public_lock.lock().await;
         let darve_id = self.get_darve_profile_id().await?;
 
-        let super_tasks = self.db.task_request
+        let super_tasks = self
+            .db
+            .task_request
             .get_by_public_disc::<TaskRequestView>(
                 &darve_id,
                 &user_id,
@@ -94,7 +96,9 @@ impl DarveTasksUtils {
             return Ok(super_tasks);
         }
 
-        let last_super_task = self.db.task_request
+        let last_super_task = self
+            .db
+            .task_request
             .get_by_public_disc::<TaskContentView>(
                 &darve_id,
                 &user_id,
@@ -161,9 +165,7 @@ impl DarveTasksUtils {
             )
             .await?;
 
-        let task_view = task_service
-            .get(user_id, &format!("task_request:{}", task.id))
-            .await?;
+        let task_view = task_service.get(user_id, &task.id.to_raw()).await?;
 
         Ok(vec![task_view])
     }
@@ -175,7 +177,9 @@ impl DarveTasksUtils {
     ) -> AppResult<Vec<TaskRequestView>> {
         let darve_id = self.get_darve_profile_id().await?;
 
-        let weekly_tasks = self.db.task_request
+        let weekly_tasks = self
+            .db
+            .task_request
             .get_by_public_disc::<TaskRequestView>(
                 &darve_id,
                 &user_id,
@@ -192,7 +196,9 @@ impl DarveTasksUtils {
         }
 
         let disc = Thing::from((DISC_TABLE_NAME, darve_id.as_str()));
-        let tasks_content = self.db.task_request
+        let tasks_content = self
+            .db
+            .task_request
             .get_by_user_and_disc::<TaskContentView>(
                 &user_id,
                 &disc.id.to_raw(),
@@ -241,11 +247,7 @@ impl DarveTasksUtils {
                     },
                 )
                 .await?;
-            tasks.push(
-                task_service
-                    .get(user_id, &format!("task_request:{}", task.id))
-                    .await?,
-            );
+            tasks.push(task_service.get(user_id, &task.id.to_raw()).await?);
         }
 
         Ok(tasks)

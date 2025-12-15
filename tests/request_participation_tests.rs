@@ -122,7 +122,7 @@ test_with_server!(
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.donors.get(0).unwrap();
 
-        assert_eq!(format!("task_request:{}", created_task.id), task.id.to_raw());
+        assert_eq!(created_task.id.to_raw(), task.id.to_raw());
 
         assert_eq!(offer0.amount.clone(), user2_offer_amt as i64);
         assert_eq!(task.created_by.username, username2);

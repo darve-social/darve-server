@@ -984,13 +984,11 @@ where
         let task: Option<TaskRequestEntity> = res.take(0)?;
         let task = task.unwrap();
 
-        let task_thing = Thing::from((TASK_REQUEST_TABLE_NAME, task.id.as_str()));
-
         if !participant_ids.is_empty() {
             self.access_repository
                 .add(
                     participant_ids,
-                    [task_thing.clone()].to_vec(),
+                    [task.id.clone()].to_vec(),
                     Role::Candidate.to_string(),
                 )
                 .await?;
@@ -1000,7 +998,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task_thing.clone()].to_vec(),
+                    [task.id.clone()].to_vec(),
                     Role::Donor.to_string(),
                 )
                 .await?;
@@ -1012,7 +1010,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task_thing.clone()].to_vec(),
+                    [task.id.clone()].to_vec(),
                     Role::Owner.to_string(),
                 )
                 .await?;
