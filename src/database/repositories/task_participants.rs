@@ -30,7 +30,7 @@ impl TaskParticipantsRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let table_name = self.table_name;
         let sql = format!("
-        DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+        DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_REQUEST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
         DEFINE FIELD IF NOT EXISTS timelines    ON {table_name} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {table_name} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {table_name} FLEXIBLE TYPE option<object>;

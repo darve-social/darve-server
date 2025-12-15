@@ -33,12 +33,12 @@ impl ViewFieldSelector for CurrencyTransactionView {
             "id,
             wallet.{{ 
                 id,
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
                 user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
             }} as wallet,
             with_wallet.{{ 
                 id,
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
                 user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
             }} as with_wallet,
         balance,
