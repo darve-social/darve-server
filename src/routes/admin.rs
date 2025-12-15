@@ -27,6 +27,7 @@ async fn get_tasks(
         .darve_tasks
         .create_public(&user_id, &state.event_sender)
         .await?;
+
     let weekly_tasks = state
         .darve_tasks
         .create_private(&user_id, &state.event_sender)

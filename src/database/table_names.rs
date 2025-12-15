@@ -7,3 +7,5 @@ pub const REPLY_TABLE_NAME: &'static str = "reply";
 pub const POST_USER_TABLE_NAME: &'static str = "post_user";
 pub const DISC_USER_TABLE_NAME: &'static str = "discussion_user";
 pub const NICKNAME_TABLE_NAME: &'static str = "nickname";
+pub const DELIVERY_RESULT_TABLE_NAME: &'static str = "delivery_result";
+pub const TASK_PARTICIPANT_TABLE_NAME: &'static str = "task_participant";

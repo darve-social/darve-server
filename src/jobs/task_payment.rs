@@ -28,6 +28,7 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
                     &state.event_sender,
                     &state.db.user_notifications,
                 ),
+                &state.db.delivery_result,
             );
 
             if let Err(err) = task_service.distribute_expired_tasks_rewards().await {

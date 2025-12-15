@@ -4,7 +4,7 @@ use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
 use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
-use darve_server::entities::task::task_request_entity::TaskRequest;
+use darve_server::entities::task_request::TaskRequestEntity;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::models::view::reply::ReplyView;
 use darve_server::services::discussion_service::CreateDiscussion;
@@ -264,16 +264,16 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
         .add_header("Cookie", format!("jwt={}", user_token))
         .add_header("Accept", "application/json")
         .await;
-    let task_id = task_response.json::<TaskRequest>().id.unwrap().to_raw();
+    let task = task_response.json::<TaskRequestEntity>();
 
     server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/{}/accept", task.id.to_raw()))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
     server
-        .post(&format!("/api/tasks/{}/deliver", task_id))
+        .post(&format!("/api/tasks/{}/deliver", task.id.to_raw()))
         .json(&json!({"post_id": delivery_post.id}))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .add_header("Accept", "application/json")

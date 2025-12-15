@@ -52,7 +52,7 @@ impl ViewFieldSelector for PostView {
 }
 
 impl ViewRelateField for PostView {
-    fn get_fields() -> &'static str {
+    fn get_fields() -> String {
         "id,
         created_by: created_by.*, 
         title, 
@@ -67,6 +67,7 @@ impl ViewRelateField for PostView {
         likes_nr,
         users: <-has_access.*,
         liked_by: <-like[WHERE in=$user].in"
+            .to_string()
     }
 }
 
@@ -83,8 +84,8 @@ impl ViewFieldSelector for PostUsersView {
 }
 
 impl ViewRelateField for PostUsersView {
-    fn get_fields() -> &'static str {
-        "id, users: <-has_access.{ user: in.*, role, created_at }"
+    fn get_fields() -> String {
+        "id, users: <-has_access.{ user: in.*, role, created_at }".to_string()
     }
 }
 
@@ -127,7 +128,7 @@ impl ViewFieldSelector for LatestPostView {
 }
 
 impl ViewRelateField for LatestPostView {
-    fn get_fields() -> &'static str {
+    fn get_fields() -> String {
         "id,
         created_by: created_by.*, 
         title, 
@@ -138,5 +139,6 @@ impl ViewRelateField for LatestPostView {
         updated_at,
         belongs_to,
         users_status: ->post_user.*"
+            .to_string()
     }
 }

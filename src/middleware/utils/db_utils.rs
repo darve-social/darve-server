@@ -171,7 +171,7 @@ pub trait ViewFieldSelector {
 }
 
 pub trait ViewRelateField {
-    fn get_fields() -> &'static str;
+    fn get_fields() -> String;
 }
 
 // TODO -move db specific things to /database- (remove queries after we replace with new services and interfaces and they are not used in old dbservices)

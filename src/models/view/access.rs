@@ -41,8 +41,8 @@ impl ViewFieldSelector for DiscussionAccessView {
 }
 
 impl ViewRelateField for DiscussionAccessView {
-    fn get_fields() -> &'static str {
-        "id, type, created_by, users: <-has_access.*"
+    fn get_fields() -> String {
+        "id, type, created_by, users: <-has_access.*".to_string()
     }
 }
 

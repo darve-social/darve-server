@@ -147,6 +147,7 @@ impl DarveTasksUtils {
                 &sender_event,
                 &self.db.user_notifications,
             ),
+            &self.db.delivery_result,
         );
 
         let acceptance_period = self.seconds_until_end_of_week();
@@ -226,6 +227,7 @@ impl DarveTasksUtils {
                 &sender_event,
                 &self.db.user_notifications,
             ),
+            &self.db.delivery_result,
         );
 
         for task in random_tasks {

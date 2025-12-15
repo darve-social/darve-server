@@ -35,18 +35,10 @@ pub struct TaskParticipant {
     pub status: TaskParticipantStatus,
     #[serde(default)]
     pub timelines: Vec<TaskParticipantTimeline>,
-    pub result: Option<TaskParticipantResult>,
-    pub reward_tx: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskParticipantTimeline {
     pub status: TaskParticipantStatus,
     pub date: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskParticipantResult {
-    pub urls: Option<Vec<String>>,
-    pub post: Option<String>,
 }
