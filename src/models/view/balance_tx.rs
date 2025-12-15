@@ -10,6 +10,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct CurrencyTransactionView {
