@@ -1,5 +1,6 @@
 use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::community::discussion_entity::DiscussionType;
+use crate::middleware::error::AppResult;
 use crate::middleware::utils::db_utils::{Pagination, ViewRelateField};
 use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{QryOrder, ViewFieldSelector};
@@ -280,6 +281,24 @@ impl<'a> PostDbService<'a> {
 
         let posts = res.take::<Vec<PostView>>((0, "entity"))?;
         Ok(posts)
+    }
+
+    pub async fn delete(&self, post_id: &str) -> AppResult<()> {
+        let _ = self
+            .db
+            .query("BEGIN TRANSACTION;")
+            .query("LET $reply_ids = (SELECT VALUE id FROM reply WHERE belongs_to = $post);")
+            .query("DELETE reply WHERE belongs_to IN $reply_ids;")
+            .query("DELETE reply WHERE belongs_to = $post;")
+            .query("DELETE $post WHERE tasks_nr = 0;")
+            .query("COMMIT TRANSACTION;")
+            .bind(("post", Thing::from((TABLE_NAME, post_id))))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .check();
+        Ok(())
     }
 
     pub async fn create(&self, data: CreatePost) -> CtxResult<Post> {
