@@ -109,7 +109,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -159,7 +159,10 @@ test_with_server!(
 
         delivered_response.assert_status_success();
 
-        let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+        let task_thing = Thing::from((
+            "task_request",
+            task_id.strip_prefix("task_request:").unwrap(),
+        ));
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -192,7 +195,10 @@ test_with_server!(
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 33);
-        let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+        let task_thing = Thing::from((
+            "task_request",
+            task_id.strip_prefix("task_request:").unwrap(),
+        ));
         let task = get_task_view(task_thing, &state.db.client).await;
         assert_eq!(task.status, TaskRequestStatus::Completed);
         assert_eq!(task.balance, 1);
@@ -257,7 +263,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -291,7 +297,10 @@ test_with_server!(
 
         delivered_response.assert_status_success();
 
-        let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+        let task_thing = Thing::from((
+            "task_request",
+            task_id.strip_prefix("task_request:").unwrap(),
+        ));
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -359,15 +368,17 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
-
+    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", ptoken))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+    let task_thing = Thing::from((
+        "task_request",
+        task_id.strip_prefix("task_request:").unwrap(),
+    ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -427,7 +438,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
     let (server, donor1, _, donor1_token) = create_fake_login_test_user(&server).await;
     let donor1_amount = 100;
@@ -457,7 +468,10 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+    let task_thing = Thing::from((
+        "task_request",
+        task_id.strip_prefix("task_request:").unwrap(),
+    ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -526,7 +540,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
     let (server, donor1, _, donor1_token) = create_fake_login_test_user(&server).await;
     let donor1_amount = 100;
@@ -619,7 +633,10 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+    let task_thing = Thing::from((
+        "task_request",
+        task_id.strip_prefix("task_request:").unwrap(),
+    ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -720,7 +737,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
         let (server, donor1, _, donor1_token) = create_fake_login_test_user(&server).await;
         let donor1_amount = 100;
         let endow_user_response = server
@@ -758,7 +775,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
-        let task_thing = Thing::from(("task_request", task_id.strip_prefix("task_request:").unwrap()));
+        let task_thing = Thing::from((
+            "task_request",
+            task_id.strip_prefix("task_request:").unwrap(),
+        ));
         wait_for(task_thing.clone(), &state.db.client).await;
 
         let wallet_service = WalletDbService {
@@ -829,7 +849,7 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
         .await;
     task_request.assert_status_success();
 
-    let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
@@ -900,7 +920,7 @@ test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
         .await;
     task_request.assert_status_success();
 
-    let task_id = format!("task_request:{}", task_request.json::<TaskRequestEntity>().id);
+    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
