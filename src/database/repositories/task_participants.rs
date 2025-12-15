@@ -1,11 +1,9 @@
 use super::super::table_names::{DELIVERY_RESULT_TABLE_NAME, TASK_PARTICIPANT_TABLE_NAME};
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
+use crate::entities::task_request_user::TaskParticipant;
 use crate::{
     database::client::Db,
-    entities::{
-        task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
-        task_request_user::TaskParticipant,
-        user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
-    },
+    entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
     interfaces::repositories::task_participants::TaskParticipantsRepositoryInterface,
     middleware::{
         error::AppError,
@@ -28,7 +26,7 @@ impl TaskParticipantsRepository {
 
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-        DEFINE TABLE IF NOT EXISTS {TASK_PARTICIPANT_TABLE_NAME} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+        DEFINE TABLE IF NOT EXISTS {TASK_PARTICIPANT_TABLE_NAME} TYPE RELATION IN {TASK_REQUEST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
         DEFINE FIELD IF NOT EXISTS timelines    ON {TASK_PARTICIPANT_TABLE_NAME} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {TASK_PARTICIPANT_TABLE_NAME} TYPE string;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {TASK_PARTICIPANT_TABLE_NAME} FIELDS status;
@@ -64,7 +62,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
                 status=$_task_participant_status", TASK_PARTICIPANT_TABLE_NAME))
 
             .bind(("_task_participant_user_ids", users))
-            .bind(("_task_participant_task_id", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("_task_participant_task_id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("_task_participant_status", status.to_string()))
     }
 
@@ -101,7 +99,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .client
             .query(sql)
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("status", status.to_string()))
             .await
             .map_err(|e| e.to_string())?;
@@ -156,7 +154,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         let mut res = self
             .client
             .query(sql)
-            .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .await
             .map_err(|e| e.to_string())?;
 

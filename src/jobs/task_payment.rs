@@ -17,6 +17,7 @@ pub async fn run(state: Arc<CtxState>, delay: Duration) -> JoinHandle<()> {
             let task_service = TaskService::new(
                 &state.db.client,
                 &ctx,
+                &state.db.task_request,
                 &state.db.task_donors,
                 &state.db.task_participants,
                 &state.db.access,

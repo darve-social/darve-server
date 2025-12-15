@@ -12,7 +12,7 @@ use darve_server::{
             post_entity::{Post, PostDbService},
         },
         tag::SystemTags,
-        task::task_request_entity::TaskRequest,
+        task_request::TaskRequestEntity,
         task_request_user::TaskParticipantStatus,
         wallet::wallet_entity::{CurrencySymbol, WalletDbService},
     },
@@ -110,10 +110,10 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -178,24 +178,24 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_forbidden();
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
@@ -246,16 +246,16 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/reject", task_id))
+            .post(&format!("/api/tasks/task_request:{}/reject", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -289,10 +289,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -307,7 +307,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -315,7 +315,7 @@ test_with_server!(
         delivered_response.assert_status_success();
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -350,10 +350,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -388,10 +388,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await;
@@ -423,10 +423,10 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/reject", task_id))
+        .post(&format!("/api/tasks/task_request:{}/reject", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -456,10 +456,10 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/reject", task_id))
+        .post(&format!("/api/tasks/task_request:{}/reject", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -504,10 +504,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -522,7 +522,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw()}))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -530,7 +530,7 @@ test_with_server!(
         delivered_response.assert_status_success();
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/reject", task_id))
+            .post(&format!("/api/tasks/task_request:{}/reject", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -565,10 +565,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/reject", task_id))
+            .post(&format!("/api/tasks/task_request:{}/reject", task_id))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await;
@@ -600,10 +600,10 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -618,7 +618,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .json::<PostView>();
 
     let delivered_response = server
-        .post(&format!("/api/tasks/{}/deliver", task_id))
+        .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
         .json(&json!({"post_id": deliver_post.id.to_raw() }))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -675,10 +675,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let response = server
-            .post(&format!("/api/tasks/{}/reject", task_id))
+            .post(&format!("/api/tasks/task_request:{}/reject", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -693,7 +693,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -728,7 +728,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
         let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
         let deliver_post = server
             .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
@@ -739,7 +739,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -775,7 +775,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let disc = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
         let deliver_post = server
@@ -787,7 +787,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
@@ -825,9 +825,9 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     task_request.assert_status_success();
 
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
     let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -845,9 +845,9 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .await;
     task_request.assert_status_success();
 
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
     let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await;
@@ -876,10 +876,10 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let response = server
-        .post(&format!("/api/tasks/{}/reject", task_id))
+        .post(&format!("/api/tasks/task_request:{}/reject", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -972,17 +972,17 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let _ = state
         .db
         .client
         .query("UPDATE $id SET acceptance_period=0;")
-        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .bind(("id", get_str_thing(&format!("task_request:{}", task_id)).unwrap()))
         .await;
 
     let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -1019,10 +1019,10 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -1032,11 +1032,11 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
-        .bind(("id", get_str_thing(&task_id).unwrap()))
+        .bind(("id", get_str_thing(&format!("task_request:{}", task_id)).unwrap()))
         .await;
 
     let response = server
-        .post(&format!("/api/tasks/{}/deliver", task_id))
+        .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
         .json(&json!({"post_id":  deliver_post.id}))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -1072,7 +1072,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -1087,7 +1087,7 @@ test_with_server!(
         assert_eq!(balance.balance_usd, 0);
 
         let participate_response = server
-            .post(&format!("/api/tasks/{}/donor", task_id))
+            .post(&format!("/api/tasks/task_request:{}/donor", task_id))
             .json(&json!({
                 "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
@@ -1139,7 +1139,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
         let endow_user_response = server
@@ -1150,7 +1150,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let participate_response = server
-            .post(&format!("/api/tasks/{}/donor", task_id))
+            .post(&format!("/api/tasks/task_request:{}/donor", task_id))
             .add_header("Cookie", format!("jwt={}", user1_token))
             .json(&json!({
                 "amount": 100,
@@ -1220,12 +1220,12 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let (server, _, _, user1_token) = create_fake_login_test_user(&server).await;
 
     let participate_response = server
-        .post(&format!("/api/tasks/{}/accept", task_id))
+        .post(&format!("/api/tasks/task_request:{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .add_header("Accept", "application/json")
         .await;
@@ -1259,7 +1259,7 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .await;
 
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequest>().id.unwrap();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let task_request = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -1278,7 +1278,7 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET due_at=time::now();")
-        .bind(("id", task_id))
+        .bind(("id", get_str_thing(&format!("task_request:{}", task_id)).unwrap()))
         .await;
 
     let get_response = server
@@ -1322,10 +1322,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1347,7 +1347,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -1413,10 +1413,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1438,7 +1438,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -1681,10 +1681,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequest>().id.unwrap().to_raw();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
 
         let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
+            .post(&format!("/api/tasks/task_request:{}/accept", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
             .await;
@@ -1699,7 +1699,7 @@ test_with_server!(
             .json::<PostView>();
 
         let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
+            .post(&format!("/api/tasks/task_request:{}/deliver", task_id))
             .json(&json!({"post_id": deliver_post.id.to_raw() }))
             .add_header("Cookie", format!("jwt={}", token0))
             .add_header("Accept", "application/json")
@@ -1754,28 +1754,28 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task = task_request.json::<TaskRequest>();
-    let task_id = task.id.as_ref().unwrap().to_raw();
+    let task = task_request.json::<TaskRequestEntity>();
+    let task_id = &task.id;
     let get_task_response = server
-        .get(&format!("/api/tasks/{}", task_id))
+        .get(&format!("/api/tasks/task_request:{}", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id, task.id.unwrap());
+    assert_eq!(task_view.id.to_raw(), format!("task_request:{}", task.id));
 
     let get_task_response = server
-        .get(&format!("/api/tasks/{}", task_id))
+        .get(&format!("/api/tasks/task_request:{}", task_id))
         .add_header("Cookie", format!("jwt={}", token2))
         .add_header("Accept", "application/json")
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id, get_str_thing(&task_id).unwrap());
+    assert_eq!(task_view.id, get_str_thing(&format!("task_request:{}", task_id)).unwrap());
 
     let get_task_response = server
-        .get(&format!("/api/tasks/{}", task_id))
+        .get(&format!("/api/tasks/task_request:{}", task_id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await;

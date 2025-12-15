@@ -1,6 +1,7 @@
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
     database::client::Db,
+    database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME,
     entities::{
         self,
         access_user::AccessUser,
@@ -9,12 +10,11 @@ use crate::{
             post_entity::{PostDbService, PostType},
         },
         tag::SystemTags,
-        task::task_request_entity::{
-            DeliverableType, RewardType, TaskForReward, TaskParticipantForReward, TaskRequest,
-            TaskRequestCreate, TaskRequestDbService, TaskRequestStatus, TaskRequestType,
-            TABLE_NAME as TASK_TABLE_NAME,
-        },
         task_donor::TaskDonor,
+        task_request::{
+            DeliverableType, RewardType, TaskForReward, TaskParticipantForReward,
+            TaskRequestCreate, TaskRequestEntity, TaskRequestStatus, TaskRequestType,
+        },
         task_request_user::{TaskParticipant, TaskParticipantStatus},
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
@@ -26,6 +26,7 @@ use crate::{
         access::AccessRepositoryInterface, delivery_result::DeliveryResultRepositoryInterface,
         tags::TagsRepositoryInterface, task_donors::TaskDonorsRepositoryInterface,
         task_participants::TaskParticipantsRepositoryInterface,
+        task_request_ifce::TaskRequestRepositoryInterface,
         user_notifications::UserNotificationsInterface,
     },
     middleware::{
@@ -108,8 +109,9 @@ pub struct TaskRequestInput {
     pub delivery_period: Option<u64>,
 }
 
-pub struct TaskService<'a, T, N, P, A, TG, DR>
+pub struct TaskService<'a, TR, T, N, P, A, TG, DR>
 where
+    TR: TaskRequestRepositoryInterface,
     T: TaskParticipantsRepositoryInterface,
     P: TaskDonorsRepositoryInterface,
     N: UserNotificationsInterface,
@@ -117,7 +119,7 @@ where
     TG: TagsRepositoryInterface,
     DR: DeliveryResultRepositoryInterface,
 {
-    tasks_repository: TaskRequestDbService<'a>,
+    tasks_repository: &'a TR,
     users_repository: LocalUserDbService<'a>,
     posts_repository: PostDbService<'a>,
     notification_service: NotificationService<'a, N>,
@@ -132,8 +134,9 @@ where
     db: &'a Db,
 }
 
-impl<'a, T, N, P, A, TG, DR> TaskService<'a, T, N, P, A, TG, DR>
+impl<'a, TR, T, N, P, A, TG, DR> TaskService<'a, TR, T, N, P, A, TG, DR>
 where
+    TR: TaskRequestRepositoryInterface,
     T: TaskParticipantsRepositoryInterface,
     N: UserNotificationsInterface,
     P: TaskDonorsRepositoryInterface,
@@ -144,6 +147,7 @@ where
     pub fn new(
         db: &'a Db,
         ctx: &'a Ctx,
+        tasks_repository: &'a TR,
         task_donors_repository: &'a P,
         task_participants_repository: &'a T,
         access_repository: &'a A,
@@ -152,7 +156,7 @@ where
         delivery_result_repository: &'a DR,
     ) -> Self {
         Self {
-            tasks_repository: TaskRequestDbService { db: &db, ctx: &ctx },
+            tasks_repository,
             users_repository: LocalUserDbService { db: &db, ctx: &ctx },
             posts_repository: PostDbService { db: &db, ctx: &ctx },
             transactions_repository: BalanceTransactionDbService { db: &db, ctx: &ctx },
@@ -170,11 +174,17 @@ where
 
     pub async fn get(&self, user_thing_id: &str, task_id: &str) -> AppResult<TaskRequestView> {
         let user = self.users_repository.get_by_id(user_thing_id).await?;
-        let task_thing = get_str_thing(&task_id)?;
+        let task_thing = get_str_thing(task_id)?;
         let task_view = self
             .tasks_repository
-            .get_by_id::<TaskAccessView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskAccessView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if !TaskAccess::new(&task_view).can_view(&user) {
             return Err(AppError::Forbidden);
@@ -182,8 +192,14 @@ where
 
         let task = self
             .tasks_repository
-            .get_by_id::<TaskRequestView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskRequestView>(&IdentIdName::Id(task_thing))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         Ok(task)
     }
@@ -193,7 +209,7 @@ where
         user_id: &str,
         post_id: &str,
         data: TaskRequestInput,
-    ) -> CtxResult<TaskRequest> {
+    ) -> CtxResult<TaskRequestEntity> {
         data.validate()?;
 
         let user = self.users_repository.get_by_id(user_id).await?;
@@ -279,7 +295,7 @@ where
         user_id: &str,
         disc_id: &str,
         data: TaskRequestInput,
-    ) -> CtxResult<TaskRequest> {
+    ) -> CtxResult<TaskRequestEntity> {
         data.validate()?;
 
         let user = self.users_repository.get_by_id(user_id).await?;
@@ -365,12 +381,18 @@ where
         donor_id: &str,
         data: TaskDonorData,
     ) -> AppResult<TaskDonor> {
-        let task_thing = get_str_thing(&task_id)?;
+        let task_thing = get_str_thing(task_id)?;
         let task_view = self
             .tasks_repository
-            .get_by_id::<TaskAccessView>(&task_thing)
-            .await?;
-        let donor_thing = get_str_thing(&donor_id)?;
+            .item_view_by_ident::<TaskAccessView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
+        let donor_thing = Thing::from(("local_user", donor_id));
         let donor = self
             .users_repository
             .get_by_id(&donor_thing.id.to_raw())
@@ -382,8 +404,14 @@ where
 
         let task = self
             .tasks_repository
-            .get_by_id::<TaskView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if task.status != TaskRequestStatus::Init || data.amount <= 0 {
             return Err(AppError::Forbidden.into());
@@ -488,11 +516,17 @@ where
     pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
         let user = self.users_repository.get_by_id(&user_id).await?;
 
-        let task_thing = get_str_thing(&task_id)?;
+        let task_thing = get_str_thing(task_id)?;
         let task_access_view = self
             .tasks_repository
-            .get_by_id::<TaskAccessView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskAccessView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if !TaskAccess::new(&task_access_view).can_reject(&user) {
             return Err(AppError::Forbidden);
@@ -500,8 +534,14 @@ where
 
         let task: TaskView = self
             .tasks_repository
-            .get_by_id::<TaskView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskView>(&IdentIdName::Id(task_thing))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         let task_user = task.participants.iter().find(|v| v.user == user_id);
 
@@ -534,13 +574,19 @@ where
     }
 
     pub async fn accept(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
-        let task_thing = get_str_thing(&task_id)?;
+        let task_thing = get_str_thing(task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task_view = self
             .tasks_repository
-            .get_by_id::<TaskAccessView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskAccessView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if !TaskAccess::new(&task_view).can_accept(&user) {
             return Err(AppError::Forbidden);
@@ -548,8 +594,14 @@ where
 
         let task = self
             .tasks_repository
-            .get_by_id::<TaskView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskView>(&IdentIdName::Id(task_thing))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if !self.can_still_use(task.created_at, Some(task.acceptance_period)) {
             return Err(AppError::Generic {
@@ -615,7 +667,10 @@ where
         if task.status != TaskRequestStatus::InProgress {
             self.tasks_repository
                 .update_status(task.id, TaskRequestStatus::InProgress)
-                .await?;
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?;
         }
         self.notification_service
             .on_accepted_task(&user, &task_view)
@@ -630,13 +685,19 @@ where
         task_id: &str,
         data: TaskDeliveryData,
     ) -> AppResult<TaskParticipant> {
-        let task_thing = get_str_thing(&task_id)?;
+        let task_thing = get_str_thing(task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
 
         let task_view = self
             .tasks_repository
-            .get_by_id::<TaskAccessView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskAccessView>(&IdentIdName::Id(task_thing.clone()))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         if !TaskAccess::new(&task_view).can_deliver(&user) {
             return Err(AppError::Forbidden);
@@ -651,8 +712,14 @@ where
 
         let task = self
             .tasks_repository
-            .get_by_id::<TaskView>(&task_thing)
-            .await?;
+            .item_view_by_ident::<TaskView>(&IdentIdName::Id(task_thing))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?
+            .ok_or(AppError::EntityFailIdNotFound {
+                ident: task_id.to_string(),
+            })?;
 
         let task_user = task
             .participants
@@ -713,7 +780,13 @@ where
     }
 
     pub(crate) async fn distribute_expired_tasks_rewards(&self) -> AppResult<()> {
-        let tasks = self.tasks_repository.get_ready_for_payment().await?;
+        let tasks = self
+            .tasks_repository
+            .get_ready_for_payment()
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
         join_all(tasks.into_iter().map(|t| self.process_reward(t))).await;
         Ok(())
     }
@@ -726,7 +799,10 @@ where
         let task = self
             .tasks_repository
             .get_ready_for_payment_by_id(task.id.clone())
-            .await?;
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
 
         let all_participants_completed = task.participants.iter().all(|u| {
             [
@@ -836,7 +912,7 @@ where
         data: TaskRequestInput,
         belongs_to: Thing,
         increase_tasks_nr_for_belongs: bool,
-    ) -> CtxResult<TaskRequest> {
+    ) -> CtxResult<TaskRequestEntity> {
         let offer_currency = CurrencySymbol::USD;
         let user_thing = user.id.as_ref().unwrap();
         let mut query = self.db.query("BEGIN");
@@ -855,7 +931,7 @@ where
                 .unwrap_or(self.default_period_seconds),
             delivery_period: data.delivery_period.unwrap_or(self.default_period_seconds),
             increase_tasks_nr_for_belongs,
-            task_id: Thing::from((TASK_TABLE_NAME, id.clone())),
+            task_id: Thing::from((TASK_REQUEST_TABLE_NAME, id.clone())),
             wallet_id: Thing::from((WALLET_TABLE_NAME, id)),
         };
 
@@ -905,14 +981,16 @@ where
 
         let mut res = query.query("RETURN $task;").query("COMMIT").await?;
         check_transaction_custom_error(&mut res)?;
-        let task: Option<TaskRequest> = res.take(0)?;
+        let task: Option<TaskRequestEntity> = res.take(0)?;
         let task = task.unwrap();
+
+        let task_thing = Thing::from((TASK_REQUEST_TABLE_NAME, task.id.as_str()));
 
         if !participant_ids.is_empty() {
             self.access_repository
                 .add(
                     participant_ids,
-                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    [task_thing.clone()].to_vec(),
                     Role::Candidate.to_string(),
                 )
                 .await?;
@@ -922,7 +1000,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    [task_thing.clone()].to_vec(),
                     Role::Donor.to_string(),
                 )
                 .await?;
@@ -934,7 +1012,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task.id.as_ref().unwrap().clone()].to_vec(),
+                    [task_thing.clone()].to_vec(),
                     Role::Owner.to_string(),
                 )
                 .await?;
