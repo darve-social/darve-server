@@ -130,7 +130,6 @@ where
     access_repository: &'a A,
     tags_repository: &'a TG,
     db: &'a Db,
-    // ctx: &'a Ctx,
 }
 
 impl<'a, TR, T, N, P, A, TG> TaskService<'a, TR, T, N, P, A, TG>
@@ -163,9 +162,8 @@ where
             default_period_seconds: 48 * 60 * 60,
             access_repository,
             tags_repository,
-            notification_service: notification_service,
-            db: db,
-            // ctx,
+            notification_service,
+            db,
         }
     }
 
