@@ -1,7 +1,7 @@
 use darve_server::{
     entities::{
         community::{community_entity::CommunityDbService, discussion_entity::DiscussionDbService},
-        task::task_request_entity::TaskRequestType,
+        task_request::TaskRequestType,
         user_auth::local_user_entity::{LocalUserDbService, UserRole},
     },
     middleware::ctx::Ctx,

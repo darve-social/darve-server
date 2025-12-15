@@ -1,7 +1,7 @@
-use crate::entities::task::task_request_entity::{self};
 use crate::entities::task_donor::TaskDonor;
 use crate::entities::task_request_user::{TaskParticipant, TaskParticipantStatus};
 use crate::entities::user_auth::local_user_entity;
+use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
@@ -12,13 +12,11 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use local_user_entity::LocalUserDbService;
-use middleware::ctx::Ctx;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use task_request_entity::TaskRequestDbService;
 use validator::Validate;
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -63,11 +61,6 @@ async fn user_requests_received(
     .get_ctx_user_thing()
     .await?;
 
-    let task_service = TaskRequestDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    };
-
     let pagination = Pagination {
         order_by: None,
         order_dir: query.order_dir,
@@ -75,9 +68,10 @@ async fn user_requests_received(
         start: query.start.unwrap_or(0),
     };
 
-    let list = task_service
+    let list = state.db.task_request
         .get_by_user::<TaskRequestView>(&user_id, query.status, query.is_ended, pagination)
-        .await?
+        .await
+        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?
         .into_iter()
         .map(|view| TaskViewForParticipant::from_view(view, &user_id))
         .collect::<Vec<TaskViewForParticipant>>();
@@ -110,12 +104,10 @@ async fn user_requests_given(
         count: query.count.unwrap_or(20),
         start: query.start.unwrap_or(0),
     };
-    let list = TaskRequestDbService {
-        db: &state.db.client,
-        ctx: &auth_data.ctx,
-    }
-    .get_by_creator::<TaskRequestView>(from_user, pagination)
-    .await?;
+    let list = state.db.task_request
+        .get_by_creator::<TaskRequestView>(from_user, pagination)
+        .await
+        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?;
     Ok(Json(list))
 }
 
@@ -127,6 +119,7 @@ async fn reject_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
@@ -155,6 +148,7 @@ async fn accept_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
@@ -184,6 +178,7 @@ async fn deliver_task_request(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
@@ -212,20 +207,21 @@ async fn deliver_task_request(
 
 async fn upsert_donor(
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
     JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Json<TaskDonor>> {
     let task_service = TaskService::new(
         &state.db.client,
-        &ctx,
+        &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
         &state.db.tags,
         NotificationService::new(
             &state.db.client,
-            &ctx,
+            &auth_data.ctx,
             &state.event_sender,
             &state.db.user_notifications,
         ),
@@ -235,7 +231,7 @@ async fn upsert_donor(
     let donor = task_service
         .upsert_donor(
             &task_id,
-            &ctx.user_id()?,
+            &auth_data.user_thing_id(),
             TaskDonorData {
                 amount: data.amount,
             },
@@ -253,6 +249,7 @@ async fn get_task(
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,

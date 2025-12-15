@@ -3,7 +3,7 @@ mod helpers;
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
     entities::{
-        community::discussion_entity::DiscussionDbService, task::task_request_entity::TaskRequest,
+        community::discussion_entity::DiscussionDbService, task_request::TaskRequestEntity,
     },
     middleware::utils::string_utils::get_string_thing,
     models::view::post::PostView,
@@ -65,12 +65,12 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await
-        .json::<TaskRequest>();
+        .json::<TaskRequestEntity>();
 
     server
         .post(&format!(
             "/api/tasks/{}/accept",
-            task.id.as_ref().unwrap().to_raw()
+            format!("task_request:{}", task.id)
         ))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
@@ -78,7 +78,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
         .assert_status_success();
 
     server
-        .post(&format!("/api/tasks/{}/deliver", task.id.as_ref().unwrap()))
+        .post(&format!("/api/tasks/{}/deliver", format!("task_request:{}", &task.id)))
         .json(&json!({"post_id": deliver.id }))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
@@ -156,19 +156,19 @@ test_with_server!(
             .add_header("Cookie", format!("jwt={}", token))
             .add_header("Accept", "application/json")
             .await
-            .json::<TaskRequest>();
+            .json::<TaskRequestEntity>();
 
         server
             .post(&format!(
                 "/api/tasks/{}/accept",
-                task.id.as_ref().unwrap().to_raw()
+                format!("task_request:{}", task.id)
             ))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
 
         server
-            .post(&format!("/api/tasks/{}/deliver", task.id.as_ref().unwrap()))
+            .post(&format!("/api/tasks/{}/deliver", format!("task_request:{}", &task.id)))
             .json(&json!({"post_id": deliver.id }))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
@@ -212,12 +212,12 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         .add_header("Cookie", format!("jwt={}", token))
         .add_header("Accept", "application/json")
         .await
-        .json::<TaskRequest>();
+        .json::<TaskRequestEntity>();
 
     server
         .post(&format!(
             "/api/tasks/{}/accept",
-            task.id.as_ref().unwrap().to_raw()
+            format!("task_request:{}", task.id)
         ))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
@@ -225,7 +225,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         .assert_status_success();
 
     server
-        .post(&format!("/api/tasks/{}/deliver", task.id.as_ref().unwrap()))
+        .post(&format!("/api/tasks/{}/deliver", format!("task_request:{}", &task.id)))
         .json(&json!({"post_id": deliver.id }))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")

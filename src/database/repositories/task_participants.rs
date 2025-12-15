@@ -15,6 +15,7 @@ use crate::{
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::{engine::any, method::Query, sql::Thing};
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 
 #[derive(Debug)]
 pub struct TaskParticipantsRepository {
@@ -64,7 +65,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
                 status=$_task_participant_status", TASK_PARTICIPANT_TABLE_NAME))
 
             .bind(("_task_participant_user_ids", users))
-            .bind(("_task_participant_task_id", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("_task_participant_task_id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("_task_participant_status", status.to_string()))
     }
 
@@ -101,7 +102,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .client
             .query(sql)
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("status", status.to_string()))
             .await
             .map_err(|e| e.to_string())?;

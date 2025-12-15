@@ -10,12 +10,13 @@ use crate::{
     database::client::Database,
     entities::{
         community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME,
-        task::task_request_entity::{TaskRequestDbService, TaskRequestType},
+        task_request::TaskRequestType,
         task_request_user::TaskParticipantStatus,
         user_auth::local_user_entity::{
             LocalUserDbService, UserRole, TABLE_NAME as USER_TABLE_NAME,
         },
     },
+    interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface,
     middleware::{
         ctx::Ctx,
         error::{AppError, AppResult},
@@ -77,12 +78,7 @@ impl DarveTasksUtils {
         let _lock = self.create_public_lock.lock().await;
         let darve_id = self.get_darve_profile_id().await?;
 
-        let task_repository = TaskRequestDbService {
-            db: &self.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), false),
-        };
-
-        let super_tasks = task_repository
+        let super_tasks = self.db.task_request
             .get_by_public_disc::<TaskRequestView>(
                 &darve_id,
                 &user_id,
@@ -98,7 +94,7 @@ impl DarveTasksUtils {
             return Ok(super_tasks);
         }
 
-        let last_super_task = task_repository
+        let last_super_task = self.db.task_request
             .get_by_public_disc::<TaskContentView>(
                 &darve_id,
                 &user_id,
@@ -136,6 +132,7 @@ impl DarveTasksUtils {
         let task_service = TaskService::new(
             &self.db.client,
             &self.ctx,
+            &self.db.task_request,
             &self.db.task_donors,
             &self.db.task_participants,
             &self.db.access,
@@ -165,7 +162,7 @@ impl DarveTasksUtils {
             .await?;
 
         let task_view = task_service
-            .get(user_id, &task.id.as_ref().unwrap().to_raw())
+            .get(user_id, &format!("task_request:{}", task.id))
             .await?;
 
         Ok(vec![task_view])
@@ -178,12 +175,7 @@ impl DarveTasksUtils {
     ) -> AppResult<Vec<TaskRequestView>> {
         let darve_id = self.get_darve_profile_id().await?;
 
-        let task_repository = TaskRequestDbService {
-            db: &self.db.client,
-            ctx: &self.ctx,
-        };
-
-        let weekly_tasks = task_repository
+        let weekly_tasks = self.db.task_request
             .get_by_public_disc::<TaskRequestView>(
                 &darve_id,
                 &user_id,
@@ -200,7 +192,7 @@ impl DarveTasksUtils {
         }
 
         let disc = Thing::from((DISC_TABLE_NAME, darve_id.as_str()));
-        let tasks_content = task_repository
+        let tasks_content = self.db.task_request
             .get_by_user_and_disc::<TaskContentView>(
                 &user_id,
                 &disc.id.to_raw(),
@@ -218,6 +210,7 @@ impl DarveTasksUtils {
         let task_service = TaskService::new(
             &self.db.client,
             &self.ctx,
+            &self.db.task_request,
             &self.db.task_donors,
             &self.db.task_participants,
             &self.db.access,
@@ -250,7 +243,7 @@ impl DarveTasksUtils {
                 .await?;
             tasks.push(
                 task_service
-                    .get(user_id, &task.id.as_ref().unwrap().to_raw())
+                    .get(user_id, &format!("task_request:{}", task.id))
                     .await?,
             );
         }
