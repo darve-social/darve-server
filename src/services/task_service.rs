@@ -790,7 +790,7 @@ where
                         &user_wallet,
                         p.amount as i64,
                         &task.currency,
-                        Some(format!("Refund by `{}` task", task.request_txt)),
+                        Some("Refund by task".to_owned()),
                         TransactionType::Refund,
                     )
                     .await;
@@ -819,7 +819,7 @@ where
                         amount as i64,
                         &task.currency,
                         &task_user.id,
-                        Some(format!("Reward by `{}` task", task.request_txt)),
+                        Some("Reward by task".to_owned()),
                     )
                     .await;
                 if res.is_ok() {
@@ -890,7 +890,7 @@ where
                 amount as i64,
                 &task_data.currency,
                 None,
-                Some(format!("Donate by `{}` task`", task_data.request_txt)),
+                Some("Donate by task".to_owned()),
                 TransactionType::Donate,
                 "donate",
             );
