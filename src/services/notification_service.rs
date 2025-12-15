@@ -10,9 +10,8 @@ use crate::entities::community::discussion_entity::{
 };
 use crate::entities::community::post_entity::{PostType, TABLE_NAME as POST_TABLE_NAME};
 use crate::entities::discussion_user::DiscussionUser;
-use crate::entities::task::task_request_entity::{
-    TaskParticipantUserView, TaskRequest, TaskRequestType,
-};
+use crate::entities::task_request::TaskRequestEntity;
+use crate::entities::task_request::{TaskParticipantUserView, TaskRequestType};
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::error::AppResult;
@@ -646,7 +645,7 @@ where
     pub async fn on_created_task(
         &self,
         user: &LocalUser,
-        task: &TaskRequest,
+        task: &TaskRequestEntity,
         view: OnCreatedTaskView<'_>,
         participants: Vec<&LocalUser>,
         is_current_user_donor: bool,
@@ -661,7 +660,7 @@ where
         };
 
         let metadata = Some(json!({
-            "task_id": task.id.as_ref().unwrap().to_raw(),
+            "task_id": &task.id,
             "post_id": post_id,
             "discussion_id": discussion_id
         }));
@@ -850,7 +849,7 @@ where
     async fn get_receivers_of_disc_access_view(
         &self,
         view: &DiscussionAccessView,
-        task: &TaskRequest,
+        task: &TaskRequestEntity,
         current_user_id: Thing,
         is_current_user_donor: bool,
     ) -> CtxResult<Vec<Thing>> {

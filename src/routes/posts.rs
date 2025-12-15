@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::access::post::PostAccess;
 use crate::entities::community::post_entity::{self};
-use crate::entities::task::task_request_entity::{TaskRequest, TaskRequestDbService};
+use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::user_auth::local_user_entity;
+use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
@@ -66,10 +67,11 @@ async fn create_task(
     State(state): State<Arc<CtxState>>,
     Path(post_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
-) -> CtxResult<Json<TaskRequest>> {
+) -> CtxResult<Json<TaskRequestEntity>> {
     let task_service = TaskService::new(
         &state.db.client,
         &auth_data.ctx,
+        &state.db.task_request,
         &state.db.task_donors,
         &state.db.task_participants,
         &state.db.access,
@@ -114,14 +116,10 @@ async fn get_post_tasks(
         return Err(AppError::Forbidden.into());
     }
 
-    let task_db_service = TaskRequestDbService {
-        ctx: &auth_data.ctx,
-        db: &state.db.client,
-    };
-
-    let tasks = task_db_service
+    let tasks = state.db.task_request
         .get_by_posts(vec![post.id], user.id.as_ref().unwrap().clone())
-        .await?;
+        .await
+        .map_err(|e| AppError::SurrealDb { source: e.to_string() })?;
 
     Ok(Json(tasks))
 }

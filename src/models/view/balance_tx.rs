@@ -1,4 +1,4 @@
-use crate::entities::task::task_request_entity::{TaskRequest, TABLE_NAME as TASK_TABLE_NAME};
+use crate::entities::task_request::{TaskRequestEntity};
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 
@@ -10,6 +10,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct CurrencyTransactionView {
@@ -33,12 +34,12 @@ impl ViewFieldSelector for CurrencyTransactionView {
             "id,
             wallet.{{ 
                 id,
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
                 user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
             }} as wallet,
             with_wallet.{{ 
                 id,
-                task: type::thing('{TASK_TABLE_NAME}', record::id(id)).*,
+                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
                 user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
             }} as with_wallet,
         balance,
@@ -58,5 +59,5 @@ impl ViewFieldSelector for CurrencyTransactionView {
 pub struct WalletView {
     pub id: Thing,
     pub user: Option<UserView>,
-    pub task: Option<TaskRequest>,
+    pub task: Option<TaskRequestEntity>,
 }

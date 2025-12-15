@@ -1,6 +1,6 @@
 use crate::{
     entities::{
-        task::task_request_entity::{TaskRequestStatus, TaskRequestType},
+        task_request::{TaskRequestStatus, TaskRequestType},
         task_request_user::{
             TaskParticipantResult, TaskParticipantStatus, TaskParticipantTimeline,
         },

@@ -1,172 +1,66 @@
-use std::fmt::Debug;
-
-use crate::database::client::Db;
+use crate::database::repository_impl::Repository;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::community::post_entity::PostType;
 use crate::entities::community::post_entity::TABLE_NAME as POST_TABLE_NAME;
+use crate::entities::task_request::{
+    TaskForReward, TaskRequestCreate, TaskRequestEntity, TaskRequestStatus, TaskRequestType,
+};
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity::{self, TRANSACTION_HEAD_F};
-use crate::entities::wallet::wallet_entity::{Wallet, TABLE_NAME as WALLET_TABLE_NAME};
-use crate::middleware;
-use crate::middleware::utils::db_utils::{get_entity_view, QryOrder};
-use chrono::{DateTime, TimeDelta, Utc};
-use middleware::utils::db_utils::{
-    get_entity, with_not_found_err, IdentIdName, Pagination, ViewFieldSelector,
-};
-use middleware::{
-    ctx::Ctx,
-    error::{AppError, CtxResult},
-};
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use crate::entities::wallet::wallet_entity::{CurrencySymbol, TRANSACTION_HEAD_F};
+use crate::entities::wallet::wallet_entity::TABLE_NAME as WALLET_TABLE_NAME;
+use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
+use crate::middleware::error::AppError;
+use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
+use async_trait::async_trait;
+use chrono::{TimeDelta, Utc};
+use serde::Deserialize;
 use surrealdb::method::Query;
 use surrealdb::sql::{Datetime, Thing};
-use wallet_entity::CurrencySymbol;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    pub belongs_to: Thing,
-    pub created_by: Thing,
-    pub request_txt: String,
-    pub deliverable_type: DeliverableType,
-    pub r#type: TaskRequestType,
-    pub reward_type: RewardType,
-    pub currency: CurrencySymbol,
-    pub created_at: DateTime<Utc>,
-    pub acceptance_period: u64,
-    pub delivery_period: u64,
-    pub wallet_id: Thing,
-    pub status: TaskRequestStatus,
-    pub due_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub enum TaskRequestStatus {
-    Init,
-    InProgress,
-    Completed,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TaskRequestCreate {
-    pub task_id: Thing,
-    pub wallet_id: Thing,
-    pub from_user: Thing,
-    pub belongs_to: Thing,
-    pub request_txt: String,
-    pub deliverable_type: DeliverableType,
-    pub r#type: TaskRequestType,
-    pub reward_type: RewardType,
-    pub currency: CurrencySymbol,
-    pub acceptance_period: u64,
-    pub delivery_period: u64,
-    pub increase_tasks_nr_for_belongs: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskDonorForReward {
-    pub amount: i64,
-    pub id: Thing,
-}
-#[derive(Debug, Deserialize)]
-pub struct TaskParticipantUserView {
-    pub id: Thing,
-    pub username: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskParticipantForReward {
-    pub id: Thing,
-    pub user: TaskParticipantUserView,
-    pub status: TaskParticipantStatus,
-    pub reward_tx: Option<Thing>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskForReward {
-    pub id: Thing,
-    pub belongs_to: Thing,
-    pub request_txt: String,
-    pub currency: CurrencySymbol,
-    pub donors: Vec<TaskDonorForReward>,
-    pub participants: Vec<TaskParticipantForReward>,
-    pub wallet: Wallet,
-    pub balance: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub enum TaskRequestType {
-    Public,
-    Private,
-}
-
-#[derive(Display, Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum RewardType {
-    // needs to be same as col name
-    // #[strum(to_string = "on_delivery")]
-    OnDelivery, // paid when delivered
-                // #[strum(to_string = "vote_winner")]
-                // VoteWinner { voting_period_min: i64 }, // paid after voting
-}
-
-#[derive(EnumString, Display, Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum DeliverableType {
-    PublicPost,
-    // Participants,
-}
-
-pub struct TaskRequestDbService<'a> {
-    pub db: &'a Db,
-    pub ctx: &'a Ctx,
-}
-
-impl<'a> TaskRequestDbService<'a> {}
-
-pub const TABLE_NAME: &str = "task_request";
+pub const TASK_REQUEST_TABLE_NAME: &str = "task_request";
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
 
-impl<'a> TaskRequestDbService<'a> {
-    pub async fn mutate_db(&self) -> Result<(), AppError> {
+impl Repository<TaskRequestEntity> {
+    pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
+
+        // ⚠️ CRITICAL: Use single quotes for object type string literals!
+        // ⚠️ CRITICAL: Keep field name "created_at" - same as old entity!
         let sql = format!("
-
-    DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TABLE_NAME} TYPE record<{DISC_TABLE_NAME}|{POST_TABLE_NAME}>;
-    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
-    DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TABLE_NAME} TYPE {{ type: \"PublicPost\"}};
-    DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
-    DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TABLE_NAME} TYPE {{ type: \"OnDelivery\"}} | {{ type: \"VoteWinner\", voting_period_min: int }};
-    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
-    DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD IF NOT EXISTS status ON TABLE {TABLE_NAME} TYPE string;
-    DEFINE FIELD IF NOT EXISTS due_at ON TABLE {TABLE_NAME} TYPE datetime;
-    DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TABLE_NAME} TYPE number;
-    DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
-    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
-    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
-    DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TABLE_NAME} COLUMNS status;
-    DEFINE INDEX IF NOT EXISTS idx_due_at ON TABLE {TABLE_NAME} COLUMNS due_at;
-    DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE {TABLE_NAME} COLUMNS belongs_to;
-    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TABLE_NAME} COLUMNS created_by;
+    DEFINE TABLE IF NOT EXISTS {TASK_REQUEST_TABLE_NAME} SCHEMAFULL;
+    DEFINE FIELD IF NOT EXISTS belongs_to ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE record<{DISC_TABLE_NAME}|{POST_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS created_by ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE record<{TABLE_COL_USER}>;
+    DEFINE FIELD IF NOT EXISTS deliverable_type ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE {{ type: 'PublicPost'}};
+    DEFINE FIELD IF NOT EXISTS request_txt ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE string ASSERT string::len(string::trim($value))>0;
+    DEFINE FIELD IF NOT EXISTS reward_type ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE {{ type: 'OnDelivery'}} | {{ type: 'VoteWinner', voting_period_min: int }};
+    DEFINE FIELD IF NOT EXISTS currency ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE '{curr_usd}'|'{curr_reef}'|'{curr_eth}';
+    DEFINE FIELD IF NOT EXISTS type ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS status ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS due_at ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime;
+    DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
+    DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
+    DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
+    DEFINE INDEX IF NOT EXISTS idx_status ON TABLE {TASK_REQUEST_TABLE_NAME} COLUMNS status;
+    DEFINE INDEX IF NOT EXISTS idx_due_at ON TABLE {TASK_REQUEST_TABLE_NAME} COLUMNS due_at;
+    DEFINE INDEX IF NOT EXISTS belongs_to_idx ON TABLE {TASK_REQUEST_TABLE_NAME} COLUMNS belongs_to;
+    DEFINE INDEX IF NOT EXISTS created_by_user_idx ON TABLE {TASK_REQUEST_TABLE_NAME} COLUMNS created_by;
     ");
-        let mutation = self.db.query(sql).await?;
-
+        let mutation = self.client.query(sql).await?;
         mutation.check().expect("should mutate taskRequest");
-
         Ok(())
     }
+}
 
-    pub fn build_create_query<'b>(
+#[async_trait]
+impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
+    fn build_create_query<'b>(
         &self,
         query: Query<'b, surrealdb::engine::any::Any>,
         record: &TaskRequestCreate,
@@ -178,7 +72,7 @@ impl<'a> TaskRequestDbService<'a> {
                 "CREATE ONLY $_task_wallet_id SET {TRANSACTION_HEAD_F} = {{{{}}}};"
             ))
             .query(format!(
-                "LET $task = CREATE $_task_id SET 
+                "LET $task = CREATE $_task_id SET
                     delivery_period=$_task_delivery_period,
                     belongs_to=$_task_belongs_to,
                     wallet_id=$_task_wallet_id,
@@ -215,42 +109,19 @@ impl<'a> TaskRequestDbService<'a> {
         gry
     }
 
-    pub async fn get(&self, ident: IdentIdName) -> CtxResult<TaskRequest> {
-        let opt = get_entity::<TaskRequest>(&self.db, TABLE_NAME.to_string(), &ident).await?;
-        with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
-    }
-
-    pub async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Debug>(
-        &self,
-        id: &Thing,
-    ) -> CtxResult<T> {
-        let opt = get_entity_view::<T>(
-            &self.db,
-            TABLE_NAME.to_string(),
-            &IdentIdName::Id(id.clone()),
-        )
-        .await?;
-        with_not_found_err(opt, self.ctx, &id.to_raw())
-    }
-
-    pub async fn delete_by_id(&self, id: &Thing) -> CtxResult<()> {
-        let _task: Option<TaskRequest> =
-            self.db.delete((id.tb.to_string(), id.id.to_raw())).await?;
-        Ok(())
-    }
-
-    pub async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         posts: Vec<Thing>,
         user: Thing,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
+        let fields = T::get_select_query_fields();
         let query = format!("
-            SELECT {} FROM {TABLE_NAME} 
+            SELECT {fields} FROM {TASK_REQUEST_TABLE_NAME}
             WHERE belongs_to IN $posts
-                AND (belongs_to.type IN $public_post_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in) 
-                AND (belongs_to.belongs_to.type=$disc_type OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in)", T::get_select_query_fields());
+                AND (belongs_to.type IN $public_post_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
+                AND (belongs_to.belongs_to.type=$disc_type OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in)");
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("posts", posts))
             .bind(("user", user))
@@ -260,7 +131,7 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_public_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    async fn get_by_public_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -268,7 +139,7 @@ impl<'a> TaskRequestDbService<'a> {
         pag: Option<Pagination>,
         is_ended: Option<bool>,
         is_acceptance_expired: Option<bool>,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
         let acceptance_condition = match is_acceptance_expired {
             Some(value) => match value {
                 true => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) <= time::now()",
@@ -299,12 +170,12 @@ impl<'a> TaskRequestDbService<'a> {
         };
 
         let fields = T::get_select_query_fields();
-        let query = format!("SELECT {fields}, created_at FROM {TABLE_NAME}
+        let query = format!("SELECT {fields}, created_at FROM {TASK_REQUEST_TABLE_NAME}
                 WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND (type=$task_type OR $user IN <-{ACCESS_TABLE_NAME}.in)
                 {pagination_str};");
 
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
@@ -315,7 +186,7 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_private_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector>(
+    async fn get_by_private_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -323,7 +194,7 @@ impl<'a> TaskRequestDbService<'a> {
         pag: Option<Pagination>,
         is_ended: Option<bool>,
         is_acceptance_expired: Option<bool>,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
         let acceptance_condition = match is_acceptance_expired {
             Some(value) => match value {
                 true => "AND (created_at + type::duration(string::concat(acceptance_period, 's'))) <= time::now()",
@@ -355,12 +226,12 @@ impl<'a> TaskRequestDbService<'a> {
 
         let fields = T::get_select_query_fields();
         let query = format!(
-            "SELECT {fields}, created_at FROM {TABLE_NAME}
+            "SELECT {fields}, created_at FROM {TASK_REQUEST_TABLE_NAME}
             WHERE belongs_to=$disc {type_condition} {date_condition} {acceptance_condition} AND $user IN belongs_to<-{ACCESS_TABLE_NAME}.in
             {pagination_str};"
         );
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
@@ -370,12 +241,12 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_user_and_disc<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    async fn get_by_user_and_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         user_id: &str,
         disc_id: &str,
         status: Option<TaskParticipantStatus>,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
         let status_condition = match &status {
             Some(_) => "AND status=$status",
             None => "",
@@ -383,11 +254,11 @@ impl<'a> TaskRequestDbService<'a> {
 
         let fields = T::get_select_query_fields();
         let query = format!(
-            "SELECT {fields} FROM {TABLE_NAME} WHERE ->task_participant[WHERE out=$user {status_condition}]"
+            "SELECT {fields} FROM {TASK_REQUEST_TABLE_NAME} WHERE ->task_participant[WHERE out=$user {status_condition}]"
         );
 
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
             .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
@@ -397,13 +268,13 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    async fn get_by_user<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         user: &Thing,
         status: Option<TaskParticipantStatus>,
         is_ended: Option<bool>,
         pagination: Pagination,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
 
         let date_condition = match is_ended {
@@ -418,14 +289,14 @@ impl<'a> TaskRequestDbService<'a> {
             None => "",
         };
         let query = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE ->task_participant[WHERE out=$user {}] {}
+            "SELECT {} FROM {TASK_REQUEST_TABLE_NAME} WHERE ->task_participant[WHERE out=$user {}] {}
              ORDER BY created_at {order_dir} LIMIT $limit START $start;",
             &T::get_select_query_fields(),
             status_condition,
             date_condition,
         );
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("user", user.clone()))
             .bind(("status", status))
@@ -436,17 +307,17 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn get_by_creator<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    async fn get_by_creator<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
         &self,
         user: Thing,
         pagination: Pagination,
-    ) -> CtxResult<Vec<T>> {
+    ) -> Result<Vec<T>, surrealdb::Error> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let fields = T::get_select_query_fields();
         let mut res = self
-            .db
+            .client
             .query(format!(
-                "SELECT *, {fields} FROM {TABLE_NAME}
+                "SELECT *, {fields} FROM {TASK_REQUEST_TABLE_NAME}
                  WHERE created_by=$user AND (belongs_to.type IN $public_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
                   AND (
                       record::tb(belongs_to) != {POST_TABLE_NAME}
@@ -464,8 +335,12 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    pub async fn update_status(&self, task: Thing, status: TaskRequestStatus) -> CtxResult<()> {
-        self.db
+    async fn update_status(
+        &self,
+        task: Thing,
+        status: TaskRequestStatus,
+    ) -> Result<(), surrealdb::Error> {
+        self.client
             .query("UPDATE $id SET status=$status;")
             .bind(("id", task))
             .bind(("status", status))
@@ -474,7 +349,10 @@ impl<'a> TaskRequestDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_ready_for_payment_by_id(&self, id: Thing) -> CtxResult<TaskForReward> {
+    async fn get_ready_for_payment_by_id(
+        &self,
+        id: Thing,
+    ) -> Result<TaskForReward, surrealdb::Error> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
@@ -485,28 +363,30 @@ impl<'a> TaskRequestDbService<'a> {
             )"
         );
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("task", id.clone()))
             .bind(("status", TaskRequestStatus::Completed))
             .await?;
         let data = res.take::<Option<TaskForReward>>(0)?;
-        Ok(data.ok_or(AppError::EntityFailIdNotFound { ident: id.to_raw() })?)
+        data.ok_or(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
+            rid: id.to_raw(),
+        }))
     }
 
-    pub async fn get_ready_for_payment(&self) -> CtxResult<Vec<TaskForReward>> {
+    async fn get_ready_for_payment(&self) -> Result<Vec<TaskForReward>, surrealdb::Error> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
              FROM (
                 SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
                     ->task_participant.{{ status, id, user: out.* }} AS participants,
                     ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
-                FROM {TABLE_NAME}
+                FROM {TASK_REQUEST_TABLE_NAME}
                 WHERE status != $status AND due_at <= time::now()
             )"
         );
         let mut res = self
-            .db
+            .client
             .query(query)
             .bind(("status", TaskRequestStatus::Completed))
             .await?;

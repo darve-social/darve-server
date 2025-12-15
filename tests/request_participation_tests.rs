@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
-use darve_server::entities::task::task_request_entity::TaskRequest;
+use darve_server::entities::task_request::TaskRequestEntity;
 use darve_server::entities::user_notification::UserNotificationEvent;
 use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
@@ -109,7 +109,7 @@ test_with_server!(
             .await;
 
         task_request.assert_status_success();
-        let created_task = task_request.json::<TaskRequest>();
+        let created_task = task_request.json::<TaskRequestEntity>();
 
         let post_tasks_req = server
             .get(&format!("/api/posts/{post_id}/tasks"))
@@ -122,7 +122,7 @@ test_with_server!(
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.donors.get(0).unwrap();
 
-        assert_eq!(created_task.id.unwrap(), task.id);
+        assert_eq!(format!("task_request:{}", created_task.id), task.id.to_raw());
 
         assert_eq!(offer0.amount.clone(), user2_offer_amt as i64);
         assert_eq!(task.created_by.username, username2);

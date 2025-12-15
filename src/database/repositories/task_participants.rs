@@ -1,7 +1,6 @@
 use crate::{
     database::client::Db,
     entities::{
-        task::task_request_entity::TABLE_NAME as TASK_TABLE_NAME,
         task_request_user::{TaskParticipant, TaskParticipantResult},
         user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
         wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME,
@@ -12,6 +11,7 @@ use crate::{
 use async_trait::async_trait;
 use std::sync::Arc;
 use surrealdb::{engine::any, method::Query, sql::Thing};
+use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 
 #[derive(Debug)]
 pub struct TaskParticipantsRepository {
@@ -30,7 +30,7 @@ impl TaskParticipantsRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let table_name = self.table_name;
         let sql = format!("
-        DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+        DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_REQUEST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
         DEFINE FIELD IF NOT EXISTS timelines    ON {table_name} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {table_name} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {table_name} FLEXIBLE TYPE option<object>;
@@ -68,7 +68,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
                 status=$_task_participant_status", self.table_name))
 
             .bind(("_task_participant_user_ids", users))
-            .bind(("_task_participant_task_id", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("_task_participant_task_id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("_task_participant_status", status.to_string()))
     }
 
@@ -108,7 +108,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .client
             .query(sql)
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("task", Thing::from((TASK_TABLE_NAME, task_id))))
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("status", status.to_string()))
             .await
             .map_err(|e| e.to_string())?;
