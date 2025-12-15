@@ -31,7 +31,7 @@ impl TaskDonorsRepository {
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
         let sql = format!("
-    DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
+    DEFINE TABLE IF NOT EXISTS {table_name} TYPE RELATION IN {TASK_REQUEST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE FIELD IF NOT EXISTS amount ON TABLE {table_name} TYPE number;
     DEFINE FIELD IF NOT EXISTS transaction ON TABLE {table_name} TYPE record<{TRANSACTION_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS votes ON TABLE {table_name} TYPE option<array<{{deliverable_ident: string, points: int}}>>;
