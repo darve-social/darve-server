@@ -660,7 +660,7 @@ where
         };
 
         let metadata = Some(json!({
-            "task_id": &task.id,
+            "task_id": &task.id.to_raw(),
             "post_id": post_id,
             "discussion_id": discussion_id
         }));
