@@ -267,13 +267,13 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
     let task = task_response.json::<TaskRequestEntity>();
 
     server
-        .post(&format!("/api/tasks/{}/accept", task.id.to_raw()))
+        .post(&format!("/api/tasks/{}/accept", task.id))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
     server
-        .post(&format!("/api/tasks/{}/deliver", task.id.to_raw()))
+        .post(&format!("/api/tasks/{}/deliver", task.id))
         .json(&json!({"post_id": delivery_post.id}))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .add_header("Accept", "application/json")

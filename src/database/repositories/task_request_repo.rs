@@ -9,10 +9,11 @@ use crate::entities::task_request::{
 };
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity::{CurrencySymbol, TRANSACTION_HEAD_F};
 use crate::entities::wallet::wallet_entity::TABLE_NAME as WALLET_TABLE_NAME;
+use crate::entities::wallet::wallet_entity::{CurrencySymbol, TRANSACTION_HEAD_F};
 use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware::error::AppError;
+use crate::middleware::error::AppResult;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
 use async_trait::async_trait;
 use chrono::{TimeDelta, Utc};
@@ -337,12 +338,12 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
 
     async fn update_status(
         &self,
-        task: Thing,
+        task_id: &str,
         status: TaskRequestStatus,
     ) -> Result<(), surrealdb::Error> {
         self.client
             .query("UPDATE $id SET status=$status;")
-            .bind(("id", task))
+            .bind(("id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("status", status))
             .await?
             .check()?;
@@ -351,7 +352,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
 
     async fn get_ready_for_payment_by_id(
         &self,
-        id: Thing,
+        task_id: &str,
     ) -> Result<TaskForReward, surrealdb::Error> {
         let query = format!(
             "SELECT *, wallet.transaction_head[currency].balance as balance
@@ -365,12 +366,13 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("task", id.clone()))
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
             .bind(("status", TaskRequestStatus::Completed))
             .await?;
+
         let data = res.take::<Option<TaskForReward>>(0)?;
         data.ok_or(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
-            rid: id.to_raw(),
+            rid: task_id.to_string(),
         }))
     }
 
@@ -392,5 +394,29 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
             .await?;
         let data = res.take::<Vec<TaskForReward>>(0)?;
         Ok(data)
+    }
+
+    async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+        &self,
+        id: &str,
+    ) -> AppResult<T> {
+        let fields = T::get_select_query_fields();
+        let query = format!("SELECT {fields} FROM $task;");
+        let mut res = self
+            .client
+            .query(query)
+            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, id))))
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
+
+        let data = res.take::<Option<T>>(0).map_err(|e| AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
+
+        data.ok_or(AppError::EntityFailIdNotFound {
+            ident: id.to_string(),
+        })
     }
 }
