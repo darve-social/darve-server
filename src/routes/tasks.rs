@@ -172,11 +172,7 @@ async fn accept_task_request(
 
     let data = task_service
         .accept(&auth_data.user_thing_id(), &task_id)
-        .await
-        .map_err(|e| {
-            println!(">>>>{:?}", e);
-            e
-        })?;
+        .await?;
 
     Ok(Json(data))
 }
