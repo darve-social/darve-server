@@ -5,11 +5,10 @@ use axum::extract::{Request, State};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::Router;
-use gateway_transaction_entity::GatewayTransactionDbService;
+use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
 use surrealdb::sql::Thing;
-use wallet_entity::CurrencySymbol;
+use crate::entities::wallet::CurrencySymbol;
 
-use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
 use crate::middleware;
 use crate::middleware::error::AppError;
 use crate::middleware::mw_ctx::CtxState;

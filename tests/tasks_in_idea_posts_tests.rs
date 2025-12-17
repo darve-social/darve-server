@@ -6,7 +6,7 @@ use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::entities::task_request::TaskRequestEntity;
-use darve_server::entities::wallet::wallet_entity::CurrencySymbol;
+use darve_server::entities::wallet::CurrencySymbol;
 use darve_server::models::view::post::PostView;
 use darve_server::models::view::task::TaskRequestView;
 use fake::faker;
