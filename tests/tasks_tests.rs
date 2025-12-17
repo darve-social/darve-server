@@ -5,7 +5,6 @@ use axum_test::multipart::MultipartForm;
 use chrono::Utc;
 use darve_server::{
     access::base::role::Role,
-    database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME,
     entities::{
         community::{
             community_entity::CommunityDbService,
@@ -977,10 +976,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET acceptance_period=0;")
-        .bind((
-            "id",
-            Thing::from((TASK_REQUEST_TABLE_NAME, task_id.as_str())),
-        ))
+        .bind(("id", Thing::try_from(task_id.as_str()).unwrap()))
         .await;
 
     let response = server
@@ -1034,10 +1030,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
-        .bind((
-            "id",
-            Thing::from((TASK_REQUEST_TABLE_NAME, task_id.as_str())),
-        ))
+        .bind(("id", Thing::try_from(task_id.as_ref()).unwrap()))
         .await;
 
     let response = server
@@ -1283,10 +1276,7 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET due_at=time::now();")
-        .bind((
-            "id",
-            Thing::from((TASK_REQUEST_TABLE_NAME, task_id.as_str())),
-        ))
+        .bind(("id", Thing::try_from(task_id).unwrap()))
         .await;
 
     let get_response = server

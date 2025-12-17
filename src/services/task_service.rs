@@ -1,4 +1,4 @@
-use crate::utils::validate_utils::deserialize_thing_or_string_id;
+use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
     database::client::Db,
@@ -54,7 +54,7 @@ use validator::Validate;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskView {
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
+    #[serde(deserialize_with = "deserialize_thing_or_string")]
     pub id: String,
     pub wallet_id: Thing,
     pub request_txt: String,
@@ -471,7 +471,7 @@ where
                 .access_repository
                 .add(
                     [donor.id.as_ref().unwrap().clone()].to_vec(),
-                    [Thing::from((TASK_REQUEST_TABLE_NAME, task_id))].to_vec(),
+                    [task_id].to_vec(),
                     Role::Donor.to_string(),
                 )
                 .await?;
@@ -523,7 +523,7 @@ where
         self.access_repository
             .remove_by_user(
                 user.id.as_ref().unwrap().clone(),
-                [Thing::from((TASK_REQUEST_TABLE_NAME, task_id))].to_vec(),
+                [task.id.as_ref()].to_vec(),
             )
             .await?;
 
@@ -583,7 +583,7 @@ where
                     .access_repository
                     .update(
                         user.id.as_ref().unwrap().clone(),
-                        Thing::from((TASK_REQUEST_TABLE_NAME, task_id)),
+                        task_id,
                         Role::Participant.to_string(),
                     )
                     .await?;
@@ -601,7 +601,7 @@ where
                     .access_repository
                     .add(
                         [user.id.as_ref().unwrap().clone()].to_vec(),
-                        [Thing::from((TASK_REQUEST_TABLE_NAME, task_id))].to_vec(),
+                        [task_id].to_vec(),
                         Role::Participant.to_string(),
                     )
                     .await?;
@@ -611,7 +611,7 @@ where
 
         if task.status != TaskRequestStatus::InProgress {
             self.tasks_repository
-                .update_status(&task.id, TaskRequestStatus::InProgress)
+                .update_status(&task_id, TaskRequestStatus::InProgress)
                 .await
                 .map_err(|e| AppError::SurrealDb {
                     source: e.to_string(),
@@ -886,7 +886,7 @@ where
 
             query = self.task_donors_repository.build_create_query(
                 query,
-                &task_data.task_id.id.to_raw(),
+                &task_data.task_id.to_raw().as_ref(),
                 &user_thing.id.to_raw(),
                 "$donate_tx_out_id",
                 amount as u64,
@@ -902,7 +902,7 @@ where
         if !participant_ids.is_empty() {
             query = self.task_participants_repository.build_create_query(
                 query,
-                &task_data.task_id.id.to_raw(),
+                &task_data.task_id.to_raw(),
                 participant_ids
                     .iter()
                     .map(|id| id.id.to_raw())
@@ -920,7 +920,7 @@ where
             self.access_repository
                 .add(
                     participant_ids,
-                    [task_data.task_id.clone()].to_vec(),
+                    [task.id.as_ref()].to_vec(),
                     Role::Candidate.to_string(),
                 )
                 .await?;
@@ -930,7 +930,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task_data.task_id.clone()].to_vec(),
+                    [task.id.as_ref()].to_vec(),
                     Role::Donor.to_string(),
                 )
                 .await?;
@@ -942,7 +942,7 @@ where
             self.access_repository
                 .add(
                     [user.id.as_ref().unwrap().clone()].to_vec(),
-                    [task_data.task_id.clone()].to_vec(),
+                    [task.id.as_ref()].to_vec(),
                     Role::Owner.to_string(),
                 )
                 .await?;
@@ -1023,14 +1023,17 @@ where
         match post_view.r#type {
             PostType::Public => {
                 self.access_repository
-                    .remove_by_user(post_owner.unwrap().user.clone(), vec![post_view.id.clone()])
+                    .remove_by_user(
+                        post_owner.unwrap().user.clone(),
+                        vec![post_view.id.to_raw().as_ref()],
+                    )
                     .await?
             }
             PostType::Private => {
                 self.access_repository
                     .update(
                         post_owner.unwrap().user.clone(),
-                        post_view.id.clone(),
+                        post_view.id.to_raw().as_ref(),
                         Role::Member.to_string(),
                     )
                     .await?

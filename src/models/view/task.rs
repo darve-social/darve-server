@@ -1,4 +1,4 @@
-use crate::utils::validate_utils::deserialize_thing_or_string_id;
+use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     entities::{
         task_request::{TaskRequestStatus, TaskRequestType},
@@ -29,7 +29,7 @@ pub struct TaskRequestDonorView {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
+    #[serde(deserialize_with = "deserialize_thing_or_string")]
     pub id: String,
     pub created_by: UserView,
     pub participants: Vec<TaskRequestViewParticipant>,

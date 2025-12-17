@@ -159,7 +159,7 @@ test_with_server!(
 
         delivered_response.assert_status_success();
 
-        let task_thing = Thing::from(("task_request", task_id.as_str()));
+        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -192,7 +192,7 @@ test_with_server!(
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 33);
-        let task_thing = Thing::from(("task_request", task_id.as_str()));
+        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
         let task = get_task_view(task_thing, &state.db.client).await;
         assert_eq!(task.status, TaskRequestStatus::Completed);
         assert_eq!(task.balance, 1);
@@ -291,7 +291,7 @@ test_with_server!(
 
         delivered_response.assert_status_success();
 
-        let task_thing = Thing::from(("task_request", task_id.as_str()));
+        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -366,7 +366,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.as_str()));
+    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -456,7 +456,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.as_str()));
+    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -618,7 +618,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::from(("task_request", task_id.as_str()));
+    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -757,7 +757,7 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         delivered_response.assert_status_success();
-        let task_thing = Thing::from(("task_request", task_id.as_str()));
+        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
 
         let wallet_service = WalletDbService {

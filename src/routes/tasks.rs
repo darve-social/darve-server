@@ -68,10 +68,14 @@ async fn user_requests_received(
         start: query.start.unwrap_or(0),
     };
 
-    let list = state.db.task_request
+    let list = state
+        .db
+        .task_request
         .get_by_user::<TaskRequestView>(&user_id, query.status, query.is_ended, pagination)
         .await
-        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?
+        .map_err(|e| middleware::error::AppError::SurrealDb {
+            source: e.to_string(),
+        })?
         .into_iter()
         .map(|view| TaskViewForParticipant::from_view(view, &user_id))
         .collect::<Vec<TaskViewForParticipant>>();
@@ -104,10 +108,14 @@ async fn user_requests_given(
         count: query.count.unwrap_or(20),
         start: query.start.unwrap_or(0),
     };
-    let list = state.db.task_request
+    let list = state
+        .db
+        .task_request
         .get_by_creator::<TaskRequestView>(from_user, pagination)
         .await
-        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?;
+        .map_err(|e| middleware::error::AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
     Ok(Json(list))
 }
 
@@ -164,7 +172,11 @@ async fn accept_task_request(
 
     let data = task_service
         .accept(&auth_data.user_thing_id(), &task_id)
-        .await?;
+        .await
+        .map_err(|e| {
+            println!(">>>>{:?}", e);
+            e
+        })?;
 
     Ok(Json(data))
 }

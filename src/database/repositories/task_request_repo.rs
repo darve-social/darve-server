@@ -1,4 +1,5 @@
 use crate::database::repository_impl::Repository;
+use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
@@ -343,7 +344,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
     ) -> Result<(), surrealdb::Error> {
         self.client
             .query("UPDATE $id SET status=$status;")
-            .bind(("id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
+            .bind(("id", get_thing(task_id)?))
             .bind(("status", status))
             .await?
             .check()?;
@@ -366,7 +367,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
+            .bind(("task", get_thing(task_id)?))
             .bind(("status", TaskRequestStatus::Completed))
             .await?;
 
@@ -405,7 +406,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, id))))
+            .bind(("task", get_thing(id)?))
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
