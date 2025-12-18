@@ -652,7 +652,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Like));
         assert!(permissions.contains(&Permission::AddMember));
         assert!(permissions.contains(&Permission::RemoveMember));
-        assert_eq!(permissions.len(), 6);
+        assert!(permissions.contains(&Permission::Delete));
+        assert_eq!(permissions.len(), 7);
     }
 
     #[test]
@@ -690,7 +691,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreateReply));
         assert!(permissions.contains(&Permission::Like));
-        assert_eq!(permissions.len(), 4);
+        assert!(permissions.contains(&Permission::Delete));
+        assert_eq!(permissions.len(), 5);
     }
 
     #[test]
