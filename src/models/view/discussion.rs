@@ -1,6 +1,6 @@
 use crate::database::table_names::DISC_USER_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
-use crate::entities::wallet::wallet_entity::UserView;
+use crate::entities::wallet::UserView;
 use crate::middleware::utils::db_utils::ViewFieldSelector;
 use crate::models::view::access_user::AccessUserView;
 use crate::{

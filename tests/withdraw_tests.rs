@@ -5,9 +5,11 @@ use darve_server::entities::wallet::balance_transaction_entity::{
 use darve_server::entities::wallet::gateway_transaction_entity::{
     GatewayTransactionDbService, GatewayTransactionStatus,
 };
-use darve_server::entities::wallet::wallet_entity::{
-    WalletDbService, APP_GATEWAY_WALLET, DARVE_WALLET,
+use darve_server::entities::wallet::{
+    APP_GATEWAY_WALLET, DARVE_WALLET,
 };
+use darve_server::services::wallet_service::WalletService;
+
 use darve_server::middleware::ctx::Ctx;
 use darve_server::middleware::error::AppError;
 use surrealdb::sql::Thing;
@@ -186,10 +188,8 @@ test_with_server!(withdraw_revert, |server, ctx_state, config| {
     );
     assert!(tx.fee_tx.is_none());
 
-    let wallet_service = WalletDbService {
-        db: &ctx_state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), false),
-    };
+    let ctx = Ctx::new(Ok("".to_string()), false);
+    let wallet_service = WalletService::new(&ctx_state.db.wallet, &ctx);
 
     let balance = wallet_service
         .get_balance(&Thing::from((

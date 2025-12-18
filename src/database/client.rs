@@ -17,6 +17,8 @@ use crate::database::repository_impl::Repository;
 use crate::database::repository_traits::RepositoryConn;
 use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::verification_code::VerificationCodeEntity;
+use crate::entities::wallet::WalletEntity;
+use crate::entities::wallet::TABLE_NAME as WALLET_TABLE_NAME;
 use crate::middleware::error::AppError;
 use surrealdb::engine::any::{connect, Any};
 use surrealdb::opt::auth::Root;
@@ -52,6 +54,7 @@ pub struct Database {
     pub nicknames: NicknamesRepository,
     pub editor_tags: EditorTagsRepository,
     pub delivery_result: DeliveryResultRepository,
+    pub wallet: Repository<WalletEntity>,
 }
 
 impl Database {
@@ -97,7 +100,8 @@ impl Database {
             nicknames: NicknamesRepository::new(client.clone()),
             editor_tags: EditorTagsRepository::new(client.clone()),
             delivery_result: DeliveryResultRepository::new(client.clone()),
-            discussion_users: DiscussionUserRepository::new(client),
+            discussion_users: DiscussionUserRepository::new(client.clone()),
+            wallet: Repository::<WalletEntity>::new(client.clone(), WALLET_TABLE_NAME.to_string()),
         }
     }
 
@@ -116,6 +120,7 @@ impl Database {
         self.nicknames.mutate_db().await?;
         self.editor_tags.mutate_db().await?;
         self.delivery_result.mutate_db().await?;
+        self.wallet.mutate_db().await?;
         Ok(())
     }
 }

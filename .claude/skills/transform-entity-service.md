@@ -286,6 +286,13 @@ pub struct Community {
     pub created_by: Thing,
 }
 
+// Example with Option<Thing> ID (common pattern)
+pub struct SomeEntity {
+    pub id: Option<Thing>,  // → Will become: id: Thing (unwrap Option!)
+    pub name: String,
+    pub owner: Thing,
+}
+
 // 2. SERVICE STRUCT (will be removed/replaced)
 pub struct CommunityDbService<'a> {
     pub db: &'a Db,
@@ -327,19 +334,24 @@ Map old entity fields to new entity pattern, **KEEPING THE EXACT SAME FIELD NAME
 ```rust
 // OLD                           NEW (TYPE CHANGES ONLY, NAMES STAY IDENTICAL!)
 id: Thing                    →  id: String with deserialize_thing_id/serialize_string_id
+id: Option<Thing>            →  id: Thing  // ✅ Unwrap Option, keep as Thing!
 created_at: DateTime<Utc>    →  created_at: DateTime<Utc>  // ✅ NAME UNCHANGED!
 created_by: Thing            →  created_by: String with serialize_to_user_thing
 some_ref: Thing              →  some_ref: String with serialize_to_{table}_thing
 
 // ❌ WRONG - DO NOT DO THIS:
 created_at: DateTime<Utc>    →  r_created: DateTime<Utc>  // ❌ Field name changed!
+id: Option<Thing>            →  id: String  // ❌ Wrong! Should stay as Thing, not String
 ```
 
-**Rule:** Only change the Rust type (Thing → String). Never change the field name itself. The new entity field names must match:
-- Old entity field names (for backwards compatibility)
-- View model field names (for deserialization)
-- Query SELECT field names (for database queries)
-- Schema DEFINE FIELD names (for schema definitions)
+**Rule:** Only change the Rust type, never the field name itself:
+- `Thing` → `String` (with appropriate serde attributes)
+- `Option<Thing>` → `Thing` (unwrap the Option, keep as Thing for ID fields)
+- Never change field names! The new entity field names must match:
+  - Old entity field names (for backwards compatibility)
+  - View model field names (for deserialization)
+  - Query SELECT field names (for database queries)
+  - Schema DEFINE FIELD names (for schema definitions)
 
 **Step 1.3: Determine Service Layer Necessity**
 
@@ -2230,6 +2242,45 @@ let comm = state.db.community
     .await
     .map_err(|e| ctx.to_ctx_error(AppError::SurrealDb { source: e.to_string() }))?;
 ```
+
+### Example: Entity with Option<Thing> ID
+
+Some old entities use `Option<Thing>` for the ID field. When transforming, unwrap the Option and keep it as Thing.
+
+**Input: Old Pattern**
+```rust
+// src/entities/wallet/wallet_entity.rs
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Wallet {
+    pub id: Option<Thing>,  // ← Note: Option<Thing>
+    pub owner: Thing,
+    pub balance: i64,
+}
+```
+
+**Output: New Pattern**
+```rust
+// src/entities/wallet.rs
+use surrealdb::sql::Thing;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WalletEntity {
+    pub id: Thing,  // ✅ Unwrapped Option, kept as Thing (NOT String!)
+    pub owner: Thing,
+    pub balance: i64,
+}
+
+impl EntityWithId for WalletEntity {
+    fn id_str(&self) -> Option<&str> {
+        Some(self.id.id.to_raw().as_str())
+    }
+}
+```
+
+**Key Points:**
+- `Option<Thing>` → `Thing` (unwrap the Option, keep as Thing)
+- Do NOT convert to String for Option<Thing> fields
+- The EntityWithId implementation uses `self.id.id.to_raw()` instead of `self.id.as_ref()`
 
 ## Common Patterns and Solutions
 

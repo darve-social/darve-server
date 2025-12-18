@@ -6,7 +6,7 @@ use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::gateway_transaction_entity::{
     GatewayTransaction, GatewayTransactionDbService, GatewayTransactionStatus,
 };
-use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
+use crate::entities::wallet::balance_transaction_entity;
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::{AppError, CtxResult};
@@ -31,7 +31,9 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use stripe::{AccountId, Client, CreatePaymentIntent, Currency};
 use validator::Validate;
-use wallet_entity::{CurrencySymbol, WalletDbService};
+use crate::entities::wallet::{get_user_wallet_id, CurrencySymbol};
+use crate::services::wallet_service::WalletService;
+
 
 pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
     let mut router: Router<Arc<CtxState>> = Router::new()
@@ -57,10 +59,7 @@ pub async fn get_user_balance(
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
-    let wallet_service = WalletDbService {
-        db: &ctx_state.db.client,
-        ctx: &auth_data.ctx,
-    };
+    let wallet_service = WalletService::new(&ctx_state.db.wallet, &auth_data.ctx);
     let user_id = user_service.get_ctx_user_thing().await?;
     let balances_view = wallet_service.get_user_balances(&user_id).await?;
     auth_data.ctx.to_htmx_or_json(balances_view)
@@ -158,7 +157,7 @@ pub async fn get_wallet_history(
         db: &ctx_state.db.client,
         ctx: &auth_data.ctx,
     };
-    let user_wallet_id = WalletDbService::get_user_wallet_id(&user_id);
+    let user_wallet_id = get_user_wallet_id(&user_id);
     let transactions = tx_service
         .user_transaction_list(&user_wallet_id, params.r#type, pagination)
         .await?;
@@ -398,10 +397,7 @@ async fn test_deposit(
         )
         .await?;
 
-    let wallet_service = WalletDbService {
-        db: &ctx_state.db.client,
-        ctx: &ctx,
-    };
+    let wallet_service = WalletService::new(&ctx_state.db.wallet, &ctx);
 
     let _res = fund_service
         .user_deposit_tx(

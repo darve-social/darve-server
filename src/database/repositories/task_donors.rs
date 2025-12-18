@@ -2,7 +2,7 @@ use crate::database::client::Db;
 use crate::entities::task_donor::TaskDonor;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;
-use crate::entities::wallet::wallet_entity::CurrencySymbol;
+use crate::entities::wallet::CurrencySymbol;
 use crate::interfaces::repositories::task_donors::TaskDonorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;

@@ -2,7 +2,7 @@ use crate::{
     entities::{
         task_request::{TaskRequestStatus, TaskRequestType},
         task_request_user::{TaskParticipantStatus, TaskParticipantTimeline},
-        wallet::wallet_entity::CurrencySymbol,
+        wallet::CurrencySymbol,
     },
     middleware::utils::db_utils::{ViewFieldSelector, ViewRelateField},
     models::view::user::UserView,

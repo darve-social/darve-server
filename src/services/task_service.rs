@@ -3,7 +3,6 @@ use crate::{
     database::client::Db,
     database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME,
     entities::{
-        self,
         access_user::AccessUser,
         community::{
             discussion_entity::DiscussionDbService,
@@ -19,7 +18,7 @@ use crate::{
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
             balance_transaction_entity::{BalanceTransactionDbService, TransactionType},
-            wallet_entity::{CurrencySymbol, WalletDbService, TABLE_NAME as WALLET_TABLE_NAME},
+            get_user_wallet_id, check_transaction_custom_error, TABLE_NAME as WALLET_TABLE_NAME, CurrencySymbol,
         },
     },
     interfaces::repositories::{
@@ -45,7 +44,6 @@ use crate::{
     services::notification_service::{NotificationService, OnCreatedTaskView},
 };
 use chrono::{DateTime, TimeDelta, Utc};
-use entities::wallet::wallet_entity::check_transaction_custom_error;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -419,7 +417,7 @@ where
 
         let participant = task.donors.iter().find(|p| &p.user == &donor_thing);
 
-        let user_wallet = WalletDbService::get_user_wallet_id(&donor_thing);
+        let user_wallet = get_user_wallet_id(&donor_thing);
         let mut query = self.db.query("BEGIN");
         match participant {
             Some(p) => {
@@ -834,12 +832,13 @@ where
             .filter(|user| user.status == TaskParticipantStatus::Delivered)
             .collect::<Vec<&TaskParticipantForReward>>();
 
-        let wallet_id = task.wallet.id.as_ref().unwrap();
+        let wallet_id_thing = Thing::from((WALLET_TABLE_NAME, task.wallet.id.as_str()));
+        let wallet_id = &wallet_id_thing;
 
         let mut is_completed = true;
         if delivered_users.is_empty() {
             for p in task.donors {
-                let user_wallet = WalletDbService::get_user_wallet_id(&p.id);
+                let user_wallet = get_user_wallet_id(&p.id);
                 let res = self
                     .transactions_repository
                     .transfer_currency(
@@ -867,7 +866,7 @@ where
 
             let amount: u64 = task.balance.unwrap() as u64 / task_users.len() as u64;
             for task_user in task_users {
-                let user_wallet = WalletDbService::get_user_wallet_id(&task_user.user.id);
+                let user_wallet = get_user_wallet_id(&task_user.user.id);
                 let res = self
                     .transactions_repository
                     .transfer_task_reward(
@@ -938,7 +937,7 @@ where
         query = self.tasks_repository.build_create_query(query, &task_data);
 
         if let Some(amount) = data.offer_amount {
-            let user_wallet = WalletDbService::get_user_wallet_id(&user.id.as_ref().unwrap());
+            let user_wallet = get_user_wallet_id(&user.id.as_ref().unwrap());
 
             query = BalanceTransactionDbService::build_transfer_qry(
                 query,

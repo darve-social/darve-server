@@ -5,7 +5,7 @@ use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransaction;
 use crate::models::view::user::UserView;
 use crate::{
-    entities::wallet::wallet_entity::CurrencySymbol, middleware::utils::db_utils::ViewFieldSelector,
+    entities::wallet::CurrencySymbol, middleware::utils::db_utils::ViewFieldSelector,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

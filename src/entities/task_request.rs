@@ -1,4 +1,4 @@
-use crate::entities::wallet::wallet_entity::CurrencySymbol;
+use crate::entities::wallet::CurrencySymbol;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -105,6 +105,6 @@ pub struct TaskForReward {
     pub currency: CurrencySymbol,
     pub donors: Vec<TaskDonorForReward>,
     pub participants: Vec<TaskParticipantForReward>,
-    pub wallet: crate::entities::wallet::wallet_entity::Wallet,
+    pub wallet: crate::entities::wallet::WalletEntity,
     pub balance: Option<i64>,
 }

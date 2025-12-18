@@ -12,3 +12,4 @@ pub mod task_request_repo;
 pub mod user_nicknames;
 pub mod user_notifications;
 pub mod verification_code_repo;
+pub mod wallet_repo;

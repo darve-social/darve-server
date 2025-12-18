@@ -11,12 +11,12 @@ use darve_server::{
             discussion_entity::{Discussion, DiscussionDbService},
         },
         task_request::{TaskRequestEntity, TaskRequestStatus},
-        wallet::wallet_entity::{CurrencySymbol, WalletDbService},
+        wallet::CurrencySymbol,
     },
     jobs,
     middleware::ctx::Ctx,
     models::view::task::TaskRequestView,
-    services::discussion_service::CreateDiscussion,
+    services::{discussion_service::CreateDiscussion, wallet_service::WalletService},
 };
 
 use fake::{faker, Fake};
@@ -164,10 +164,8 @@ test_with_server!(
             task_id.strip_prefix("task_request:").unwrap(),
         ));
         wait_for(task_thing.clone(), &state.db.client).await;
-        let wallet_service = WalletDbService {
-            db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), false),
-        };
+        let ctx = Ctx::new(Ok("".to_string()), false);
+        let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
         let balance = wallet_service
             .get_balance(&Thing::from((
@@ -302,10 +300,8 @@ test_with_server!(
             task_id.strip_prefix("task_request:").unwrap(),
         ));
         wait_for(task_thing.clone(), &state.db.client).await;
-        let wallet_service = WalletDbService {
-            db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), false),
-        };
+        let ctx = Ctx::new(Ok("".to_string()), false);
+        let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
         let balance = wallet_service
             .get_balance(&Thing::from((
@@ -381,10 +377,8 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
-    let wallet_service = WalletDbService {
-        db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), false),
-    };
+    let ctx = Ctx::new(Ok("".to_string()), false);
+    let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
     let balance = wallet_service
         .get_balance(&Thing::from((
@@ -474,10 +468,8 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
-    let wallet_service = WalletDbService {
-        db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), false),
-    };
+    let ctx = Ctx::new(Ok("".to_string()), false);
+    let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
     let balance = wallet_service
         .get_balance(&Thing::from((
@@ -639,10 +631,8 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     ));
     wait_for(task_thing.clone(), &state.db.client).await;
 
-    let wallet_service = WalletDbService {
-        db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), false),
-    };
+    let ctx = Ctx::new(Ok("".to_string()), false);
+    let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
     let balance = wallet_service
         .get_balance(&Thing::from((
@@ -781,10 +771,8 @@ test_with_server!(
         ));
         wait_for(task_thing.clone(), &state.db.client).await;
 
-        let wallet_service = WalletDbService {
-            db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), false),
-        };
+        let ctx = Ctx::new(Ok("".to_string()), false);
+        let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
         let balance = wallet_service
             .get_balance(&Thing::from((
@@ -858,10 +846,8 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
         .await;
     response.assert_status_success();
 
-    let wallet_service = WalletDbService {
-        db: &state.db.client,
-        ctx: &Ctx::new(Ok("".to_string()), false),
-    };
+    let ctx = Ctx::new(Ok("".to_string()), false);
+    let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
     let balance = wallet_service
         .get_balance(&Thing::from((

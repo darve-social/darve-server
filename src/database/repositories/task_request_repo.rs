@@ -9,8 +9,7 @@ use crate::entities::task_request::{
 };
 use crate::entities::task_request_user::TaskParticipantStatus;
 use crate::entities::user_auth::local_user_entity;
-use crate::entities::wallet::wallet_entity::{CurrencySymbol, TRANSACTION_HEAD_F};
-use crate::entities::wallet::wallet_entity::TABLE_NAME as WALLET_TABLE_NAME;
+use crate::entities::wallet::{CurrencySymbol, TRANSACTION_HEAD_F, TABLE_NAME as WALLET_TABLE_NAME};
 use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};

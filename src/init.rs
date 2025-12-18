@@ -32,7 +32,6 @@ use entities::community::post_entity::PostDbService;
 use entities::user_auth::authentication_entity::AuthenticationDbService;
 use entities::user_auth::follow_entity::FollowDbService;
 use entities::wallet::balance_transaction_entity::BalanceTransactionDbService;
-use entities::wallet::wallet_entity::WalletDbService;
 use reqwest::StatusCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -89,7 +88,6 @@ pub async fn run_migrations(database: &Database) -> AppResult<()> {
     PostDbService { db: &db, ctx: &c }.mutate_db().await?;
     CommunityDbService { db: &db, ctx: &c }.mutate_db().await?;
     FollowDbService { db: &db, ctx: &c }.mutate_db().await?;
-    WalletDbService { db: &db, ctx: &c }.mutate_db().await?;
     BalanceTransactionDbService { db: &db, ctx: &c }
         .mutate_db()
         .await?;

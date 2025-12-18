@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use super::{gateway_transaction_entity, wallet_entity};
+use super::gateway_transaction_entity;
 use crate::database::client::Db;
-use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
+use crate::entities::wallet::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::error::CtxError;
 use crate::models::view::balance_tx::CurrencyTransactionView;
@@ -17,7 +17,12 @@ use middleware::{
 use serde::{Deserialize, Serialize};
 use surrealdb::method::Query;
 use surrealdb::sql::Thing;
-use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
+use crate::entities::wallet::{CurrencySymbol, APP_GATEWAY_WALLET, TABLE_NAME as WALLET_TABLE_NAME, is_wallet_id, WalletEntity};
+use crate::interfaces::repositories::wallet_ifce::WalletRepositoryInterface;
+use crate::database::repository_impl::Repository;
+use crate::database::repository_traits::RepositoryConn;
+use std::sync::Arc;
+
 
 #[derive(Debug, Deserialize)]
 pub struct TransferCurrencyResponse {
@@ -73,7 +78,7 @@ pub struct BalanceTransactionDbService<'a> {
 }
 
 pub const TABLE_NAME: &str = "balance_transaction";
-const WALLET_TABLE: &str = wallet_entity::TABLE_NAME;
+const WALLET_TABLE: &str = WALLET_TABLE_NAME;
 const GATEWAY_TX_TABLE: &str = gateway_transaction_entity::TABLE_NAME;
 
 pub const THROW_BALANCE_TOO_LOW: &str = "Not enough balance";
@@ -104,15 +109,11 @@ impl<'a> BalanceTransactionDbService<'a> {
         let mutation = self.db.query(sql).await?;
 
         mutation.check().expect("should mutate currencyTransaction");
-        let g_wallet = WalletDbService {
-            db: self.db,
-            ctx: self.ctx,
-        }
-        .init_app_gateway_wallet()
-        .await;
+        let wallet_repo = Repository::<WalletEntity>::new(Arc::new(self.db.clone()), WALLET_TABLE_NAME.to_string());
+        let g_wallet = wallet_repo.init_app_gateway_wallet().await;
         if let Err(err) = g_wallet {
-            if !err.error.to_string().contains("Wallet already exists") {
-                return Err(err.error);
+            if !err.to_string().contains("Wallet already exists") {
+                return Err(AppError::SurrealDb { source: err.to_string() });
             }
         }
         Ok(())
@@ -192,7 +193,7 @@ impl<'a> BalanceTransactionDbService<'a> {
         tx_type: Option<TransactionType>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<CurrencyTransactionView>> {
-        WalletDbService::is_wallet_id(self.ctx.clone(), wallet_id)?;
+        is_wallet_id(self.ctx, wallet_id)?;
 
         let ident = match tx_type {
             Some(ref v) => IdentIdName::ColumnIdentAnd(vec![

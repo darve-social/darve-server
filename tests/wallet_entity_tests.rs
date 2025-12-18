@@ -1,5 +1,5 @@
 mod helpers;
-use darve_server::entities::wallet::wallet_entity::WalletBalancesView;
+use darve_server::entities::wallet::WalletBalancesView;
 use darve_server::middleware;
 use darve_server::{
     entities::wallet::gateway_transaction_entity::GatewayTransaction,

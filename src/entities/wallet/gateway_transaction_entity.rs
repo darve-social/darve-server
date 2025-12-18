@@ -11,15 +11,14 @@ use middleware::{
 };
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::{Id, Thing};
-use wallet_entity::{
-    CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET, TABLE_NAME as WALLET_TABLE_NAME,
+use crate::entities::wallet::{
+    check_transaction_custom_error, generate_id as generate_wallet_id, get_user_wallet_id,
+    APP_GATEWAY_WALLET, CurrencySymbol, DARVE_WALLET, TABLE_NAME as WALLET_TABLE_NAME,
 };
-
 use crate::database::client::Db;
 use crate::database::surrdb_utils::get_entity_list;
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::balance_transaction_entity::{self, TransactionType};
-use crate::entities::wallet::wallet_entity::{self, check_transaction_custom_error, DARVE_WALLET};
 use crate::middleware;
 use crate::middleware::utils::db_utils::Pagination;
 
@@ -154,7 +153,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             }
             .into());
         }
-        let user_wallet = WalletDbService::get_user_wallet_id(&tx.user);
+        let user_wallet = get_user_wallet_id(&tx.user);
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
         let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
@@ -194,8 +193,8 @@ impl<'a> GatewayTransactionDbService<'a> {
         description: Option<String>,
         withdraw_fee: f64,
     ) -> CtxResult<GatewayTransaction> {
-        let user_wallet = WalletDbService::get_user_wallet_id(user);
-        let wallet_to = WalletDbService::generate_id();
+        let user_wallet = get_user_wallet_id(user);
+        let wallet_to = generate_wallet_id();
         let currency = CurrencySymbol::USD;
 
         let id = Self::generate_id();
@@ -265,7 +264,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 .ok_or(AppError::EntityFailIdNotFound {
                     ident: "withdraw_wallet".to_string(),
                 })?;
-        let user_wallet = WalletDbService::get_user_wallet_id(&withdraw_tx.user);
+        let user_wallet = get_user_wallet_id(&withdraw_tx.user);
         let query = self.db.query("BEGIN");
         let mut tx_qry = BalanceTransactionDbService::build_transfer_qry(
             query,
