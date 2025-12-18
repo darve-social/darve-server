@@ -1,20 +1,16 @@
 use crate::database::repository_traits::EntityWithId;
-use crate::utils::validate_utils::{
-    deserialize_thing_id, serialize_string_id, serialize_to_user_thing,
-};
+use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // TODO this id macros are db dependant so maybe can use some surrealdb build flag that adds id macros so we don't need separate struct definition for db and service,route
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerificationCodeEntity {
-    #[serde(deserialize_with = "deserialize_thing_id")]
-    #[serde(serialize_with = "serialize_string_id")]
+    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub id: String,
     pub code: String,
     pub failed_code_attempts: u8,
-    #[serde(deserialize_with = "deserialize_thing_id")]
-    #[serde(serialize_with = "serialize_to_user_thing")]
+    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub user: String,
     pub email: String,
     pub use_for: VerificationCodeFor,

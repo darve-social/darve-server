@@ -12,23 +12,6 @@ use crate::middleware::utils::db_utils::{
 
 pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
 
-pub fn get_string_thing_surr(value: String) -> Result<Thing, surrealdb::Error> {
-    get_str_thing_surr(value.as_str())
-}
-
-pub fn get_str_thing_surr(value: &str) -> Result<Thing, surrealdb::Error> {
-    if value.is_empty() || !value.contains(":") {
-        return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
-            value: format!("{value} - can't create Thing without table part"),
-        }));
-    }
-    Thing::try_from(value).map_err(|_| {
-        surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
-            value: value.to_string(),
-        })
-    })
-}
-
 pub fn get_str_id_thing(tb: &str, id: &str) -> Result<Thing, surrealdb::Error> {
     if id.is_empty() || id.contains(":") {
         return Err(surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
@@ -38,6 +21,14 @@ pub fn get_str_id_thing(tb: &str, id: &str) -> Result<Thing, surrealdb::Error> {
     Thing::try_from((tb, id)).map_err(|_| {
         surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
             value: format!("{}:{}", tb, id),
+        })
+    })
+}
+
+pub fn get_thing(value: &str) -> Result<Thing, surrealdb::Error> {
+    Thing::try_from(value).map_err(|_| {
+        surrealdb::Error::Db(surrealdb::error::Db::IdInvalid {
+            value: value.to_string(),
         })
     })
 }

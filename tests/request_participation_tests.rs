@@ -122,7 +122,7 @@ test_with_server!(
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.donors.get(0).unwrap();
 
-        assert_eq!(created_task.id.to_raw(), task.id.to_raw());
+        assert_eq!(created_task.id, task.id);
 
         assert_eq!(offer0.amount.clone(), user2_offer_amt as i64);
         assert_eq!(task.created_by.username, username2);
@@ -161,7 +161,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
@@ -192,7 +192,7 @@ test_with_server!(
         // change amount to 33 by sending another participation req
         let user3_offer_amt: i64 = 100;
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
@@ -232,7 +232,7 @@ test_with_server!(
         assert_eq!(balance.balance_usd, 0);
 
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id).as_str())
             .json(&TaskRequestOfferInput { amount: 100 })
             .add_header("Accept", "application/json")
             .await;
@@ -269,7 +269,7 @@ test_with_server!(
 
         // accept received task
         let accept_response = server
-            .post(format!("/api/tasks/{}/accept", received_task.id.to_raw()).as_str())
+            .post(format!("/api/tasks/{}/accept", received_task.id).as_str())
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -309,7 +309,7 @@ test_with_server!(
 
         // deliver task
         let delivery_req = server
-            .post(format!("/api/tasks/{}/deliver", received_task.id.to_raw()).as_str())
+            .post(format!("/api/tasks/{}/deliver", received_task.id).as_str())
             .json(&json!({"post_id": delivery_post_id}))
             .await;
         delivery_req.assert_status_success();

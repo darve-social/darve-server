@@ -119,10 +119,14 @@ async fn get_post_tasks(
         return Err(AppError::Forbidden.into());
     }
 
-    let tasks = state.db.task_request
+    let tasks = state
+        .db
+        .task_request
         .get_by_posts(vec![post.id], user.id.as_ref().unwrap().clone())
         .await
-        .map_err(|e| AppError::SurrealDb { source: e.to_string() })?;
+        .map_err(|e| AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
 
     Ok(Json(tasks))
 }
@@ -438,11 +442,7 @@ async fn get_post(
         &state.db.discussion_users,
     )
     .get(&auth_data.user_thing_id(), &post_id)
-    .await
-    .map_err(|e| {
-        println!(">>>>>{:?}", e);
-        e
-    })?;
+    .await?;
 
     Ok(Json(post_view))
 }

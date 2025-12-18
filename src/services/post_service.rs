@@ -233,7 +233,11 @@ where
 
         let _ = self
             .access_repository
-            .add(new_members, vec![post.id.clone()], Role::Member.to_string())
+            .add(
+                new_members,
+                vec![post.id.to_raw().as_ref()],
+                Role::Member.to_string(),
+            )
             .await?;
 
         Ok(())
@@ -291,7 +295,7 @@ where
 
         let _ = self
             .access_repository
-            .remove_by_entity(post.id.clone(), remove_members)
+            .remove_by_entity(post.id.to_raw().as_ref(), remove_members)
             .await?;
 
         let updated_discs_users = self
@@ -467,7 +471,7 @@ where
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                vec![post.id.as_ref().unwrap().clone()],
+                vec![&post.id.as_ref().unwrap().to_raw()],
                 Role::Owner.to_string(),
             )
             .await?;
@@ -488,7 +492,7 @@ where
                 .access_repository
                 .add(
                     member_ids.clone(),
-                    vec![post.id.as_ref().unwrap().clone()],
+                    vec![&post.id.as_ref().unwrap().to_raw()],
                     Role::Member.to_string(),
                 )
                 .await?;
