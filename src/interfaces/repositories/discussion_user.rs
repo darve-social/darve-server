@@ -21,6 +21,8 @@ pub trait DiscussionUserRepositoryInterface {
         increase_unread_for_user_ids: Vec<&String>,
     ) -> AppResult<Vec<DiscussionUser>>;
 
+    /// * `disc_id` - The ID (id of thing) of the discussion to update
+    /// * `user_ids` - A vector of user IDs (id of thing) whose discussion records should be updated
     async fn update_latest_post(
         &self,
         disc_id: &str,
