@@ -837,7 +837,8 @@
                 "CREATE_REPLY",
                 "LIKE",
                 "ADD_MEMBER",
-                "REMOVE_MEMBER"
+                "REMOVE_MEMBER",
+                "DELETE"
               ]
             },
             "MEMBER": {
@@ -846,7 +847,7 @@
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE", "DELETE"]
             },
             "GUEST": {
               "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
@@ -904,7 +905,8 @@
                 "CREATE_REPLY",
                 "LIKE",
                 "ADD_MEMBER",
-                "REMOVE_MEMBER"
+                "REMOVE_MEMBER",
+                "DELETE"
               ]
             },
             "MEMBER": {
@@ -913,7 +915,7 @@
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE", "DELETE"]
             },
             "GUEST": {
               "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
@@ -968,7 +970,8 @@
                 "CREATE_REPLY",
                 "LIKE",
                 "ADD_MEMBER",
-                "REMOVE_MEMBER"
+                "REMOVE_MEMBER",
+                "DELETE"
               ]
             },
             "MEMBER": {
@@ -977,7 +980,7 @@
           },
           "POST:PUBLIC": {
             "OWNER": {
-              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE"]
+              "permissions": ["VIEW", "EDIT", "CREATE_REPLY", "LIKE", "DELETE"]
             },
             "GUEST": {
               "permissions": ["VIEW", "CREATE_REPLY", "LIKE"]
