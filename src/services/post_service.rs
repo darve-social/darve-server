@@ -5,7 +5,7 @@ use crate::{
     database::client::Db,
     entities::{
         community::{
-            discussion_entity::DiscussionDbService,
+            discussion_entity::{DiscussionDbService, DiscussionType},
             post_entity::{CreatePost, PostDbService, PostType},
         },
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
@@ -585,7 +585,22 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        self.posts_repository.delete(&post.id.id.to_raw()).await
+        self.posts_repository.delete(&post.id.id.to_raw()).await?;
+
+        if post.discussion.r#type == DiscussionType::Private {
+            let disc_id = post.discussion.id.id.to_raw();
+            let users = post
+                .discussion
+                .users
+                .into_iter()
+                .map(|u| u.user.id.to_raw())
+                .collect::<Vec<String>>();
+            self.discussion_users
+                .update_latest_post(&disc_id, users)
+                .await?;
+        }
+
+        Ok(())
     }
 
     async fn get_post_data_of_input(&self, data: PostInput) -> CtxResult<PostCreationData> {
