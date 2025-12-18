@@ -5,7 +5,9 @@ use crate::helpers::post_helpers::create_fake_post;
 use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::task_request::TaskRequestEntity;
+use darve_server::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
+use darve_server::models::view::discussion_user::DiscussionUserView;
 use darve_server::models::view::reply::ReplyView;
 use darve_server::services::discussion_service::CreateDiscussion;
 use fake::{faker, Fake};
@@ -292,9 +294,9 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
 });
 
 test_with_server!(
-    try_to_delete_post_in_private_discussion,
+    delete_post_in_private_discussion,
     |server, ctx_state, config| {
-        let (server, user, _, user_token) = create_fake_login_test_user(&server).await;
+        let (server, user, _, _) = create_fake_login_test_user(&server).await;
         let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
 
         let comm_id = CommunityDbService::get_profile_community_id(user1.id.as_ref().unwrap());
@@ -311,17 +313,50 @@ test_with_server!(
             .await;
         create_response.assert_status_ok();
         let disc_id = create_response.json::<Discussion>().id;
+        let post_1 = create_fake_post(server, &disc_id, None, None).await;
         let post = create_fake_post(server, &disc_id, None, None).await;
         server
             .delete(&format!("/api/posts/{}", post.id))
             .add_header("Cookie", format!("jwt={}", user1_token))
             .await
-            .assert_status_forbidden();
+            .assert_status_ok();
 
         server
-            .delete(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", user_token))
+            .get(&format!("/api/posts/{}", post.id))
+            .add_header("Cookie", format!("jwt={}", user1_token))
             .await
-            .assert_status_forbidden();
+            .assert_status_not_found();
+
+        let discs = ctx_state
+            .db
+            .discussion_users
+            .get_by_user::<DiscussionUserView>(
+                user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+                Pagination {
+                    order_by: None,
+                    order_dir: None,
+                    count: 1,
+                    start: 0,
+                },
+                true,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(discs.len(), 1);
+
+        assert_eq!(
+            discs
+                .first()
+                .as_ref()
+                .unwrap()
+                .latest_post
+                .as_ref()
+                .unwrap()
+                .id
+                .to_raw(),
+            post_1.id
+        )
     }
 );
