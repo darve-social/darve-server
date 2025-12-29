@@ -313,11 +313,13 @@ impl DarveTasksUtils {
             - weekday.number_from_monday() as i64)
             .rem_euclid(7);
 
+        let target_date = now + chrono::Duration::days(days_until_sunday);
+
         let end_of_week = Local
             .with_ymd_and_hms(
-                now.year(),
-                now.month(),
-                now.day() + days_until_sunday as u32,
+                target_date.year(),
+                target_date.month(),
+                target_date.day(),
                 23,
                 59,
                 59,
