@@ -1,16 +1,12 @@
-use crate::{
-    entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
-    utils::blocked_words::BLOCKED_WORDS,
-};
+use crate::utils::blocked_words::BLOCKED_WORDS;
 use chrono::{DateTime, Months, Utc};
 use core::fmt;
 use regex::Regex;
 use reqwest::Url;
 use serde::{
     de::{self, MapAccess, Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer,
 };
-use std::str::FromStr;
 use surrealdb::sql::Thing;
 use validator::{ValidateEmail, ValidationError};
 
@@ -78,22 +74,6 @@ pub fn validate_birth_date(date: &DateTime<Utc>) -> Result<(), ValidationError> 
     Ok(())
 }
 
-pub fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let opt = Option::<String>::deserialize(deserializer)?;
-    Ok(opt.filter(|s| !s.trim().is_empty()))
-}
-
-pub fn deserialize_thing_id<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let thing = Thing::deserialize(deserializer)?;
-    Ok(thing.id.to_raw())
-}
-
 pub fn deserialize_thing_or_string_id<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
@@ -134,37 +114,43 @@ where
     deserializer.deserialize_any(IdExtractor)
 }
 
-pub fn serialize_string_id<S>(x: &String, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match x.is_empty() {
-        true => s.serialize_none(),
-        false => s.serialize_str(x.as_str()),
-    }
-}
-
-pub fn serialize_to_user_thing<S>(x: &String, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match x.is_empty() {
-        true => s.serialize_none(),
-        false => Thing::from((USER_TABLE_NAME, x.as_str())).serialize(s),
-    }
-}
-
-pub fn deserialize_option_string_id<'de, D>(deserializer: D) -> Result<Option<Thing>, D::Error>
+pub fn deserialize_thing_or_string<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let opt = Option::<String>::deserialize(deserializer)?;
-    match opt {
-        Some(s) if !s.trim().is_empty() => Ok(Thing::from_str(&s)
-            .map(Some)
-            .map_err(|_| de::Error::custom("Invalid id"))?),
-        _ => Ok(None),
+    struct IdExtractor;
+
+    impl<'de> Visitor<'de> for IdExtractor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a Thing object")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<String, E>
+        where
+            E: de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<String, E>
+        where
+            E: de::Error,
+        {
+            Ok(value)
+        }
+
+        fn visit_map<M>(self, map: M) -> Result<String, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let thing = Thing::deserialize(de::value::MapAccessDeserializer::new(map))?;
+            Ok(thing.to_raw())
+        }
     }
+
+    deserializer.deserialize_any(IdExtractor)
 }
 
 pub fn validate_email_or_username(value: &str) -> Result<(), ValidationError> {

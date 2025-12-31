@@ -178,7 +178,7 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
     server
         .post(&format!(
             "/api/tasks/{}/accept",
-            super_tasks.first().unwrap().id.to_raw()
+            super_tasks.first().unwrap().id
         ))
         .add_header("Accept", "application/json")
         .await

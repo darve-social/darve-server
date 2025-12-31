@@ -562,7 +562,7 @@ where
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                [disc_id].to_vec(),
+                [disc_id.to_raw().as_ref()].to_vec(),
                 Role::Owner.to_string(),
             )
             .await?;

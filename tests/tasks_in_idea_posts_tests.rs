@@ -247,7 +247,7 @@ test_with_server!(
         let task = task_request.json::<TaskRequestEntity>();
 
         let task_request = server
-            .post(&format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
+            .post(&format!("/api/tasks/{}/donor", task.id).as_str())
             .json(&json!({
                 "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
@@ -307,7 +307,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
     let task = task_request.json::<TaskRequestEntity>();
 
     let task_request = server
-        .post(&format!("/api/tasks/{}/donor", task.id.to_raw()))
+        .post(&format!("/api/tasks/{}/donor", task.id))
         .json(&json!({
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),

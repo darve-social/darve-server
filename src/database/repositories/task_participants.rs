@@ -1,5 +1,6 @@
 use super::super::table_names::{DELIVERY_RESULT_TABLE_NAME, TASK_PARTICIPANT_TABLE_NAME};
 use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
+use crate::database::surrdb_utils::get_thing;
 use crate::entities::task_request_user::TaskParticipant;
 use crate::{
     database::client::Db,
@@ -62,7 +63,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
                 status=$_task_participant_status", TASK_PARTICIPANT_TABLE_NAME))
 
             .bind(("_task_participant_user_ids", users))
-            .bind(("_task_participant_task_id", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
+            .bind(("_task_participant_task_id", get_thing(task_id).expect("Task id invalid")))
             .bind(("_task_participant_status", status.to_string()))
     }
 
@@ -99,7 +100,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .client
             .query(sql)
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
+            .bind(("task", get_thing(task_id).expect("Task id invalid")))
             .bind(("status", status.to_string()))
             .await
             .map_err(|e| e.to_string())?;
@@ -154,7 +155,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         let mut res = self
             .client
             .query(sql)
-            .bind(("task", Thing::from((TASK_REQUEST_TABLE_NAME, task_id))))
+            .bind(("task", get_thing(task_id).expect("Task id invalid")))
             .await
             .map_err(|e| e.to_string())?;
 

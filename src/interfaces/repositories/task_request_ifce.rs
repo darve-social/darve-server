@@ -1,10 +1,13 @@
 use crate::{
     database::repository_traits::RepositoryCore,
-    entities::task_request::{
-        TaskForReward, TaskRequestCreate, TaskRequestStatus, TaskRequestType,
+    entities::{
+        task_request::{TaskForReward, TaskRequestCreate, TaskRequestStatus, TaskRequestType},
+        task_request_user::TaskParticipantStatus,
     },
-    entities::task_request_user::TaskParticipantStatus,
-    middleware::utils::db_utils::{Pagination, ViewFieldSelector},
+    middleware::{
+        error::AppResult,
+        utils::db_utils::{Pagination, ViewFieldSelector},
+    },
 };
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -76,16 +79,21 @@ pub trait TaskRequestRepositoryInterface: RepositoryCore {
     /// Update task request status
     async fn update_status(
         &self,
-        task: Thing,
+        task_id: &str,
         status: TaskRequestStatus,
     ) -> Result<(), surrealdb::Error>;
 
     /// Get task ready for payment by ID
     async fn get_ready_for_payment_by_id(
         &self,
-        id: Thing,
+        id: &str,
     ) -> Result<TaskForReward, surrealdb::Error>;
 
     /// Get all tasks ready for payment
     async fn get_ready_for_payment(&self) -> Result<Vec<TaskForReward>, surrealdb::Error>;
+
+    async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+        &self,
+        id: &str,
+    ) -> AppResult<T>;
 }

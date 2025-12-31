@@ -1,4 +1,5 @@
 use crate::database::client::Db;
+use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
@@ -36,14 +37,20 @@ impl AccessRepository {
 
 #[async_trait]
 impl AccessRepositoryInterface for AccessRepository {
-    async fn add(&self, users: Vec<Thing>, entities: Vec<Thing>, role: String) -> AppResult<()> {
+    async fn add(&self, users: Vec<Thing>, entities: Vec<&str>, role: String) -> AppResult<()> {
+        let mut things = Vec::with_capacity(entities.len());
+        for id in entities {
+            things.push(get_thing(id).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?);
+        }
         let _ = self
             .client
             .query(format!(
                 "RELATE $users->{ACCESS_TABLE_NAME}->$entities SET role=$role"
             ))
             .bind(("users", users))
-            .bind(("entities", entities))
+            .bind(("entities", things))
             .bind(("role", role))
             .await?
             .check();
@@ -51,14 +58,17 @@ impl AccessRepositoryInterface for AccessRepository {
         Ok(())
     }
 
-    async fn update(&self, user: Thing, entity: Thing, role: String) -> AppResult<()> {
+    async fn update(&self, user: Thing, entity: &str, role: String) -> AppResult<()> {
+        let thing = get_thing(entity).map_err(|e| AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
         let _ = self
             .client
             .query(format!(
                 "UPDATE $user->{ACCESS_TABLE_NAME} SET role=$role WHERE out = $entity;"
             ))
             .bind(("user", user))
-            .bind(("entity", entity))
+            .bind(("entity", thing))
             .bind(("role", role))
             .await?
             .check();
@@ -66,28 +76,37 @@ impl AccessRepositoryInterface for AccessRepository {
         Ok(())
     }
 
-    async fn remove_by_user(&self, user: Thing, entities: Vec<Thing>) -> AppResult<()> {
+    async fn remove_by_user(&self, user: Thing, entities: Vec<&str>) -> AppResult<()> {
+        let mut things = Vec::with_capacity(entities.len());
+        for id in entities {
+            things.push(get_thing(id).map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?);
+        }
         let _ = self
             .client
             .query(format!(
                 "DELETE $user->{ACCESS_TABLE_NAME} WHERE out IN $entities; "
             ))
             .bind(("user", user))
-            .bind(("entities", entities))
+            .bind(("entities", things))
             .await?
             .check();
 
         Ok(())
     }
 
-    async fn remove_by_entity(&self, entity: Thing, users: Vec<Thing>) -> AppResult<()> {
+    async fn remove_by_entity(&self, entity: &str, users: Vec<Thing>) -> AppResult<()> {
+        let thing = get_thing(entity).map_err(|e| AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
         let _ = self
             .client
             .query(format!(
                 "DELETE $entity<-{ACCESS_TABLE_NAME} WHERE in IN $users; "
             ))
             .bind(("users", users))
-            .bind(("entity", entity))
+            .bind(("entity", thing))
             .await?
             .check();
 

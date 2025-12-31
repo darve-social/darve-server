@@ -183,7 +183,11 @@ where
 
         let disc_id = disc.id.id.to_raw();
         self.access_repository
-            .add(new_users.clone(), vec![disc.id], Role::Member.to_string())
+            .add(
+                new_users.clone(),
+                vec![&disc.id.to_raw()],
+                Role::Member.to_string(),
+            )
             .await?;
 
         self.discussion_users
@@ -228,7 +232,7 @@ where
 
         let disc_id = disc.id.id.to_raw();
         self.access_repository
-            .remove_by_entity(disc.id, user_things.clone())
+            .remove_by_entity(disc.id.to_raw().as_ref(), user_things.clone())
             .await?;
 
         let _ = self.discussion_users.remove(&disc_id, user_things).await?;
@@ -372,7 +376,7 @@ where
         self.access_repository
             .add(
                 [user.id.as_ref().unwrap().clone()].to_vec(),
-                [disc.id.clone()].to_vec(),
+                [disc.id.to_raw().as_ref()].to_vec(),
                 owner_role.to_string(),
             )
             .await?;
@@ -381,7 +385,7 @@ where
             self.access_repository
                 .add(
                     user_ids.clone(),
-                    [disc.id.clone()].to_vec(),
+                    [disc.id.to_raw().as_ref()].to_vec(),
                     Role::Member.to_string(),
                 )
                 .await?;
