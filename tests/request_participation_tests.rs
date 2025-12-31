@@ -5,7 +5,6 @@ use darve_server::entities::community::community_entity;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::task_request::TaskRequestEntity;
 use darve_server::entities::user_notification::UserNotificationEvent;
-use darve_server::entities::wallet::wallet_entity;
 use darve_server::middleware;
 use darve_server::models::view::balance_tx::CurrencyTransactionView;
 use darve_server::models::view::notification::UserNotificationView;
@@ -23,7 +22,7 @@ use crate::helpers::{create_fake_login_test_user, create_login_test_user};
 use community_entity::CommunityDbService;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
-use wallet_entity::WalletDbService;
+use darve_server::services::wallet_service::WalletService;
 
 test_with_server!(
     create_task_request_participation,
@@ -169,10 +168,7 @@ test_with_server!(
             .await;
         participate_response.assert_status_success();
 
-        let wallet_service = WalletDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        };
+        let wallet_service = WalletService::new(&ctx_state.db.wallet, &ctx);
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
 
@@ -201,10 +197,7 @@ test_with_server!(
 
         participate_response.assert_status_success();
 
-        let wallet_service = WalletDbService {
-            db: &ctx_state.db.client,
-            ctx: &ctx,
-        };
+        let wallet_service = WalletService::new(&ctx_state.db.wallet, &ctx);
         let balance = wallet_service.get_user_balance(&user3_thing).await.unwrap();
         assert_eq!(balance.balance_usd, user3_endow_amt - user3_offer_amt);
 

@@ -12,3 +12,4 @@ pub mod task_relates;
 pub mod task_request_ifce;
 pub mod user_notifications;
 pub mod verification_code_ifce;
+pub mod wallet_ifce;

@@ -14,7 +14,7 @@ use darve_server::{
         tag::SystemTags,
         task_request::TaskRequestEntity,
         task_request_user::TaskParticipantStatus,
-        wallet::wallet_entity::{CurrencySymbol, WalletDbService},
+        wallet::CurrencySymbol,
     },
     interfaces::repositories::tags::TagsRepositoryInterface,
     middleware::{ctx::Ctx, utils::db_utils::Pagination},
@@ -23,6 +23,7 @@ use darve_server::{
         post::PostView,
         task::{TaskRequestView, TaskViewForParticipant},
     },
+    services::wallet_service::WalletService,
 };
 
 use fake::{faker, Fake};
@@ -1071,10 +1072,8 @@ test_with_server!(
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequestEntity>().id;
 
-        let wallet_service = WalletDbService {
-            db: &state.db.client,
-            ctx: &Ctx::new(Ok("".to_string()), false),
-        };
+        let ctx = Ctx::new(Ok("".to_string()), false);
+        let wallet_service = WalletService::new(&state.db.wallet, &ctx);
 
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;
         let balance = wallet_service
