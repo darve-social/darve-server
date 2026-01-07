@@ -134,9 +134,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
         assert!(permissions.contains(&Permission::CreateIdeaPost));
-        assert_eq!(permissions.len(), 5);
+        assert_eq!(permissions.len(),4);
     }
 
     #[test]
@@ -147,10 +146,9 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert_eq!(permissions.len(), 6);
+        assert_eq!(permissions.len(), 5);
     }
 
     #[test]
@@ -245,56 +243,6 @@ mod schema_variant_tests {
     }
 
     #[test]
-    fn test_post_private_owner_under_discussion_public_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from("APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER");
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::CreatePublicTask));
-        assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::Like));
-        assert!(permissions.contains(&Permission::AddMember));
-        assert!(permissions.contains(&Permission::RemoveMember));
-        assert!(permissions.contains(&Permission::CreateReplyForReply));
-        assert!(permissions.contains(&Permission::Delete));
-        assert_eq!(permissions.len(), 10);
-    }
-
-    #[test]
-    fn test_post_private_member_under_discussion_public_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from("APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER");
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::CreatePublicTask));
-        assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::Like));
-        assert!(permissions.contains(&Permission::CreateReplyForReply));
-        assert_eq!(permissions.len(), 6);
-    }
-
-    #[test]
-    fn test_post_public_owner_under_discussion_public_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from("APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PUBLIC->OWNER");
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::CreatePrivateTask));
-        assert!(permissions.contains(&Permission::CreateReply));
-        assert!(permissions.contains(&Permission::Like));
-        assert!(permissions.contains(&Permission::CreateReplyForReply));
-        assert!(permissions.contains(&Permission::Delete));
-        assert_eq!(permissions.len(), 7);
-    }
-
-    #[test]
     fn test_post_public_guest_under_member_discussion_guest() {
         let ac = access_control();
 
@@ -306,210 +254,6 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::CreateReplyForReply));
         assert_eq!(permissions.len(), 5);
-    }
-
-    #[test]
-    fn test_task_public_owner_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PUBLIC->OWNER",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_public_guest_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PUBLIC->GUEST",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::AcceptTask));
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_public_participant_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PUBLIC->PARTICIPANT",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::DeliverTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 2);
-    }
-
-    #[test]
-    fn test_task_private_owner_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->OWNER",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_private_guest_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->GUEST",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 2);
-    }
-
-    #[test]
-    fn test_task_private_candidate_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->CANDIDATE",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::AcceptTask));
-        assert!(permissions.contains(&Permission::RejectTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_private_participant_under_post_private_owner() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->PARTICIPANT",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::DeliverTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 2);
-    }
-
-    #[test]
-    fn test_task_private_participant_under_post_private_donor() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->DONOR",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 2);
-    }
-
-    #[test]
-    fn test_task_public_owner_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PUBLIC->OWNER",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_public_guest_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PUBLIC->GUEST",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::AcceptTask));
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_public_participant_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PUBLIC->PARTICIPANT",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::AcceptTask));
-        assert!(permissions.contains(&Permission::DeliverTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_private_owner_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PRIVATE->OWNER",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Edit));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_private_guest_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PRIVATE->GUEST",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::View));
-        assert!(permissions.contains(&Permission::Donate));
-        assert_eq!(permissions.len(), 2);
-    }
-
-    #[test]
-    fn test_task_private_candidate_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PRIVATE->CANDIDATE",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::AcceptTask));
-        assert!(permissions.contains(&Permission::RejectTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 3);
-    }
-
-    #[test]
-    fn test_task_private_participant_under_post_private_member() {
-        let ac = access_control();
-
-        let path = AccessPath::from(
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PRIVATE->PARTICIPANT",
-        );
-        let permissions = ac.what_can(&path);
-        assert!(permissions.contains(&Permission::DeliverTask));
-        assert!(permissions.contains(&Permission::View));
-        assert_eq!(permissions.len(), 2);
     }
 
     #[test]
@@ -862,10 +606,6 @@ mod schema_variant_tests {
 
         // Verify all expected paths that can deliver tasks
         let expected_paths = vec![
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PUBLIC->PARTICIPANT",
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PUBLIC->PARTICIPANT",
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->OWNER->TASK:PRIVATE->PARTICIPANT",
-            "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PRIVATE->MEMBER->TASK:PRIVATE->PARTICIPANT",
             "APP->MEMBER->DISCUSSION:PUBLIC->OWNER->POST:PUBLIC->OWNER->TASK:PRIVATE->PARTICIPANT",
             "APP->MEMBER->DISCUSSION:PUBLIC->GUEST->POST:PUBLIC->GUEST->TASK:PRIVATE->PARTICIPANT",
             "APP->MEMBER->DISCUSSION:PRIVATE->OWNER->TASK:PRIVATE->PARTICIPANT",

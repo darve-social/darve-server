@@ -10,6 +10,7 @@ use darve_server::entities::community::discussion_entity::DiscussionDbService;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::models::view::post::PostView;
 use darve_server::models::web::UserView;
+use darve_server::services::discussion_service::CreateDiscussion;
 use fake::faker;
 use fake::Fake;
 use helpers::post_helpers::create_fake_post;
@@ -67,8 +68,24 @@ test_with_server!(add_users_to_post_test, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
 
-    let default_discussion =
-        DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
+    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap());
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some(vec![
+                user0.id.as_ref().unwrap().to_raw(),
+                user.id.as_ref().unwrap().to_raw(),
+            ]),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    let default_discussion = create_response.json::<Discussion>().id;
 
     let title = faker::lorem::en::Sentence(7..20).fake::<String>();
     let data = MultipartForm::new()
@@ -106,8 +123,24 @@ test_with_server!(remove_users_from_post_test, |server, ctx_state, config| {
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
 
-    let default_discussion =
-        DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
+    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap());
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some(vec![
+                user0.id.as_ref().unwrap().to_raw(),
+                user.id.as_ref().unwrap().to_raw(),
+            ]),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+
+    let default_discussion = create_response.json::<Discussion>().id;
 
     let title = faker::lorem::en::Sentence(7..20).fake::<String>();
     let data = MultipartForm::new()
@@ -165,8 +198,21 @@ test_with_server!(
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
         let (server, user2, _, _) = create_fake_login_test_user(&server).await;
 
-        let default_discussion =
-            DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
+        let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap());
+
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: Some(vec![user.id.as_ref().unwrap().to_raw()]),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+
+        let default_discussion = create_response.json::<Discussion>().id;
 
         let title = faker::lorem::en::Sentence(7..20).fake::<String>();
         let data = MultipartForm::new()
@@ -192,8 +238,19 @@ test_with_server!(create_post_with_users_test, |server, ctx_state, config| {
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
-    let default_discussion =
-        DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+    let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some(vec![user2.id.as_ref().unwrap().to_raw()]),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    let default_discussion = create_response.json::<Discussion>().id;
 
     let title = "TEST_TEST";
     let data = MultipartForm::new()
@@ -229,9 +286,19 @@ test_with_server!(
         let (server, user2, _, _) = create_fake_login_test_user(&server).await;
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
-        let default_discussion =
-            DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-
+        let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: Some(vec![user2.id.as_ref().unwrap().to_raw()]),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+        let default_discussion = create_response.json::<Discussion>().id;
         let title = "TEST_TEST";
         let data = MultipartForm::new()
             .add_text("title", title)
@@ -265,8 +332,19 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
 
-        let default_discussion =
-            DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
+        let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: Some(vec![user.id.as_ref().unwrap().to_raw()]),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+        let default_discussion = create_response.json::<Discussion>().id;
 
         let title = "TEST_TEST";
         let data = MultipartForm::new()
@@ -342,8 +420,24 @@ test_with_server!(get_users_to_post_test, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
 
-    let default_discussion =
-        DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
+    let comm_id = CommunityDbService::get_profile_community_id(&user2.id.as_ref().unwrap());
+
+    let create_response = server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some(vec![
+                user.id.as_ref().unwrap().to_raw(),
+                user0.id.as_ref().unwrap().to_raw(),
+                user1.id.as_ref().unwrap().to_raw(),
+            ]),
+            private_discussion_users_final: false,
+        })
+        .add_header("Accept", "application/json")
+        .await;
+    let default_discussion = create_response.json::<Discussion>().id;
 
     let title = faker::lorem::en::Sentence(7..20).fake::<String>();
     let data = MultipartForm::new()
@@ -367,3 +461,21 @@ test_with_server!(get_users_to_post_test, |server, ctx_state, config| {
     let users = response.json::<Vec<UserView>>();
     assert_eq!(users.len(), 4);
 });
+
+test_with_server!(
+    try_to_create_private_post_in_public_discusison,
+    |server, ctx_state, config| {
+        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+
+        let title = faker::lorem::en::Sentence(7..20).fake::<String>();
+        let data = MultipartForm::new()
+            .add_text("title", title)
+            .add_text("content", "content")
+            .add_text("users", user0.id.as_ref().unwrap());
+
+        let response = create_post(server, &disc_id, data).await;
+        response.assert_status_forbidden();
+    }
+);
