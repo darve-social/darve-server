@@ -1,5 +1,7 @@
 mod helpers;
 
+use std::str::FromStr;
+
 use crate::helpers::{create_fake_login_test_user, task_helpers};
 use axum_test::multipart::MultipartForm;
 use chrono::Utc;
@@ -667,11 +669,11 @@ test_with_server!(
         let task_participant = task_helpers::success_deliver_task(&server, &task_id, &token0)
             .await
             .unwrap();
-
+        let task_thing_id = Thing::from_str(&task_id).unwrap().id.to_raw();
         let link = task_participant.result.as_ref().unwrap().link.as_ref();
         assert!(link.is_some());
         assert!(task_participant.result.as_ref().unwrap().post.is_none());
-        assert!(link.unwrap().contains(&task_id));
+        assert!(link.unwrap().contains(&task_thing_id));
         assert!(link
             .unwrap()
             .contains(&user0.id.as_ref().unwrap().id.to_raw()));

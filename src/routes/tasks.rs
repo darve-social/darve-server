@@ -280,11 +280,7 @@ async fn deliver_task(
             &task_id,
             convert_field_file_data(data.content)?,
         )
-        .await
-        .map_err(|e| {
-            println!(">>>>>>>>>>>>>>>>>>>{:?}", e);
-            e
-        })?;
+        .await?;
 
     Ok(Json(data))
 }
