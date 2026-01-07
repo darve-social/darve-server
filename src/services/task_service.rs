@@ -1,13 +1,13 @@
+use std::sync::Arc;
+
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
-    database::client::Db,
-    database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME,
+    database::{client::Db, repositories::task_request_repo::TASK_REQUEST_TABLE_NAME},
     entities::{
-        self,
         access_user::AccessUser,
         community::{
-            discussion_entity::DiscussionDbService,
-            post_entity::{PostDbService, PostType},
+            discussion_entity::{DiscussionDbService, DiscussionType},
+            post_entity::{CreatePost, PostDbService, PostType},
         },
         tag::SystemTags,
         task_donor::TaskDonor,
@@ -15,19 +15,25 @@ use crate::{
             DeliverableType, RewardType, TaskForReward, TaskParticipantForReward,
             TaskRequestCreate, TaskRequestEntity, TaskRequestStatus, TaskRequestType,
         },
-        task_request_user::{TaskParticipant, TaskParticipantStatus},
+        task_request_user::{TaskParticipant, TaskParticipantResult, TaskParticipantStatus},
         user_auth::local_user_entity::{LocalUser, LocalUserDbService},
         wallet::{
             balance_transaction_entity::{BalanceTransactionDbService, TransactionType},
-            wallet_entity::{CurrencySymbol, WalletDbService, TABLE_NAME as WALLET_TABLE_NAME},
+            wallet_entity::{
+                check_transaction_custom_error, CurrencySymbol, WalletDbService,
+                TABLE_NAME as WALLET_TABLE_NAME,
+            },
         },
     },
-    interfaces::repositories::{
-        access::AccessRepositoryInterface, delivery_result::DeliveryResultRepositoryInterface,
-        tags::TagsRepositoryInterface, task_donors::TaskDonorsRepositoryInterface,
-        task_participants::TaskParticipantsRepositoryInterface,
-        task_request_ifce::TaskRequestRepositoryInterface,
-        user_notifications::UserNotificationsInterface,
+    interfaces::{
+        file_storage::FileStorageInterface,
+        repositories::{
+            access::AccessRepositoryInterface, tags::TagsRepositoryInterface,
+            task_donors::TaskDonorsRepositoryInterface,
+            task_participants::TaskParticipantsRepositoryInterface,
+            task_request_ifce::TaskRequestRepositoryInterface,
+            user_notifications::UserNotificationsInterface,
+        },
     },
     middleware::{
         ctx::Ctx,
@@ -39,13 +45,12 @@ use crate::{
     },
     models::view::{
         access::{DiscussionAccessView, PostAccessView, TaskAccessView},
-        post::PostView,
         task::TaskRequestView,
     },
     services::notification_service::{NotificationService, OnCreatedTaskView},
+    utils::file::convert::FileUpload,
 };
 use chrono::{DateTime, TimeDelta, Utc};
-use entities::wallet::wallet_entity::check_transaction_custom_error;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
@@ -109,7 +114,7 @@ pub struct TaskRequestInput {
     pub delivery_period: Option<u64>,
 }
 
-pub struct TaskService<'a, TR, T, N, P, A, TG, DR>
+pub struct TaskService<'a, TR, T, N, P, A, TG>
 where
     TR: TaskRequestRepositoryInterface,
     T: TaskParticipantsRepositoryInterface,
@@ -117,7 +122,6 @@ where
     N: UserNotificationsInterface,
     A: AccessRepositoryInterface,
     TG: TagsRepositoryInterface,
-    DR: DeliveryResultRepositoryInterface,
 {
     tasks_repository: &'a TR,
     users_repository: LocalUserDbService<'a>,
@@ -130,11 +134,11 @@ where
     default_period_seconds: u64,
     access_repository: &'a A,
     tags_repository: &'a TG,
-    delivery_result_repository: &'a DR,
+    file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     db: &'a Db,
 }
 
-impl<'a, TR, T, N, P, A, TG, DR> TaskService<'a, TR, T, N, P, A, TG, DR>
+impl<'a, TR, T, N, P, A, TG> TaskService<'a, TR, T, N, P, A, TG>
 where
     TR: TaskRequestRepositoryInterface,
     T: TaskParticipantsRepositoryInterface,
@@ -142,7 +146,6 @@ where
     P: TaskDonorsRepositoryInterface,
     A: AccessRepositoryInterface,
     TG: TagsRepositoryInterface,
-    DR: DeliveryResultRepositoryInterface,
 {
     pub fn new(
         db: &'a Db,
@@ -153,7 +156,7 @@ where
         access_repository: &'a A,
         tags_repository: &'a TG,
         notification_service: NotificationService<'a, N>,
-        delivery_result_repository: &'a DR,
+        file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     ) -> Self {
         Self {
             tasks_repository,
@@ -166,7 +169,7 @@ where
             default_period_seconds: 48 * 60 * 60,
             access_repository,
             tags_repository,
-            delivery_result_repository,
+            file_storage,
             notification_service: notification_service,
             db: db,
         }
@@ -550,6 +553,7 @@ where
             .update(
                 &task_user.as_ref().unwrap().id,
                 TaskParticipantStatus::Rejected.as_str(),
+                None,
             )
             .await
             .map_err(|_| AppError::SurrealDb {
@@ -624,7 +628,7 @@ where
             Some(value) => {
                 let result = self
                     .task_participants_repository
-                    .update(&value.id, TaskParticipantStatus::Accepted.as_str())
+                    .update(&value.id, TaskParticipantStatus::Accepted.as_str(), None)
                     .await
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
@@ -683,7 +687,7 @@ where
         &self,
         user_id: &str,
         task_id: &str,
-        data: TaskDeliveryData,
+        file: FileUpload,
     ) -> AppResult<TaskParticipant> {
         let task_thing = get_str_thing(task_id)?;
         let user = self.users_repository.get_by_id(&user_id).await?;
@@ -702,13 +706,6 @@ where
         if !TaskAccess::new(&task_view).can_deliver(&user) {
             return Err(AppError::Forbidden);
         }
-
-        let post = self
-            .posts_repository
-            .get_view_by_id::<PostView>(&data.post_id, Some(user_id))
-            .await?;
-
-        self.handle_delivery_post(&data.post_id, &task_view).await?;
 
         let task = self
             .tasks_repository
@@ -743,26 +740,62 @@ where
             .into());
         }
 
-        let mut transaction = self.db.query("BEGIN TRANSACTION;");
-        transaction = self.task_participants_repository.build_update_query(
-            transaction,
-            &task_user.unwrap().id,
-            TaskParticipantStatus::Delivered.as_str(),
-        );
-        transaction = self.delivery_result_repository.build_create_query(
-            transaction,
-            &task_user.unwrap().id,
-            &post.id.id.to_raw(),
-            None,
-        );
-        transaction = transaction
-            .query("COMMIT TRANSACTION;")
-            .query("RETURN $task_participant;");
+        let link = self
+            .file_storage
+            .upload(
+                file.data,
+                Some("tasks"),
+                &format!("{}_{}_{}", user_id, task.id.id.to_raw(), file.file_name),
+                file.content_type.as_deref(),
+            )
+            .await
+            .map_err(|e| AppError::Generic { description: e })?;
 
-        let mut res = transaction.await?;
-        let delivery_result = res
-            .take::<Option<TaskParticipant>>(res.num_statements() - 1)?
-            .expect("Post delivery error");
+        let task_participant_result = match task_view.discussion.as_ref() {
+            Some(ref d) if d.r#type == DiscussionType::Private => TaskParticipantResult {
+                link: Some(link),
+                post: None,
+            },
+            _ => {
+                let post = self
+                    .posts_repository
+                    .create(CreatePost {
+                        belongs_to: DiscussionDbService::get_profile_discussion_id(
+                            &user.id.as_ref().unwrap(),
+                        ),
+                        title: task.request_txt.to_string(),
+                        content: Some(task.request_txt.clone()),
+                        media_links: Some(vec![link]),
+                        created_by: user.id.as_ref().unwrap().clone(),
+                        id: PostDbService::get_new_post_thing(),
+                        r#type: PostType::Public,
+                    })
+                    .await?;
+                let _ = self
+                    .tags_repository
+                    .create_with_relate(
+                        [SystemTags::Delivery.as_str().to_string()].to_vec(),
+                        post.id.as_ref().unwrap().clone(),
+                    )
+                    .await;
+                TaskParticipantResult {
+                    post: Some(post.id.as_ref().unwrap().clone()),
+                    link: None,
+                }
+            }
+        };
+
+        let delivery_result = self
+            .task_participants_repository
+            .update(
+                &task_user.unwrap().id,
+                TaskParticipantStatus::Delivered.as_str(),
+                Some(&task_participant_result),
+            )
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?;
 
         let _ = self.try_to_process_reward(&task).await;
 
@@ -773,7 +806,7 @@ where
         .await;
 
         self.notification_service
-            .on_deliver_task(&user, &task_view, &post)
+            .on_deliver_task(&user, &task_view, &task_participant_result)
             .await?;
 
         Ok(delivery_result)
@@ -1045,96 +1078,5 @@ where
             }
             _ => true,
         }
-    }
-
-    fn check_delivery_post_access(
-        &self,
-        deliver_post_view: &PostAccessView,
-        task_view: &TaskAccessView,
-    ) -> AppResult<()> {
-        let donor_role = Role::Donor.to_string();
-
-        let donors = task_view
-            .users
-            .iter()
-            .filter_map(|u| {
-                if u.role == donor_role {
-                    let mut user = LocalUser::default("".to_string());
-                    user.id = Some(u.user.clone());
-                    Some(user)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<LocalUser>>();
-
-        let post_access = PostAccess::new(deliver_post_view);
-
-        if !donors.iter().all(|d| post_access.can_view(d)) {
-            return Err(AppError::Generic {
-                description: "All donors must have view access to the delivery post".to_string(),
-            }
-            .into());
-        }
-
-        Ok(())
-    }
-
-    async fn update_role_for_delivery_post(&self, post_view: &PostAccessView) -> AppResult<()> {
-        let post_owner_role = Role::Owner.to_string();
-        let post_owner = post_view.users.iter().find(|u| u.role == post_owner_role);
-
-        if post_owner.is_none() {
-            return Ok(());
-        }
-
-        match post_view.r#type {
-            PostType::Public => {
-                self.access_repository
-                    .remove_by_user(post_owner.unwrap().user.clone(), vec![post_view.id.clone()])
-                    .await?
-            }
-            PostType::Private => {
-                self.access_repository
-                    .update(
-                        post_owner.unwrap().user.clone(),
-                        post_view.id.clone(),
-                        Role::Member.to_string(),
-                    )
-                    .await?
-            }
-            _ => (),
-        }
-
-        Ok(())
-    }
-
-    async fn handle_delivery_post(
-        &self,
-        post_id: &str,
-        task_view: &TaskAccessView,
-    ) -> AppResult<()> {
-        let post_view = self
-            .posts_repository
-            .get_view_by_id::<PostAccessView>(&post_id, None)
-            .await?;
-
-        if post_view.r#type == PostType::Idea {
-            return Err(AppError::Forbidden);
-        }
-
-        self.check_delivery_post_access(&post_view, task_view)?;
-
-        self.update_role_for_delivery_post(&post_view).await?;
-
-        let _ = self
-            .tags_repository
-            .create_with_relate(
-                [SystemTags::Delivery.as_str().to_string()].to_vec(),
-                post_view.id.clone(),
-            )
-            .await;
-
-        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_post;
+use crate::helpers::{create_fake_login_test_user, task_helpers};
 use darve_server::entities::community::community_entity::CommunityDbService;
 use darve_server::entities::community::discussion_entity::{Discussion, DiscussionDbService};
 use darve_server::entities::task_request::TaskRequestEntity;
@@ -241,9 +241,6 @@ test_with_server!(
 );
 test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
     let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
-    let user1_discussion =
-        DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
-    let delivery_post = create_fake_post(server, &user1_discussion, None, None).await;
 
     let (server, user, _, user_token) = create_fake_login_test_user(&server).await;
     let default_discussion =
@@ -274,20 +271,19 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
-    server
-        .post(&format!("/api/tasks/{}/deliver", task.id.to_raw()))
-        .json(&json!({"post_id": delivery_post.id}))
-        .add_header("Cookie", format!("jwt={}", user1_token))
-        .add_header("Accept", "application/json")
+
+    let task_participant = task_helpers::success_deliver_task(&server, &task.id, &user1_token)
         .await
-        .assert_status_success();
+        .unwrap();
+
     server
         .delete(&format!("/api/posts/{}", post.id))
         .add_header("Cookie", format!("jwt={}", user_token))
         .await
         .assert_status_forbidden();
+    let delivery_post = task_participant.result.unwrap().post.unwrap();
     server
-        .delete(&format!("/api/posts/{}", delivery_post.id))
+        .delete(&format!("/api/posts/{}", delivery_post.to_raw()))
         .add_header("Cookie", format!("jwt={}", user1_token))
         .await
         .assert_status_forbidden();

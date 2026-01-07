@@ -7,16 +7,19 @@ use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use crate::services::notification_service::NotificationService;
-use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
+use crate::services::task_service::{TaskDonorData, TaskService};
+use crate::utils::file::convert::convert_field_file_data;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use local_user_entity::LocalUserDbService;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tempfile::NamedTempFile;
 use validator::Validate;
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -26,7 +29,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/tasks/given", get(user_requests_given))
         .route("/api/tasks/{task_id}/accept", post(accept_task_request))
         .route("/api/tasks/{task_id}/reject", post(reject_task_request))
-        .route("/api/tasks/{task_id}/deliver", post(deliver_task_request))
+        .route("/api/tasks/{task_id}/deliver", post(deliver_task))
         .route("/api/tasks/{task_id}/donor", post(upsert_donor))
 }
 
@@ -68,10 +71,14 @@ async fn user_requests_received(
         start: query.start.unwrap_or(0),
     };
 
-    let list = state.db.task_request
+    let list = state
+        .db
+        .task_request
         .get_by_user::<TaskRequestView>(&user_id, query.status, query.is_ended, pagination)
         .await
-        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?
+        .map_err(|e| middleware::error::AppError::SurrealDb {
+            source: e.to_string(),
+        })?
         .into_iter()
         .map(|view| TaskViewForParticipant::from_view(view, &user_id))
         .collect::<Vec<TaskViewForParticipant>>();
@@ -104,10 +111,14 @@ async fn user_requests_given(
         count: query.count.unwrap_or(20),
         start: query.start.unwrap_or(0),
     };
-    let list = state.db.task_request
+    let list = state
+        .db
+        .task_request
         .get_by_creator::<TaskRequestView>(from_user, pagination)
         .await
-        .map_err(|e| middleware::error::AppError::SurrealDb { source: e.to_string() })?;
+        .map_err(|e| middleware::error::AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
     Ok(Json(list))
 }
 
@@ -130,7 +141,7 @@ async fn reject_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let data = task_service
@@ -159,47 +170,11 @@ async fn accept_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let data = task_service
         .accept(&auth_data.user_thing_id(), &task_id)
-        .await?;
-
-    Ok(Json(data))
-}
-
-async fn deliver_task_request(
-    State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
-    Path(task_id): Path<String>,
-    Json(input): Json<DeliverTaskRequestInput>,
-) -> CtxResult<Json<TaskParticipant>> {
-    let task_service = TaskService::new(
-        &state.db.client,
-        &auth_data.ctx,
-        &state.db.task_request,
-        &state.db.task_donors,
-        &state.db.task_participants,
-        &state.db.access,
-        &state.db.tags,
-        NotificationService::new(
-            &state.db.client,
-            &auth_data.ctx,
-            &state.event_sender,
-            &state.db.user_notifications,
-        ),
-        &state.db.delivery_result,
-    );
-
-    let data = task_service
-        .deliver(
-            &auth_data.user_thing_id(),
-            &task_id,
-            TaskDeliveryData {
-                post_id: input.post_id,
-            },
-        )
         .await?;
 
     Ok(Json(data))
@@ -225,7 +200,7 @@ async fn upsert_donor(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let donor = task_service
@@ -260,7 +235,7 @@ async fn get_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let task_view = task_service
@@ -268,4 +243,48 @@ async fn get_task(
         .await?;
 
     Ok(Json(task_view))
+}
+
+#[derive(Debug, Validate, TryFromMultipart)]
+struct TaskDeliveryV2Data {
+    #[form_data(limit = "unlimited")]
+    content: FieldData<NamedTempFile>,
+}
+
+async fn deliver_task(
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+    Path(task_id): Path<String>,
+    TypedMultipart(data): TypedMultipart<TaskDeliveryV2Data>,
+) -> CtxResult<Json<TaskParticipant>> {
+    let task_service = TaskService::new(
+        &state.db.client,
+        &auth_data.ctx,
+        &state.db.task_request,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.access,
+        &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
+        state.file_storage.clone(),
+    );
+
+    let data = task_service
+        .deliver(
+            &auth_data.user_thing_id(),
+            &task_id,
+            convert_field_file_data(data.content)?,
+        )
+        .await
+        .map_err(|e| {
+            println!(">>>>>>>>>>>>>>>>>>>{:?}", e);
+            e
+        })?;
+
+    Ok(Json(data))
 }

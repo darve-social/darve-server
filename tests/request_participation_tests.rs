@@ -16,10 +16,9 @@ use darve_server::routes::tasks::TaskRequestOfferInput;
 use darve_server::services::discussion_service::CreateDiscussion;
 use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
-use serde_json::json;
 use std::i64;
 
-use crate::helpers::{create_fake_login_test_user, create_login_test_user};
+use crate::helpers::{create_fake_login_test_user, create_login_test_user, task_helpers};
 use community_entity::CommunityDbService;
 use middleware::ctx::Ctx;
 use middleware::utils::string_utils::get_string_thing;
@@ -36,7 +35,7 @@ test_with_server!(
 
         // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-        let (server, user0, user0_pwd, _user0_token) = create_fake_login_test_user(&server).await;
+        let (server, user0, user0_pwd, user0_token) = create_fake_login_test_user(&server).await;
         let user_ident0 = user0.id.as_ref().unwrap().to_raw();
         let username0 = user0.username.to_string();
 
@@ -287,42 +286,11 @@ test_with_server!(
         // let received_task = received_post_tasks.get(0).unwrap();
         // assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
 
-        //////// deliver task
-
-        let disc_id =
-            DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap()).to_raw();
-        // create post on own profile for task delivery
-        let post_name = "delivery post".to_string();
-        let create_post = server
-            .post(&format!("/api/discussions/{disc_id}/posts"))
-            .multipart(
-                MultipartForm::new()
-                    .add_text("title", post_name.clone())
-                    .add_text("content", "delivery contentttt"),
-            )
-            .add_header("Accept", "application/json")
-            .await;
-        let created_post = create_post.json::<PostView>();
-        create_post.assert_status_success();
-        let delivery_post_id = created_post.id.to_raw();
-        println!("DEL POST={}", delivery_post_id.clone());
-
-        // deliver task
-        let delivery_req = server
-            .post(format!("/api/tasks/{}/deliver", received_task.id.to_raw()).as_str())
-            .json(&json!({"post_id": delivery_post_id}))
-            .await;
-        delivery_req.assert_status_success();
-
-        let received_post_tasks_req = server
-            .get("/api/tasks/received")
-            .add_header("Accept", "application/json")
-            .await;
-
-        received_post_tasks_req.assert_status_success();
-        let received_post_tasks = received_post_tasks_req.json::<Vec<TaskViewForParticipant>>();
-        let _task = received_post_tasks.get(0).unwrap();
-        // assert_eq!(task.deliverables.clone().unwrap().is_empty(), false);
+        let task_participant =
+            task_helpers::success_deliver_task(&server, &received_task.id, &user0_token)
+                .await
+                .unwrap();
+        assert!(task_participant.result.unwrap().post.is_some());
 
         // TODO -check notifications for other users-
         // login user3 to check notifications

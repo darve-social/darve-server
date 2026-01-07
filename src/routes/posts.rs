@@ -84,7 +84,7 @@ async fn create_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let task = task_service
@@ -119,10 +119,14 @@ async fn get_post_tasks(
         return Err(AppError::Forbidden.into());
     }
 
-    let tasks = state.db.task_request
+    let tasks = state
+        .db
+        .task_request
         .get_by_posts(vec![post.id], user.id.as_ref().unwrap().clone())
         .await
-        .map_err(|e| AppError::SurrealDb { source: e.to_string() })?;
+        .map_err(|e| AppError::SurrealDb {
+            source: e.to_string(),
+        })?;
 
     Ok(Json(tasks))
 }

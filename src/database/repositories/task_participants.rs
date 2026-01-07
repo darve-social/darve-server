@@ -1,6 +1,6 @@
 use super::super::table_names::{DELIVERY_RESULT_TABLE_NAME, TASK_PARTICIPANT_TABLE_NAME};
 use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
-use crate::entities::task_request_user::TaskParticipant;
+use crate::entities::task_request_user::{TaskParticipant, TaskParticipantResult};
 use crate::{
     database::client::Db,
     entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME,
@@ -29,6 +29,7 @@ impl TaskParticipantsRepository {
         DEFINE TABLE IF NOT EXISTS {TASK_PARTICIPANT_TABLE_NAME} TYPE RELATION IN {TASK_REQUEST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
         DEFINE FIELD IF NOT EXISTS timelines    ON {TASK_PARTICIPANT_TABLE_NAME} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {TASK_PARTICIPANT_TABLE_NAME} TYPE string;
+        DEFINE FIELD IF NOT EXISTS result       ON {TASK_PARTICIPANT_TABLE_NAME} TYPE option<{{ link: option<string>, post: option<record> }}>;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {TASK_PARTICIPANT_TABLE_NAME} FIELDS status;
         DEFINE FIELD IF NOT EXISTS r_created    ON TABLE {TASK_PARTICIPANT_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     ");
@@ -71,19 +72,22 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         query: Query<'b, any::Any>,
         id: &str,
         status: &str,
+        result: Option<&TaskParticipantResult>,
     ) -> Query<'b, any::Any> {
         query
             .query(format!(
                 "
             LET $task_participant=UPDATE $_task_participant_id SET
             timelines+=[{{ status: $_task_participant_status, date: time::now() }}],
-            status=$_task_participant_status;"
+            status=$_task_participant_status,
+            result=$_task_participant_result;"
             ))
             .bind((
                 "_task_participant_id",
                 Thing::from((TASK_PARTICIPANT_TABLE_NAME, id)),
             ))
             .bind(("_task_participant_status", status.to_string()))
+            .bind(("_task_participant_result", result.cloned()))
     }
 
     async fn create(
@@ -111,9 +115,14 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         Ok(record.unwrap())
     }
 
-    async fn update(&self, id: &str, status: &str) -> Result<TaskParticipant, String> {
+    async fn update(
+        &self,
+        id: &str,
+        status: &str,
+        result: Option<&TaskParticipantResult>,
+    ) -> Result<TaskParticipant, String> {
         let query = format!(
-            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status;"
+            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status, result=$result;"
         );
 
         let mut res = self
@@ -121,6 +130,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
             .query(query)
             .bind(("id", Thing::from((TASK_PARTICIPANT_TABLE_NAME, id))))
             .bind(("status", status.to_string()))
+            .bind(("result", result.cloned()))
             .await
             .map_err(|e| e.to_string())?;
 

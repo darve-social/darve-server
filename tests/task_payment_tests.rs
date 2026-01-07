@@ -2,7 +2,7 @@ mod helpers;
 
 use std::time::Duration;
 
-use crate::helpers::create_fake_login_test_user;
+use crate::helpers::{create_fake_login_test_user, task_helpers};
 use darve_server::{
     database::client::Db,
     entities::{
@@ -56,20 +56,8 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
-        let p1_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant1.id.as_ref().unwrap());
-        let p1_post = create_fake_post(server, &p1_disc, None, None).await;
-
         let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
-        let p2_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant2.id.as_ref().unwrap());
-        let p2_post = create_fake_post(server, &p2_disc, None, None).await;
-
         let (server, participant3, _, p3_token) = create_fake_login_test_user(&server).await;
-        let p3_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant3.id.as_ref().unwrap());
-        let p3_post = create_fake_post(server, &p3_disc, None, None).await;
-
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
 
         let disc_res = server
@@ -109,7 +97,8 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
+        let task = task_request.json::<TaskRequestEntity>();
+        let task_id = task.id.to_raw();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -118,14 +107,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p1_post.id }))
-            .add_header("Cookie", format!("jwt={}", p1_token))
-            .add_header("Accept", "application/json")
-            .await;
-
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &p1_token)
+            .await
+            .unwrap();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -134,14 +118,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p2_post.id }))
-            .add_header("Cookie", format!("jwt={}", p2_token))
-            .add_header("Accept", "application/json")
-            .await;
-
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &p2_token)
+            .await
+            .unwrap();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -150,14 +129,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p3_post.id }))
-            .add_header("Cookie", format!("jwt={}", p3_token))
-            .add_header("Accept", "application/json")
-            .await;
-
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &p3_token)
+            .await
+            .unwrap();
 
         let task_thing = Thing::from((
             "task_request",
@@ -210,20 +184,8 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant1, _, p1_token) = create_fake_login_test_user(&server).await;
-        let p1_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant1.id.as_ref().unwrap());
-        let p1_post = create_fake_post(server, &p1_disc, None, None).await;
-
         let (server, participant2, _, p2_token) = create_fake_login_test_user(&server).await;
-        let p2_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant2.id.as_ref().unwrap());
-        let p2_post = create_fake_post(server, &p2_disc, None, None).await;
-
         let (server, participant3, _, _) = create_fake_login_test_user(&server).await;
-        let p3_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant3.id.as_ref().unwrap());
-        let _p3_post = create_fake_post(server, &p3_disc, None, None).await;
-
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
 
         let disc_res = server
@@ -263,7 +225,8 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
+        let task = task_request.json::<TaskRequestEntity>();
+        let task_id = task.id.to_raw();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -272,14 +235,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p1_post.id }))
-            .add_header("Cookie", format!("jwt={}", p1_token))
-            .add_header("Accept", "application/json")
-            .await;
-
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &p1_token)
+            .await
+            .unwrap();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -288,14 +246,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p2_post.id }))
-            .add_header("Cookie", format!("jwt={}", p2_token))
-            .add_header("Accept", "application/json")
-            .await;
-
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &p2_token)
+            .await
+            .unwrap();
 
         let task_thing = Thing::from((
             "task_request",
@@ -707,10 +660,6 @@ test_with_server!(
     |server, state, config| {
         let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
         let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
-        let p_disc =
-            DiscussionDbService::get_profile_discussion_id(&participant.id.as_ref().unwrap());
-        let p_post = create_fake_post(server, &p_disc, None, None).await;
-
         let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
         let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
         let post = create_fake_post(server, &disc, None, None).await;
@@ -737,7 +686,8 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
+        let task = task_request.json::<TaskRequestEntity>();
+        let task_id = task.id.to_raw();
         let (server, donor1, _, donor1_token) = create_fake_login_test_user(&server).await;
         let donor1_amount = 100;
         let endow_user_response = server
@@ -768,13 +718,9 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": p_post.id }))
-            .add_header("Cookie", format!("jwt={}", ptoken))
-            .add_header("Accept", "application/json")
-            .await;
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task.id, &ptoken)
+            .await
+            .unwrap();
         let task_thing = Thing::from((
             "task_request",
             task_id.strip_prefix("task_request:").unwrap(),
