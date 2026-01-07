@@ -12,7 +12,6 @@ use crate::entities::community::post_entity::{PostType, TABLE_NAME as POST_TABLE
 use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::task_request::{TaskParticipantUserView, TaskRequestType};
-use crate::entities::task_request_user::TaskParticipantResult;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::error::AppResult;
@@ -166,7 +165,8 @@ where
         &self,
         user: &LocalUser,
         task_view: &TaskAccessView,
-        result: &TaskParticipantResult,
+        result_link: &str,
+        result_post: Option<String>,
     ) -> CtxResult<()> {
         let user_id = user.id.as_ref().unwrap();
 
@@ -207,9 +207,6 @@ where
             return Ok(());
         }
 
-        let result_post = result.post.as_ref();
-        let result_link = result.link.as_ref();
-
         let event = self
             .notification_repository
             .create(
@@ -220,7 +217,7 @@ where
                 Some(json!({
                     "task_id": task_view.id.to_raw(),
                     "result_post_id": result_post,
-                    "result_links": result_link,
+                    "result_link": result_link,
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
                     "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
 

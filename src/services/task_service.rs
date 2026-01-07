@@ -690,7 +690,7 @@ where
 
         let task_participant_result = match task_view.discussion.as_ref() {
             Some(ref d) if d.r#type == DiscussionType::Private => TaskParticipantResult {
-                link: Some(link),
+                link: Some(link.to_string()),
                 post: None,
             },
             _ => {
@@ -702,7 +702,7 @@ where
                         ),
                         title: task.request_txt.to_string(),
                         content: Some(task.request_txt.clone()),
-                        media_links: Some(vec![link]),
+                        media_links: Some(vec![link.to_string()]),
                         created_by: user.id.as_ref().unwrap().clone(),
                         id: PostDbService::get_new_post_thing(),
                         r#type: PostType::Public,
@@ -743,7 +743,12 @@ where
         .await;
 
         self.notification_service
-            .on_deliver_task(&user, &task_view, &task_participant_result)
+            .on_deliver_task(
+                &user,
+                &task_view,
+                &link,
+                task_participant_result.post.map(|p| p.to_raw()),
+            )
             .await?;
 
         Ok(delivery_result)

@@ -9,7 +9,7 @@ use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use crate::services::notification_service::NotificationService;
 use crate::services::task_service::{TaskDonorData, TaskService};
 use crate::utils::file::convert::convert_field_file_data;
-use axum::extract::{Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
@@ -22,15 +22,19 @@ use std::sync::Arc;
 use tempfile::NamedTempFile;
 use validator::Validate;
 
-pub fn routes() -> Router<Arc<CtxState>> {
+pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
+    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
         .route("/api/tasks/{task_id}", get(get_task))
         .route("/api/tasks/received", get(user_requests_received))
         .route("/api/tasks/given", get(user_requests_given))
         .route("/api/tasks/{task_id}/accept", post(accept_task_request))
         .route("/api/tasks/{task_id}/reject", post(reject_task_request))
-        .route("/api/tasks/{task_id}/deliver", post(deliver_task))
         .route("/api/tasks/{task_id}/donor", post(upsert_donor))
+        .route(
+            "/api/tasks/{task_id}/deliver",
+            post(deliver_task).layer(DefaultBodyLimit::max(max_bytes_val)),
+        )
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -245,9 +249,8 @@ async fn get_task(
     Ok(Json(task_view))
 }
 
-#[derive(Debug, Validate, TryFromMultipart)]
-struct TaskDeliveryV2Data {
-    #[form_data(limit = "unlimited")]
+#[derive(Debug, TryFromMultipart)]
+struct TaskDeliveryData {
     content: FieldData<NamedTempFile>,
 }
 
@@ -255,7 +258,7 @@ async fn deliver_task(
     State(state): State<Arc<CtxState>>,
     auth_data: AuthWithLoginAccess,
     Path(task_id): Path<String>,
-    TypedMultipart(data): TypedMultipart<TaskDeliveryV2Data>,
+    TypedMultipart(data): TypedMultipart<TaskDeliveryData>,
 ) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
         &state.db.client,
