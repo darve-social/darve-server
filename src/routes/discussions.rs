@@ -224,32 +224,36 @@ async fn get_tasks(
     }
 
     let tasks = match disc.r#type {
-        DiscussionType::Private => {
-            state.db.task_request
-                .get_by_private_disc::<TaskRequestView>(
-                    &disc.id.id.to_raw(),
-                    &user.id.as_ref().unwrap().id.to_raw(),
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb { source: e.to_string() })?
-        }
-        DiscussionType::Public => {
-            state.db.task_request
-                .get_by_public_disc::<TaskRequestView>(
-                    &disc.id.id.to_raw(),
-                    &user.id.as_ref().unwrap().id.to_raw(),
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .await
-                .map_err(|e| AppError::SurrealDb { source: e.to_string() })?
-        }
+        DiscussionType::Private => state
+            .db
+            .task_request
+            .get_by_private_disc::<TaskRequestView>(
+                &disc.id.id.to_raw(),
+                &user.id.as_ref().unwrap().id.to_raw(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
+        DiscussionType::Public => state
+            .db
+            .task_request
+            .get_by_public_disc::<TaskRequestView>(
+                &disc.id.id.to_raw(),
+                &user.id.as_ref().unwrap().id.to_raw(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| AppError::SurrealDb {
+                source: e.to_string(),
+            })?,
     };
 
     Ok(Json(tasks))
