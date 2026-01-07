@@ -1,3 +1,4 @@
+use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     entities::{
         task_request::{TaskRequestStatus, TaskRequestType},
@@ -30,7 +31,8 @@ pub struct TaskRequestDonorView {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskRequestView {
-    pub id: Thing,
+    #[serde(deserialize_with = "deserialize_thing_or_string")]
+    pub id: String,
     pub created_by: UserView,
     pub participants: Vec<TaskRequestViewParticipant>,
     pub request_txt: String,
@@ -88,7 +90,7 @@ impl ViewRelateField for TaskRequestView {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TaskViewForParticipant {
-    pub id: Thing,
+    pub id: String,
     pub created_by: UserView,
     pub request_txt: String,
     pub total_amount: u64,

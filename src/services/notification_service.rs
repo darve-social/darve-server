@@ -462,7 +462,7 @@ where
     pub async fn on_task_reward(
         &self,
         user: &TaskParticipantUserView,
-        task_id: &Thing,
+        task_id: &str,
         belongs_to: &Thing,
         donors: &Vec<&Thing>,
     ) -> CtxResult<()> {
@@ -484,7 +484,7 @@ where
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
                 Some(json!({
-                    "task_id": task_id.to_raw(),
+                    "task_id": task_id,
                     "post_id": post_id,
                     "discussion_id":  discussion_id
                 })),
@@ -664,7 +664,7 @@ where
         };
 
         let metadata = Some(json!({
-            "task_id": &task.id.to_raw(),
+            "task_id": &task.id,
             "post_id": post_id,
             "discussion_id": discussion_id
         }));

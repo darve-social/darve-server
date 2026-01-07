@@ -5,12 +5,11 @@ use axum_test::{
     TestResponse, TestServer,
 };
 use darve_server::entities::task_request_user::TaskParticipant;
-use surrealdb::sql::Thing;
 
 #[allow(dead_code)]
 pub async fn success_deliver_task(
     server: &TestServer,
-    task_id: &Thing,
+    task_id: &str,
     user_token: &str,
 ) -> Result<TaskParticipant, String> {
     let res = deliver_task(server, task_id, user_token).await;
@@ -19,14 +18,14 @@ pub async fn success_deliver_task(
 }
 
 #[allow(dead_code)]
-pub async fn deliver_task(server: &TestServer, task_id: &Thing, user_token: &str) -> TestResponse {
+pub async fn deliver_task(server: &TestServer, task_id: &str, user_token: &str) -> TestResponse {
     let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();
     let part = Part::bytes(file)
         .file_name("file_example_PNG_1MB.png")
         .mime_type("image/jpeg");
     let data = MultipartForm::new().add_part("content", part);
     server
-        .post(&format!("/api/tasks/{}/deliver", task_id.to_raw()))
+        .post(&format!("/api/tasks/{}/deliver", task_id))
         .multipart(data)
         .add_header("Cookie", format!("jwt={}", user_token))
         .add_header("Accept", "application/json")

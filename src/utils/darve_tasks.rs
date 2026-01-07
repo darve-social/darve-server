@@ -173,7 +173,7 @@ impl DarveTasksUtils {
             )
             .await?;
 
-        let task_view = task_service.get(user_id, &task.id.to_raw()).await?;
+        let task_view = task_service.get(user_id, &task.id).await?;
 
         Ok(vec![task_view])
     }
@@ -238,9 +238,8 @@ impl DarveTasksUtils {
             self.file_storage.clone(),
         );
 
+        let participant = Thing::from((USER_TABLE_NAME, user_id));
         for task in random_tasks {
-            let participants = vec![Thing::from((USER_TABLE_NAME, user_id)).to_raw()];
-
             let acceptance_period = self.seconds_until_end_of_week();
             let task = task_service
                 .create_for_disc(
@@ -248,14 +247,14 @@ impl DarveTasksUtils {
                     &Thing::from((DISC_TABLE_NAME, darve_id.as_str())).to_raw(),
                     TaskRequestInput {
                         content: task.description,
-                        participants: participants,
+                        participants: [participant.to_raw()].to_vec(),
                         acceptance_period: Some(acceptance_period),
                         delivery_period: Some(7 * 24 * 60 * 60),
                         offer_amount: None,
                     },
                 )
                 .await?;
-            tasks.push(task_service.get(user_id, &task.id.to_raw()).await?);
+            tasks.push(task_service.get(user_id, &task.id).await?);
         }
 
         Ok(tasks)

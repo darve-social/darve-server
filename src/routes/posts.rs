@@ -442,11 +442,7 @@ async fn get_post(
         &state.db.discussion_users,
     )
     .get(&auth_data.user_thing_id(), &post_id)
-    .await
-    .map_err(|e| {
-        println!(">>>>>{:?}", e);
-        e
-    })?;
+    .await?;
 
     Ok(Json(post_view))
 }

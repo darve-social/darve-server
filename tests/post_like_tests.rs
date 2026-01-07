@@ -68,7 +68,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
         .json::<TaskRequestEntity>();
 
     server
-        .post(&format!("/api/tasks/{}/accept", task.id.to_raw()))
+        .post(&format!("/api/tasks/{}/accept", task.id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await
@@ -150,7 +150,7 @@ test_with_server!(
             .json::<TaskRequestEntity>();
 
         server
-            .post(&format!("/api/tasks/{}/accept", task.id.to_raw()))
+            .post(&format!("/api/tasks/{}/accept", task.id))
             .add_header("Cookie", format!("jwt={}", token1))
             .add_header("Accept", "application/json")
             .await;
@@ -198,7 +198,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         .json::<TaskRequestEntity>();
 
     server
-        .post(&format!("/api/tasks/{}/accept", task.id.to_raw()))
+        .post(&format!("/api/tasks/{}/accept", task.id))
         .add_header("Cookie", format!("jwt={}", token1))
         .add_header("Accept", "application/json")
         .await
