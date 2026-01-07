@@ -4,8 +4,8 @@ use surrealdb::sql::Thing;
 
 #[async_trait]
 pub trait AccessRepositoryInterface {
-    async fn add(&self, users: Vec<Thing>, entities: Vec<Thing>, role: String) -> AppResult<()>;
-    async fn update(&self, user: Thing, entity: Thing, role: String) -> AppResult<()>;
-    async fn remove_by_entity(&self, entity: Thing, users: Vec<Thing>) -> AppResult<()>;
-    async fn remove_by_user(&self, user: Thing, entities: Vec<Thing>) -> AppResult<()>;
+    async fn add(&self, users: Vec<Thing>, entities: Vec<&str>, role: String) -> AppResult<()>;
+    async fn update(&self, user: Thing, entity: &str, role: String) -> AppResult<()>;
+    async fn remove_by_entity(&self, entity: &str, users: Vec<Thing>) -> AppResult<()>;
+    async fn remove_by_user(&self, user: Thing, entities: Vec<&str>) -> AppResult<()>;
 }

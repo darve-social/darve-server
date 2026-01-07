@@ -24,6 +24,7 @@ use darve_server::{
         task::{TaskRequestView, TaskViewForParticipant},
     },
 };
+use surrealdb::sql::Thing;
 
 use fake::{faker, Fake};
 use helpers::post_helpers::{build_fake_post, create_fake_post};
@@ -107,7 +108,7 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
-    let task_id = task_request.json::<TaskRequestEntity>().id.to_raw();
+    let task_id = task_request.json::<TaskRequestEntity>().id;
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
@@ -975,11 +976,11 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET acceptance_period=0;")
-        .bind(("id", task_id.clone()))
+        .bind(("id", Thing::try_from(task_id.as_str()).unwrap()))
         .await;
 
     let response = server
-        .post(&format!("/api/tasks/{}/accept", task_id.to_raw()))
+        .post(&format!("/api/tasks/{}/accept", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
         .await;
@@ -1029,11 +1030,11 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
-        .bind(("id", task_id.clone()))
+        .bind(("id", Thing::try_from(task_id.as_ref()).unwrap()))
         .await;
 
     let response = server
-        .post(&format!("/api/tasks/{}/deliver", task_id.to_raw()))
+        .post(&format!("/api/tasks/{}/deliver", task_id))
         .json(&json!({"post_id":  deliver_post.id}))
         .add_header("Cookie", format!("jwt={}", token0))
         .add_header("Accept", "application/json")
@@ -1275,7 +1276,7 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET due_at=time::now();")
-        .bind(("id", task_id.clone()))
+        .bind(("id", Thing::try_from(task_id).unwrap()))
         .await;
 
     let get_response = server
@@ -1752,7 +1753,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     task_request.assert_status_success();
     let task = task_request.json::<TaskRequestEntity>();
-    let task_id = task.id.to_raw();
+    let task_id = task.id;
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
         .add_header("Cookie", format!("jwt={}", token0))
@@ -1760,7 +1761,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id.to_raw(), task.id.to_raw());
+    assert_eq!(task_view.id, task_id);
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
@@ -1769,7 +1770,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id.to_raw(), task_id);
+    assert_eq!(task_view.id, task_id);
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))

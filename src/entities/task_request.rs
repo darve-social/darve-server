@@ -1,4 +1,5 @@
 use crate::entities::wallet::wallet_entity::CurrencySymbol;
+use crate::utils::validate_utils::deserialize_thing_or_string;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -7,8 +8,8 @@ use surrealdb::sql::Thing;
 /// TaskRequest entity - represents a task with rewards
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskRequestEntity {
-    // #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    pub id: Thing,
+    #[serde(deserialize_with = "deserialize_thing_or_string")]
+    pub id: String,
 
     // Polymorphic reference - can point to discussion or post
     pub belongs_to: Thing,
@@ -99,7 +100,8 @@ pub struct TaskParticipantForReward {
 
 #[derive(Debug, Deserialize)]
 pub struct TaskForReward {
-    pub id: Thing,
+    #[serde(deserialize_with = "deserialize_thing_or_string")]
+    pub id: String,
     pub belongs_to: Thing,
     pub request_txt: String,
     pub currency: CurrencySymbol,
