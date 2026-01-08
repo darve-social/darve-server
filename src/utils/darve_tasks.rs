@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, TimeZone, Weekday};
+use chrono::{Datelike, Local, Months, NaiveTime, TimeZone, Weekday};
 use rand::{rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -150,7 +150,7 @@ impl DarveTasksUtils {
             &self.db.delivery_result,
         );
 
-        let acceptance_period = self.seconds_until_end_of_week();
+        let acceptance_period = self.seconds_until_end_of_month();
         let task = task_service
             .create_for_disc(
                 &darve_id,
@@ -326,5 +326,18 @@ impl DarveTasksUtils {
             .unwrap();
 
         (end_of_week - now).num_seconds().max(0) as u64
+    }
+
+    fn seconds_until_end_of_month(&self) -> u64 {
+        let now = Local::now();
+        let next_month = now
+            .checked_add_months(Months::new(1))
+            .unwrap()
+            .with_day(1)
+            .unwrap()
+            .with_time(NaiveTime::from_hms_opt(0, 0, 1).unwrap())
+            .unwrap();
+
+        (next_month - now).num_seconds().max(0) as u64
     }
 }

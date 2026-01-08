@@ -17,6 +17,7 @@ pub struct UserView {
     pub bio: Option<String>,
     pub image_uri: Option<String>,
     pub last_seen: Option<DateTime<Utc>>,
+    pub role: UserRole,
 }
 
 impl From<LocalUser> for UserView {
@@ -31,6 +32,7 @@ impl From<LocalUser> for UserView {
             bio: user.bio,
             image_uri: user.image_uri,
             last_seen: user.last_seen,
+            role: user.role,
         }
     }
 }
