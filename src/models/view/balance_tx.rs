@@ -1,7 +1,8 @@
-use crate::entities::task_request::{TaskRequestEntity};
+use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 
+use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransaction;
 use crate::models::view::user::UserView;
 use crate::{
@@ -10,7 +11,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct CurrencyTransactionView {

@@ -9,3 +9,4 @@ pub const DISC_USER_TABLE_NAME: &'static str = "discussion_user";
 pub const NICKNAME_TABLE_NAME: &'static str = "nickname";
 pub const DELIVERY_RESULT_TABLE_NAME: &'static str = "delivery_result";
 pub const TASK_PARTICIPANT_TABLE_NAME: &'static str = "task_participant";
+pub const TASK_REQUEST_TABLE_NAME: &str = "task_request";

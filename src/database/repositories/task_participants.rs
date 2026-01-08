@@ -1,6 +1,6 @@
 use super::super::table_names::{DELIVERY_RESULT_TABLE_NAME, TASK_PARTICIPANT_TABLE_NAME};
-use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 use crate::database::surrdb_utils::get_thing;
+use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::task_request_user::{TaskParticipant, TaskParticipantResult};
 use crate::{
     database::client::Db,

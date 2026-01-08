@@ -1,6 +1,7 @@
 use crate::database::repository_impl::Repository;
 use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::ACCESS_TABLE_NAME;
+use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::community::post_entity::PostType;
@@ -22,7 +23,6 @@ use serde::Deserialize;
 use surrealdb::method::Query;
 use surrealdb::sql::{Datetime, Thing};
 
-pub const TASK_REQUEST_TABLE_NAME: &str = "task_request";
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
 
 impl Repository<TaskRequestEntity> {

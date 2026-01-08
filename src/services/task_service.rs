@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
-    database::{client::Db, repositories::task_request_repo::TASK_REQUEST_TABLE_NAME},
+    database::{client::Db, table_names::TASK_REQUEST_TABLE_NAME},
     entities::{
         access_user::AccessUser,
         community::{
@@ -706,6 +706,7 @@ where
                         created_by: user.id.as_ref().unwrap().clone(),
                         id: PostDbService::get_new_post_thing(),
                         r#type: PostType::Public,
+                        delivered_for_task: Some(task_view.id.clone()),
                     })
                     .await?;
                 let _ = self
