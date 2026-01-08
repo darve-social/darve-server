@@ -1,4 +1,6 @@
-use crate::database::table_names::{ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
+use crate::database::table_names::{
+    ACCESS_TABLE_NAME, TAG_REL_TABLE_NAME, TAG_TABLE_NAME, TASK_REQUEST_TABLE_NAME,
+};
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::middleware::error::AppResult;
 use crate::middleware::utils::db_utils::{Pagination, ViewRelateField};
@@ -90,6 +92,7 @@ pub struct CreatePost {
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
     pub r#type: PostType,
+    pub delivered_for_task: Option<Thing>,
 }
 
 pub struct PostDbService<'a> {
@@ -125,6 +128,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS tasks_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS delivered_for_task ON TABLE {TABLE_NAME} TYPE option<record<{TASK_REQUEST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
     DEFINE INDEX IF NOT EXISTS idx_type ON TABLE {TABLE_NAME} COLUMNS type;

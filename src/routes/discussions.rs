@@ -279,7 +279,7 @@ async fn create_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let task = task_service

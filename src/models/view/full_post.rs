@@ -44,7 +44,7 @@ impl ViewFieldSelector for FullPostView {
         replies_nr,
         likes_nr,
         <-{ACCESS_TABLE_NAME}.* as users,
-        <-delivery_result.in.in[0] as delivered_for_task,
+        delivered_for_task,
         <-like[WHERE in=$user].in as liked_by"
         )
     }
@@ -65,7 +65,7 @@ impl ViewRelateField for FullPostView {
         replies_nr,
         likes_nr,
         users: <-has_access.*,
-        delivered_for_task: <-delivery_result.in.in[0],
+        delivered_for_task,
         liked_by: <-like[WHERE in=$user].in"
             .to_string()
     }

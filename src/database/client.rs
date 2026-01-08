@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::database::repositories::access::AccessRepository;
-use crate::database::repositories::delivery_result::DeliveryResultRepository;
 use crate::database::repositories::discussion_user::DiscussionUserRepository;
 use crate::database::repositories::editor_tags::EditorTagsRepository;
 use crate::database::repositories::like::LikesRepository;
@@ -9,12 +8,12 @@ use crate::database::repositories::post_user::PostUserRepository;
 use crate::database::repositories::reply::RepliesRepository;
 use crate::database::repositories::task_donors::TaskDonorsRepository;
 use crate::database::repositories::task_participants::TaskParticipantsRepository;
-use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 use crate::database::repositories::user_nicknames::NicknamesRepository;
 use crate::database::repositories::user_notifications::UserNotificationsRepository;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
 use crate::database::repository_impl::Repository;
 use crate::database::repository_traits::RepositoryConn;
+use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::verification_code::VerificationCodeEntity;
 use crate::middleware::error::AppError;
@@ -51,7 +50,6 @@ pub struct Database {
     pub discussion_users: DiscussionUserRepository,
     pub nicknames: NicknamesRepository,
     pub editor_tags: EditorTagsRepository,
-    pub delivery_result: DeliveryResultRepository,
 }
 
 impl Database {
@@ -96,7 +94,6 @@ impl Database {
             post_users: PostUserRepository::new(client.clone()),
             nicknames: NicknamesRepository::new(client.clone()),
             editor_tags: EditorTagsRepository::new(client.clone()),
-            delivery_result: DeliveryResultRepository::new(client.clone()),
             discussion_users: DiscussionUserRepository::new(client),
         }
     }
@@ -115,7 +112,6 @@ impl Database {
         self.discussion_users.mutate_db().await?;
         self.nicknames.mutate_db().await?;
         self.editor_tags.mutate_db().await?;
-        self.delivery_result.mutate_db().await?;
         Ok(())
     }
 }

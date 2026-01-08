@@ -1,6 +1,6 @@
 use crate::database::client::Db;
-use crate::database::repositories::task_request_repo::TASK_REQUEST_TABLE_NAME;
 use crate::database::surrdb_utils::get_thing;
+use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::task_donor::TaskDonor;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::entities::wallet::balance_transaction_entity::TABLE_NAME as TRANSACTION_TABLE_NAME;

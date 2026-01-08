@@ -79,6 +79,14 @@ impl Debug for CtxState {
 pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
     let (event_sender, _) = broadcast::channel(100);
     let database = Arc::new(db);
+    let file_storage = Arc::new(
+        GoogleCloudFileStorage::new(
+            &config.gcs_bucket,
+            config.gcs_credentials.as_deref(),
+            config.gcs_endpoint.as_deref(),
+        )
+        .await,
+    );
     let ctx_state = CtxState {
         db: database.clone(),
         start_password: config.init_server_password.clone(),
@@ -91,14 +99,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         apple_mobile_client_id: config.apple_mobile_client_id.clone(),
         google_ios_client_id: config.google_ios_client_id.clone(),
         google_android_client_id: config.google_android_client_id.clone(),
-        file_storage: Arc::new(
-            GoogleCloudFileStorage::new(
-                &config.gcs_bucket,
-                config.gcs_credentials.as_deref(),
-                config.gcs_endpoint.as_deref(),
-            )
-            .await,
-        ),
+        file_storage: file_storage.clone(),
         event_sender,
         email_sender: Arc::new(EmailSender::new(
             &config.sendgrid_api_key,
@@ -112,7 +113,7 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         withdraw_fee: 0.05,
         online_users: Arc::new(DashMap::new()),
         support_email: config.support_email.clone(),
-        darve_tasks: Arc::new(DarveTasksUtils::new(database)),
+        darve_tasks: Arc::new(DarveTasksUtils::new(database, file_storage.clone())),
     };
     Arc::new(ctx_state)
 }

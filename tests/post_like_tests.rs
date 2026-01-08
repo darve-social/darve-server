@@ -1,6 +1,6 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
+use crate::helpers::{create_fake_login_test_user, task_helpers};
 use darve_server::{
     entities::{
         community::discussion_entity::DiscussionDbService, task_request::TaskRequestEntity,
@@ -40,8 +40,8 @@ test_with_server!(create_post_like, |server, ctx_state, config| {
 
 test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let result = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
-    let deliver = create_fake_post(server, &result, None, None).await;
+    // let result = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
+    // let deliver = create_fake_post(server, &result, None, None).await;
 
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
@@ -74,13 +74,9 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
         .await
         .assert_status_success();
 
-    server
-        .post(&format!("/api/tasks/{}/deliver", task.id))
-        .json(&json!({"post_id": deliver.id }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
+    task_helpers::success_deliver_task(&server, &task.id, &token1)
         .await
-        .assert_status_success();
+        .unwrap();
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
@@ -128,8 +124,6 @@ test_with_server!(
     try_gives_likes_without_enough_credits,
     |server, ctx_state, config| {
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let result = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
-        let deliver = create_fake_post(server, &result, None, None).await;
 
         let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
@@ -161,12 +155,9 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
 
-        server
-            .post(&format!("/api/tasks/{}/deliver", task.id))
-            .json(&json!({"post_id": deliver.id }))
-            .add_header("Cookie", format!("jwt={}", token1))
-            .add_header("Accept", "application/json")
-            .await;
+        task_helpers::success_deliver_task(&server, &task.id, &token1)
+            .await
+            .unwrap();
 
         let response = server
             .post(format!("/api/posts/{}/like", post.id).as_str())
@@ -181,8 +172,6 @@ test_with_server!(
 
 test_with_server!(update_likes, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-    let result = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
-    let deliver = create_fake_post(server, &result, None, None).await;
 
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
@@ -215,13 +204,9 @@ test_with_server!(update_likes, |server, ctx_state, config| {
         .await
         .assert_status_success();
 
-    server
-        .post(&format!("/api/tasks/{}/deliver", &task.id))
-        .json(&json!({"post_id": deliver.id }))
-        .add_header("Cookie", format!("jwt={}", token1))
-        .add_header("Accept", "application/json")
+    task_helpers::success_deliver_task(&server, &task.id, &token1)
         .await
-        .assert_status_success();
+        .unwrap();
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())

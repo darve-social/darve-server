@@ -445,6 +445,7 @@ where
                 created_by: user.id.as_ref().unwrap().clone(),
                 id: post_data.id,
                 r#type: post_data.r#type.clone(),
+                delivered_for_task: None,
             })
             .await;
 

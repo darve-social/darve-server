@@ -114,7 +114,7 @@ pub fn main_router(
         .merge(posts::routes())
         .merge(webauthn_routes::routes(wa_config, "assets/wasm"))
         .merge(profile_routes::routes())
-        .merge(tasks::routes())
+        .merge(tasks::routes(ctx_state.upload_max_size_mb))
         .merge(notifications::routes())
         .merge(users::routes())
         .merge(paypal::routes())
