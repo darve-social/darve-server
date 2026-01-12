@@ -11,7 +11,6 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::sql::Thing;
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PostView {
     pub id: Thing,
@@ -28,6 +27,7 @@ pub struct PostView {
     pub likes_nr: i64,
     pub liked_by: Option<Vec<Thing>>,
     pub users: Option<Vec<AccessUser>>,
+    pub reply_to: Option<Box<PostView>>,
 }
 
 impl ViewFieldSelector for PostView {
@@ -46,7 +46,8 @@ impl ViewFieldSelector for PostView {
         replies_nr,
         likes_nr,
         <-{ACCESS_TABLE_NAME}.* as users,
-        <-like[WHERE in=$user].in as liked_by"
+        <-like[WHERE in=$user].in as liked_by,
+        reply_to.{{id, created_by: created_by.*, title, type, tasks_nr, content, media_links, created_at, updated_at, belongs_to, replies_nr, likes_nr}} as reply_to"
         )
     }
 }
@@ -66,7 +67,9 @@ impl ViewRelateField for PostView {
         replies_nr,
         likes_nr,
         users: <-has_access.*,
-        liked_by: <-like[WHERE in=$user].in"
+        liked_by: <-like[WHERE in=$user].in,
+        reply_to: reply_to.{
+            id, created_by: created_by.*, title, type, tasks_nr, content, media_links, created_at, updated_at, belongs_to, replies_nr, likes_nr}"
             .to_string()
     }
 }

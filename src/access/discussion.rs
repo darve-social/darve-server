@@ -111,4 +111,9 @@ impl<'a> DiscussionAccess<'a> {
         self.access_control
             .can(&path, &Permission::CreatePublicTask)
     }
+    pub fn can_create_post_for_post(&self, user: &LocalUser) -> bool {
+        let path = AccessPath::from_discussion(self.discussion, Some(&user), None);
+        self.access_control
+            .can(&path, &Permission::CreatePostForPost)
+    }
 }

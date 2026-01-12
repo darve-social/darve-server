@@ -150,6 +150,13 @@ pub struct Pagination {
     pub start: u32,
 }
 
+pub struct CursorPagination {
+    pub order_by: Option<String>,
+    pub order_dir: QryOrder,
+    pub count: u16,
+    pub cursor: Option<Thing>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum QryOrder {
     DESC,

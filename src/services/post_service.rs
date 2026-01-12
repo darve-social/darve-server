@@ -23,7 +23,7 @@ use crate::{
         error::{AppError, AppResult, CtxResult},
         mw_ctx::AppEvent,
         utils::{
-            db_utils::{Pagination, QryOrder},
+            db_utils::{CursorPagination, QryOrder},
             string_utils::get_str_thing,
         },
     },
@@ -52,7 +52,7 @@ use validator::Validate;
 pub struct GetPostsParams {
     pub filter_by_type: Option<PostType>,
     pub order_dir: Option<QryOrder>,
-    pub start: Option<u32>,
+    pub cursor: Option<String>, // Record ID as cursor (e.g., "post:abc123")
     pub count: Option<u16>,
 }
 
@@ -75,6 +75,7 @@ pub struct PostInput {
     pub file_1: Option<FieldData<NamedTempFile>>,
     pub is_idea: Option<bool>,
     pub users: Vec<String>,
+    pub reply_to: Option<String>,
 }
 
 pub struct PostService<'a, N, T, L, A, DU>
@@ -326,20 +327,22 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        let pagination = Pagination {
+        let pag = CursorPagination {
             order_by: None,
-            order_dir: None,
+            order_dir: query.order_dir.unwrap_or(QryOrder::DESC),
             count: query.count.unwrap_or(20),
-            start: query.start.unwrap_or(0),
+            cursor: query
+                .cursor
+                .map(|value| get_str_thing(&value))
+                .transpose()?,
         };
-
         let items = self
             .posts_repository
             .get_by_disc(
                 &user.id.as_ref().unwrap().id.to_raw(),
                 &disc.id.id.to_raw(),
                 query.filter_by_type,
-                pagination,
+                pag,
             )
             .await?;
 
@@ -411,7 +414,7 @@ where
             .get_view_by_id::<DiscussionAccessView>(disc_id)
             .await?;
 
-        self.check_create_access(&disc, &post_data, &user)?;
+        self.check_create_access(&disc, &post_data, &user).await?;
 
         let media_links = if let Some(file) = post_data.file {
             let file_name = format!(
@@ -446,10 +449,11 @@ where
                 id: post_data.id,
                 r#type: post_data.r#type.clone(),
                 delivered_for_task: None,
+                reply_to: post_data.reply_to,
             })
             .await;
 
-        let post = match post_res {
+        let post_view = match post_res {
             Ok(value) => value,
             Err(err) => {
                 if let Some(links) = &media_links {
@@ -472,7 +476,7 @@ where
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                vec![&post.id.as_ref().unwrap().to_raw()],
+                vec![&post_view.id.to_raw()],
                 Role::Owner.to_string(),
             )
             .await?;
@@ -493,7 +497,7 @@ where
                 .access_repository
                 .add(
                     member_ids.clone(),
-                    vec![&post.id.as_ref().unwrap().to_raw()],
+                    vec![&post_view.id.to_raw()],
                     Role::Member.to_string(),
                 )
                 .await?;
@@ -515,9 +519,9 @@ where
         let updated_discs_users = self
             .discussion_users
             .set_new_latest_post(
-                &post.belongs_to.id.to_raw(),
+                &post_view.belongs_to.id.to_raw(),
                 disc_all_users.iter().map(|id| id).collect::<Vec<&String>>(),
-                &post.id.as_ref().unwrap().id.to_raw(),
+                &post_view.id.id.to_raw(),
                 disc_all_users
                     .iter()
                     .filter(|id| id.as_str() != user_id)
@@ -528,26 +532,9 @@ where
         if !post_data.tags.is_empty() {
             let _ = self
                 .tags_repository
-                .create_with_relate(post_data.tags, post.id.as_ref().unwrap().clone())
+                .create_with_relate(post_data.tags, post_view.id.clone())
                 .await?;
         }
-
-        let post_view = PostView {
-            id: post.id.as_ref().unwrap().clone(),
-            created_by: UserView::from(user.clone()),
-            belongs_to: post.belongs_to.clone(),
-            title: post.title.clone(),
-            content: post.content.clone(),
-            media_links: post.media_links.clone(),
-            created_at: post.created_at,
-            updated_at: post.updated_at,
-            replies_nr: post.replies_nr,
-            likes_nr: post.likes_nr,
-            liked_by: None,
-            tasks_nr: 0,
-            r#type: post.r#type.clone(),
-            users: None,
-        };
 
         let _ = self
             .notification_service
@@ -641,6 +628,7 @@ where
             members,
             r#type,
             content: data.content,
+            reply_to: data.reply_to.map(|d| get_str_thing(&d).unwrap()),
         })
     }
 
@@ -657,7 +645,7 @@ where
         Ok(self.users_repository.get_by_ids(user_things).await?)
     }
 
-    fn check_create_access(
+    async fn check_create_access(
         &self,
         disc: &DiscussionAccessView,
         data: &PostCreationData,
@@ -671,6 +659,20 @@ where
             PostType::Private => disc_access.can_create_private_post(&user),
             PostType::Idea => disc_access.can_idea_post(&user),
         };
+
+        if data.reply_to.is_some() {
+            let _ = self
+                .posts_repository
+                .get_view_by_id::<PostAccessView>(&data.reply_to.as_ref().unwrap().to_raw(), None)
+                .await
+                .map_err(|_| AppError::Generic {
+                    description: "Reply to post not found".to_string(),
+                })?;
+
+            if !disc_access.can_create_post_for_post(&user) {
+                return Err(AppError::Forbidden.into());
+            }
+        }
 
         match (owner_access, members_access) {
             (true, true) => Ok(()),
@@ -687,4 +689,5 @@ struct PostCreationData {
     r#type: PostType,
     content: Option<String>,
     title: String,
+    reply_to: Option<Thing>,
 }
