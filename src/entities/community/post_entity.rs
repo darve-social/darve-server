@@ -3,7 +3,7 @@ use crate::database::table_names::{
 };
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::middleware::error::AppResult;
-use crate::middleware::utils::db_utils::{Pagination, ViewRelateField};
+use crate::middleware::utils::db_utils::{CursorPagination, Pagination, ViewRelateField};
 use chrono::{DateTime, Utc};
 use middleware::utils::db_utils::{QryOrder, ViewFieldSelector};
 use middleware::{
@@ -11,9 +11,7 @@ use middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 use serde::{Deserialize, Serialize, Serializer};
-use surrealdb::err::Error::IndexExists;
 use surrealdb::sql::{Id, Thing};
-use surrealdb::Error as ErrorSrl;
 use validator::Validate;
 
 use crate::database::client::Db;
@@ -81,6 +79,7 @@ pub struct Post {
     pub tasks_nr: u64,
     pub likes_nr: i64,
     pub r#type: PostType,
+    pub reply_to: Option<Thing>,
 }
 
 #[derive(Debug, Serialize)]
@@ -93,6 +92,7 @@ pub struct CreatePost {
     pub media_links: Option<Vec<String>>,
     pub r#type: PostType,
     pub delivered_for_task: Option<Thing>,
+    pub reply_to: Option<Thing>,
 }
 
 pub struct PostDbService<'a> {
@@ -106,7 +106,6 @@ pub const TABLE_NAME: &str = "post";
 const TABLE_COL_DISCUSSION: &str = discussion_entity::TABLE_NAME;
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
 const TABLE_COL_BELONGS_TO: &str = "belongs_to";
-const INDEX_BELONGS_TO_URI: &str = "belongs_to_x_title_uri_idx";
 const INDEX_BELONGS_TO: &str = "belongs_to_idx";
 
 impl<'a> PostDbService<'a> {
@@ -128,6 +127,7 @@ impl<'a> PostDbService<'a> {
     DEFINE FIELD IF NOT EXISTS likes_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS tasks_nr ON TABLE {TABLE_NAME} TYPE number DEFAULT 0;
     DEFINE FIELD IF NOT EXISTS type ON TABLE {TABLE_NAME} TYPE string;
+    DEFINE FIELD IF NOT EXISTS reply_to ON TABLE {TABLE_NAME} TYPE option<record<{TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS delivered_for_task ON TABLE {TABLE_NAME} TYPE option<record<{TASK_REQUEST_TABLE_NAME}>>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
@@ -168,26 +168,35 @@ impl<'a> PostDbService<'a> {
         user_id: &str,
         disc_id: &str,
         filter_by_type: Option<PostType>,
-        pag: Pagination,
+        pag: CursorPagination,
     ) -> CtxResult<Vec<PostView>> {
-        let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
+        let order_dir = pag.order_dir.to_string();
         let query_by_type = match filter_by_type {
             Some(_) => "AND type=$filter_by_type",
             None => "",
         };
+
+        let query_by_id = match pag.cursor {
+            Some(_) => match pag.order_dir {
+                QryOrder::DESC => "AND id < $cursor",
+                _ => "AND id > $cursor",
+            },
+            None => "",
+        };
+
         let fields = PostView::get_select_query_fields();
 
         let query = format!(
-            "SELECT {fields} FROM {TABLE_NAME}
-            WHERE belongs_to=$disc {query_by_type} AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
-            ORDER BY id {order_dir} LIMIT $limit START $start;"
+            "SELECT {fields} FROM {TABLE_NAME} 
+            WHERE belongs_to=$disc {query_by_id} {query_by_type} AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
+            ORDER BY id {order_dir} LIMIT $limit;"
         );
 
         let mut res = self
             .db
             .query(query)
             .bind(("limit", pag.count))
-            .bind(("start", pag.start))
+            .bind(("cursor", pag.cursor))
             .bind(("filter_by_type", filter_by_type))
             .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
             .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
@@ -305,23 +314,18 @@ impl<'a> PostDbService<'a> {
         Ok(())
     }
 
-    pub async fn create(&self, data: CreatePost) -> CtxResult<Post> {
-        self.db
-            .create(TABLE_NAME)
-            .content(data)
+    pub async fn create(&self, data: CreatePost) -> CtxResult<PostView> {
+        let mut res = self
+            .db
+            .query(format!(
+                "CREATE {TABLE_NAME} CONTENT $data RETURN {}",
+                PostView::get_select_query_fields()
+            ))
+            .bind(("data", data))
             .await
-            .map_err(|e| match e {
-                ErrorSrl::Db(err) => match err {
-                    IndexExists { index, .. } if index == INDEX_BELONGS_TO_URI => {
-                        self.ctx.to_ctx_error(AppError::Generic {
-                            description: "Title already exists".to_string(),
-                        })
-                    }
-                    _ => CtxError::from(self.ctx)(ErrorSrl::Db(err)),
-                },
-                _ => CtxError::from(self.ctx)(e),
-            })
-            .map(|v: Option<Post>| v.unwrap())
+            .map_err(|e| CtxError::from(self.ctx)(e))?;
+        let data = res.take::<Option<PostView>>(0)?;
+        Ok(data.unwrap())
     }
 
     pub fn get_new_post_thing() -> Thing {
