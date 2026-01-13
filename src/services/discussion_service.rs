@@ -285,7 +285,7 @@ where
 
         let private_discussion_user_ids = match data.chat_user_ids {
             Some(ids) => {
-                let user_id_str = user.id.as_ref().unwrap().id.to_raw();
+                let user_id_str = user.id.as_ref().unwrap().to_raw();
                 let user_ids = ids
                     .into_iter()
                     .filter(|u| u != &user_id_str)
