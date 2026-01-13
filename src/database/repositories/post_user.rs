@@ -22,7 +22,7 @@ impl PostUserRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
         DEFINE TABLE IF NOT EXISTS {POST_USER_TABLE_NAME} TYPE RELATION IN {POST_TABLE_NAME} OUT {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
-        DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON like FIELDS in, out UNIQUE;
+        DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {POST_USER_TABLE_NAME} FIELDS in, out UNIQUE;
         DEFINE FIELD IF NOT EXISTS created_at ON TABLE {POST_USER_TABLE_NAME} TYPE datetime DEFAULT time::now();
         DEFINE FIELD IF NOT EXISTS status ON TABLE {POST_USER_TABLE_NAME} TYPE int;
 ");
