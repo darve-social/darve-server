@@ -591,7 +591,7 @@ test_with_server!(
     try_remove_owner_from_chat_users,
     |server, ctx_state, config| {
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let (server, _, _, _token2) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, _token2) = create_fake_login_test_user(&server).await;
 
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
@@ -601,7 +601,7 @@ test_with_server!(
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
                 image_uri: None,
-                chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
+                chat_user_ids: vec![user0.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: false,
             })
             .add_header("Accept", "application/json")
