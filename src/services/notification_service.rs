@@ -13,6 +13,7 @@ use crate::entities::discussion_user::DiscussionUser;
 use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::task_request::{TaskParticipantUserView, TaskRequestType};
 use crate::entities::user_notification::UserNotificationEvent;
+use crate::entities::wallet::wallet_entity::CurrencySymbol;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
 use crate::middleware::error::AppResult;
 use crate::models::view::access::{DiscussionAccessView, PostAccessView, TaskAccessView};
@@ -376,6 +377,8 @@ where
         &self,
         user: &LocalUser,
         task_view: &TaskAccessView,
+        amount: u64,
+        _currency: CurrencySymbol,
     ) -> CtxResult<()> {
         let user_id = user.id.as_ref().unwrap();
 
@@ -430,15 +433,27 @@ where
             return Ok(());
         }
 
+        let link = task_view
+            .post
+            .as_ref()
+            .and_then(|p| p.media_links.as_ref())
+            .and_then(|links| links.first());
+
         let event = self
             .notification_repository
             .create(
                 &user_id.id.to_raw(),
-                format!("{} donated to the task.", user.username).as_str(),
+                format!(
+                    "{} donated ${} on the task.",
+                    user.username,
+                    (amount as f64 / 100.0)
+                )
+                .as_str(),
                 UserNotificationEvent::DonateTaskRequest.as_str(),
                 &receivers,
                 Some(json!({
                     "task_id": task_view.id.to_raw(),
+                    "media_link": link,
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
                     "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
                 })),
@@ -649,19 +664,27 @@ where
         task: &TaskRequestEntity,
         view: OnCreatedTaskView<'_>,
         participants: Vec<&LocalUser>,
-        is_current_user_donor: bool,
+        amount: Option<u64>,
     ) -> CtxResult<()> {
         let user_id = user.id.as_ref().expect("User id must exists");
+        let is_current_user_donor = amount.unwrap_or(0) > 0;
 
-        let (post_id, discussion_id) = match view {
-            OnCreatedTaskView::Post(post_access_view) => (Some(post_access_view.id.to_raw()), None),
+        let (post_view, discussion_id) = match view {
+            OnCreatedTaskView::Post(post_access_view) => (Some(post_access_view), None),
             OnCreatedTaskView::Disc(discussion_access_view) => {
                 (None, Some(discussion_access_view.id.to_raw()))
             }
         };
+        let link = post_view
+            .as_ref()
+            .and_then(|p| p.media_links.as_ref())
+            .and_then(|links| links.first());
+
+        let post_id = post_view.as_ref().map(|p| p.id.to_raw());
 
         let metadata = Some(json!({
             "task_id": &task.id,
+            "media_link": link,
             "post_id": post_id,
             "discussion_id": discussion_id
         }));
@@ -677,11 +700,16 @@ where
                 .map(|id| id.id.to_raw())
                 .collect::<Vec<String>>();
 
+            let amount_meesage = match amount {
+                Some(v) if v > 0 => format!("${}", v as f64 / 100.0),
+                _ => "a".to_string(),
+            };
+
             let event = self
                 .notification_repository
                 .create(
                     &user_id.id.to_raw(),
-                    format!("{} created a task for you", user.username).as_str(),
+                    format!("{} created {} task for you", user.username, amount_meesage).as_str(),
                     UserNotificationEvent::UserTaskRequestReceived.as_str(),
                     &ids,
                     metadata.clone(),

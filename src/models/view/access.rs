@@ -114,6 +114,7 @@ impl ViewFieldSelector for TaskAccessView {
                         id, 
                         type,
                         tasks_nr,
+                        media_links,
                         users: <-{ACCESS_TABLE_NAME}.*,
                         discussion: belongs_to.{{{disc_fields}}} 
                 }} END AS post,

@@ -237,9 +237,9 @@ where
             TaskRequestType::Private
         };
 
-        let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
+        let donate_value = data.offer_amount.unwrap_or(0);
         let post_id = post.id.clone();
-        if is_donate_value {
+        if donate_value > 0 {
             let task = TaskAccessView {
                 id: user.id.as_ref().unwrap().clone(),
                 r#type: r#type.clone(),
@@ -275,7 +275,7 @@ where
                 &task,
                 OnCreatedTaskView::Post(&post),
                 participants.iter().map(|u| u).collect(),
-                is_donate_value,
+                Some(donate_value),
             )
             .await;
 
@@ -323,8 +323,8 @@ where
         };
         let disc_id = discussion.id.clone();
 
-        let is_donate_value = data.offer_amount.map_or(false, |v| v > 0);
-        if is_donate_value {
+        let donate_value = data.offer_amount.unwrap_or(0);
+        if donate_value > 0 {
             let task = TaskAccessView {
                 id: user.id.as_ref().unwrap().clone(),
                 r#type: r#type.clone(),
@@ -360,7 +360,7 @@ where
                 &task,
                 OnCreatedTaskView::Disc(&discussion),
                 participants.iter().map(|u| u).collect(),
-                is_donate_value,
+                Some(donate_value),
             )
             .await;
 
@@ -481,7 +481,7 @@ where
         }
 
         self.notification_service
-            .on_donate_task(&donor, &task_view)
+            .on_donate_task(&donor, &task_view, data.amount, task.currency)
             .await?;
 
         self.notification_service
