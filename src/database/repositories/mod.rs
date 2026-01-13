@@ -1,5 +1,4 @@
 pub mod access;
-pub mod delivery_result;
 pub mod discussion_user;
 pub mod editor_tags;
 pub mod like;

@@ -37,6 +37,7 @@ macro_rules! test_with_server {
             fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState> {
                 let (event_sender, _) = broadcast::channel(100);
                 let database = Arc::new(db);
+                let file_storage = Arc::new(LocalFileStorage::new("target/tests_media".to_string(), "".to_string()));
                 let ctx_state = CtxState {
                     db: database.clone(),
                     start_password: config.init_server_password.clone(),
@@ -49,7 +50,7 @@ macro_rules! test_with_server {
                     apple_mobile_client_id: config.apple_mobile_client_id.clone(),
                     google_ios_client_id: config.google_ios_client_id.clone(),
                     google_android_client_id: config.google_android_client_id.clone(),
-                    file_storage: Arc::new(LocalFileStorage::new("target/tests_media".to_string(), "".to_string())),
+                    file_storage:file_storage.clone(),
                     email_sender: Arc::new(MockEmailSender {}),
                     verification_code_ttl: chrono::Duration::minutes(config.verification_code_ttl as i64),
                     paypal_webhook_id: config.paypal_webhook_id.clone(),
@@ -59,8 +60,7 @@ macro_rules! test_with_server {
                     withdraw_fee: 0.05,
                     online_users: Arc::new(DashMap::new()),
                     support_email: config.support_email.clone(),
-                    darve_tasks: Arc::new(darve_tasks::DarveTasksUtils::new(database)),
-
+                    darve_tasks: Arc::new(darve_tasks::DarveTasksUtils::new(database, file_storage.clone())),
                 };
                 Arc::new(ctx_state)
             }

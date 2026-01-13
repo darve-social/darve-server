@@ -1,7 +1,7 @@
+use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-
-use crate::utils::validate_utils::deserialize_thing_or_string_id;
+use surrealdb::sql::Thing;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskParticipantStatus {
@@ -35,10 +35,17 @@ pub struct TaskParticipant {
     pub status: TaskParticipantStatus,
     #[serde(default)]
     pub timelines: Vec<TaskParticipantTimeline>,
+    pub result: Option<TaskParticipantResult>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskParticipantTimeline {
     pub status: TaskParticipantStatus,
     pub date: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskParticipantResult {
+    pub post: Option<Thing>,
+    pub link: Option<String>,
 }

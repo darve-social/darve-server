@@ -7,27 +7,34 @@ use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use crate::services::notification_service::NotificationService;
-use crate::services::task_service::{TaskDeliveryData, TaskDonorData, TaskService};
-use axum::extract::{Path, Query, State};
+use crate::services::task_service::{TaskDonorData, TaskService};
+use crate::utils::file::convert::convert_field_file_data;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_typed_multipart::{FieldData, TryFromMultipart, TypedMultipart};
 use local_user_entity::LocalUserDbService;
 use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::extractor_utils::JsonOrFormValidated;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tempfile::NamedTempFile;
 use validator::Validate;
 
-pub fn routes() -> Router<Arc<CtxState>> {
+pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
+    let max_bytes_val = (1024 * 1024 * upload_max_size_mb) as usize;
     Router::new()
         .route("/api/tasks/{task_id}", get(get_task))
         .route("/api/tasks/received", get(user_requests_received))
         .route("/api/tasks/given", get(user_requests_given))
         .route("/api/tasks/{task_id}/accept", post(accept_task_request))
         .route("/api/tasks/{task_id}/reject", post(reject_task_request))
-        .route("/api/tasks/{task_id}/deliver", post(deliver_task_request))
         .route("/api/tasks/{task_id}/donor", post(upsert_donor))
+        .route(
+            "/api/tasks/{task_id}/deliver",
+            post(deliver_task).layer(DefaultBodyLimit::max(max_bytes_val)),
+        )
 }
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -138,7 +145,7 @@ async fn reject_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let data = task_service
@@ -167,47 +174,11 @@ async fn accept_task_request(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let data = task_service
         .accept(&auth_data.user_thing_id(), &task_id)
-        .await?;
-
-    Ok(Json(data))
-}
-
-async fn deliver_task_request(
-    State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
-    Path(task_id): Path<String>,
-    Json(input): Json<DeliverTaskRequestInput>,
-) -> CtxResult<Json<TaskParticipant>> {
-    let task_service = TaskService::new(
-        &state.db.client,
-        &auth_data.ctx,
-        &state.db.task_request,
-        &state.db.task_donors,
-        &state.db.task_participants,
-        &state.db.access,
-        &state.db.tags,
-        NotificationService::new(
-            &state.db.client,
-            &auth_data.ctx,
-            &state.event_sender,
-            &state.db.user_notifications,
-        ),
-        &state.db.delivery_result,
-    );
-
-    let data = task_service
-        .deliver(
-            &auth_data.user_thing_id(),
-            &task_id,
-            TaskDeliveryData {
-                post_id: input.post_id,
-            },
-        )
         .await?;
 
     Ok(Json(data))
@@ -233,7 +204,7 @@ async fn upsert_donor(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let donor = task_service
@@ -268,7 +239,7 @@ async fn get_task(
             &state.event_sender,
             &state.db.user_notifications,
         ),
-        &state.db.delivery_result,
+        state.file_storage.clone(),
     );
 
     let task_view = task_service
@@ -276,4 +247,43 @@ async fn get_task(
         .await?;
 
     Ok(Json(task_view))
+}
+
+#[derive(Debug, TryFromMultipart)]
+struct TaskDeliveryData {
+    content: FieldData<NamedTempFile>,
+}
+
+async fn deliver_task(
+    State(state): State<Arc<CtxState>>,
+    auth_data: AuthWithLoginAccess,
+    Path(task_id): Path<String>,
+    TypedMultipart(data): TypedMultipart<TaskDeliveryData>,
+) -> CtxResult<Json<TaskParticipant>> {
+    let task_service = TaskService::new(
+        &state.db.client,
+        &auth_data.ctx,
+        &state.db.task_request,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.access,
+        &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
+        state.file_storage.clone(),
+    );
+
+    let data = task_service
+        .deliver(
+            &auth_data.user_thing_id(),
+            &task_id,
+            convert_field_file_data(data.content)?,
+        )
+        .await?;
+
+    Ok(Json(data))
 }

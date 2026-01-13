@@ -16,7 +16,10 @@ use crate::{
             LocalUserDbService, UserRole, TABLE_NAME as USER_TABLE_NAME,
         },
     },
-    interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface,
+    interfaces::{
+        file_storage::FileStorageInterface,
+        repositories::task_request_ifce::TaskRequestRepositoryInterface,
+    },
     middleware::{
         ctx::Ctx,
         error::{AppError, AppResult},
@@ -53,11 +56,15 @@ pub struct DarveTasksUtils {
     db: Arc<Database>,
     darve_id: Arc<RwLock<Option<String>>>,
     ctx: Ctx,
+    file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
     create_public_lock: Arc<Mutex<()>>,
 }
 
 impl DarveTasksUtils {
-    pub fn new(db: Arc<Database>) -> Self {
+    pub fn new(
+        db: Arc<Database>,
+        file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
+    ) -> Self {
         let super_tasks = include_str!("../../darve_super_tasks.json");
         let weekly = include_str!("../../darve_weekly_tasks.json");
         Self {
@@ -67,6 +74,7 @@ impl DarveTasksUtils {
             weekly_data: serde_json::from_str(weekly).expect("Darve weekly tasks parse error"),
             super_data: serde_json::from_str(super_tasks).expect("Darve super tasks parse error"),
             create_public_lock: Arc::new(Mutex::new(())),
+            file_storage,
         }
     }
 
@@ -147,7 +155,7 @@ impl DarveTasksUtils {
                 &sender_event,
                 &self.db.user_notifications,
             ),
-            &self.db.delivery_result,
+            self.file_storage.clone(),
         );
 
         let acceptance_period = self.seconds_until_end_of_month();
@@ -227,7 +235,7 @@ impl DarveTasksUtils {
                 &sender_event,
                 &self.db.user_notifications,
             ),
-            &self.db.delivery_result,
+            self.file_storage.clone(),
         );
 
         let participant = Thing::from((USER_TABLE_NAME, user_id));

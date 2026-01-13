@@ -1,7 +1,8 @@
 mod helpers;
 
-use crate::helpers::create_fake_login_test_user;
-use axum_test::multipart::MultipartForm;
+use std::str::FromStr;
+
+use crate::helpers::{create_fake_login_test_user, task_helpers};
 use chrono::Utc;
 use darve_server::{
     entities::{
@@ -22,11 +23,12 @@ use darve_server::{
         post::PostView,
         task::{TaskRequestView, TaskViewForParticipant},
     },
+    services::discussion_service::CreateDiscussion,
 };
 use surrealdb::sql::Thing;
 
 use fake::{faker, Fake};
-use helpers::post_helpers::{build_fake_post, create_fake_post};
+use helpers::post_helpers::create_fake_post;
 use reqwest::StatusCode;
 use serde_json::json;
 
@@ -294,22 +296,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token0))
-            .await
-            .json::<PostView>();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        delivered_response.assert_status_success();
+        let _ = task_helpers::success_deliver_task(&server, &task_id, &token0)
+            .await
+            .unwrap();
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
@@ -509,23 +499,12 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token0))
+
+        let task_participant = task_helpers::success_deliver_task(&server, &task_id, &token0)
             .await
-            .json::<PostView>();
+            .unwrap();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw()}))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        delivered_response.assert_status_success();
-
+        assert!(task_participant.result.unwrap().post.is_some());
         let accept_response = server
             .post(&format!("/api/tasks/{}/reject", task_id))
             .add_header("Cookie", format!("jwt={}", token0))
@@ -605,28 +584,20 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
-    let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-    let deliver_post = server
-        .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-        .multipart(build_fake_post(None, None))
-        .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token0))
-        .await
-        .json::<PostView>();
 
-    let delivered_response = server
-        .post(&format!("/api/tasks/{}/deliver", task_id))
-        .json(&json!({"post_id": deliver_post.id.to_raw() }))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
-    delivered_response.assert_status_success();
+    let task_participant = task_helpers::success_deliver_task(&server, &task_id, &token0)
+        .await
+        .unwrap();
+
+    assert!(task_participant.result.as_ref().unwrap().link.is_none());
+    assert!(task_participant.result.as_ref().unwrap().post.is_some());
+    let delivery_post = task_participant.result.unwrap().post.unwrap();
 
     let post_view = PostDbService {
         db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
     }
-    .get_view_by_id::<PostAccessView>(deliver_post.id.to_raw().as_str(), None)
+    .get_view_by_id::<PostAccessView>(delivery_post.to_raw().as_str(), None)
     .await
     .unwrap();
 
@@ -646,6 +617,81 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
     assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
     assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
 });
+
+test_with_server!(
+    delivered_task_in_private_dics,
+    |server, ctx_state, config| {
+        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap());
+
+        let create_response = server
+            .post("/api/discussions")
+            .json(&CreateDiscussion {
+                community_id: comm_id.to_raw(),
+                title: "The Discussion".to_string(),
+                image_uri: None,
+                chat_user_ids: Some(vec![user0.id.as_ref().unwrap().to_raw()]),
+                private_discussion_users_final: false,
+            })
+            .add_header("Accept", "application/json")
+            .await;
+
+        let disc_id = create_response.json::<Discussion>().id;
+
+        let endow_user_response = server
+            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
+            .json(&json!({
+                "offer_amount": Some(100),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let task_id = task_request.json::<TaskRequestEntity>().id;
+
+        let accept_response = server
+            .post(&format!("/api/tasks/{}/accept", task_id))
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        accept_response.assert_status_success();
+
+        let task_participant = task_helpers::success_deliver_task(&server, &task_id, &token0)
+            .await
+            .unwrap();
+        let task_thing_id = Thing::from_str(&task_id).unwrap().id.to_raw();
+        let link = task_participant.result.as_ref().unwrap().link.as_ref();
+        assert!(link.is_some());
+        assert!(task_participant.result.as_ref().unwrap().post.is_none());
+        assert!(link.unwrap().contains(&task_thing_id));
+        assert!(link
+            .unwrap()
+            .contains(&user0.id.as_ref().unwrap().id.to_raw()));
+
+        let task_request = server
+            .get("/api/tasks/received")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+        let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
+        assert_eq!(tasks.len(), 1);
+        let first = tasks.first().unwrap();
+        assert_eq!(first.participants.len(), 1);
+        let task_user = first.participants.first().unwrap();
+        assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
+        assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
+    }
+);
 
 test_with_server!(
     try_to_deliver_task_request_after_rejected,
@@ -680,21 +726,8 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token0))
-            .await
-            .json::<PostView>();
 
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
+        let delivered_response = task_helpers::deliver_task(&server, &task_id, &token0).await;
         delivered_response.assert_status_failure();
         assert!(delivered_response.text().contains("Forbidden"))
     }
@@ -726,21 +759,7 @@ test_with_server!(
             .await;
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequestEntity>().id;
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token0))
-            .await
-            .json::<PostView>();
-
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
+        let delivered_response = task_helpers::deliver_task(&server, &task_id, &token0).await;
         delivered_response.assert_status_failure();
         assert!(delivered_response.text().contains("Forbidden"))
     }
@@ -749,7 +768,7 @@ test_with_server!(
 test_with_server!(
     try_to_deliver_task_request_some_user,
     |server, ctx_state, config| {
-        let (server, user, _, token) = create_fake_login_test_user(&server).await;
+        let (server, _user, _, token) = create_fake_login_test_user(&server).await;
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
@@ -774,21 +793,7 @@ test_with_server!(
         task_request.assert_status_success();
         let task_id = task_request.json::<TaskRequestEntity>().id;
 
-        let disc = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token))
-            .await
-            .json::<PostView>();
-
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token))
-            .add_header("Accept", "application/json")
-            .await;
+        let delivered_response = task_helpers::deliver_task(&server, &task_id, &token).await;
         delivered_response.assert_status_failure();
         assert!(delivered_response.text().contains("Forbidden"))
     }
@@ -991,8 +996,6 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
 
 test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-    let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-    let deliver_post = create_fake_post(server, &disc, None, None).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
     let post = create_fake_post(server, &disc, None, None).await;
@@ -1032,12 +1035,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .bind(("id", Thing::try_from(task_id.as_ref()).unwrap()))
         .await;
 
-    let response = server
-        .post(&format!("/api/tasks/{}/deliver", task_id))
-        .json(&json!({"post_id":  deliver_post.id}))
-        .add_header("Cookie", format!("jwt={}", token0))
-        .add_header("Accept", "application/json")
-        .await;
+    let response = task_helpers::deliver_task(&server, &task_id, &token0).await;
     response.assert_status_failure();
     assert!(response.text().contains("The delivery period has expired"));
 });
@@ -1295,87 +1293,6 @@ test_with_server!(get_expired_tasks, |server, state, config| {
 });
 
 test_with_server!(
-    delivered_task_request_with_private_delivery_post,
-    |server, ctx_state, config| {
-        let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
-        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
-        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
-
-        let endow_user_response = server
-            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
-            .add_header("Accept", "application/json")
-            .await;
-        endow_user_response.assert_status_success();
-        let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id).as_str())
-            .json(&json!({
-                "offer_amount": Some(100),
-                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
-                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
-            }))
-            .add_header("Cookie", format!("jwt={}", token1))
-            .add_header("Accept", "application/json")
-            .await;
-        task_request.assert_status_success();
-        let task_id = task_request.json::<TaskRequestEntity>().id;
-
-        let accept_response = server
-            .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        accept_response.assert_status_success();
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-
-        let title = faker::lorem::en::Sentence(7..20).fake::<String>();
-        let data = MultipartForm::new()
-            .add_text("title", title)
-            .add_text("content", "content");
-
-        let deliver_post = server
-            .post(format!("/api/discussions/{disc}/posts").as_str())
-            .multipart(data)
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await
-            .json::<PostView>();
-
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        delivered_response.assert_status_success();
-
-        let post_view = PostDbService {
-            db: &ctx_state.db.client,
-            ctx: &Ctx::new(Ok(user0.id.as_ref().unwrap().to_raw()), false),
-        }
-        .get_view_by_id::<PostAccessView>(deliver_post.id.to_raw().as_str(), None)
-        .await;
-
-        assert!(post_view.is_ok());
-
-        let task_request = server
-            .get("/api/tasks/received")
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        task_request.assert_status_success();
-        let tasks = task_request.json::<Vec<TaskViewForParticipant>>();
-        assert_eq!(tasks.len(), 1);
-        let first = tasks.first().unwrap();
-        assert_eq!(first.participants.len(), 1);
-        let task_user = first.participants.first().unwrap();
-        assert_eq!(task_user.user.id, user0.id.as_ref().unwrap().clone());
-        assert_eq!(task_user.status, TaskParticipantStatus::Delivered);
-    }
-);
-
-test_with_server!(
     given_tasks_public_disc_public_post,
     |server, ctx_state, config| {
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
@@ -1538,22 +1455,10 @@ test_with_server!(
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
-        let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let deliver_post = server
-            .post(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
-            .multipart(build_fake_post(None, None))
-            .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token0))
+        let task_participant = task_helpers::success_deliver_task(server, &task_id, &token0)
             .await
-            .json::<PostView>();
-
-        let delivered_response = server
-            .post(&format!("/api/tasks/{}/deliver", task_id))
-            .json(&json!({"post_id": deliver_post.id.to_raw() }))
-            .add_header("Cookie", format!("jwt={}", token0))
-            .add_header("Accept", "application/json")
-            .await;
-        delivered_response.assert_status_success();
+            .unwrap();
+        let deliver_post = task_participant.result.unwrap().post.unwrap();
 
         let posts: Vec<Post> = ctx_state
             .db
@@ -1573,7 +1478,7 @@ test_with_server!(
         assert_eq!(posts.len(), 1);
         assert_eq!(
             posts[0].id.as_ref().unwrap().to_raw(),
-            deliver_post.id.to_raw()
+            deliver_post.to_raw()
         )
     }
 );

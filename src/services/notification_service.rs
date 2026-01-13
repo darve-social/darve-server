@@ -165,7 +165,8 @@ where
         &self,
         user: &LocalUser,
         task_view: &TaskAccessView,
-        result: &PostView,
+        result_link: &str,
+        result_post: Option<String>,
     ) -> CtxResult<()> {
         let user_id = user.id.as_ref().unwrap();
 
@@ -215,8 +216,8 @@ where
                 &receivers,
                 Some(json!({
                     "task_id": task_view.id.to_raw(),
-                    "result_post_id": result.id.to_raw(),
-                    "result_links": result.media_links,
+                    "result_post_id": result_post,
+                    "result_link": result_link,
                     "post_id": task_view.post.as_ref().map(|p| p.id.to_raw()),
                     "discussion_id": task_view.discussion.as_ref().map(|p| p.id.to_raw()),
 
