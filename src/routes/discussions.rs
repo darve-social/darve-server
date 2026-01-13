@@ -334,6 +334,7 @@ async fn get_posts(
     let posts = post_service
         .get_by_disc(&disc_id, &auth_data.user_thing_id(), query)
         .await?;
+
     Ok(Json(posts))
 }
 

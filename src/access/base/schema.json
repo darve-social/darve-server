@@ -278,9 +278,9 @@
             "VIEW",
             "EDIT",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ALIAS"
           ],
           "POST:PRIVATE": {
@@ -389,9 +389,9 @@
             "VIEW",
             "EDIT",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ADD_MEMBER",
             "REMOVE_MEMBER",
             "ALIAS"
@@ -501,9 +501,9 @@
           "permissions": [
             "VIEW",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ALIAS"
           ],
           "POST:PRIVATE": {
@@ -755,9 +755,9 @@
             "VIEW",
             "EDIT",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ALIAS"
           ],
           "POST:PRIVATE": {
@@ -866,9 +866,9 @@
             "VIEW",
             "EDIT",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ADD_MEMBER",
             "REMOVE_MEMBER",
             "ALIAS"
@@ -978,9 +978,9 @@
           "permissions": [
             "VIEW",
             "CREATE_PUBLIC_POST",
-            "CREATE_PRIVATE_POST",
             "CREATE_PUBLIC_TASK",
             "CREATE_PRIVATE_TASK",
+            "CREATE_POST_FOR_POST",
             "ALIAS"
           ],
           "POST:PRIVATE": {

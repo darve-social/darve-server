@@ -9,7 +9,6 @@ use darve_server::entities::community::discussion_entity::DiscussionDbService;
 // use darve_server::entities::community::post_entity::Post;
 use darve_server::entities::community::post_entity::PostType;
 use darve_server::models::view::post::PostView;
-use darve_server::models::web::UserView;
 use darve_server::services::discussion_service::CreateDiscussion;
 use fake::faker;
 use fake::Fake;
@@ -94,28 +93,29 @@ test_with_server!(add_users_to_post_test, |server, ctx_state, config| {
         .add_text("users", user.id.as_ref().unwrap().to_raw());
 
     let post = create_post(server, &default_discussion, data).await;
-    post.assert_status_ok();
-    let post = post.json::<PostView>();
-    assert_eq!(post.r#type, PostType::Private);
+    post.assert_status_forbidden();
 
-    let response = server
-        .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
-        .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
-        .await;
+    // let post = post.json::<PostView>();
+    // assert_eq!(post.r#type, PostType::Private);
 
-    response.assert_status_ok();
+    // let response = server
+    //     .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
+    //     .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
+    //     .await;
 
-    let posts = server
-        .get(&format!(
-            "/api/discussions/{}/posts",
-            default_discussion.to_raw()
-        ))
-        .await
-        .json::<Vec<PostView>>();
+    // response.assert_status_ok();
 
-    assert_eq!(posts.len(), 1);
-    let post = &posts[0];
-    assert_eq!(post.users.as_ref().unwrap().len(), 3);
+    // let posts = server
+    //     .get(&format!(
+    //         "/api/discussions/{}/posts",
+    //         default_discussion.to_raw()
+    //     ))
+    //     .await
+    //     .json::<Vec<PostView>>();
+
+    // assert_eq!(posts.len(), 1);
+    // let post = &posts[0];
+    // assert_eq!(post.users.as_ref().unwrap().len(), 3);
 });
 
 test_with_server!(remove_users_from_post_test, |server, ctx_state, config| {
@@ -149,47 +149,47 @@ test_with_server!(remove_users_from_post_test, |server, ctx_state, config| {
         .add_text("users", user.id.as_ref().unwrap().to_raw());
 
     let post = create_post(server, &default_discussion, data).await;
-    post.assert_status_ok();
-    let post = post.json::<PostView>();
-    assert_eq!(post.r#type, PostType::Private);
+    post.assert_status_forbidden();
+    // let post = post.json::<PostView>();
+    // assert_eq!(post.r#type, PostType::Private);
 
-    let response = server
-        .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
-        .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
-        .await;
+    // let response = server
+    //     .post(&format!("/api/posts/{}/add_users", post.id.to_raw()))
+    //     .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
+    //     .await;
 
-    response.assert_status_ok();
+    // response.assert_status_ok();
 
-    let posts = server
-        .get(&format!(
-            "/api/discussions/{}/posts",
-            default_discussion.to_raw()
-        ))
-        .await
-        .json::<Vec<PostView>>();
+    // let posts = server
+    //     .get(&format!(
+    //         "/api/discussions/{}/posts",
+    //         default_discussion.to_raw()
+    //     ))
+    //     .await
+    //     .json::<Vec<PostView>>();
 
-    assert_eq!(posts.len(), 1);
-    let post = &posts[0];
-    assert_eq!(post.users.as_ref().unwrap().len(), 3);
+    // assert_eq!(posts.len(), 1);
+    // let post = &posts[0];
+    // assert_eq!(post.users.as_ref().unwrap().len(), 3);
 
-    let response = server
-        .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
-        .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
-        .await;
+    // let response = server
+    //     .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
+    //     .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
+    //     .await;
 
-    response.assert_status_ok();
+    // response.assert_status_ok();
 
-    let posts = server
-        .get(&format!(
-            "/api/discussions/{}/posts",
-            default_discussion.to_raw()
-        ))
-        .await
-        .json::<Vec<PostView>>();
+    // let posts = server
+    //     .get(&format!(
+    //         "/api/discussions/{}/posts",
+    //         default_discussion.to_raw()
+    //     ))
+    //     .await
+    //     .json::<Vec<PostView>>();
 
-    assert_eq!(posts.len(), 1);
-    let post = &posts[0];
-    assert_eq!(post.users.as_ref().unwrap().len(), 2);
+    // assert_eq!(posts.len(), 1);
+    // let post = &posts[0];
+    // assert_eq!(post.users.as_ref().unwrap().len(), 2);
 });
 
 test_with_server!(
@@ -221,16 +221,16 @@ test_with_server!(
             .add_text("users", user.id.as_ref().unwrap().to_raw());
 
         let post = create_post(server, &default_discussion, data).await;
-        post.assert_status_ok();
-        let post = post.json::<PostView>();
-        assert_eq!(post.r#type, PostType::Private);
+        post.assert_status_forbidden();
+        // let post = post.json::<PostView>();
+        // assert_eq!(post.r#type, PostType::Private);
 
-        let response = server
-            .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
-            .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
-            .await;
+        // let response = server
+        //     .post(&format!("/api/posts/{}/remove_users", post.id.to_raw()))
+        //     .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
+        //     .await;
 
-        response.assert_status_failure();
+        // response.assert_status_failure();
     }
 );
 
@@ -260,24 +260,24 @@ test_with_server!(create_post_with_users_test, |server, ctx_state, config| {
         .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
     let response = create_post(server, &default_discussion, data).await;
-    response.assert_status_success();
-    let post = response.json::<PostView>();
+    response.assert_status_forbidden();
+    // let post = response.json::<PostView>();
 
-    assert_eq!(post.r#type, PostType::Private);
+    // assert_eq!(post.r#type, PostType::Private);
 
-    let posts = server
-        .get(&format!(
-            "/api/discussions/{}/posts",
-            default_discussion.to_raw()
-        ))
-        .await
-        .json::<Vec<PostView>>();
+    // let posts = server
+    //     .get(&format!(
+    //         "/api/discussions/{}/posts",
+    //         default_discussion.to_raw()
+    //     ))
+    //     .await
+    //     .json::<Vec<PostView>>();
 
-    assert_eq!(posts.len(), 1);
+    // assert_eq!(posts.len(), 1);
 
-    let post = &posts[0];
+    // let post = &posts[0];
 
-    assert_eq!(post.users.as_ref().unwrap().len(), 2);
+    // assert_eq!(post.users.as_ref().unwrap().len(), 2);
 });
 
 test_with_server!(
@@ -306,24 +306,24 @@ test_with_server!(
             .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
         let response = create_post(server, &default_discussion, data).await;
-        response.assert_status_success();
-        let post = response.json::<PostView>();
+        response.assert_status_forbidden();
+        // let post = response.json::<PostView>();
 
-        assert_eq!(post.r#type, PostType::Private);
+        // assert_eq!(post.r#type, PostType::Private);
 
-        let posts = server
-            .get(&format!(
-                "/api/discussions/{}/posts",
-                default_discussion.to_raw()
-            ))
-            .await
-            .json::<Vec<PostView>>();
+        // let posts = server
+        //     .get(&format!(
+        //         "/api/discussions/{}/posts",
+        //         default_discussion.to_raw()
+        //     ))
+        //     .await
+        //     .json::<Vec<PostView>>();
 
-        assert_eq!(posts.len(), 1);
+        // assert_eq!(posts.len(), 1);
 
-        let post = &posts[0];
+        // let post = &posts[0];
 
-        assert_eq!(post.users.as_ref().unwrap().len(), 2);
+        // assert_eq!(post.users.as_ref().unwrap().len(), 2);
     }
 );
 
@@ -353,7 +353,7 @@ test_with_server!(
             .add_text("users", "");
 
         let response = create_post(server, &default_discussion, data).await;
-        response.assert_status_failure();
+        response.assert_status_forbidden();
     }
 );
 
@@ -408,7 +408,6 @@ test_with_server!(
 
         let response = create_post(server, &disc_id, data).await;
         response.assert_status_ok();
-
         let post = response.json::<PostView>();
         assert_eq!(post.r#type, PostType::Idea);
     }
@@ -448,18 +447,18 @@ test_with_server!(get_users_to_post_test, |server, ctx_state, config| {
         .add_text("users", user1.id.as_ref().unwrap().to_raw());
 
     let post = create_post(server, &default_discussion, data).await;
-    post.assert_status_ok();
-    let post = post.json::<PostView>();
-    assert_eq!(post.r#type, PostType::Private);
+    post.assert_status_forbidden();
+    // let post = post.json::<PostView>();
+    // assert_eq!(post.r#type, PostType::Private);
 
-    let response = server
-        .get(&format!("/api/posts/{}/users", post.id.to_raw()))
-        .await;
+    // let response = server
+    //     .get(&format!("/api/posts/{}/users", post.id.to_raw()))
+    //     .await;
 
-    response.assert_status_ok();
+    // response.assert_status_ok();
 
-    let users = response.json::<Vec<UserView>>();
-    assert_eq!(users.len(), 4);
+    // let users = response.json::<Vec<UserView>>();
+    // assert_eq!(users.len(), 4);
 });
 
 test_with_server!(

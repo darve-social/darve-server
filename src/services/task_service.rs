@@ -707,17 +707,18 @@ where
                         id: PostDbService::get_new_post_thing(),
                         r#type: PostType::Public,
                         delivered_for_task: Some(task_view.id.clone()),
+                        reply_to: None,
                     })
                     .await?;
                 let _ = self
                     .tags_repository
                     .create_with_relate(
                         [SystemTags::Delivery.as_str().to_string()].to_vec(),
-                        post.id.as_ref().unwrap().clone(),
+                        post.id.clone(),
                     )
                     .await;
                 TaskParticipantResult {
-                    post: Some(post.id.as_ref().unwrap().clone()),
+                    post: Some(post.id.clone()),
                     link: None,
                 }
             }

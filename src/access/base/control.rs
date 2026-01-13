@@ -135,7 +135,7 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
         assert!(permissions.contains(&Permission::CreateIdeaPost));
-        assert_eq!(permissions.len(),4);
+        assert_eq!(permissions.len(), 4);
     }
 
     #[test]
@@ -193,9 +193,10 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        // assert!(permissions.contains(&Permission::CreatePrivatePost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::CreatePostForPost));
         assert!(permissions.contains(&Permission::AddMember));
         assert!(permissions.contains(&Permission::RemoveMember));
         assert!(permissions.contains(&Permission::Alias));
@@ -210,7 +211,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        // assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePostForPost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::Alias));
@@ -226,7 +228,8 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        // assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePostForPost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::Alias));
@@ -359,9 +362,10 @@ mod schema_variant_tests {
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::Edit));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        // assert!(permissions.contains(&Permission::CreatePrivatePost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
+        assert!(permissions.contains(&Permission::CreatePostForPost));
         assert!(permissions.contains(&Permission::AddMember));
         assert!(permissions.contains(&Permission::RemoveMember));
         assert!(permissions.contains(&Permission::Alias));
@@ -376,7 +380,8 @@ mod schema_variant_tests {
         let permissions = ac.what_can(&path);
         assert!(permissions.contains(&Permission::View));
         assert!(permissions.contains(&Permission::CreatePublicPost));
-        assert!(permissions.contains(&Permission::CreatePrivatePost));
+        // assert!(permissions.contains(&Permission::CreatePrivatePost));
+        assert!(permissions.contains(&Permission::CreatePostForPost));
         assert!(permissions.contains(&Permission::CreatePublicTask));
         assert!(permissions.contains(&Permission::CreatePrivateTask));
         assert!(permissions.contains(&Permission::Alias));
@@ -692,7 +697,7 @@ mod schema_variant_tests {
             Permission::View,
             Permission::Edit,
             Permission::CreatePublicPost,
-            Permission::CreatePrivatePost,
+            // Permission::CreatePrivatePost, // Private posts are commented out because their paths might not be present in the current schema
             Permission::CreatePublicTask,
             Permission::CreatePrivateTask,
             Permission::CreateDiscussion,
