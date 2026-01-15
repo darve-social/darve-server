@@ -2,7 +2,8 @@ mod helpers;
 
 use std::str::FromStr;
 
-use crate::helpers::{create_fake_login_test_user, task_helpers};
+use crate::helpers::{create_fake_login_test_user, post_helpers::create_post, task_helpers};
+use axum_test::multipart::MultipartForm;
 use chrono::Utc;
 use darve_server::{
     entities::{
@@ -1329,6 +1330,72 @@ test_with_server!(
         let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
 
         assert_eq!(tasks.len(), 1);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token0))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 0);
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token2))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 0);
+    }
+);
+test_with_server!(
+    given_tasks_public_disc_idea_post,
+    |server, ctx_state, config| {
+        let (server, _user0, _, token0) = create_fake_login_test_user(&server).await;
+        let (server, _user2, _, token2) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+        let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
+        let data = MultipartForm::new()
+            .add_text("title", faker::name::en::Name().fake::<String>())
+            .add_text("is_idea", true)
+            .add_text(
+                "content",
+                faker::lorem::en::Sentence(7..20).fake::<String>(),
+            );
+
+        let res = create_post(server, &disc_id, data).await;
+        let post = res.json::<PostView>();
+
+        let endow_user_response = server
+            .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        endow_user_response.assert_status_success();
+        let task_request = server
+            .post(format!("/api/posts/{}/tasks", post.id).as_str())
+            .json(&json!({
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>()
+            }))
+            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Accept", "application/json")
+            .await;
+        task_request.assert_status_success();
+
+        let given_tasks_response = server
+            .get("/api/tasks/given")
+            .add_header("Cookie", format!("jwt={}", token1))
+            .await;
+
+        given_tasks_response.assert_status_success();
+
+        let tasks = given_tasks_response.json::<Vec<TaskRequestView>>();
+
+        assert_eq!(tasks.len(), 0);
         let given_tasks_response = server
             .get("/api/tasks/given")
             .add_header("Cookie", format!("jwt={}", token0))
