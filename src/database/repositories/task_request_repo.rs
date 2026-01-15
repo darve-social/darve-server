@@ -320,16 +320,19 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
             .client
             .query(format!(
                 "SELECT *, {fields} FROM {TASK_REQUEST_TABLE_NAME}
-                 WHERE created_by=$user AND (belongs_to.type IN $public_types OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
+                 WHERE created_by=$user
+                  AND belongs_to.type != $idea
+                  AND (belongs_to.type == $public OR $user IN belongs_to<-{ACCESS_TABLE_NAME}.in)
                   AND (
                       record::tb(belongs_to) != {POST_TABLE_NAME}
-                      OR belongs_to.belongs_to.type IN $public_types
+                      OR belongs_to.belongs_to.type == $public
                       OR $user IN belongs_to.belongs_to<-{ACCESS_TABLE_NAME}.in
                   )
                  ORDER BY created_at {order_dir} LIMIT $limit START $start;"
             ))
             .bind(("user", user))
-            .bind(("public_types", [PostType::Public, PostType::Idea]))
+            .bind(("public", PostType::Public))
+            .bind(("idea", PostType::Idea))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .await?;
