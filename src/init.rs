@@ -55,6 +55,7 @@ pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
         &ctx_state.db.verification_code,
         &ctx_state.db.access,
         ctx_state.file_storage.clone(),
+        &ctx_state.twitch_service,
     );
 
     let _ = auth_service

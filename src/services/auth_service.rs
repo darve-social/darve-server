@@ -10,6 +10,7 @@ use crate::interfaces::file_storage::FileStorageInterface;
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::utils;
 use crate::utils::file::convert::{build_profile_file_name, convert_field_file_data};
+use crate::utils::verification::twitch::TwitchService;
 use crate::{
     database::client::Db,
     entities::{
@@ -38,6 +39,7 @@ use crate::{
 use axum_typed_multipart::{FieldData, TryFromMultipart};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tempfile::NamedTempFile;
 use utils::validate_utils::validate_birth_date;
 use uuid::Uuid;
@@ -97,6 +99,7 @@ where
     verification_code_service: VerificationCodeService<'a, V>,
     access_repository: &'a A,
     file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
+    twitch_service: &'a TwitchService,
 }
 
 impl<'a, V, A> AuthService<'a, V, A>
@@ -113,6 +116,7 @@ where
         verification_code_repository: &'a V,
         access_repository: &'a A,
         file_storage: Arc<dyn FileStorageInterface + Send + Sync>,
+        twitch_service: &'a TwitchService,
     ) -> AuthService<'a, V, A> {
         AuthService {
             ctx,
@@ -127,6 +131,7 @@ where
             ),
             access_repository,
             file_storage,
+            twitch_service,
         }
     }
 
@@ -204,7 +209,7 @@ where
         };
 
         let (_, hash) = hash_password(&input.password).expect("Hash password error");
-        let (token, mut user) = self.register(user, AuthType::PASSWORD, &hash).await?;
+        let (token, mut user) = self.register(user, AuthType::PASSWORD, &hash, None).await?;
 
         if let Some(email) = input.email {
             let _ = self
@@ -287,7 +292,7 @@ where
                     new_user.full_name = apple_user.name;
                     new_user.email_verified = apple_user.email;
                     let (token, user) = self
-                        .register(new_user, AuthType::APPLE, &apple_user.id)
+                        .register(new_user, AuthType::APPLE, &apple_user.id, None)
                         .await?;
 
                     Ok((token, user, false))
@@ -324,7 +329,7 @@ where
 
                     new_user.full_name = Some(fb_user.name.clone());
                     let (token, user) = self
-                        .register(new_user, AuthType::FACEBOOK, &fb_user.id)
+                        .register(new_user, AuthType::FACEBOOK, &fb_user.id, None)
                         .await?;
                     Ok((token, user, false))
                 }
@@ -365,7 +370,70 @@ where
                     new_user.email_verified = google_user.email;
                     new_user.image_uri = google_user.picture;
                     let (token, user) = self
-                        .register(new_user, AuthType::GOOGLE, &google_user.sub)
+                        .register(new_user, AuthType::GOOGLE, &google_user.sub, None)
+                        .await?;
+                    Ok((token, user, false))
+                }
+                _ => Err(err),
+            },
+        }
+    }
+
+    pub async fn sign_by_twitch(&self, code: &str) -> CtxResult<(String, LocalUser, bool)> {
+        let twitch_token = self.twitch_service.exchange_code(code).await.map_err(|e| {
+            println!("Twitch exchange code error: {:?}", e);
+            self.ctx.to_ctx_error(AppError::AuthenticationFail)
+        })?;
+        let twitch_user = self
+            .twitch_service
+            .get_user(&twitch_token)
+            .await
+            .map_err(|e| {
+                println!("Twitch get user error: {:?}", e);
+                self.ctx.to_ctx_error(AppError::AuthenticationFail)
+            })?;
+        let res = self
+            .get_user_id_by_social_auth(
+                AuthType::TWITCH,
+                twitch_user.id.clone(),
+                twitch_user.email.clone(),
+            )
+            .await;
+
+        let token_data = serde_json::to_value(&twitch_token).unwrap();
+        match res {
+            Ok((user, pass_auth)) => {
+                self.auth_repository
+                    .update_token(
+                        &user.id.as_ref().unwrap().id.to_raw(),
+                        AuthType::TWITCH,
+                        twitch_token.access_token,
+                        Some(token_data),
+                    )
+                    .await?;
+
+                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
+                Ok((token, user, pass_auth.is_some()))
+            }
+            Err(err) => match err.error {
+                AppError::EntityFailIdNotFound { .. } => {
+                    let mut new_user = LocalUser::default(
+                        self.build_username(
+                            twitch_user.email.clone(),
+                            Some(twitch_user.display_name.clone()),
+                        )
+                        .await,
+                    );
+                    new_user.full_name = Some(twitch_user.display_name);
+                    new_user.email_verified = twitch_user.email;
+                    new_user.image_uri = twitch_user.profile_image_url;
+                    let (token, user) = self
+                        .register(
+                            new_user,
+                            AuthType::TWITCH,
+                            &twitch_token.access_token,
+                            Some(token_data),
+                        )
                         .await?;
                     Ok((token, user, false))
                 }
@@ -403,6 +471,7 @@ where
                 &user.id.as_ref().unwrap().id.to_raw(),
                 AuthType::PASSWORD,
                 hash,
+                None,
             )
             .await?;
 
@@ -540,6 +609,7 @@ where
         data: LocalUser,
         auth_type: AuthType,
         token: &str,
+        token_data: Option<Value>,
     ) -> CtxResult<(String, LocalUser)> {
         let user = self.user_repository.create(data).await?;
         let _ = self
@@ -549,6 +619,7 @@ where
                 token: token.to_string(),
                 auth_type,
                 passkey_json: None,
+                metadata: token_data,
             })
             .await?;
         let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;

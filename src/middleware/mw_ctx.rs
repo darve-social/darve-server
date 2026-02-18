@@ -8,6 +8,7 @@ use crate::utils::darve_tasks::DarveTasksUtils;
 use crate::utils::email_sender::EmailSender;
 use crate::utils::file::google_cloud_file_storage::GoogleCloudFileStorage;
 use crate::utils::jwt::JWT;
+use crate::utils::verification::twitch::TwitchService;
 use chrono::Duration;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,7 @@ pub struct CtxState {
     pub online_users: Arc<DashMap<String, usize>>,
     pub support_email: String,
     pub darve_tasks: Arc<DarveTasksUtils>,
+    pub twitch_service: TwitchService,
 }
 
 impl Debug for CtxState {
@@ -114,6 +116,11 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         online_users: Arc::new(DashMap::new()),
         support_email: config.support_email.clone(),
         darve_tasks: Arc::new(DarveTasksUtils::new(database, file_storage.clone())),
+        twitch_service: TwitchService::new(
+            config.twitch_client_id.clone(),
+            config.twitch_client_secret.clone(),
+            config.twitch_redirect_uri.clone(),
+        ),
     };
     Arc::new(ctx_state)
 }

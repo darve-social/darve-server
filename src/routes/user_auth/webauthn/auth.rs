@@ -282,6 +282,7 @@ pub async fn finish_register(
                 token: cred_id,
                 auth_type: AuthType::PASSKEY,
                 passkey_json,
+                metadata: None,
             })
             .await?;
 

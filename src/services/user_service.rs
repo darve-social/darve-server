@@ -175,6 +175,7 @@ where
                 token: hash,
                 auth_type: AuthType::PASSWORD,
                 passkey_json: None,
+                metadata: None,
             })
             .await?;
 
@@ -216,7 +217,7 @@ where
         let (_, hash) = hash_password(new_pass).expect("Hash password error");
 
         self.auth_repository
-            .update_token(user_id, AuthType::PASSWORD, hash)
+            .update_token(user_id, AuthType::PASSWORD, hash, None)
             .await?;
 
         self.verification_code_service.delete(&code.id).await?;

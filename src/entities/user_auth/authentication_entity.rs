@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use strum::EnumString;
 use surrealdb::sql::Thing;
 
@@ -20,6 +21,7 @@ pub struct CreateAuthInput {
     pub token: String,
     pub auth_type: AuthType,
     pub passkey_json: Option<String>,
+    pub metadata: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
@@ -29,6 +31,7 @@ pub enum AuthType {
     APPLE,
     FACEBOOK,
     GOOGLE,
+    TWITCH,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,6 +42,8 @@ pub struct Authentication {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passkey_json: Option<String>,
     pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Value>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -56,6 +61,7 @@ impl<'a> AuthenticationDbService<'a> {
             DEFINE FIELD IF NOT EXISTS local_user ON TABLE {TABLE_NAME} TYPE record<local_user>;
             DEFINE FIELD IF NOT EXISTS auth_type ON TABLE {TABLE_NAME} TYPE string;
             DEFINE FIELD IF NOT EXISTS token ON TABLE {TABLE_NAME} TYPE string;
+            DEFINE FIELD IF NOT EXISTS metadata ON TABLE {TABLE_NAME} TYPE option<object> FLEXIBLE;
             DEFINE FIELD IF NOT EXISTS passkey_json ON TABLE {TABLE_NAME} TYPE option<string>;
             DEFINE FIELD IF NOT EXISTS updated_at ON TABLE {TABLE_NAME} TYPE datetime VALUE time::now();
 
@@ -122,16 +128,18 @@ impl<'a> AuthenticationDbService<'a> {
         user_id: &str,
         auth_type: AuthType,
         token: String,
+        metadata: Option<Value>,
     ) -> CtxResult<()> {
         let res = self
             .db
             .query(
-                "UPDATE type::table($table) SET token=$value  WHERE local_user=<record>$user AND auth_type=$auth_type;",
+                "UPDATE type::table($table) SET token=$value, metadata=$metadata WHERE local_user=<record>$user AND auth_type=$auth_type;",
             )
             .bind(("table", TABLE_NAME))
             .bind(("user", Thing::from((USER_TABLE_NAME, user_id ))))
             .bind(("auth_type", auth_type))
             .bind(("value", token))
+            .bind(("metadata", metadata))
             .await?;
 
         res.check()?;
