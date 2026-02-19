@@ -20,6 +20,7 @@ macro_rules! test_with_server {
             use axum_test::{TestServer, TestServerConfig};
             use darve_server::database::client::{Database, DbConfig};
             use darve_server::config::AppConfig;
+            use darve_server::utils::verification::twitch::TwitchService;
             use darve_server::routes::user_auth::webauthn::webauthn_routes::create_webauth_config;
             use futures::FutureExt;
             use std::panic::{ resume_unwind};
@@ -61,6 +62,11 @@ macro_rules! test_with_server {
                     online_users: Arc::new(DashMap::new()),
                     support_email: config.support_email.clone(),
                     darve_tasks: Arc::new(darve_tasks::DarveTasksUtils::new(database, file_storage.clone())),
+                    twitch_service: TwitchService::new(
+                        config.twitch_client_id.clone(),
+                        config.twitch_client_secret.clone(),
+                        config.twitch_redirect_uri.clone(),
+                    ),
                 };
                 Arc::new(ctx_state)
             }
@@ -92,7 +98,10 @@ macro_rules! test_with_server {
                 paypal_webhook_id: "".to_string(),
                 paypal_client_id: "".to_string(),
                 paypal_client_key: "".to_string(),
-                support_email: "".to_string()
+                support_email: "".to_string(),
+                twitch_client_id: "".to_string(),
+                twitch_client_secret: "".to_string(),
+                twitch_redirect_uri: "".to_string(),
             };
 
             let $ctx_state = {
