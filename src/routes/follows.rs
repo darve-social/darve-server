@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::entities::user_auth::{self};
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
@@ -17,7 +18,8 @@ use middleware::error::CtxResult;
 use middleware::mw_ctx::CtxState;
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
+
 use user_auth::{follow_entity, local_user_entity};
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -41,7 +43,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/follow-user.html")]
 pub struct UserItemView {
-    pub id: Thing,
+    pub id: RecordId,
     pub username: String,
     pub name: String,
     pub image_url: String,
@@ -138,7 +140,7 @@ async fn follow_user(
     let current_user = local_user_db_service.get_ctx_user().await?;
     let following_thing = get_str_thing(&follow_user_id)?;
     let following_user = local_user_db_service
-        .get_by_id(&following_thing.id.to_raw())
+        .get_by_id(&record_id_key_to_string(&following_thing.key))
         .await?;
 
     if current_user.id == following_user.id {

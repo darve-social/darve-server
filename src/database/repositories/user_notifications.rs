@@ -14,7 +14,7 @@ use crate::{
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct UserNotificationsRepository {
@@ -60,8 +60,8 @@ impl UserNotificationsInterface for UserNotificationsRepository {
     ) -> Result<UserNotification, AppError> {
         let receiver_things = receivers
             .iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
 
         let query = r#"
             BEGIN TRANSACTION;
@@ -88,7 +88,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .query(query)
             .bind(("event", n_type.to_string()))
             .bind(("title", title.to_string()))
-            .bind(("created_by", Thing::from((USER_TABLE_NAME, creator))))
+            .bind(("created_by", RecordId::new(USER_TABLE_NAME, creator)))
             .bind(("metadata", metadata))
             .bind(("receivers", receiver_things))
             .await
@@ -133,7 +133,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let mut res = self
             .client
             .query(&query)
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("start", options.start))
             .bind(("limit", options.limit))
             .bind(("is_read", options.is_read))
@@ -151,8 +151,8 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let _ = self
             .client
             .query("UPDATE user_notifications SET is_read=$is_read WHERE out=$id AND in=$user_id")
-            .bind(("id", Thing::from(("notifications", id))))
-            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("id", RecordId::new("notifications", id)))
+            .bind(("user_id", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("is_read", true))
             .await
             .map_err(|e| AppError::SurrealDb {

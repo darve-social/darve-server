@@ -1,3 +1,4 @@
+use surrealdb::types::{RecordId, SurrealValue};
 use std::sync::Arc;
 
 use crate::entities::community::community_entity;
@@ -21,7 +22,7 @@ use middleware::utils::db_utils::{IdentIdName, ViewFieldSelector};
 use middleware::utils::extractor_utils::DiscussionParams;
 use middleware::utils::string_utils::get_string_thing;
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+
 use utils::askama_filter_util::filters;
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -48,10 +49,10 @@ pub struct ProfilePage {
     pub profile_view: Option<ProfileView>,
 }
 
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, SurrealValue)]
 #[template(path = "nera2/profile_view_1.html")]
 pub struct ProfileView {
-    pub user_id: Thing,
+    pub user_id: RecordId,
     pub username: String,
     pub full_name: Option<String>,
     pub bio: Option<String>,
@@ -62,8 +63,8 @@ pub struct ProfileView {
     #[serde(default)]
     pub is_otp_enabled: bool,
     pub social_links: Option<Vec<String>>,
-    pub community: Option<Thing>,
-    pub profile_discussion: Option<Thing>,
+    pub community: Option<RecordId>,
+    pub profile_discussion: Option<RecordId>,
     #[serde(default)]
     pub followers_nr: u64,
     #[serde(default)]

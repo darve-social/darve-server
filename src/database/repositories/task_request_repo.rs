@@ -1,3 +1,4 @@
+use crate::database::query_builder::SurrealQueryBuilder;
 use crate::database::repository_impl::Repository;
 use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::ACCESS_TABLE_NAME;
@@ -20,8 +21,7 @@ use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector
 use async_trait::async_trait;
 use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
-use surrealdb::method::Query;
-use surrealdb::sql::{Datetime, Thing};
+use surrealdb::types::{Datetime, RecordId, SurrealValue};
 
 const TABLE_COL_USER: &str = local_user_entity::TABLE_NAME;
 
@@ -62,11 +62,11 @@ impl Repository<TaskRequestEntity> {
 
 #[async_trait]
 impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
-    fn build_create_query<'b>(
+    fn build_create_query(
         &self,
-        query: Query<'b, surrealdb::engine::any::Any>,
+        query: SurrealQueryBuilder,
         record: &TaskRequestCreate,
-    ) -> Query<'b, surrealdb::engine::any::Any> {
+    ) -> SurrealQueryBuilder {
         let seconds = (record.delivery_period + record.acceptance_period) as i64;
         let due_at = Utc::now().checked_add_signed(TimeDelta::seconds(seconds));
         let mut gry = query
@@ -94,27 +94,27 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         }
 
         gry = gry
-            .bind(("_task_delivery_period", record.delivery_period))
-            .bind(("_task_belongs_to", record.belongs_to.clone()))
-            .bind(("_task_created_by", record.from_user.clone()))
-            .bind(("_task_deliverable_type", record.deliverable_type.clone()))
-            .bind(("_task_request_txt", record.request_txt.clone()))
-            .bind(("_task_reward_type", record.reward_type.clone()))
-            .bind(("_task_currency", record.currency.clone()))
-            .bind(("_task_type", record.r#type.clone()))
-            .bind(("_task_acceptance_period", record.acceptance_period))
-            .bind(("_task_status", TaskRequestStatus::Init))
-            .bind(("_task_due_at", Datetime::from(due_at.unwrap())))
-            .bind(("_task_wallet_id", record.wallet_id.clone()))
-            .bind(("_task_id", record.task_id.clone()));
+            .bind_var("_task_delivery_period", record.delivery_period)
+            .bind_var("_task_belongs_to", record.belongs_to.clone())
+            .bind_var("_task_created_by", record.from_user.clone())
+            .bind_var("_task_deliverable_type", record.deliverable_type.clone())
+            .bind_var("_task_request_txt", record.request_txt.clone())
+            .bind_var("_task_reward_type", record.reward_type.clone())
+            .bind_var("_task_currency", record.currency.clone())
+            .bind_var("_task_type", record.r#type.clone())
+            .bind_var("_task_acceptance_period", record.acceptance_period)
+            .bind_var("_task_status", TaskRequestStatus::Init)
+            .bind_var("_task_due_at", Datetime::from(due_at.unwrap()))
+            .bind_var("_task_wallet_id", record.wallet_id.clone())
+            .bind_var("_task_id", record.task_id.clone());
 
         gry
     }
 
-    async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_posts<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        posts: Vec<Thing>,
-        user: Thing,
+        posts: Vec<RecordId>,
+        user: RecordId,
     ) -> Result<Vec<T>, surrealdb::Error> {
         let fields = T::get_select_query_fields();
         let query = format!("
@@ -133,7 +133,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    async fn get_by_public_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_public_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -179,8 +179,8 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("task_type", TaskRequestType::Public))
             .bind(("filter_by_type", filter_by_type))
             .await?;
@@ -188,7 +188,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    async fn get_by_private_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_private_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -235,15 +235,15 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("filter_by_type", filter_by_type))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    async fn get_by_user_and_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_user_and_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         user_id: &str,
         disc_id: &str,
@@ -262,17 +262,17 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         let mut res = self
             .client
             .query(query)
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("status", status))
             .await?;
 
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    async fn get_by_user<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_user<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        user: &Thing,
+        user: &RecordId,
         status: Option<TaskParticipantStatus>,
         is_ended: Option<bool>,
         pagination: Pagination,
@@ -309,9 +309,9 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         Ok(res.take::<Vec<T>>(0)?)
     }
 
-    async fn get_by_creator<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_creator<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        user: Thing,
+        user: RecordId,
         pagination: Pagination,
     ) -> Result<Vec<T>, surrealdb::Error> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
@@ -375,9 +375,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
             .await?;
 
         let data = res.take::<Option<TaskForReward>>(0)?;
-        data.ok_or(surrealdb::Error::Db(surrealdb::error::Db::IdNotFound {
-            rid: task_id.to_string(),
-        }))
+        data.ok_or(surrealdb::Error::not_found(task_id.to_string(), None))
     }
 
     async fn get_ready_for_payment(&self) -> Result<Vec<TaskForReward>, surrealdb::Error> {
@@ -400,7 +398,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         Ok(data)
     }
 
-    async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_id<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         id: &str,
     ) -> AppResult<T> {

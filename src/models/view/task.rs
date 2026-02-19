@@ -1,4 +1,3 @@
-use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     entities::{
         task_request::{TaskRequestStatus, TaskRequestType},
@@ -12,9 +11,9 @@ use crate::{
 };
 use ::serde::{Deserialize, Serialize};
 use chrono::{DateTime, TimeDelta, Utc};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, SurrealValue)]
 pub struct TaskRequestViewParticipant {
     pub user: UserView,
     pub status: TaskParticipantStatus,
@@ -22,17 +21,16 @@ pub struct TaskRequestViewParticipant {
     pub result: Option<TaskParticipantResult>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, SurrealValue)]
 pub struct TaskRequestDonorView {
-    pub id: Thing,
+    pub id: RecordId,
     pub user: UserView,
     pub amount: i64,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, SurrealValue)]
 pub struct TaskRequestView {
-    #[serde(deserialize_with = "deserialize_thing_or_string")]
-    pub id: String,
+    pub id: RecordId,
     pub created_by: UserView,
     pub participants: Vec<TaskRequestViewParticipant>,
     pub request_txt: String,
@@ -42,9 +40,9 @@ pub struct TaskRequestView {
     pub delivery_period: u64,
     pub due_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
-    pub wallet_id: Thing,
+    pub wallet_id: RecordId,
     pub status: TaskRequestStatus,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub r#type: TaskRequestType,
 }
 
@@ -88,9 +86,9 @@ impl ViewRelateField for TaskRequestView {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, SurrealValue)]
 pub struct TaskViewForParticipant {
-    pub id: String,
+    pub id: RecordId,
     pub created_by: UserView,
     pub request_txt: String,
     pub total_amount: u64,
@@ -104,12 +102,12 @@ pub struct TaskViewForParticipant {
     pub participants: Vec<TaskRequestViewParticipant>,
     pub created_at: DateTime<Utc>,
     pub status: TaskRequestStatus,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub r#type: TaskRequestType,
 }
 
 impl TaskViewForParticipant {
-    pub fn from_view(view: TaskRequestView, participant_id: &Thing) -> Self {
+    pub fn from_view(view: TaskRequestView, participant_id: &RecordId) -> Self {
         let amount = view.donors.iter().fold(0, |res, d| res + d.amount) as u64;
 
         let participant = view

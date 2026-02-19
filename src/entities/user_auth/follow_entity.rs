@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 use middleware::{
     ctx::Ctx,
@@ -8,13 +8,15 @@ use middleware::{
 
 use super::local_user_entity::{self, LocalUser};
 use crate::database::client::Db;
+use crate::database::surrdb_utils::record_id_to_raw;
 use crate::middleware;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Follow {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    pub r#in: Thing,
-    pub out: Thing,
+    pub id: Option<RecordId>,
+    pub r#in: RecordId,
+    pub out: RecordId,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
 }
@@ -41,7 +43,7 @@ impl<'a> FollowDbService<'a> {
         Ok(())
     }
 
-    pub async fn is_following(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
+    pub async fn is_following(&self, user: RecordId, follows: RecordId) -> CtxResult<bool> {
         let qry = format!("SELECT count() FROM $in->{TABLE_NAME} WHERE out=$out GROUP ALL ;");
         let mut res = self
             .db
@@ -53,7 +55,7 @@ impl<'a> FollowDbService<'a> {
         Ok(res.unwrap_or(0) > 0)
     }
 
-    pub async fn create_follow(&self, user: Thing, follows: Thing) -> CtxResult<bool> {
+    pub async fn create_follow(&self, user: RecordId, follows: RecordId) -> CtxResult<bool> {
         let qry = format!("RELATE $in->{TABLE_NAME}->$out");
         let res = self
             .db
@@ -65,7 +67,7 @@ impl<'a> FollowDbService<'a> {
         Ok(true)
     }
 
-    pub async fn remove_follow(&self, user: Thing, unfollow: Thing) -> CtxResult<bool> {
+    pub async fn remove_follow(&self, user: RecordId, unfollow: RecordId) -> CtxResult<bool> {
         let qry = format!("DELETE $in->{TABLE_NAME} WHERE out=$out");
         self.db
             .query(qry)
@@ -75,45 +77,45 @@ impl<'a> FollowDbService<'a> {
         Ok(true)
     }
 
-    pub async fn user_follower_ids(&self, user: Thing) -> CtxResult<Vec<Thing>> {
+    pub async fn user_follower_ids(&self, user: RecordId) -> CtxResult<Vec<RecordId>> {
         let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER} as followers FROM <record>$user;");
-        self.get_followers_qry::<Thing>(qry, user).await
+        self.get_followers_qry::<RecordId>(qry, user).await
     }
 
-    pub async fn user_followers_number(&self, user: Thing) -> CtxResult<i64> {
+    pub async fn user_followers_number(&self, user: RecordId) -> CtxResult<i64> {
         let qry = format!("SELECT count(<-{TABLE_NAME}<-{TABLE_USER}) as nr FROM <record>$user;");
         self.get_nr_qry(qry, user).await
     }
 
-    pub async fn user_followers(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
+    pub async fn user_followers(&self, user: RecordId) -> CtxResult<Vec<LocalUser>> {
         let qry = format!("SELECT <-{TABLE_NAME}<-{TABLE_USER}.* as followers FROM <record>$user;");
         self.get_followers_qry::<LocalUser>(qry, user).await
     }
 
-    async fn get_followers_qry<T: for<'de> Deserialize<'de>>(
+    async fn get_followers_qry<T: for<'de> Deserialize<'de> + SurrealValue>(
         &self,
         qry: String,
-        user_id: Thing,
+        user_id: RecordId,
     ) -> CtxResult<Vec<T>> {
-        let mut res = self.db.query(qry).bind(("user", user_id.to_raw())).await?;
+        let mut res = self.db.query(qry).bind(("user", record_id_to_raw(&user_id))).await?;
         let res: Option<Vec<T>> = res.take("followers")?;
         Ok(res.unwrap_or(vec![]))
     }
 
-    async fn get_nr_qry(&self, qry: String, user_id: Thing) -> CtxResult<i64> {
-        let mut res = self.db.query(qry).bind(("user", user_id.to_raw())).await?;
+    async fn get_nr_qry(&self, qry: String, user_id: RecordId) -> CtxResult<i64> {
+        let mut res = self.db.query(qry).bind(("user", record_id_to_raw(&user_id))).await?;
         let res: Option<i64> = res.take("nr")?;
         Ok(res.unwrap_or(0))
     }
 
-    pub async fn user_following_number(&self, user: Thing) -> CtxResult<i64> {
+    pub async fn user_following_number(&self, user: RecordId) -> CtxResult<i64> {
         let qry = format!("SELECT count(->{TABLE_NAME}->{TABLE_USER}) as nr FROM <record>$user;");
         self.get_nr_qry(qry, user).await
     }
 
-    pub async fn user_following(&self, user: Thing) -> CtxResult<Vec<LocalUser>> {
+    pub async fn user_following(&self, user: RecordId) -> CtxResult<Vec<LocalUser>> {
         let qry = format!("SELECT ->{TABLE_NAME}->{TABLE_USER}.* as following FROM <record>$user;");
-        let mut res = self.db.query(qry).bind(("user", user.to_raw())).await?;
+        let mut res = self.db.query(qry).bind(("user", record_id_to_raw(&user))).await?;
         let res: Option<Vec<LocalUser>> = res.take("following")?;
         Ok(res.unwrap_or(vec![]))
     }

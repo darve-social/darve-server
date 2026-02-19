@@ -1,9 +1,9 @@
 use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
 pub enum TaskParticipantStatus {
     Requested,
     Rejected,
@@ -22,7 +22,7 @@ impl TaskParticipantStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct TaskParticipant {
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub id: String,
@@ -38,14 +38,14 @@ pub struct TaskParticipant {
     pub result: Option<TaskParticipantResult>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct TaskParticipantTimeline {
     pub status: TaskParticipantStatus,
     pub date: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct TaskParticipantResult {
-    pub post: Option<Thing>,
+    pub post: Option<RecordId>,
     pub link: Option<String>,
 }

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use surrealdb::types::SurrealValue;
 
 use crate::{
     entities::user_notification::UserNotificationEvent,
@@ -8,7 +9,7 @@ use crate::{
     utils::validate_utils::deserialize_thing_or_string_id,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct UserNotificationView {
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub id: String,

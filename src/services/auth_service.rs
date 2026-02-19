@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::verification_code_service::VerificationCodeService;
 use crate::access::base::role::Role;
+use crate::database::surrdb_utils::{record_id_key_to_string, record_id_to_raw};
 use crate::entities::community::discussion_entity::DiscussionDbService;
 use crate::entities::user_auth::authentication_entity::Authentication;
 use crate::entities::user_auth::local_user_entity::{UpdateUser, UserRole};
@@ -148,7 +149,7 @@ where
 
         let auth = self
             .auth_repository
-            .get_by_auth_type(user.id.as_ref().unwrap().to_raw(), AuthType::PASSWORD)
+            .get_by_auth_type(record_id_to_raw(user.id.as_ref().unwrap()), AuthType::PASSWORD)
             .await?
             .ok_or(AppError::Generic {
                 description: "Password not found".to_string(),
@@ -160,7 +161,7 @@ where
             }
             .into());
         }
-        let user_id = user.id.as_ref().unwrap().to_raw();
+        let user_id = record_id_to_raw(user.id.as_ref().unwrap());
         let token = match user.is_otp_enabled {
             true => self
                 .jwt
@@ -210,7 +211,7 @@ where
             let _ = self
                 .verification_code_service
                 .create(
-                    user.id.as_ref().unwrap().id.to_raw().as_str(),
+                    record_id_key_to_string(&user.id.as_ref().unwrap().key).as_str(),
                     email.as_str(),
                     VerificationCodeFor::EmailVerification,
                 )
@@ -218,7 +219,7 @@ where
         }
 
         if let Some(data) = uploaded_image {
-            let path = user.id.clone().unwrap().to_raw().replace(":", "_");
+            let path = record_id_to_raw(user.id.as_ref().unwrap()).replace(":", "_");
             let file_name = build_profile_file_name(&data.extension);
             let image_url = self
                 .file_storage
@@ -235,7 +236,7 @@ where
 
             self.user_repository
                 .update(
-                    &user.id.as_ref().unwrap().id.to_raw().as_str(),
+                    record_id_key_to_string(&user.id.as_ref().unwrap().key).as_str(),
                     UpdateUser {
                         bio: None,
                         birth_date: None,
@@ -274,7 +275,7 @@ where
 
         match res {
             Ok((user, pass_auth)) => {
-                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
+                let token = self.build_jwt_token(&record_id_to_raw(user.id.as_ref().unwrap()))?;
                 Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
@@ -312,7 +313,7 @@ where
 
         match res {
             Ok((user, pass_auth)) => {
-                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
+                let token = self.build_jwt_token(&record_id_to_raw(user.id.as_ref().unwrap()))?;
                 Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
@@ -352,7 +353,7 @@ where
 
         match res {
             Ok((user, pass_auth)) => {
-                let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
+                let token = self.build_jwt_token(&record_id_to_raw(user.id.as_ref().unwrap()))?;
                 Ok((token, user, pass_auth.is_some()))
             }
             Err(err) => match err.error {
@@ -390,7 +391,7 @@ where
         let verification_data = self
             .verification_code_service
             .get(
-                &user.id.as_ref().expect("exists").id.to_raw(),
+                &record_id_key_to_string(&user.id.as_ref().expect("exists").key),
                 VerificationCodeFor::ResetPassword,
                 &input.code,
             )
@@ -400,7 +401,7 @@ where
 
         self.auth_repository
             .update_token(
-                &user.id.as_ref().unwrap().id.to_raw(),
+                &record_id_key_to_string(&user.id.as_ref().unwrap().key),
                 AuthType::PASSWORD,
                 hash,
             )
@@ -443,7 +444,7 @@ where
         let _ = self
             .verification_code_service
             .create(
-                &user.id.expect("exists").id.to_raw(),
+                &record_id_key_to_string(&user.id.expect("exists").key),
                 &user.email_verified.expect("email exists"),
                 VerificationCodeFor::ResetPassword,
             )
@@ -463,7 +464,7 @@ where
         if auth.is_some() {
             return self
                 .user_repository
-                .get_by_id_with_auth(&auth.unwrap().local_user.id.to_raw(), AuthType::PASSWORD)
+                .get_by_id_with_auth(&record_id_to_raw(&auth.unwrap().local_user), AuthType::PASSWORD)
                 .await;
         }
 
@@ -551,7 +552,7 @@ where
                 passkey_json: None,
             })
             .await?;
-        let token = self.build_jwt_token(&user.id.as_ref().unwrap().to_raw())?;
+        let token = self.build_jwt_token(&record_id_to_raw(user.id.as_ref().unwrap()))?;
         let disc_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
         let _ = self
             .community_repository
@@ -562,7 +563,7 @@ where
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                [disc_id.to_raw().as_ref()].to_vec(),
+                [record_id_to_raw(&disc_id).as_ref()].to_vec(),
                 Role::Owner.to_string(),
             )
             .await?;

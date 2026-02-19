@@ -1,6 +1,11 @@
 use crate::{
     access::post::PostAccess,
-    database::{client::Db, repositories::user_notifications::UserNotificationsRepository},
+    database::{
+        client::Db,
+        query_builder::SurrealQueryBuilder,
+        repositories::user_notifications::UserNotificationsRepository,
+        surrdb_utils::record_id_key_to_string,
+    },
     entities::{
         community::post_entity::{PostDbService, PostUserStatus},
         discussion_user::DiscussionUser,
@@ -112,7 +117,7 @@ where
             return Ok(());
         }
 
-        let mut query = self.db.query("BEGIN");
+        let mut query = SurrealQueryBuilder::new("BEGIN");
 
         query = self.post_user_repository.build_upsert_query(
             query,
@@ -121,15 +126,16 @@ where
             PostUserStatus::Seen as u8,
         );
 
+        let disc_id_str = record_id_key_to_string(&post.discussion.id.key);
         query = self.discussion_users.build_decrease_query(
             query,
-            &post.discussion.id.id.to_raw(),
+            &disc_id_str,
             vec![user_id.to_string()],
         );
 
         query = query.query("COMMIT").query("RETURN $discussion_users;");
 
-        let mut res = query.await?;
+        let mut res = query.into_db_query(self.db).await?;
         let data = res.take::<Vec<DiscussionUser>>(res.num_statements() - 1)?;
         let _ = self
             .notification_service

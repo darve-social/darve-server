@@ -7,14 +7,14 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct FullPostView {
-    pub id: Thing,
+    pub id: RecordId,
     pub created_by: UserView,
     pub r#type: PostType,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
@@ -23,9 +23,9 @@ pub struct FullPostView {
     pub replies_nr: i64,
     pub tasks_nr: u64,
     pub likes_nr: i64,
-    pub liked_by: Option<Vec<Thing>>,
+    pub liked_by: Option<Vec<RecordId>>,
     pub users: Option<Vec<AccessUser>>,
-    pub delivered_for_task: Option<Thing>,
+    pub delivered_for_task: Option<RecordId>,
 }
 
 impl ViewFieldSelector for FullPostView {

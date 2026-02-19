@@ -6,10 +6,11 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::Router;
 use gateway_transaction_entity::GatewayTransactionDbService;
-use surrealdb::sql::Thing;
+
 use wallet_entity::CurrencySymbol;
 
 use crate::entities::wallet::{gateway_transaction_entity, wallet_entity};
+use crate::database::surrdb_utils::record_id_to_raw;
 use crate::middleware;
 use crate::middleware::error::AppError;
 use crate::middleware::mw_ctx::CtxState;
@@ -17,6 +18,7 @@ use crate::middleware::utils::extractor_utils::extract_stripe_event;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
 use middleware::ctx::Ctx;
+use surrealdb::types::RecordId;
 use middleware::error::CtxResult;
 
 pub fn routes() -> Router<Arc<CtxState>> {
@@ -68,7 +70,7 @@ async fn handle_webhook(
 
             let gateway_id = get_str_thing(&tx_id)?;
 
-            let user_id: Thing = match payment_intent.metadata.get("user_id") {
+            let user_id: RecordId = match payment_intent.metadata.get("user_id") {
                 Some(id) => get_str_thing(id).expect("Parse user_id stripe webhook"),
                 None => fund_service.unknown_endowment_user_id(),
             };
@@ -86,7 +88,8 @@ async fn handle_webhook(
                 .await;
             if endowment_saved.is_err() {
                 println!(
-                    "ERROR saving endowment user={user_id}, amount={amount_received}, stripe_tx={}",
+                    "ERROR saving endowment user={}, amount={amount_received}, stripe_tx={}",
+                    record_id_to_raw(&user_id),
                     external_tx_id.to_string()
                 );
             }

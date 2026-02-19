@@ -1,7 +1,8 @@
 use askama_axum::Template;
-use surrealdb::sql::{Id, Thing};
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 
 use crate::database::client::Db;
+use crate::database::surrdb_utils::record_id_key_to_string;
 use middleware::utils::db_utils::{
     get_entity, get_entity_view, record_exists, with_not_found_err, IdentIdName, ViewFieldSelector,
 };
@@ -12,8 +13,7 @@ use middleware::{
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use strum::Display;
-use surrealdb::err::Error;
-use surrealdb::Response;
+use surrealdb::IndexedResults;
 
 use super::balance_transaction_entity;
 use crate::entities::wallet::balance_transaction_entity::{
@@ -22,7 +22,7 @@ use crate::entities::wallet::balance_transaction_entity::{
 use crate::middleware;
 use crate::middleware::error::{AppResult, CtxError};
 
-pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResult<()> {
+pub fn check_transaction_custom_error(query_response: &mut IndexedResults) -> AppResult<()> {
     let query_err = query_response
         .take_errors()
         .values()
@@ -34,26 +34,23 @@ pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResul
                 return ret;
             }
 
-            match error {
-                surrealdb::Error::Db(Error::Thrown(throw_val))
-                    if throw_val == THROW_WALLET_LOCKED =>
-                {
-                    Some(AppError::WalletLocked)
-                }
-                surrealdb::Error::Db(Error::Thrown(throw_val))
-                    if throw_val == THROW_BALANCE_TOO_LOW =>
-                {
-                    Some(AppError::BalanceTooLow)
-                }
-                surrealdb::Error::Api(surrealdb::error::Api::Query(msg))
-                    if msg.contains(THROW_BALANCE_TOO_LOW) =>
-                {
-                    Some(AppError::BalanceTooLow)
-                }
-                surrealdb::Error::Db(Error::QueryNotExecuted) if ret.is_some() => ret,
-                _ => Some(AppError::SurrealDb {
+            if error.is_thrown() && error.message() == THROW_WALLET_LOCKED {
+                Some(AppError::WalletLocked)
+            } else if error.is_thrown() && error.message().contains(THROW_BALANCE_TOO_LOW) {
+                Some(AppError::BalanceTooLow)
+            } else if error.is_query() && error.message().contains(THROW_BALANCE_TOO_LOW) {
+                Some(AppError::BalanceTooLow)
+            } else if error
+                .query_details()
+                .map(|d| matches!(d, surrealdb::types::QueryError::NotExecuted))
+                .unwrap_or(false)
+                && ret.is_some()
+            {
+                ret
+            } else {
+                Some(AppError::SurrealDb {
                     source: error.to_string(),
-                }),
+                })
             }
         });
     match query_err {
@@ -62,16 +59,17 @@ pub fn check_transaction_custom_error(query_response: &mut Response) -> AppResul
     }
 }
 
-pub static APP_GATEWAY_WALLET: Lazy<Thing> =
-    Lazy::new(|| Thing::from((TABLE_NAME, "app_gateway_wallet")));
+pub static APP_GATEWAY_WALLET: Lazy<RecordId> =
+    Lazy::new(|| RecordId::new(TABLE_NAME, "app_gateway_wallet"));
 pub const THROW_WALLET_LOCKED: &str = "Wallet locked";
 
-pub static DARVE_WALLET: Lazy<Thing> = Lazy::new(|| Thing::from((TABLE_NAME, "darve_wallet")));
+pub static DARVE_WALLET: Lazy<RecordId> =
+    Lazy::new(|| RecordId::new(TABLE_NAME, "darve_wallet"));
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct Wallet {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
+    pub id: Option<RecordId>,
     pub transaction_head: WalletCurrencyTxHeads,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r_created: Option<String>,
@@ -79,14 +77,14 @@ pub struct Wallet {
     pub r_updated: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct WalletCurrencyTxHeads {
-    usd: Option<Thing>,
-    eth: Option<Thing>,
-    reef: Option<Thing>,
+    usd: Option<RecordId>,
+    eth: Option<RecordId>,
+    reef: Option<RecordId>,
 }
 
-#[derive(Display, Clone, Serialize, Deserialize, Debug)]
+#[derive(Display, Clone, Serialize, Deserialize, Debug, SurrealValue)]
 pub enum CurrencySymbol {
     USD,
     REEF,
@@ -112,14 +110,14 @@ impl CurrencySymbol {
 #[derive(Template, Serialize, Deserialize, Debug)]
 #[template(path = "nera2/default-content.html")]
 pub struct WalletBalancesView {
-    pub id: Thing,
+    pub id: RecordId,
     pub balance: WalletBalanceView,
     pub balance_locked: WalletBalanceView,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, SurrealValue)]
 pub struct WalletBalanceView {
-    pub id: Thing,
+    pub id: RecordId,
     pub balance_usd: i64,
     pub balance_reef: i64,
     pub balance_eth: i64,
@@ -134,10 +132,10 @@ impl ViewFieldSelector for WalletBalanceView {
     }
 }
 
-#[derive(Template, Serialize, Deserialize, Debug, Clone)]
+#[derive(Template, Serialize, Deserialize, Debug, Clone, SurrealValue)]
 #[template(path = "nera2/default-content.html")]
 pub struct UserView {
-    pub id: Thing,
+    pub id: RecordId,
     pub username: String,
     pub full_name: Option<String>,
 }
@@ -164,7 +162,7 @@ impl<'a> WalletDbService<'a> {
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS lock_id ON TABLE {TABLE_NAME} TYPE option<string> ASSERT {{
     IF $before==NONE || $value==NONE || $before<time::now() {{
-        RETURN true 
+        RETURN true
     }} ELSE {{
         THROW \"{THROW_WALLET_LOCKED}\"
     }} }};
@@ -180,7 +178,7 @@ impl<'a> WalletDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_user_balances(&self, user_id: &Thing) -> CtxResult<WalletBalancesView> {
+    pub async fn get_user_balances(&self, user_id: &RecordId) -> CtxResult<WalletBalancesView> {
         // TODO merge to single query
         let balance = self.get_user_balance(user_id).await?;
         let balance_locked = self.get_user_balance_locked(user_id).await?;
@@ -191,17 +189,17 @@ impl<'a> WalletDbService<'a> {
         })
     }
 
-    pub async fn get_user_balance(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
+    pub async fn get_user_balance(&self, user_id: &RecordId) -> CtxResult<WalletBalanceView> {
         let user_wallet_id = &Self::get_user_wallet_id(user_id);
         self.get_balance(user_wallet_id).await
     }
 
-    pub async fn get_user_balance_locked(&self, user_id: &Thing) -> CtxResult<WalletBalanceView> {
+    pub async fn get_user_balance_locked(&self, user_id: &RecordId) -> CtxResult<WalletBalanceView> {
         let user_wallet_id = &Self::get_user_lock_wallet_id(user_id);
         self.get_balance(user_wallet_id).await
     }
 
-    pub async fn get_balance(&self, wallet_id: &Thing) -> CtxResult<WalletBalanceView> {
+    pub async fn get_balance(&self, wallet_id: &RecordId) -> CtxResult<WalletBalanceView> {
         Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, wallet_id).await.is_ok() {
             self.get_view::<WalletBalanceView>(IdentIdName::Id(wallet_id.clone()))
@@ -216,8 +214,8 @@ impl<'a> WalletDbService<'a> {
         }
     }
 
-    pub fn is_wallet_id(ctx: Ctx, wallet_id: &Thing) -> CtxResult<()> {
-        if wallet_id.tb != TABLE_NAME {
+    pub fn is_wallet_id(ctx: Ctx, wallet_id: &RecordId) -> CtxResult<()> {
+        if wallet_id.table.as_str() != TABLE_NAME {
             return Err(ctx.to_ctx_error(AppError::Generic {
                 description: "wrong tb in wallet_id".to_string(),
             }));
@@ -226,7 +224,7 @@ impl<'a> WalletDbService<'a> {
     }
 
     pub(crate) async fn init_app_gateway_wallet(&self) -> CtxResult<WalletBalanceView> {
-        let wallet_id: &Thing = &APP_GATEWAY_WALLET.clone();
+        let wallet_id: &RecordId = &APP_GATEWAY_WALLET.clone();
         Self::is_wallet_id(self.ctx.clone(), wallet_id)?;
         if record_exists(self.db, &wallet_id).await.is_ok() {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
@@ -255,11 +253,6 @@ impl<'a> WalletDbService<'a> {
         .create_init_record(&wallet_id, currency_symbol.clone())
         .await?;
 
-        // let gtw_wallet = APP_GATEWAY_WALLET.clone();
-        // let user = if wallet_id==&gtw_wallet {
-        //     None
-        // }else{ Some(Self::get_user_id(wallet_id))};
-
         let wallet = self
             .db
             .create(TABLE_NAME)
@@ -284,28 +277,22 @@ impl<'a> WalletDbService<'a> {
         })
     }
 
-    pub(crate) fn get_user_wallet_id(user_id: &Thing) -> Thing {
-        // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
-        Thing::from((TABLE_NAME, user_id.id.clone()))
+    pub(crate) fn get_user_wallet_id(user_id: &RecordId) -> RecordId {
+        RecordId::new(TABLE_NAME, user_id.key.clone())
     }
 
-    pub(crate) fn get_user_lock_wallet_id(user_id: &Thing) -> Thing {
-        // Thing::from((TABLE_NAME, format!("{}_u", ident.id).as_str()))
-        Thing::from((
+    pub(crate) fn get_user_lock_wallet_id(user_id: &RecordId) -> RecordId {
+        RecordId::new(
             TABLE_NAME,
-            format!("{}_{}", user_id.id.clone(), "locked").as_str(),
-        ))
+            format!("{}_{}", record_id_key_to_string(&user_id.key), "locked"),
+        )
     }
 
-    pub fn generate_id() -> Thing {
-        Thing::from((TABLE_NAME, Id::rand()))
+    pub fn generate_id() -> RecordId {
+        RecordId::new(TABLE_NAME, RecordIdKey::rand())
     }
-    // not used anywhere - commenting for now @anukulpandey
-    // pub(crate) fn get_user_id(wallet_id: &Thing) -> Thing {
-    //     Thing::from((USER_TABLE, wallet_id.id.clone()))
-    // }
 
-    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_view<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,
     ) -> CtxResult<T> {

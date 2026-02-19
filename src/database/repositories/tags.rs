@@ -7,7 +7,7 @@ use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 #[derive(Debug)]
 pub struct TagsRepository {
@@ -21,7 +21,7 @@ impl TagsRepository {
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!(
             "
-            DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;    
+            DEFINE TABLE IF NOT EXISTS {TAG_REL_TABLE_NAME} TYPE RELATION IN {TAG_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
             DEFINE TABLE IF NOT EXISTS {TAG_TABLE_NAME} SCHEMAFULL;
             "
         );
@@ -35,23 +35,23 @@ impl TagsRepository {
 
 #[async_trait]
 impl TagsRepositoryInterface for TagsRepository {
-    async fn create_with_relate(&self, tags: Vec<String>, thing: Thing) -> AppResult<()> {
+    async fn create_with_relate(&self, tags: Vec<String>, entity: RecordId) -> AppResult<()> {
         let _ = self
             .client
-            .query("BEGIN TRANSACTION;")
             .query(format!(
-                "LET $ids = UPSERT $tags.map(|$v| type::thing('{TAG_TABLE_NAME}', $v));",
+                "BEGIN TRANSACTION; \
+                LET $ids = UPSERT $tags.map(|$v| type::thing('{TAG_TABLE_NAME}', $v)); \
+                RELATE $ids->{TAG_REL_TABLE_NAME}->$entity; \
+                RETURN $ids; \
+                COMMIT TRANSACTION;"
             ))
-            .query(format!("RELATE $ids->{TAG_REL_TABLE_NAME}->$entity;"))
-            .query("COMMIT TRANSACTION;")
-            .query("RETURN $ids;")
             .bind(("tags", tags))
-            .bind(("entity", thing))
+            .bind(("entity", entity))
             .await?;
         Ok(())
     }
 
-    async fn get_by_tag<T: for<'de> Deserialize<'de>>(
+    async fn get_by_tag<T: for<'de> Deserialize<'de> + SurrealValue>(
         &self,
         tag: &str,
         pag: Pagination,
@@ -66,7 +66,7 @@ impl TagsRepositoryInterface for TagsRepository {
         let mut res = self
             .client
             .query(query)
-            .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
+            .bind(("tag", RecordId::new(TAG_TABLE_NAME, tag)))
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .await?;

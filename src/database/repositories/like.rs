@@ -5,7 +5,7 @@ use crate::interfaces::repositories::like::LikesRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct LikesRepository {
@@ -18,7 +18,7 @@ impl LikesRepository {
     }
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    
+
     DEFINE TABLE IF NOT EXISTS {LIKE_TABLE_NAME} TYPE RELATION IN {USER_TABLE_NAME} OUT post|reply ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {LIKE_TABLE_NAME} FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {LIKE_TABLE_NAME} TYPE datetime DEFAULT time::now();
@@ -35,49 +35,43 @@ impl LikesRepository {
 
 #[async_trait]
 impl LikesRepositoryInterface for LikesRepository {
-    async fn like(&self, user: Thing, out: Thing, count: u16) -> AppResult<u32> {
+    async fn like(&self, user: RecordId, out: RecordId, count: u16) -> AppResult<u32> {
         let mut res = self
             .client
-            .query("BEGIN TRANSACTION;")
-            .query("LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id")
             .query(format!(
-                "IF $id THEN
-                    UPDATE $id SET count=$count
-                 ELSE
-                    RELATE $in->{LIKE_TABLE_NAME}->$out SET count=$count
-                 END;"
+                "BEGIN TRANSACTION; \
+                LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id; \
+                IF $id THEN UPDATE $id SET count=$count ELSE RELATE $in->{LIKE_TABLE_NAME}->$out SET count=$count END; \
+                LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out; \
+                UPDATE $out SET likes_nr=$count; \
+                RETURN $count; \
+                COMMIT TRANSACTION;"
             ))
-            .query(format!(
-                "LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out;"
-            ))
-            .query("UPDATE $out SET likes_nr=$count;")
-            .query("RETURN $count;")
-            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", out))
             .bind(("count", count))
             .await?;
 
-        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
+        let count = res.take::<Option<i64>>(res.num_statements() - 1)?.unwrap_or(0) as u32;
         Ok(count)
     }
 
-    async fn unlike(&self, user: Thing, out: Thing) -> AppResult<u32> {
+    async fn unlike(&self, user: RecordId, out: RecordId) -> AppResult<u32> {
         let mut res = self
             .client
-            .query("BEGIN TRANSACTION;")
-            .query(format!("DELETE $in->{LIKE_TABLE_NAME} WHERE out=$out;"))
             .query(format!(
-                "LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out;"
+                "BEGIN TRANSACTION; \
+                DELETE $in->{LIKE_TABLE_NAME} WHERE out=$out; \
+                LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out; \
+                UPDATE $out SET likes_nr=$count; \
+                RETURN $count; \
+                COMMIT TRANSACTION;"
             ))
-            .query("UPDATE $out SET likes_nr=$count;")
-            .query("RETURN $count;")
-            .query("COMMIT TRANSACTION;")
             .bind(("in", user))
             .bind(("out", out))
             .await?;
 
-        let count = res.take::<Option<i64>>(0)?.unwrap() as u32;
+        let count = res.take::<Option<i64>>(res.num_statements() - 1)?.unwrap_or(0) as u32;
         Ok(count)
     }
 }

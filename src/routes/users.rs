@@ -1,4 +1,5 @@
 use crate::{
+    database::surrdb_utils::{record_id_key_to_string, record_id_to_raw},
     entities::{
         community::post_entity::{PostDbService, PostType},
         nickname::Nickname,
@@ -514,7 +515,7 @@ async fn update_user(
                 .file_storage
                 .upload(
                     file.data,
-                    Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                    Some(&record_id_to_raw(user.id.as_ref().unwrap()).replace(":", "_")),
                     &build_profile_file_name(&file.extension),
                     file.content_type.as_deref(),
                 )
@@ -530,7 +531,7 @@ async fn update_user(
                 let _ = ctx_state
                     .file_storage
                     .delete(
-                        Some(&user.id.clone().unwrap().to_raw().replace(":", "_")),
+                        Some(&record_id_to_raw(user.id.as_ref().unwrap()).replace(":", "_")),
                         url.split("/").last().unwrap(),
                     )
                     .await;
@@ -540,7 +541,7 @@ async fn update_user(
         _ => (),
     };
     let user = local_user_db_service
-        .update(user.id.as_ref().unwrap().id.to_raw().as_str(), update_user)
+        .update(record_id_key_to_string(&user.id.as_ref().unwrap().key).as_str(), update_user)
         .await?;
 
     Ok(Json(LoggedUserView::from((user, auth.is_some()))))
@@ -630,7 +631,7 @@ async fn get_latest_posts(
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &record_id_key_to_string(&user.id.as_ref().unwrap().key),
             pagination,
             false,
             query.search_text,
@@ -704,8 +705,8 @@ async fn set_nickname(
 
     let to_user = user_db_service.get_by_id(&user_id).await?;
 
-    let to_user_id = to_user.id.as_ref().unwrap().id.to_raw();
-    let current_user_id = current_user.id.as_ref().unwrap().id.to_raw();
+    let to_user_id = record_id_key_to_string(&to_user.id.as_ref().unwrap().key);
+    let current_user_id = record_id_key_to_string(&current_user.id.as_ref().unwrap().key);
 
     match body.nickname {
         Some(value) => {
@@ -747,7 +748,7 @@ async fn get_nicknames(
     let nicknames = state
         .db
         .nicknames
-        .get_by_user(current_user.id.as_ref().unwrap().id.to_raw().as_str())
+        .get_by_user(record_id_key_to_string(&current_user.id.as_ref().unwrap().key).as_str())
         .await?;
 
     Ok(Json(nicknames))

@@ -1,15 +1,15 @@
 use crate::middleware::error::{AppError, AppResult};
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
-pub fn get_string_thing(value: String) -> AppResult<Thing> {
-    Thing::try_from(value).map_err(|_| AppError::Generic {
-        description: "error into Thing".to_string(),
+pub fn get_string_thing(value: String) -> AppResult<RecordId> {
+    RecordId::parse_simple(&value).map_err(|_| AppError::Generic {
+        description: "error into RecordId".to_string(),
     })
 }
 
-pub fn get_str_thing(value: &str) -> AppResult<Thing> {
-    Thing::try_from(value).map_err(|_| AppError::Generic {
-        description: "error into Thing".to_string(),
+pub fn get_str_thing(value: &str) -> AppResult<RecordId> {
+    RecordId::parse_simple(value).map_err(|_| AppError::Generic {
+        description: "error into RecordId".to_string(),
     })
 }
 

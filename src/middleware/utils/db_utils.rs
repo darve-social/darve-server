@@ -6,20 +6,36 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use surrealdb::engine::any::Any as SurDb;
 use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Variables};
 
 use crate::database::client::Db;
 use crate::middleware::ctx::Ctx;
 use crate::middleware::error::{AppError, AppResult, CtxError, CtxResult};
 
-pub static NO_SUCH_THING: Lazy<Thing> = Lazy::new(|| Thing::from(("none", "none")));
+pub static NO_SUCH_THING: Lazy<RecordId> =
+    Lazy::new(|| RecordId::new("none", "none"));
+
+pub fn record_id_key_to_string(key: &RecordIdKey) -> String {
+    match key {
+        RecordIdKey::String(s) => s.clone(),
+        RecordIdKey::Number(n) => n.to_string(),
+        RecordIdKey::Uuid(u) => u.to_string(),
+        RecordIdKey::Array(a) => format!("{:?}", a),
+        RecordIdKey::Object(o) => format!("{:?}", o),
+        RecordIdKey::Range(_) => String::new(),
+    }
+}
+
+pub fn record_id_to_raw(id: &RecordId) -> String {
+    format!("{}:{}", id.table.as_str(), record_id_key_to_string(&id.key))
+}
 
 // TODO -move db specific things to /database-
-#[derive(Template, Serialize, Deserialize, Debug)]
+#[derive(Template, Serialize, Deserialize, Debug, SurrealValue)]
 #[template(path = "nera2/default-content.html")]
 pub struct RecordWithId {
     #[allow(dead_code)]
-    pub id: Thing,
+    pub id: RecordId,
 }
 
 impl ViewFieldSelector for RecordWithId {
@@ -29,8 +45,8 @@ impl ViewFieldSelector for RecordWithId {
 }
 
 pub enum IdentIdName {
-    Id(Thing),
-    Ids(Vec<Thing>),
+    Id(RecordId),
+    Ids(Vec<RecordId>),
     ColumnIdent {
         column: String,
         val: String,
@@ -44,12 +60,12 @@ impl IdentIdName {
         let mut bindings: HashMap<String, String> = HashMap::new();
         match self {
             IdentIdName::Id(id) => {
-                bindings.insert("id".to_string(), id.to_raw());
+                bindings.insert("id".to_string(), record_id_to_raw(id));
                 bindings
             }
             IdentIdName::Ids(ids) => {
                 ids.into_iter().enumerate().for_each(|i_id| {
-                    bindings.insert(format!("id_{}", i_id.0), i_id.1.to_raw());
+                    bindings.insert(format!("id_{}", i_id.0), record_id_to_raw(i_id.1));
                 });
                 bindings
             }
@@ -113,26 +129,22 @@ impl From<UsernameIdent> for IdentIdName {
     }
 }
 
-type SerializableQryValsHash<T> = HashMap<String, T>;
-// type SerializableQryValsHash<T: Serialize + 'static + Clone> = HashMap<String, T>;
-
 #[derive(Debug)]
-pub struct QryBindingsVal<T: Serialize + 'static + Clone>(String, SerializableQryValsHash<T>);
+pub struct QryBindingsVal(String, Variables);
 
-impl<T: Serialize + 'static + Clone> QryBindingsVal<T> {
-    pub fn new(qry: String, bindings: HashMap<String, T>) -> Self {
-        QryBindingsVal(qry, bindings)
+impl QryBindingsVal {
+    pub fn new(qry: String, bindings: HashMap<String, String>) -> Self {
+        let mut vars = Variables::new();
+        for (k, v) in bindings {
+            vars.insert(k, v);
+        }
+        QryBindingsVal(qry, vars)
     }
     pub fn get_query_string(&self) -> String {
         self.0.clone()
     }
-    pub fn get_bindings(&self) -> HashMap<String, T> {
-        self.1.clone()
-    }
     pub fn into_query(self, db: &Db) -> Query<'_, SurDb> {
-        self.1
-            .into_iter()
-            .fold(db.query(self.0), |qry, n_val| qry.bind(n_val))
+        db.query(self.0).bind(self.1)
     }
     pub fn is_empty_qry(&self) -> bool {
         self.0.len() < 1
@@ -154,7 +166,7 @@ pub struct CursorPagination {
     pub order_by: Option<String>,
     pub order_dir: QryOrder,
     pub count: u16,
-    pub cursor: Option<Thing>,
+    pub cursor: Option<RecordId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -187,18 +199,18 @@ pub fn get_entity_query_str(
     select_fields_or_id: Option<&str>,
     pagination: Option<Pagination>,
     table_name: String,
-) -> Result<QryBindingsVal<String>, AppError> {
+) -> Result<QryBindingsVal, AppError> {
     let mut q_bindings: HashMap<String, String> = HashMap::new();
 
     let query_string = match ident {
         IdentIdName::Id(id) => {
-            if id.to_raw().len() < 3 {
+            if record_id_to_raw(id).len() < 3 {
                 return Err(AppError::Generic {
                     description: "IdentIdName::Id() value too short".to_string(),
                 });
             }
             let fields = select_fields_or_id.unwrap_or("*");
-            q_bindings.insert("id".to_string(), id.to_raw());
+            q_bindings.insert("id".to_string(), record_id_to_raw(id));
 
             format!("SELECT {fields} FROM <record>$id;")
         }
@@ -257,10 +269,10 @@ pub fn get_entity_query_str(
             )
         }
     };
-    Ok(QryBindingsVal(query_string, q_bindings))
+    Ok(QryBindingsVal::new(query_string, q_bindings))
 }
 
-pub async fn get_entity<T: for<'a> Deserialize<'a>>(
+pub async fn get_entity<T: for<'a> Deserialize<'a> + SurrealValue>(
     db: &Db,
     table_name: String,
     ident: &IdentIdName,
@@ -270,9 +282,9 @@ pub async fn get_entity<T: for<'a> Deserialize<'a>>(
     get_query(db, query_string).await
 }
 
-pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
+pub async fn get_entities_by_id<T: for<'a> Deserialize<'a> + SurrealValue>(
     db: &Db,
-    ids: Vec<Thing>,
+    ids: Vec<RecordId>,
 ) -> CtxResult<Vec<T>> {
     if ids.len() < 1 {
         return Ok(vec![]);
@@ -283,7 +295,7 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
         .map(|i_t| {
             (
                 format!("<record>$id_{}", i_t.0),
-                (format!("id_{}", i_t.0), i_t.1.to_raw()),
+                (format!("id_{}", i_t.0), record_id_to_raw(i_t.1)),
             )
         })
         .collect::<Vec<(String, (String, String))>>();
@@ -296,19 +308,19 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a>>(
             .collect::<Vec<String>>()
             .join(",")
     );
-    // let mut res = db.query(query_string);
-    let mut res = qry_bindings
-        .into_iter()
-        .fold(db.query(query_string), |qry, qry_binding| {
-            qry.bind(qry_binding.1)
-        })
-        .await?;
+
+    let mut vars = Variables::new();
+    for (_placeholder, (key, val)) in &qry_bindings {
+        vars.insert(key.clone(), val.clone());
+    }
+
+    let mut res = db.query(query_string).bind(vars).await?;
 
     let res = res.take::<Vec<T>>(0)?;
     Ok(res)
 }
 
-pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+pub async fn get_entity_view<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
     db: &Db,
     table_name: String,
     ident: &IdentIdName,
@@ -322,23 +334,19 @@ pub async fn get_entity_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
     get_query(db, query_string).await
 }
 
-pub async fn get_query<T: for<'a> Deserialize<'a>>(
+pub async fn get_query<T: for<'a> Deserialize<'a> + SurrealValue>(
     db: &Db,
-    query_string: QryBindingsVal<String>,
+    query_string: QryBindingsVal,
 ) -> Result<Option<T>, CtxError> {
     let qry = create_db_qry(db, query_string);
 
     let mut res = qry.await?;
-    // if table_name.eq("reply"){
-    // println!("Q={}", query_string);
-    // dbg!(&res);
-    // }
 
     let res = res.take::<Option<T>>(0)?;
     Ok(res)
 }
 
-pub async fn get_entity_list<T: for<'a> Deserialize<'a>>(
+pub async fn get_entity_list<T: for<'a> Deserialize<'a> + SurrealValue>(
     db: &Db,
     table_name: String,
     ident: &IdentIdName,
@@ -349,7 +357,7 @@ pub async fn get_entity_list<T: for<'a> Deserialize<'a>>(
     get_list_qry(db, query_string).await
 }
 
-pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
     db: &Db,
     table_name: String,
     ident: &IdentIdName,
@@ -366,9 +374,9 @@ pub async fn get_entity_list_view<T: for<'a> Deserialize<'a> + ViewFieldSelector
     get_list_qry(db, query_string).await
 }
 
-pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
+pub async fn get_list_qry<T: for<'a> Deserialize<'a> + SurrealValue>(
     db: &Db,
-    query_string: QryBindingsVal<String>,
+    query_string: QryBindingsVal,
 ) -> CtxResult<Vec<T>> {
     if query_string.is_empty_qry() {
         return Ok(vec![]);
@@ -382,13 +390,8 @@ pub async fn get_list_qry<T: for<'a> Deserialize<'a>>(
 
 pub fn create_db_qry(
     db: &Db,
-    query_string: QryBindingsVal<String>,
+    query_string: QryBindingsVal,
 ) -> Query<'_, surrealdb::engine::any::Any> {
-    // let qry = db.query(query_string.0);
-    // let qry = query_string.1.into_iter().fold(qry, |acc, name_value| {
-    //     acc.bind(name_value)
-    // });
-    // qry
     query_string.into_query(db)
 }
 
@@ -396,7 +399,7 @@ pub async fn exists_entity(
     db: &Db,
     table_name: String,
     ident: &IdentIdName,
-) -> CtxResult<Option<Thing>> {
+) -> CtxResult<Option<RecordId>> {
     match ident {
         IdentIdName::Id(id) => {
             record_exists(db, id).await?;
@@ -416,19 +419,19 @@ pub async fn exists_entity(
     }
 }
 
-pub async fn record_exists(db: &Db, record_id: &Thing) -> AppResult<()> {
+pub async fn record_exists(db: &Db, record_id: &RecordId) -> AppResult<()> {
     let qry = "RETURN record::exists(<record>$rec_id);";
-    let mut res = db.query(qry).bind(("rec_id", record_id.to_raw())).await?;
+    let mut res = db.query(qry).bind(("rec_id", record_id_to_raw(record_id))).await?;
     let res: Option<bool> = res.take(0)?;
     match res.unwrap_or(false) {
         true => Ok(()),
         false => Err(AppError::EntityFailIdNotFound {
-            ident: record_id.to_raw(),
+            ident: record_id_to_raw(record_id),
         }),
     }
 }
 
-pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec<Thing>> {
+pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec<RecordId>> {
     if record_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -436,7 +439,7 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec
     let things = record_ids
         .iter()
         .map(|rec_id| {
-            Thing::try_from(rec_id.as_str()).map_err(|_| AppError::Generic {
+            RecordId::parse_simple(rec_id).map_err(|_| AppError::Generic {
                 description: format!("Invalid record id = {}", rec_id),
             })
         })
@@ -449,13 +452,13 @@ pub async fn record_exist_all(db: &Db, record_ids: Vec<String>) -> AppResult<Vec
 
     let query = {
         let query_str = format!("RETURN {conditions};");
-        let mut query = db.query(query_str);
+        let mut vars = Variables::new();
 
         for (i, val) in things.iter().enumerate() {
-            query = query.bind((format!("rec_id_{i}"), val.clone()));
+            vars.insert(format!("rec_id_{i}"), val.clone());
         }
 
-        query
+        db.query(query_str).bind(vars)
     };
 
     let mut res = query.await?;

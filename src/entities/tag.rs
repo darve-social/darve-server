@@ -1,5 +1,6 @@
 use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 
 pub enum SystemTags {
     Delivery,
@@ -24,14 +25,14 @@ impl TryFrom<&str> for SystemTags {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct Tag {
     #[serde(alias = "id")]
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct EditorTag {
     #[serde(alias = "tag")]
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]

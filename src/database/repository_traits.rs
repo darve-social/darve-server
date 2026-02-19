@@ -2,7 +2,7 @@ use crate::middleware::utils::db_utils::{IdentIdName, Pagination, ViewFieldSelec
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::string::String;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 pub trait RepositoryConn {
     type Connection;
@@ -31,22 +31,22 @@ pub trait RepositoryCore: RepositoryConn {
 
     async fn item_delete(&self, record_id: &str) -> Result<bool, Self::Error>;
     async fn count_records(&self) -> Result<u64, Self::Error>;
-    fn get_thing(&self, id: &str) -> Thing;
+    fn get_thing(&self, id: &str) -> RecordId;
     async fn list_by_ident(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> Result<Self::QueryResultList, Self::Error>;
-    async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<Thing, Self::Error>;
+    async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<RecordId, Self::Error>;
     async fn item_id_exists(&self, record_id: &str) -> Result<(), Self::Error>;
-    async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<Thing>, Self::Error>;
+    async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<RecordId>, Self::Error>;
 
-    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
     ) -> Result<Vec<T>, surrealdb::Error>;
-    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
         &self,
         ident: &IdentIdName,
     ) -> Result<Option<T>, surrealdb::Error>;

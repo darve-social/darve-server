@@ -1,8 +1,9 @@
 use chrono::{Datelike, Local, Months, NaiveTime, TimeZone, Weekday};
 use rand::{rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
+use surrealdb::types::SurrealValue;
 use std::sync::{Arc, RwLock};
-use surrealdb::sql::Thing;
+
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 
@@ -39,7 +40,7 @@ struct TaskData {
     amount: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 struct TaskContentView {
     pub description: String,
 }
@@ -159,10 +160,11 @@ impl DarveTasksUtils {
         );
 
         let acceptance_period = self.seconds_until_end_of_month();
+        let disc_id_raw = format!("{}:{}", DISC_TABLE_NAME, darve_id.as_str());
         let task = task_service
             .create_for_disc(
                 &darve_id,
-                &Thing::from((DISC_TABLE_NAME, darve_id.as_str())).to_raw(),
+                &disc_id_raw,
                 TaskRequestInput {
                     content: next_task.description.clone(),
                     acceptance_period: Some(acceptance_period),
@@ -203,13 +205,12 @@ impl DarveTasksUtils {
             return Ok(weekly_tasks);
         }
 
-        let disc = Thing::from((DISC_TABLE_NAME, darve_id.as_str()));
         let tasks_content = self
             .db
             .task_request
             .get_by_user_and_disc::<TaskContentView>(
                 &user_id,
-                &disc.id.to_raw(),
+                &darve_id,
                 Some(TaskParticipantStatus::Delivered),
             )
             .await
@@ -238,16 +239,17 @@ impl DarveTasksUtils {
             self.file_storage.clone(),
         );
 
-        let participant = Thing::from((USER_TABLE_NAME, user_id));
+        let participant_raw = format!("{}:{}", USER_TABLE_NAME, user_id);
+        let disc_id_raw2 = format!("{}:{}", DISC_TABLE_NAME, darve_id.as_str());
         for task in random_tasks {
             let acceptance_period = self.seconds_until_end_of_week();
             let task = task_service
                 .create_for_disc(
                     &darve_id,
-                    &Thing::from((DISC_TABLE_NAME, darve_id.as_str())).to_raw(),
+                    &disc_id_raw2,
                     TaskRequestInput {
                         content: task.description,
-                        participants: [participant.to_raw()].to_vec(),
+                        participants: [participant_raw.clone()].to_vec(),
                         acceptance_period: Some(acceptance_period),
                         delivery_period: Some(7 * 24 * 60 * 60),
                         offer_amount: None,
@@ -286,7 +288,7 @@ impl DarveTasksUtils {
             description: "Admin ID missing".to_string(),
         })?;
 
-        let id = admin_id.id.to_raw();
+        let id = crate::database::surrdb_utils::record_id_key_to_string(&admin_id.key);
 
         {
             let mut data = self.darve_id.write().unwrap();

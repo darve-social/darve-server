@@ -8,7 +8,7 @@ use axum::{
 };
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use surrealdb::sql::Thing;
+
 use tower_cookies::{Cookie, Cookies};
 use tower_sessions::Session;
 // 1. Import the prelude - this contains everything needed for the server to function.
@@ -18,6 +18,7 @@ use super::error::WebauthnError;
 use super::startup::AppState;
 use crate::entities::user_auth::authentication_entity::CreateAuthInput;
 use crate::entities::user_auth::{authentication_entity, local_user_entity};
+use surrealdb::types::RecordId;
 use crate::middleware;
 use crate::middleware::mw_ctx::JWT_KEY;
 use crate::utils::validate_utils::validate_username;
@@ -288,7 +289,7 @@ pub async fn finish_register(
         Ok(StatusCode::OK)
     } else {
         // user is making passkey for existing username
-        let user_id: Thing =
+        let user_id: RecordId =
             get_string_thing(logged_user_id.unwrap()).map_err(|_| WebauthnError::CorruptSession)?;
         let username = register_user_ident.clone().trim().to_string();
         let local_user = user_db_service

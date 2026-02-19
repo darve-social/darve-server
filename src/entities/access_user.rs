@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
 pub struct AccessUser {
     pub role: String,
     #[serde(alias = "in")]
-    pub user: Thing,
+    pub user: RecordId,
     pub created_at: DateTime<Utc>,
 }

@@ -2,8 +2,9 @@ use crate::utils::validate_utils::deserialize_thing_or_string_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use surrealdb::types::SurrealValue;
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, SurrealValue)]
 pub struct UserNotification {
     #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub id: String,
@@ -17,7 +18,7 @@ pub struct UserNotification {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, SurrealValue)]
 pub enum UserNotificationEvent {
     UserFollowAdded,
     UserLikePost,

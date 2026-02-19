@@ -8,14 +8,14 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
-#[derive(Debug, Serialize, Deserialize)]
+use surrealdb::types::{RecordId, SurrealValue};
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 
 pub struct DiscussionView {
-    pub id: Thing,
+    pub id: RecordId,
     pub r#type: DiscussionType,
     pub users: Vec<AccessUserView>,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub title: Option<String>,
     pub image_uri: Option<String>,
     pub created_at: DateTime<Utc>,

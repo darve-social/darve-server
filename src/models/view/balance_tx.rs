@@ -10,11 +10,11 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, SurrealValue)]
 pub struct CurrencyTransactionView {
-    pub id: Thing,
+    pub id: RecordId,
     pub wallet: WalletView,
     pub with_wallet: WalletView,
     pub balance: i64,
@@ -55,9 +55,9 @@ impl ViewFieldSelector for CurrencyTransactionView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct WalletView {
-    pub id: Thing,
+    pub id: RecordId,
     pub user: Option<UserView>,
     pub task: Option<TaskRequestEntity>,
 }

@@ -1,5 +1,6 @@
 use super::super::table_names::{ACCESS_TABLE_NAME, DISC_USER_TABLE_NAME, POST_USER_TABLE_NAME};
 use crate::database::client::Db;
+use crate::database::query_builder::SurrealQueryBuilder;
 use crate::entities::community::discussion_entity::TABLE_NAME as DISC_TABLE_NAME;
 use crate::entities::community::post_entity::{
     PostType, PostUserStatus, TABLE_NAME as POST_TABLE_NAME,
@@ -12,9 +13,7 @@ use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
-use surrealdb::engine::any;
-use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 #[derive(Debug)]
 pub struct DiscussionUserRepository {
@@ -50,11 +49,11 @@ impl DiscussionUserRepository {
 
 #[async_trait]
 impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
-    async fn create(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()> {
+    async fn create(&self, disc_id: &str, user_ids: Vec<RecordId>) -> AppResult<()> {
         let _ = self
             .client
             .query(format!("RELATE $disc->{DISC_USER_TABLE_NAME}->$users"))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("users", user_ids))
             .await?;
 
@@ -70,13 +69,13 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
 
         let increase_users = increase_unread_for_user_ids
             .into_iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
 
         let mut res = self
             .client
@@ -87,10 +86,10 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
                         updated_at=time::now()
                     WHERE out IN $users;"
             ))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("increase_for_users", increase_users))
             .bind(("users", users))
-            .bind(("post", Thing::from((POST_TABLE_NAME, latest_post))))
+            .bind(("post", RecordId::new(POST_TABLE_NAME, latest_post)))
             .await?;
 
         let data = res.take::<Vec<DiscussionUser>>(0)?;
@@ -104,8 +103,8 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
         let mut res = self
              .client
             .query(format!("UPDATE $disc->{DISC_USER_TABLE_NAME}
@@ -113,7 +112,7 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
                         latest_post=(SELECT id FROM {POST_TABLE_NAME} WHERE belongs_to=$disc AND (type=$public_type OR $parent.out IN <-{ACCESS_TABLE_NAME}.in) ORDER BY id DESC LIMIT 1)[0].id,
                         updated_at=time::now()
                     WHERE out IN $users;"))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("users", users))
             .bind(("public_type", PostType::Public))
             .bind(("read_status", PostUserStatus::Seen))
@@ -133,29 +132,29 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             .query(format!(
                 "UPDATE $disc->{DISC_USER_TABLE_NAME} SET alias=$alias WHERE out=$user"
             ))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("alias", alias))
             .await?;
         Ok(())
     }
 
-    fn build_decrease_query<'b>(
+    fn build_decrease_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         disc_id: &str,
         user_ids: Vec<String>,
-    ) -> Query<'b, any::Any> {
+    ) -> SurrealQueryBuilder {
         let users = user_ids
             .into_iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
         query
             .query(format!(
                 "LET $discussion_users = UPDATE $_disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $_users;"
             ))
-            .bind(("_disc", Thing::from((DISC_TABLE_NAME, disc_id))))
-            .bind(("_users", users))
+            .bind_var("_disc", RecordId::new(DISC_TABLE_NAME, disc_id))
+            .bind_var("_users", users)
     }
 
     async fn decrease_unread_count(
@@ -165,14 +164,14 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     ) -> AppResult<Vec<DiscussionUser>> {
         let users = user_ids
             .into_iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
         let mut res = self
             .client
             .query(format!(
                 "UPDATE $disc->{DISC_USER_TABLE_NAME} SET nr_unread-=1 WHERE out IN $users;"
             ))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("users", users))
             .await?;
         let data = res.take::<Vec<DiscussionUser>>(0)?;
@@ -182,14 +181,14 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
     async fn get_count_of_unread(&self, user_id: &str) -> AppResult<u32> {
         let mut res = self.client
             .query(format!("SELECT count() as count FROM {DISC_USER_TABLE_NAME} WHERE out=$user AND nr_unread > 0 GROUP ALL;"))
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .await?;
         let data = res.take::<Option<u32>>((0, "count"))?;
 
         Ok(data.unwrap_or(0))
     }
 
-    async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    async fn get_by_user<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         user_id: &str,
         pad: Pagination,
@@ -212,32 +211,32 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
         let mut res = self
             .client
             .query(format!(
-                "SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME} 
-                WHERE out=$user {latest_post_cond} {search_text_cond} 
-                ORDER BY updated_at {order_dir} 
+                "SELECT {fields}, updated_at FROM {DISC_USER_TABLE_NAME}
+                WHERE out=$user {latest_post_cond} {search_text_cond}
+                ORDER BY updated_at {order_dir}
                 LIMIT $limit START $start;"
             ))
             .bind(("limit", pad.count))
             .bind(("start", pad.start))
             .bind(("search_text", search_text))
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .await?;
 
         let data = res.take::<Vec<T>>(0)?;
         Ok(data)
     }
 
-    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<Vec<Thing>> {
+    async fn remove(&self, disc_id: &str, user_ids: Vec<RecordId>) -> AppResult<Vec<RecordId>> {
         let mut res = self
             .client
             .query(format!(
                 "DELETE $disc->{DISC_USER_TABLE_NAME} WHERE out IN $users RETURN BEFORE;"
             ))
-            .bind(("disc", Thing::from((DISC_TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(DISC_TABLE_NAME, disc_id)))
             .bind(("users", user_ids))
             .await?;
 
-        let data = res.take::<Vec<Thing>>("id")?;
+        let data = res.take::<Vec<RecordId>>("id")?;
 
         Ok(data)
     }

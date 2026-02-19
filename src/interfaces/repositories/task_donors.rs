@@ -1,28 +1,27 @@
 use async_trait::async_trait;
-use surrealdb::{engine::any, method::Query};
 
-use crate::entities::task_donor::TaskDonor;
+use crate::{database::query_builder::SurrealQueryBuilder, entities::task_donor::TaskDonor};
 
 #[async_trait]
 pub trait TaskDonorsRepositoryInterface {
-    fn build_create_query<'b>(
+    fn build_create_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         task_id: &str,
         user_id: &str,
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Query<'b, any::Any>;
+    ) -> SurrealQueryBuilder;
 
-    fn build_update_query<'b>(
+    fn build_update_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         id: &str,
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Query<'b, any::Any>;
+    ) -> SurrealQueryBuilder;
 
     async fn create(
         &self,

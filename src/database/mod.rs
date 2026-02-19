@@ -1,4 +1,5 @@
 pub mod client;
+pub mod query_builder;
 pub mod repositories;
 pub mod repository_impl;
 pub mod repository_traits;

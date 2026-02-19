@@ -60,7 +60,7 @@ impl Database {
 
         match (config.password, config.username) {
             (Some(password), Some(username)) => {
-                conn.signin(Root { username, password })
+                conn.signin(Root { username: username.to_string(), password: password.to_string() })
                     .await
                     .expect("Failed to sign in to SurrealDB");
             }

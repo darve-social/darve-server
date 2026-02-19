@@ -1,4 +1,5 @@
 use crate::{
+    database::query_builder::SurrealQueryBuilder,
     entities::discussion_user::DiscussionUser,
     middleware::{
         error::AppResult,
@@ -7,11 +8,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use serde::Deserialize;
-use surrealdb::{engine::any, method::Query, sql::Thing};
+use surrealdb::types::{RecordId, SurrealValue};
 
 #[async_trait]
 pub trait DiscussionUserRepositoryInterface {
-    async fn create(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<()>;
+    async fn create(&self, disc_id: &str, user_ids: Vec<RecordId>) -> AppResult<()>;
 
     async fn set_new_latest_post(
         &self,
@@ -42,18 +43,18 @@ pub trait DiscussionUserRepositoryInterface {
         user_ids: Vec<String>,
     ) -> AppResult<Vec<DiscussionUser>>;
 
-    fn build_decrease_query<'b>(
+    fn build_decrease_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         disc_id: &str,
         user_ids: Vec<String>,
-    ) -> Query<'b, any::Any>;
+    ) -> SurrealQueryBuilder;
 
-    async fn remove(&self, disc_id: &str, user_ids: Vec<Thing>) -> AppResult<Vec<Thing>>;
+    async fn remove(&self, disc_id: &str, user_ids: Vec<RecordId>) -> AppResult<Vec<RecordId>>;
 
     async fn get_count_of_unread(&self, user_id: &str) -> AppResult<u32>;
 
-    async fn get_by_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    async fn get_by_user<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         user_id: &str,
         pad: Pagination,

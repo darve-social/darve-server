@@ -7,8 +7,23 @@ use serde::{
     de::{self, MapAccess, Visitor},
     Deserialize, Deserializer,
 };
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, RecordIdKey};
 use validator::{ValidateEmail, ValidationError};
+
+fn record_id_key_to_string(key: &RecordIdKey) -> String {
+    match key {
+        RecordIdKey::String(s) => s.clone(),
+        RecordIdKey::Number(n) => n.to_string(),
+        RecordIdKey::Uuid(u) => u.to_string(),
+        RecordIdKey::Array(a) => format!("{:?}", a),
+        RecordIdKey::Object(o) => format!("{:?}", o),
+        RecordIdKey::Range(_) => String::new(),
+    }
+}
+
+fn record_id_to_raw(id: &RecordId) -> String {
+    format!("{}:{}", id.table.as_str(), record_id_key_to_string(&id.key))
+}
 
 pub fn trim_string<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -84,7 +99,7 @@ where
         type Value = String;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string or a Thing object")
+            formatter.write_str("a string or a RecordId object")
         }
 
         fn visit_str<E>(self, value: &str) -> Result<String, E>
@@ -105,9 +120,9 @@ where
         where
             M: MapAccess<'de>,
         {
-            // Try to deserialize the map as a Thing
-            let thing = Thing::deserialize(de::value::MapAccessDeserializer::new(map))?;
-            Ok(thing.id.to_raw())
+            // Try to deserialize the map as a RecordId
+            let record_id = RecordId::deserialize(de::value::MapAccessDeserializer::new(map))?;
+            Ok(record_id_key_to_string(&record_id.key))
         }
     }
 
@@ -124,7 +139,7 @@ where
         type Value = String;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string or a Thing object")
+            formatter.write_str("a string or a RecordId object")
         }
 
         fn visit_str<E>(self, value: &str) -> Result<String, E>
@@ -145,8 +160,8 @@ where
         where
             M: MapAccess<'de>,
         {
-            let thing = Thing::deserialize(de::value::MapAccessDeserializer::new(map))?;
-            Ok(thing.to_raw())
+            let record_id = RecordId::deserialize(de::value::MapAccessDeserializer::new(map))?;
+            Ok(record_id_to_raw(&record_id))
         }
     }
 
