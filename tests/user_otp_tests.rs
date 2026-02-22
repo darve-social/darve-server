@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
@@ -23,14 +24,14 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
     assert!(otp.url.contains("Darve"));
 
     // Verify user's OTP is enabled in database
-    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
     let user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
     let updated_user = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
 
@@ -54,7 +55,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -67,14 +68,14 @@ test_with_server!(
         response.assert_status_success();
 
         // Verify user's OTP is enabled in database
-        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
         let user_db_service = LocalUserDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
         };
 
         let updated_user = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
 
@@ -115,14 +116,14 @@ test_with_server!(
         assert_eq!(otp1.url, otp2.url);
 
         // Verify user's OTP is still enabled
-        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
         let user_db_service = LocalUserDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
         };
 
         let updated_user = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
 
@@ -144,7 +145,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
-    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
     let totp_response = totp.generate();
     // Verification OTP
     let response = server
@@ -155,14 +156,14 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
 
     response.assert_status_success();
     // Verify OTP is enabled
-    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
     let user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
     let user_before_disable = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
     assert!(user_before_disable.is_otp_enabled);
@@ -177,7 +178,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
 
     // Verify user's OTP is disabled in database
     let updated_user = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
 
@@ -208,14 +209,14 @@ test_with_server!(
         response.assert_status_success();
 
         // Verify user's OTP remains disabled
-        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
         let user_db_service = LocalUserDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
         };
 
         let updated_user = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
 
@@ -237,7 +238,7 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
-    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
     let totp_response = totp.generate();
 
     // Verification OTP
@@ -254,9 +255,9 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
         db: &ctx_state.db.client,
         ctx: &Ctx::new(Ok("".to_string()), false),
     };
-    let user_id = user.id.as_ref().unwrap().id.to_raw();
+    let user_id = user.id.as_ref().unwrap().key_to_string();
     let user_with_otp = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
     assert!(user_with_otp.is_otp_enabled);
@@ -330,7 +331,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (_server, user, _password, _token) = create_fake_login_test_user(&server).await;
 
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
 
         // Create OTP token for validation request
         let otp_token = ctx_state
@@ -366,7 +367,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -377,7 +378,7 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
 
         // Create OTP token for validation request
         let otp_token = ctx_state
@@ -413,7 +414,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -424,7 +425,7 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
 
         // Create OTP token for validation request
         let otp_token = ctx_state
@@ -467,7 +468,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     assert!(otp.url.starts_with("otpauth://totp/"));
     assert!(otp.url.contains("Darve"));
 
-    let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+    let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
     let totp_response = totp.generate();
 
     // Verification OTP
@@ -479,20 +480,20 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     response.assert_status_success();
 
     // Step 2: Verify OTP is enabled in database
-    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+    let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
     let user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
         ctx: &ctx,
     };
 
     let updated_user = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
     assert!(updated_user.is_otp_enabled);
 
     // Step 3: Login should now require OTP (simulate getting OTP token from login)
-    let user_id = user.id.as_ref().unwrap().id.to_raw();
+    let user_id = user.id.as_ref().unwrap().key_to_string();
     let otp_token = ctx_state
         .jwt
         .create_by_otp(&user_id)
@@ -525,7 +526,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
 
     // Step 6: Verify OTP is disabled
     let final_user = user_db_service
-        .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+        .get_by_id(&user.id.as_ref().unwrap().key_to_string())
         .await
         .unwrap();
     assert!(!final_user.is_otp_enabled);
@@ -547,7 +548,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -558,7 +559,7 @@ test_with_server!(
             .await;
         response.assert_status_success();
 
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
 
         // Create OTP token that's already expired (simulate expired token)
         // Note: In a real test environment, you might need to wait or mock time
@@ -573,9 +574,9 @@ test_with_server!(
             db: &ctx_state.db.client,
             ctx: &Ctx::new(Ok("".to_string()), false),
         };
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
         let user_with_otp = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
 
@@ -628,7 +629,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -640,14 +641,14 @@ test_with_server!(
         response.assert_status_success();
 
         // Verify OTP is enabled in database
-        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().id.to_raw()), false);
+        let ctx = Ctx::new(Ok(user.id.as_ref().unwrap().key_to_string()), false);
         let user_db_service = LocalUserDbService {
             db: &ctx_state.db.client,
             ctx: &ctx,
         };
 
         let user_with_otp = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
         assert!(user_with_otp.is_otp_enabled);
@@ -675,14 +676,14 @@ test_with_server!(
 
         // Step 5: Generate valid TOTP and complete authentication
         let user_with_otp = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
         assert!(user_with_otp.is_otp_enabled);
         assert!(user_with_otp.otp_secret.is_some());
 
         let totp = Totp::new(
-            &user_with_otp.id.as_ref().unwrap().id.to_raw(),
+            &user_with_otp.id.as_ref().unwrap().key_to_string(),
             user_with_otp.otp_secret.clone(),
         );
         let totp_response = totp.generate();
@@ -716,7 +717,7 @@ test_with_server!(
 
         // Step 8: Verify OTP is now disabled
         let final_user = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
         assert!(!final_user.is_otp_enabled);
@@ -750,7 +751,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -812,7 +813,7 @@ test_with_server!(
         assert!(otp.url.starts_with("otpauth://totp/"));
         assert!(otp.url.contains("Darve"));
 
-        let totp = Totp::new(&user.id.as_ref().unwrap().id.to_raw(), Some(otp.secret));
+        let totp = Totp::new(&user.id.as_ref().unwrap().key_to_string(), Some(otp.secret));
         let totp_response = totp.generate();
 
         // Verification OTP
@@ -824,7 +825,7 @@ test_with_server!(
         response.assert_status_success();
 
         // Step 2: Create an expired OTP token manually
-        let user_id = user.id.as_ref().unwrap().id.to_raw();
+        let user_id = user.id.as_ref().unwrap().key_to_string();
 
         let expired_otp_token = ctx_state
             .jwt
@@ -836,7 +837,7 @@ test_with_server!(
         };
 
         let user_with_otp = user_db_service
-            .get_by_id(&user.id.as_ref().unwrap().id.to_raw())
+            .get_by_id(&user.id.as_ref().unwrap().key_to_string())
             .await
             .unwrap();
         assert!(user_with_otp.is_otp_enabled);

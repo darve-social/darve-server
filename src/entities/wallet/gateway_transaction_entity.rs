@@ -35,6 +35,7 @@ pub struct GatewayTransaction {
     pub withdraw_wallet: Option<RecordId>,
     pub status: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[surreal(rename = "type")]
     pub r#type: TransactionType,
     pub fee_tx: Option<RecordId>,
     pub fee_amount: Option<u64>,
@@ -43,6 +44,7 @@ pub struct GatewayTransaction {
 }
 
 #[derive(Debug, Serialize, Deserialize, SurrealValue)]
+#[surreal(untagged)]
 pub enum GatewayTransactionStatus {
     Pending,
     Completed,
@@ -230,7 +232,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                 timelines: [{{ status: $status, date: time::now() }}]
             }};
             LET $fund_tx_id = $fund_tx[0].id;
-            $fund_tx;"
+            RETURN $fund_tx[0];"
             ))
             .query("COMMIT")
             .bind_var("id", id)
@@ -246,7 +248,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         let mut fund_res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 1)?;
+        let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 2)?;
 
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),

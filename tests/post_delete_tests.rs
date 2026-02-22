@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::post_helpers::create_fake_post;
 use crate::helpers::{create_fake_login_test_user, task_helpers};
@@ -107,7 +108,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
     let reply = ctx_state
         .db
         .replies
-        .get_by_id(&comment_1.id.id.to_raw())
+        .get_by_id(&comment_1.id.key_to_string())
         .await;
     assert!(reply.is_err());
 
@@ -115,7 +116,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .db
         .replies
         .get(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             comment_1.id.clone(),
             Pagination {
                 order_by: None,
@@ -130,7 +131,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
     let reply = ctx_state
         .db
         .replies
-        .get_by_id(&comment_2.id.id.to_raw())
+        .get_by_id(&comment_2.id.key_to_string())
         .await;
     assert!(reply.is_err());
 
@@ -138,7 +139,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .db
         .replies
         .get(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             comment_2.id.clone(),
             Pagination {
                 order_by: None,
@@ -327,7 +328,7 @@ test_with_server!(
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
-                user1.id.as_ref().unwrap().id.to_raw().as_ref(),
+                user1.id.as_ref().unwrap().key_to_string().as_ref(),
                 Pagination {
                     order_by: None,
                     order_dir: None,

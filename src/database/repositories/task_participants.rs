@@ -1,4 +1,4 @@
-use super::super::table_names::{DELIVERY_RESULT_TABLE_NAME, TASK_PARTICIPANT_TABLE_NAME};
+use super::super::table_names::TASK_PARTICIPANT_TABLE_NAME;
 use crate::database::query_builder::SurrealQueryBuilder;
 use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
@@ -32,6 +32,7 @@ impl TaskParticipantsRepository {
         DEFINE FIELD IF NOT EXISTS timelines    ON {TASK_PARTICIPANT_TABLE_NAME} TYPE array<{{status: string, date: datetime}}>;
         DEFINE FIELD IF NOT EXISTS status       ON {TASK_PARTICIPANT_TABLE_NAME} TYPE string;
         DEFINE FIELD IF NOT EXISTS result       ON {TASK_PARTICIPANT_TABLE_NAME} TYPE option<{{ link: option<string>, post: option<record> }}>;
+        DEFINE FIELD IF NOT EXISTS reward_tx   ON {TASK_PARTICIPANT_TABLE_NAME} TYPE option<record>;
         DEFINE INDEX IF NOT EXISTS status_idx   ON {TASK_PARTICIPANT_TABLE_NAME} FIELDS status;
         DEFINE FIELD IF NOT EXISTS r_created    ON TABLE {TASK_PARTICIPANT_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     ");
@@ -99,7 +100,8 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         status: &str,
     ) -> Result<TaskParticipant, String> {
         let sql = format!("
-            RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status", TASK_PARTICIPANT_TABLE_NAME);
+            RELATE $task->{}->$user SET timelines=[{{ status: $status, date: time::now() }}], status=$status
+            RETURN record::id(id) AS id, record::id(in) AS task, record::id(out) AS user, status, timelines, result", TASK_PARTICIPANT_TABLE_NAME);
 
         let mut res = self
             .client
@@ -124,7 +126,8 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         result: Option<&TaskParticipantResult>,
     ) -> Result<TaskParticipant, String> {
         let query = format!(
-            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status, result=$result;"
+            "UPDATE $id SET timelines+=[{{ status: $status, date: time::now() }}], status=$status, result=$result
+            RETURN record::id(id) AS id, record::id(in) AS task, record::id(out) AS user, status, timelines, result;"
         );
 
         let mut res = self
@@ -150,7 +153,7 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
     ) -> Result<Vec<TaskParticipant>, String> {
         let pagination_str = match pagination {
             Some(ref p) => format!(
-                "ORDER BY created_at {} LIMIT {} START {}",
+                "ORDER BY r_created {} LIMIT {} START {}",
                 p.order_dir.as_ref().unwrap_or(&QryOrder::ASC),
                 p.count,
                 p.start
@@ -159,8 +162,8 @@ impl TaskParticipantsRepositoryInterface for TaskParticipantsRepository {
         };
 
         let sql = format!(
-            "SELECT *, ->{DELIVERY_RESULT_TABLE_NAME}.out as delivery_post FROM {TASK_PARTICIPANT_TABLE_NAME}
-            WHERE task = $task {pagination_str};",
+            "SELECT record::id(id) AS id, record::id(in) AS task, record::id(out) AS user, status, timelines, result FROM {TASK_PARTICIPANT_TABLE_NAME}
+            WHERE in = $task {pagination_str};",
         );
 
         let mut res = self

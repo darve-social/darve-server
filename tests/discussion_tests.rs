@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use axum_test::multipart::MultipartForm;
 use darve_server::access::base::role::Role;
@@ -37,7 +38,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let post_name = "post title Name 1".to_string();
     let create_post = server
-        .post(format!("/api/discussions/{disc_id}/posts").as_str())
+        .post(format!("/api/discussions/{}/posts", disc_id.to_raw()).as_str())
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name.clone())
@@ -49,7 +50,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
 
     let post_name2 = "post title Name 2?&$^%! <>end".to_string();
     let create_response2 = server
-        .post(format!("/api/discussions/{disc_id}/posts").as_str())
+        .post(format!("/api/discussions/{}/posts", disc_id.to_raw()).as_str())
         .multipart(
             MultipartForm::new()
                 .add_text("title", post_name2.clone())
@@ -192,7 +193,7 @@ test_with_server!(
 
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user2.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .json(&CreateDiscussion {
@@ -248,7 +249,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
     let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user2.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token2))
@@ -334,7 +335,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))
@@ -387,7 +388,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -455,7 +456,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))
@@ -495,7 +496,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))
@@ -542,7 +543,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -593,7 +594,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user0, _, _token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))
@@ -649,7 +650,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))
@@ -685,7 +686,7 @@ test_with_server!(try_update_by_not_owner, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -719,7 +720,7 @@ test_with_server!(update, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -767,7 +768,7 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -825,7 +826,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+    let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
     let create_response = server
         .post("/api/discussions")
         .add_header("Cookie", format!("jwt={}", token1))
@@ -892,7 +893,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
-        let disc_id = format!("discussion:{}", user2.id.as_ref().unwrap().id.to_string());
+        let disc_id = format!("discussion:{}", user2.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post(&format!("/api/discussions/{}/alias", disc_id))
             .add_header("Cookie", format!("jwt={}", token2))
@@ -911,7 +912,7 @@ test_with_server!(
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user1.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token1))

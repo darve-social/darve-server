@@ -15,6 +15,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 pub struct PostView {
     pub id: RecordId,
     pub created_by: UserView,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub belongs_to: RecordId,
     pub title: String,
@@ -96,6 +97,7 @@ impl ViewRelateField for PostUsersView {
 pub struct PostUserStatusView {
     pub status: PostUserStatus,
     #[serde(rename = "out")]
+    #[surreal(rename = "out")]
     pub user: RecordId,
 }
 
@@ -103,6 +105,7 @@ pub struct PostUserStatusView {
 pub struct LatestPostView {
     pub id: RecordId,
     pub created_by: UserView,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub belongs_to: RecordId,
     pub title: String,

@@ -40,12 +40,12 @@ impl LikesRepositoryInterface for LikesRepository {
             .client
             .query(format!(
                 "BEGIN TRANSACTION; \
-                LET $id = (SELECT id FROM $in->like WHERE out = $out)[0].id; \
+                LET $id = (SELECT id FROM {LIKE_TABLE_NAME} WHERE in=$in AND out=$out)[0].id; \
                 IF $id THEN UPDATE $id SET count=$count ELSE RELATE $in->{LIKE_TABLE_NAME}->$out SET count=$count END; \
-                LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out; \
+                LET $count = math::sum((SELECT VALUE count FROM {LIKE_TABLE_NAME} WHERE out=$out)); \
                 UPDATE $out SET likes_nr=$count; \
-                RETURN $count; \
-                COMMIT TRANSACTION;"
+                COMMIT TRANSACTION; \
+                RETURN $count;"
             ))
             .bind(("in", user))
             .bind(("out", out))
@@ -61,11 +61,11 @@ impl LikesRepositoryInterface for LikesRepository {
             .client
             .query(format!(
                 "BEGIN TRANSACTION; \
-                DELETE $in->{LIKE_TABLE_NAME} WHERE out=$out; \
-                LET $count = SELECT VALUE math::sum(<-{LIKE_TABLE_NAME}.count) FROM ONLY $out; \
+                DELETE {LIKE_TABLE_NAME} WHERE in=$in AND out=$out; \
+                LET $count = math::sum((SELECT VALUE count FROM {LIKE_TABLE_NAME} WHERE out=$out)); \
                 UPDATE $out SET likes_nr=$count; \
-                RETURN $count; \
-                COMMIT TRANSACTION;"
+                COMMIT TRANSACTION; \
+                RETURN $count;"
             ))
             .bind(("in", user))
             .bind(("out", out))

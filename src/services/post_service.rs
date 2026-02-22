@@ -587,7 +587,7 @@ where
                 .discussion
                 .users
                 .into_iter()
-                .map(|u| record_id_to_raw(&u.user))
+                .map(|u| record_id_key_to_string(&u.user.key))
                 .collect::<Vec<String>>();
             self.discussion_users
                 .update_latest_post(&disc_id, users)

@@ -43,6 +43,7 @@ pub struct TaskRequestView {
     pub wallet_id: RecordId,
     pub status: TaskRequestStatus,
     pub belongs_to: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
 }
 
@@ -103,6 +104,7 @@ pub struct TaskViewForParticipant {
     pub created_at: DateTime<Utc>,
     pub status: TaskRequestStatus,
     pub belongs_to: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
 }
 

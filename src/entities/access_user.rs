@@ -6,6 +6,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 pub struct AccessUser {
     pub role: String,
     #[serde(alias = "in")]
+    #[surreal(rename = "in")]
     pub user: RecordId,
     pub created_at: DateTime<Utc>,
 }

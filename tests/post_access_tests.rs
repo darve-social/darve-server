@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_post;
@@ -375,7 +376,7 @@ test_with_server!(
         let data = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content")
-            .add_text("users", user.id.as_ref().unwrap());
+            .add_text("users", user.id.as_ref().unwrap().to_raw());
 
         let response = create_post(server, &discussion.id, data).await;
         response.assert_status_forbidden();
@@ -384,8 +385,8 @@ test_with_server!(
         let data = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content")
-            .add_text("users", user.id.as_ref().unwrap())
-            .add_text("users", user0.id.as_ref().unwrap());
+            .add_text("users", user.id.as_ref().unwrap().to_raw())
+            .add_text("users", user0.id.as_ref().unwrap().to_raw());
 
         let response = create_post(server, &discussion.id, data).await;
         response.assert_status_forbidden();
@@ -404,7 +405,7 @@ test_with_server!(
             .add_text("title", title)
             .add_text("content", "content")
             .add_text("is_idea", true)
-            .add_text("users", user0.id.as_ref().unwrap());
+            .add_text("users", user0.id.as_ref().unwrap().to_raw());
 
         let response = create_post(server, &disc_id, data).await;
         response.assert_status_ok();
@@ -472,7 +473,7 @@ test_with_server!(
         let data = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content")
-            .add_text("users", user0.id.as_ref().unwrap());
+            .add_text("users", user0.id.as_ref().unwrap().to_raw());
 
         let response = create_post(server, &disc_id, data).await;
         response.assert_status_forbidden();

@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
@@ -41,14 +42,14 @@ test_with_server!(test_forgot_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             VerificationCodeFor::ResetPassword,
         )
         .await
         .unwrap();
 
     println!("user code= {:?}", &user_code);
-    assert_eq!(user_code.user, user.id.as_ref().unwrap().id.to_raw());
+    assert_eq!(user_code.user.key_to_string(), user.id.as_ref().unwrap().key_to_string());
     assert_eq!(user_code.email, email);
     assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
 });
@@ -84,13 +85,13 @@ test_with_server!(
             .db
             .verification_code
             .get_by_user(
-                &user.id.as_ref().unwrap().id.to_raw(),
+                &user.id.as_ref().unwrap().key_to_string(),
                 VerificationCodeFor::ResetPassword,
             )
             .await
             .unwrap();
 
-        assert_eq!(user_code.user, user.id.as_ref().unwrap().id.to_raw());
+        assert_eq!(user_code.user.key_to_string(), user.id.as_ref().unwrap().key_to_string());
         assert_eq!(user_code.email, email);
         assert_eq!(user_code.use_for, VerificationCodeFor::ResetPassword)
     }
@@ -196,7 +197,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             VerificationCodeFor::ResetPassword,
         )
         .await
@@ -217,7 +218,7 @@ test_with_server!(test_reset_password_success, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             VerificationCodeFor::ResetPassword,
         )
         .await;
@@ -279,7 +280,7 @@ test_with_server!(
         let user_code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_thing.id.to_raw(), VerificationCodeFor::ResetPassword)
+            .get_by_user(&user_thing.key_to_string(), VerificationCodeFor::ResetPassword)
             .await
             .unwrap();
 

@@ -62,10 +62,11 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
     ) -> SurrealQueryBuilder {
         query
             .query(format!(
-                "LET $task_donor=RELATE $_task_donor_task_id->{}->$_task_donor_user_id SET
+                "LET $task_donor=(RELATE $_task_donor_task_id->{}->$_task_donor_user_id SET
                 amount=$_task_donor_amount,
                 transaction={tx_id},
-                currency=$_task_donor_currency;",
+                currency=$_task_donor_currency
+                RETURN id, out AS user, transaction, amount, currency, votes)[0];",
                 self.table_name
             ))
             .bind_var(
@@ -90,10 +91,11 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
     ) -> SurrealQueryBuilder {
         query
             .query(format!(
-                "LET $task_donor=UPDATE $_task_donor_id SET
+                "LET $task_donor=(UPDATE $_task_donor_id SET
                 amount=$_task_donor_amount,
                 transaction={tx_id},
-                currency=$_task_donor_currency;"
+                currency=$_task_donor_currency
+                RETURN id, out AS user, transaction, amount, currency, votes)[0];"
             ))
             .bind_var(
                 "_task_donor_id",

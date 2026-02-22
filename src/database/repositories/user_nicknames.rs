@@ -64,11 +64,11 @@ impl NicknamesRepositoryInterface for NicknamesRepository {
     async fn get_by_user(&self, user_id: &str) -> AppResult<Vec<Nickname>> {
         let mut res = self
             .client
-            .query(format!("SELECT * FROM $in->{NICKNAME_TABLE_NAME} "))
-            .bind(("in", RecordId::new(USER_TABLE_NAME, user_id)))
+            .query(format!("SELECT record::id(out) AS user_id, name FROM {NICKNAME_TABLE_NAME} WHERE in=$user_in"))
+            .bind(("user_in", RecordId::new(USER_TABLE_NAME, user_id)))
             .await?;
 
-        let data: Vec<Nickname> = res.take(0)?;
+        let data: Vec<Nickname> = res.take(0).map_err(|e| AppError::SurrealDb { source: e.to_string() })?;
 
         Ok(data)
     }

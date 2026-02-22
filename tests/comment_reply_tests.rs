@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 use darve_server::{
     entities::community::{
         community_entity::CommunityDbService,

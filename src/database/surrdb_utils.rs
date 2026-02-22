@@ -76,9 +76,12 @@ fn get_entity_query_str(
                 ));
             }
             let fields = select_fields_or_id.unwrap_or("*");
-            q_bindings.insert("id".to_string(), raw);
-
-            format!("SELECT {fields} FROM <record>$id;")
+            let mut vars = Variables::new();
+            vars.insert("id".to_string(), id.clone());
+            return Ok(QryBindingsVal::with_vars(
+                format!("SELECT {fields} FROM $id;"),
+                vars,
+            ));
         }
 
         IdentIdName::Ids(ids) => {
@@ -154,29 +157,17 @@ pub async fn get_entities_by_id<T: for<'a> Deserialize<'a> + SurrealValue>(
     if ids.len() < 1 {
         return Ok(vec![]);
     }
-    let qry_bindings = ids
-        .iter()
-        .enumerate()
-        .map(|i_t| {
-            (
-                format!("<record>$id_{}", i_t.0),
-                (format!("id_{}", i_t.0), record_id_to_raw(i_t.1)),
-            )
-        })
-        .collect::<Vec<(String, (String, String))>>();
-
     let query_string = format!(
         "SELECT * FROM {};",
-        qry_bindings
-            .iter()
-            .map(|i_t| i_t.0.clone())
+        (0..ids.len())
+            .map(|i| format!("$id_{}", i))
             .collect::<Vec<String>>()
             .join(",")
     );
 
     let mut vars = Variables::new();
-    for (_placeholder, (key, val)) in &qry_bindings {
-        vars.insert(key.clone(), val.clone());
+    for (i, id) in ids.iter().enumerate() {
+        vars.insert(format!("id_{}", i), id.clone());
     }
 
     let mut res = db.query(query_string).bind(vars).await?;

@@ -64,6 +64,7 @@ pub struct TaskView {
     pub request_txt: String,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
     pub donors: Vec<TaskDonor>,
     pub participants: Vec<TaskParticipant>,
@@ -86,7 +87,7 @@ impl ViewFieldSelector for TaskView {
         wallet_id,
         created_at,
         status,
-        ->task_relate.out[0] as related_to,
+        array::first(->task_relate.out) as related_to,
         ->task_donor.*.{id, transaction, amount, user: out} as donors,
         ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants"
             .to_string()
@@ -761,8 +762,11 @@ where
             .tasks_repository
             .get_ready_for_payment()
             .await
-            .map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
+            .map_err(|e| {
+                eprintln!("DEBUG get_ready_for_payment ERROR: {:?}", e);
+                AppError::SurrealDb {
+                    source: e.to_string(),
+                }
             })?;
         join_all(tasks.into_iter().map(|t| self.process_reward(t))).await;
         Ok(())

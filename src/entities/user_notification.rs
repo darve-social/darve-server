@@ -1,4 +1,4 @@
-use crate::utils::validate_utils::deserialize_thing_or_string_id;
+use crate::entities::task_request::TaskIdStr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -6,10 +6,8 @@ use surrealdb::types::SurrealValue;
 
 #[derive(Debug, Serialize, Clone, Deserialize, SurrealValue)]
 pub struct UserNotification {
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    pub id: String,
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
-    pub created_by: String,
+    pub id: TaskIdStr,
+    pub created_by: TaskIdStr,
     pub event: UserNotificationEvent,
     pub title: String,
     #[serde(default)]
@@ -19,6 +17,7 @@ pub struct UserNotification {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum UserNotificationEvent {
     UserFollowAdded,
     UserLikePost,

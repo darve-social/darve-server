@@ -203,8 +203,12 @@ impl DiscussionUserRepositoryInterface for DiscussionUserRepository {
             ""
         };
 
+        let search_text_owned;
         let search_text_cond = match search_text {
-            Some(_) => "AND (string::starts_with(alias ?? '', $search_text) OR in<-has_access.in[WHERE string::starts_with(username, $search_text)])" ,
+            Some(_) => {
+                search_text_owned = format!("AND (string::starts_with(alias ?? '', $search_text) OR array::len(SELECT VALUE id FROM {USER_TABLE_NAME} WHERE id IN in<-{ACCESS_TABLE_NAME}.in AND string::starts_with(username, $search_text)) > 0)");
+                search_text_owned.as_str()
+            },
             None => "",
         };
 

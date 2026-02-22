@@ -1,5 +1,5 @@
 use askama_axum::Template;
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
+use surrealdb::types::{Datetime, RecordId, RecordIdKey, SurrealValue};
 
 use crate::database::client::Db;
 use crate::database::surrdb_utils::record_id_key_to_string;
@@ -23,8 +23,8 @@ use crate::middleware;
 use crate::middleware::error::{AppResult, CtxError};
 
 pub fn check_transaction_custom_error(query_response: &mut IndexedResults) -> AppResult<()> {
-    let query_err = query_response
-        .take_errors()
+    let errors = query_response.take_errors();
+    let query_err = errors
         .values()
         .fold(None, |ret, error| {
             if let Some(AppError::WalletLocked) = ret {
@@ -42,7 +42,7 @@ pub fn check_transaction_custom_error(query_response: &mut IndexedResults) -> Ap
                 Some(AppError::BalanceTooLow)
             } else if error
                 .query_details()
-                .map(|d| matches!(d, surrealdb::types::QueryError::NotExecuted))
+                .map(|d| matches!(d, surrealdb::types::QueryError::NotExecuted | surrealdb::types::QueryError::Cancelled))
                 .unwrap_or(false)
                 && ret.is_some()
             {
@@ -72,19 +72,26 @@ pub struct Wallet {
     pub id: Option<RecordId>,
     pub transaction_head: WalletCurrencyTxHeads,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_created: Option<String>,
+    pub r_created: Option<Datetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub r_updated: Option<String>,
+    pub r_updated: Option<Datetime>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct WalletCurrencyTxHeads {
+    #[surreal(rename = "USD")]
+    #[serde(rename = "USD")]
     usd: Option<RecordId>,
+    #[surreal(rename = "ETH")]
+    #[serde(rename = "ETH")]
     eth: Option<RecordId>,
+    #[surreal(rename = "REEF")]
+    #[serde(rename = "REEF")]
     reef: Option<RecordId>,
 }
 
 #[derive(Display, Clone, Serialize, Deserialize, Debug, SurrealValue)]
+#[surreal(untagged)]
 pub enum CurrencySymbol {
     USD,
     REEF,
@@ -128,7 +135,7 @@ impl ViewFieldSelector for WalletBalanceView {
         let curr_usd = CurrencySymbol::USD.to_string();
         let curr_reef = CurrencySymbol::REEF.to_string();
         let curr_eth = CurrencySymbol::ETH.to_string();
-        format!("id, user.{{id, username, full_name}}, {TRANSACTION_HEAD_F}.{curr_usd}.*.balance||0 as balance_usd, {TRANSACTION_HEAD_F}.{curr_reef}.*.balance||0 as balance_reef, {TRANSACTION_HEAD_F}.{curr_eth}.*.balance||0 as balance_eth")
+        format!("id, user.{{id, username, full_name}}, {TRANSACTION_HEAD_F}.{curr_usd}.balance||0 as balance_usd, {TRANSACTION_HEAD_F}.{curr_reef}.balance||0 as balance_reef, {TRANSACTION_HEAD_F}.{curr_eth}.balance||0 as balance_eth")
     }
 }
 
@@ -160,7 +167,7 @@ impl<'a> WalletDbService<'a> {
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_usd} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_reef} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
     DEFINE FIELD IF NOT EXISTS {TRANSACTION_HEAD_F}.{curr_eth} ON TABLE {TABLE_NAME} TYPE option<record<{TRANSACTION_TABLE}>>;
-    DEFINE FIELD IF NOT EXISTS lock_id ON TABLE {TABLE_NAME} TYPE option<string> ASSERT {{
+    DEFINE FIELD IF NOT EXISTS lock_id ON TABLE {TABLE_NAME} TYPE option<datetime> ASSERT {{
     IF $before==NONE || $value==NONE || $before<time::now() {{
         RETURN true
     }} ELSE {{

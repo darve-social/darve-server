@@ -6,10 +6,27 @@ pub mod user_helpers;
 use axum_test::{multipart::MultipartForm, TestServer};
 use chrono::{DateTime, Months, Utc};
 use darve_server::{
-    entities::user_auth::local_user_entity::LocalUser, utils::blocked_words::BLOCKED_WORDS,
+    database::surrdb_utils::{record_id_key_to_string, record_id_to_raw},
+    entities::user_auth::local_user_entity::LocalUser,
+    utils::blocked_words::BLOCKED_WORDS,
 };
 use fake::{faker, Fake};
 use serde_json::Value;
+use surrealdb::types::RecordId;
+
+pub trait RecordIdExt {
+    fn to_raw(&self) -> String;
+    fn key_to_string(&self) -> String;
+}
+
+impl RecordIdExt for RecordId {
+    fn to_raw(&self) -> String {
+        record_id_to_raw(self)
+    }
+    fn key_to_string(&self) -> String {
+        record_id_key_to_string(&self.key)
+    }
+}
 
 #[allow(dead_code)]
 pub async fn create_login_test_user(

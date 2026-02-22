@@ -18,7 +18,7 @@ impl SurrealQueryBuilder {
     }
 
     pub fn query(mut self, sql: impl Into<String>) -> Self {
-        self.sql.push('\n');
+        self.sql.push_str(";\n");
         self.sql.push_str(&sql.into());
         self
     }

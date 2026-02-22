@@ -8,16 +8,17 @@ use darve_server::routes::posts::GetPostsQuery;
 use fake::{faker, Fake};
 use serde_json::json;
 use std::fs;
-use surrealdb::sql::Thing;
+use super::RecordIdExt;
+use surrealdb::types::RecordId;
 
 #[allow(dead_code)]
 pub async fn create_post(
     server: &TestServer,
-    discussion_id: &Thing,
+    discussion_id: &RecordId,
     data: MultipartForm,
 ) -> TestResponse {
     server
-        .post(format!("/api/discussions/{discussion_id}/posts").as_str())
+        .post(format!("/api/discussions/{}/posts", discussion_id.to_raw()).as_str())
         .multipart(data)
         .add_header("Accept", "application/json")
         .await
@@ -48,7 +49,7 @@ pub struct CreateFakePostResponse {
 }
 
 #[allow(dead_code)]
-pub fn build_fake_post(_topic_id: Option<Thing>, tags: Option<Vec<String>>) -> MultipartForm {
+pub fn build_fake_post(_topic_id: Option<RecordId>, tags: Option<Vec<String>>) -> MultipartForm {
     let post_name = faker::name::en::Name().fake::<String>();
     let content = faker::lorem::en::Sentence(7..20).fake::<String>();
     let mut data = MultipartForm::new();
@@ -64,8 +65,8 @@ pub fn build_fake_post(_topic_id: Option<Thing>, tags: Option<Vec<String>>) -> M
 #[allow(dead_code)]
 pub async fn create_fake_post(
     server: &TestServer,
-    discussion_id: &Thing,
-    topic_id: Option<Thing>,
+    discussion_id: &RecordId,
+    topic_id: Option<RecordId>,
     tags: Option<Vec<String>>,
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
@@ -95,7 +96,7 @@ pub async fn create_fake_reply(server: &TestServer, post_id: &str) -> ReplyView 
 pub async fn create_fake_post_with_large_file(
     server: &TestServer,
     _: &CtxState,
-    discussion_id: &Thing,
+    discussion_id: &RecordId,
 ) {
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/test_image_20mb.jpg").unwrap();
@@ -112,7 +113,7 @@ pub async fn create_fake_post_with_large_file(
 pub async fn create_fake_post_with_file(
     server: &TestServer,
     _: &CtxState,
-    discussion_id: &Thing,
+    discussion_id: &RecordId,
 ) -> String {
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();

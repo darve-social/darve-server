@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, SurrealValue};
+use surrealdb::types::{Array, Number, Object, RecordId, SurrealValue, Value};
 
 use crate::database::client::Db;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
@@ -20,6 +20,7 @@ use middleware::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum UserRole {
     Admin,
     User,
@@ -117,6 +118,34 @@ pub struct LocalUserDbService<'a> {
 
 pub const TABLE_NAME: &str = "local_user";
 
+fn json_null_to_surreal_none(v: serde_json::Value) -> Value {
+    match v {
+        serde_json::Value::Null => Value::None,
+        serde_json::Value::Bool(b) => Value::Bool(b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::Number(Number::Int(i))
+            } else if let Some(f) = n.as_f64() {
+                Value::Number(Number::Float(f))
+            } else {
+                Value::String(n.to_string())
+            }
+        }
+        serde_json::Value::String(s) => Value::String(s),
+        serde_json::Value::Array(arr) => {
+            let items: Vec<Value> = arr.into_iter().map(json_null_to_surreal_none).collect();
+            Value::Array(Array::from(items))
+        }
+        serde_json::Value::Object(obj) => {
+            let map: std::collections::BTreeMap<String, Value> = obj
+                .into_iter()
+                .map(|(k, v)| (k, json_null_to_surreal_none(v)))
+                .collect();
+            Value::Object(Object::from(map))
+        }
+    }
+}
+
 impl<'a> LocalUserDbService<'a> {
     pub fn get_table_name() -> &'static str {
         TABLE_NAME
@@ -131,7 +160,7 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
@@ -143,8 +172,8 @@ impl<'a> LocalUserDbService<'a> {
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
 
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
-    DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
-    DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username FULLTEXT ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name FULLTEXT ANALYZER ascii BM25 HIGHLIGHTS;
 
 ");
         let local_user_mutation = self.db.query(sql).await?;
@@ -190,15 +219,15 @@ impl<'a> LocalUserDbService<'a> {
         user_id: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY $user; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN { user: $u, auth: $a };")
+        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY $user; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
             .bind(("user", RecordId::new(TABLE_NAME, user_id))).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: user_id.to_string(),
             })?;
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
@@ -208,15 +237,15 @@ impl<'a> LocalUserDbService<'a> {
         email: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE email_verified=$email; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN { user: $u, auth: $a};")
+        let mut res  = self.db.query("LET $u = (SELECT * FROM local_user WHERE email_verified=$email LIMIT 1)[0]; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
             .bind(("email", email.to_string())).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: email.to_string(),
             })?;
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
@@ -226,16 +255,16 @@ impl<'a> LocalUserDbService<'a> {
         username: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE username=$username; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN { user: $u, auth: $a };")
+        let mut res  = self.db.query("LET $u = (SELECT * FROM local_user WHERE username=$username LIMIT 1)[0]; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
             .bind(("username", username.to_string())).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: username.to_string(),
             })?;
 
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
@@ -294,7 +323,7 @@ impl<'a> LocalUserDbService<'a> {
     ) -> CtxResult<Vec<T>> {
         let field = T::get_select_query_fields();
         let qry = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find
+            "SELECT {} FROM {TABLE_NAME} WHERE string::contains(string::lowercase(username), string::lowercase($find)) OR string::contains(string::lowercase(full_name ?? ''), string::lowercase($find))
              LIMIT $limit START $start;",
             field
         );
@@ -325,7 +354,13 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn update(&self, user_id: &str, record: UpdateUser) -> CtxResult<LocalUser> {
-        let user: Option<LocalUser> = self.db.update((TABLE_NAME, user_id)).merge(record).await?;
+        // Serialize using serde to respect #[serde(skip_serializing_if = "Option::is_none")]
+        // then convert json null → SurrealDB NONE so option<T> schema fields accept it
+        let json_value = serde_json::to_value(&record).map_err(|e| AppError::Generic {
+            description: e.to_string(),
+        })?;
+        let surreal_value = json_null_to_surreal_none(json_value);
+        let user: Option<LocalUser> = self.db.update((TABLE_NAME, user_id)).merge(surreal_value).await?;
         Ok(user.unwrap())
     }
 

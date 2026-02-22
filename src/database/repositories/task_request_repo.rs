@@ -359,13 +359,14 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
         task_id: &str,
     ) -> Result<TaskForReward, surrealdb::Error> {
         let query = format!(
-            "SELECT *, wallet.transaction_head[currency].balance as balance
-             FROM (
-                SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
+            "SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
                     ->task_participant.{{ status, id, user: out.* }} AS participants,
-                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
-                FROM $task WHERE status != $status
-            )"
+                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors,
+                    IF currency = 'USD' THEN wallet_id.transaction_head.USD.balance
+                    ELSE IF currency = 'ETH' THEN wallet_id.transaction_head.ETH.balance
+                    ELSE wallet_id.transaction_head.REEF.balance
+                    END as balance
+                FROM $task WHERE status != $status"
         );
         let mut res = self
             .client
@@ -380,14 +381,15 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
 
     async fn get_ready_for_payment(&self) -> Result<Vec<TaskForReward>, surrealdb::Error> {
         let query = format!(
-            "SELECT *, wallet.transaction_head[currency].balance as balance
-             FROM (
-                SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
+            "SELECT id, wallet_id.* AS wallet, currency, request_txt, belongs_to,
                     ->task_participant.{{ status, id, user: out.* }} AS participants,
-                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors
+                    ->task_donor.{{ id: out, amount: transaction.amount_out }} AS donors,
+                    IF currency = 'USD' THEN wallet_id.transaction_head.USD.balance
+                    ELSE IF currency = 'ETH' THEN wallet_id.transaction_head.ETH.balance
+                    ELSE wallet_id.transaction_head.REEF.balance
+                    END as balance
                 FROM {TASK_REQUEST_TABLE_NAME}
-                WHERE status != $status AND due_at <= time::now()
-            )"
+                WHERE status != $status AND due_at <= time::now()"
         );
         let mut res = self
             .client

@@ -12,6 +12,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct DiscussionAccessView {
     pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
     pub created_by: RecordId,
     pub users: Vec<AccessUser>,
@@ -49,6 +50,7 @@ impl ViewRelateField for DiscussionAccessView {
 #[derive(Debug, Deserialize, Serialize, Clone, SurrealValue)]
 pub struct PostAccessView {
     pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub discussion: DiscussionAccessView,
     pub users: Vec<AccessUser>,
@@ -83,6 +85,7 @@ impl ViewFieldSelector for PostAccessView {
 #[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct TaskAccessView {
     pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
     pub post: Option<PostAccessView>,
     pub discussion: Option<DiscussionAccessView>,
@@ -109,14 +112,14 @@ impl ViewFieldSelector for TaskAccessView {
     fn get_select_query_fields() -> String {
         let disc_fields = DiscussionAccessView::get_fields();
         format!(
-            "id, type, <-{ACCESS_TABLE_NAME}.* as users, 
-                IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{ 
-                        id, 
+            "id, type, <-{ACCESS_TABLE_NAME}.* as users,
+                IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{
+                        id,
                         type,
                         tasks_nr,
                         media_links,
                         users: <-{ACCESS_TABLE_NAME}.*,
-                        discussion: belongs_to.{{{disc_fields}}} 
+                        discussion: belongs_to.{{{disc_fields}}}
                 }} END AS post,
                 IF record::tb(belongs_to) = '{DISC_TABLE_NAME}' THEN belongs_to.{{{disc_fields}}} END AS discussion"
         )

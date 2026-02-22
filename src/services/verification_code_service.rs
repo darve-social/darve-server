@@ -4,6 +4,7 @@ use askama::Template;
 use chrono::{Duration, Utc};
 
 use crate::{
+    database::surrdb_utils::record_id_key_to_string,
     entities::verification_code::{VerificationCodeEntity, VerificationCodeFor},
     interfaces::{
         repositories::verification_code_ifce::VerificationCodeRepositoryInterface,
@@ -140,7 +141,7 @@ where
         }
 
         if data.code != code {
-            self.repository.increase_attempt(&data.id).await?;
+            self.repository.increase_attempt(&record_id_key_to_string(&data.id.as_ref().unwrap().key)).await?;
 
             return Err(AppError::Generic {
                 description: "Wrong code.".to_string(),

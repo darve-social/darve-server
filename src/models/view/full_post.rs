@@ -13,6 +13,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 pub struct FullPostView {
     pub id: RecordId,
     pub created_by: UserView,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub belongs_to: RecordId,
     pub title: String,

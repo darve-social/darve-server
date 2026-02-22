@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum TaskParticipantStatus {
     Requested,
     Rejected,

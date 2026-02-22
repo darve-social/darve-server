@@ -24,6 +24,7 @@ use crate::models::view::post::PostView;
 use super::discussion_entity;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum PostType {
     Public,
     Private,
@@ -31,8 +32,11 @@ pub enum PostType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum PostUserStatus {
+    #[surreal(value = 0)]
     Delivered,
+    #[surreal(value = 1)]
     Seen,
 }
 
@@ -90,6 +94,7 @@ pub struct CreatePost {
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub delivered_for_task: Option<RecordId>,
     pub reply_to: Option<RecordId>,

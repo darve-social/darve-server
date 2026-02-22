@@ -308,10 +308,10 @@ async fn create_post(
         &ctx_state.db.discussion_users,
     );
 
-    let post = post_service
+    let post_result = post_service
         .create(&auth_data.user_thing_id(), &discussion_id, input_value)
-        .await?;
-    Ok(Json(post))
+        .await;
+    Ok(Json(post_result?))
 }
 
 async fn get_posts(

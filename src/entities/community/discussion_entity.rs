@@ -21,6 +21,7 @@ use crate::middleware::utils::string_utils::get_str_thing;
 use super::{community_entity, post_entity};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum DiscussionType {
     Private,
     Public,
@@ -36,6 +37,7 @@ pub struct Discussion {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub created_by: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
 }
 
@@ -51,6 +53,7 @@ pub struct CreateDiscussionEntity {
     pub title: String,
     pub image_uri: Option<String>,
     pub created_by: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
 }
 
@@ -91,8 +94,18 @@ impl<'a> DiscussionDbService<'a> {
         id: &str,
     ) -> CtxResult<T> {
         let thing = get_str_thing(id)?;
-        let ident = IdentIdName::Id(thing);
-        self.get_view(ident).await
+        let fields = T::get_select_query_fields();
+        let mut res = self
+            .db
+            .query(format!("SELECT {fields} FROM $disc"))
+            .bind(("disc", thing))
+            .await?;
+        let data = res.take::<Option<T>>(0)?;
+        data.ok_or_else(|| {
+            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                ident: id.to_string(),
+            })
+        })
     }
 
     pub async fn get_view<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(

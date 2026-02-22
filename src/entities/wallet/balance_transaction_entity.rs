@@ -43,10 +43,12 @@ pub struct CurrencyTransaction {
     pub balance: i64,
     pub created_at: DateTime<Utc>,
     pub description: Option<String>,
+    #[surreal(rename = "type")]
     pub r#type: Option<TransactionType>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum TransactionType {
     Withdraw,
     Deposit,
@@ -149,7 +151,8 @@ impl<'a> BalanceTransactionDbService<'a> {
 
         let tx_qry_final = tx_qry.query("COMMIT");
 
-        let _ = tx_qry_final.into_db_query(self.db).await?.check()?;
+        let mut res = tx_qry_final.into_db_query(self.db).await?;
+        check_transaction_custom_error(&mut res)?;
         Ok(())
     }
 
@@ -183,7 +186,7 @@ impl<'a> BalanceTransactionDbService<'a> {
 
         let mut res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut res)?;
-        let index = res.num_statements() - 1;
+        let index = res.num_statements() - 2;
         Ok(res
             .take::<Option<TransferCurrencyResponse>>(index)?
             .unwrap())
@@ -285,7 +288,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 amount_out: ${uniq}_tx_amt,
                 balance: ${uniq}_updated_from_balance,
                 gateway_tx: ${uniq}_gateway_tx_id,
-                lock_tx: ${uniq}_lock_tx_id,
+
                 description: ${uniq}_description,
                 type: ${uniq}_tx_type
             }} RETURN id;
@@ -303,7 +306,7 @@ impl<'a> BalanceTransactionDbService<'a> {
                 amount_in: ${uniq}_tx_amt,
                 balance: ${uniq}_balance_to + ${uniq}_tx_amt,
                 gateway_tx: ${uniq}_gateway_tx_id,
-                lock_tx: ${uniq}_lock_tx_id,
+
                 description: ${uniq}_description,
                 type: ${uniq}_tx_type
             }} RETURN id;

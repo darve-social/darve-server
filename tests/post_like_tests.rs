@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::{create_fake_login_test_user, task_helpers};
 use darve_server::{
@@ -251,7 +252,7 @@ test_with_server!(post_likes, |server, ctx_state, config| {
     assert_eq!(likes_nr, 2);
 
     let posts = server
-        .get(format!("/api/discussions/{}/posts", disc).as_str())
+        .get(format!("/api/discussions/{}/posts", disc.to_raw()).as_str())
         .await
         .json::<Vec<PostView>>();
 

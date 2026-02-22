@@ -1,6 +1,6 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
-use std::str::FromStr;
 
 use crate::helpers::{create_fake_login_test_user, post_helpers::create_post, task_helpers};
 use axum_test::multipart::MultipartForm;
@@ -10,7 +10,7 @@ use darve_server::{
         community::{
             community_entity::CommunityDbService,
             discussion_entity::{Discussion, DiscussionDbService},
-            post_entity::{Post, PostDbService},
+            post_entity::PostDbService,
         },
         tag::SystemTags,
         task_request::TaskRequestEntity,
@@ -26,12 +26,13 @@ use darve_server::{
     },
     services::discussion_service::CreateDiscussion,
 };
-use surrealdb::sql::Thing;
+
 
 use fake::{faker, Fake};
 use helpers::post_helpers::create_fake_post;
 use reqwest::StatusCode;
 use serde_json::json;
+use surrealdb::types::RecordId;
 
 test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
@@ -669,14 +670,14 @@ test_with_server!(
         let task_participant = task_helpers::success_deliver_task(&server, &task_id, &token0)
             .await
             .unwrap();
-        let task_thing_id = Thing::from_str(&task_id).unwrap().id.to_raw();
+        let task_thing_id = RecordId::parse_simple(&task_id).unwrap().key_to_string();
         let link = task_participant.result.as_ref().unwrap().link.as_ref();
         assert!(link.is_some());
         assert!(task_participant.result.as_ref().unwrap().post.is_none());
         assert!(link.unwrap().contains(&task_thing_id));
         assert!(link
             .unwrap()
-            .contains(&user0.id.as_ref().unwrap().id.to_raw()));
+            .contains(&user0.id.as_ref().unwrap().key_to_string()));
 
         let task_request = server
             .get("/api/tasks/received")
@@ -981,7 +982,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET acceptance_period=0;")
-        .bind(("id", Thing::try_from(task_id.as_str()).unwrap()))
+        .bind(("id", RecordId::parse_simple(task_id.as_str()).unwrap()))
         .await;
 
     let response = server
@@ -1033,7 +1034,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET delivery_period=0, acceptance_period=0;")
-        .bind(("id", Thing::try_from(task_id.as_ref()).unwrap()))
+        .bind(("id", RecordId::parse_simple(task_id.as_ref()).unwrap()))
         .await;
 
     let response = task_helpers::deliver_task(&server, &task_id, &token0).await;
@@ -1274,7 +1275,7 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .db
         .client
         .query("UPDATE $id SET due_at=time::now();")
-        .bind(("id", Thing::try_from(task_id).unwrap()))
+        .bind(("id", RecordId::parse_simple(&task_id).unwrap()))
         .await;
 
     let get_response = server
@@ -1377,7 +1378,7 @@ test_with_server!(
             .await;
         endow_user_response.assert_status_success();
         let task_request = server
-            .post(format!("/api/posts/{}/tasks", post.id).as_str())
+            .post(format!("/api/posts/{}/tasks", post.id.to_raw()).as_str())
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
@@ -1527,7 +1528,7 @@ test_with_server!(
             .unwrap();
         let deliver_post = task_participant.result.unwrap().post.unwrap();
 
-        let posts: Vec<Post> = ctx_state
+        let posts: Vec<PostView> = ctx_state
             .db
             .tags
             .get_by_tag(
@@ -1544,7 +1545,7 @@ test_with_server!(
 
         assert_eq!(posts.len(), 1);
         assert_eq!(
-            posts[0].id.as_ref().unwrap().to_raw(),
+            posts[0].id.to_raw(),
             deliver_post.to_raw()
         )
     }
@@ -1584,7 +1585,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id, task_id);
+    assert_eq!(task_view.id.to_raw(), task_id);
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
@@ -1593,7 +1594,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
         .await;
     get_task_response.assert_status_success();
     let task_view = get_task_response.json::<TaskRequestView>();
-    assert_eq!(task_view.id, task_id);
+    assert_eq!(task_view.id.to_raw(), task_id);
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))

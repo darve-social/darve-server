@@ -3,7 +3,7 @@ use crate::database::table_names::{TAG_REL_TABLE_NAME, TAG_TABLE_NAME};
 use crate::entities::tag::Tag;
 use crate::interfaces::repositories::tags::TagsRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
-use crate::middleware::utils::db_utils::{Pagination, QryOrder};
+use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewRelateField};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ impl TagsRepositoryInterface for TagsRepository {
             .client
             .query(format!(
                 "BEGIN TRANSACTION; \
-                LET $ids = UPSERT $tags.map(|$v| type::thing('{TAG_TABLE_NAME}', $v)); \
+                LET $ids = UPSERT $tags.map(|$v| type::record('{TAG_TABLE_NAME}', $v)); \
                 RELATE $ids->{TAG_REL_TABLE_NAME}->$entity; \
                 RETURN $ids; \
                 COMMIT TRANSACTION;"
@@ -51,15 +51,16 @@ impl TagsRepositoryInterface for TagsRepository {
         Ok(())
     }
 
-    async fn get_by_tag<T: for<'de> Deserialize<'de> + SurrealValue>(
+    async fn get_by_tag<T: for<'de> Deserialize<'de> + SurrealValue + ViewRelateField>(
         &self,
         tag: &str,
         pag: Pagination,
     ) -> AppResult<Vec<T>> {
         let order_dir = pag.order_dir.unwrap_or(QryOrder::DESC).to_string();
         let order_by = pag.order_by.unwrap_or("id".to_string()).to_string();
+        let fields = T::get_fields();
         let query = format!(
-            "SELECT *, out.* AS entity FROM $tag->{TAG_REL_TABLE_NAME} ORDER BY out.{} {} LIMIT $limit START $start;",
+            "SELECT *, out.{{{fields}}} AS entity FROM $tag->{TAG_REL_TABLE_NAME} ORDER BY out.{} {} LIMIT $limit START $start;",
             order_by,
             order_dir
         );
@@ -84,9 +85,9 @@ impl TagsRepositoryInterface for TagsRepository {
             ""
         };
         let query = format!(
-            "SELECT *,  record::id(id) as tag, math::sum(->{TAG_REL_TABLE_NAME}.out.likes_nr) AS count FROM {TAG_TABLE_NAME}
+            "SELECT record::id(id) as name, math::sum((SELECT VALUE out.likes_nr ?? 0 FROM {TAG_REL_TABLE_NAME} WHERE in = $parent.id)) AS count FROM {TAG_TABLE_NAME}
             {where_condition}
-            ORDER BY count {dir}, tag ASC LIMIT $limit START $start;",
+            ORDER BY count {dir}, name ASC LIMIT $limit START $start;",
         );
         let mut res = self
             .client

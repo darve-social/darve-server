@@ -13,6 +13,7 @@ use surrealdb::types::{RecordId, SurrealValue};
 
 pub struct DiscussionView {
     pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
     pub users: Vec<AccessUserView>,
     pub belongs_to: RecordId,

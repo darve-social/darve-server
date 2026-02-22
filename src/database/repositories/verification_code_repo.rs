@@ -97,7 +97,7 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
             .await?;
 
         let data: VerificationCodeEntity = res
-            .take::<Option<VerificationCodeEntity>>(1)?
+            .take::<Option<VerificationCodeEntity>>(2)?
             .expect("record created");
 
         Ok(data)

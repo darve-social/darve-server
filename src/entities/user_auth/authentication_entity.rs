@@ -21,6 +21,7 @@ pub struct CreateAuthInput {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumString, SurrealValue)]
+#[surreal(untagged)]
 pub enum AuthType {
     PASSWORD,
     PASSKEY,

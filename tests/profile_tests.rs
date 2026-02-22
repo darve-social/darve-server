@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use axum_test::multipart::MultipartForm;
 use darve_server::{
@@ -165,7 +166,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.key_to_string(), VerificationCodeFor::EmailVerification)
             .await
             .unwrap()
             .code;
@@ -184,7 +185,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.key_to_string(), VerificationCodeFor::EmailVerification)
             .await;
 
         assert!(code.is_err());
@@ -221,7 +222,7 @@ test_with_server!(
         let code = ctx_state
             .db
             .verification_code
-            .get_by_user(&user_id.id.to_raw(), VerificationCodeFor::EmailVerification)
+            .get_by_user(&user_id.key_to_string(), VerificationCodeFor::EmailVerification)
             .await
             .unwrap()
             .code;
@@ -359,7 +360,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             VerificationCodeFor::SetPassword,
         )
         .await
@@ -431,7 +432,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
         .db
         .verification_code
         .get_by_user(
-            &user.id.as_ref().unwrap().id.to_raw(),
+            &user.id.as_ref().unwrap().key_to_string(),
             VerificationCodeFor::UpdatePassword,
         )
         .await

@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::build_fake_post;
@@ -87,9 +88,12 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
         .await
         .json::<Vec<PostView>>();
 
-    let post = posts.first().unwrap();
+    let post = posts.iter().find(|p| {
+        p.media_links.as_ref()
+            .map(|links| links.iter().any(|l| l.contains("file_example_PNG_1MB.png")))
+            .unwrap_or(false)
+    }).expect("Should find post with file_example_PNG_1MB.png");
     assert_eq!(post.media_links.as_ref().unwrap().len(), 1);
-    assert!(post.media_links.as_ref().unwrap()[0].contains("file_example_PNG_1MB.png"));
 });
 
 test_with_server!(get_latest, |server, ctx_state, config| {
@@ -109,8 +113,8 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         ctx: &ctx,
     }
     .get_by_disc(
-        &user.id.as_ref().unwrap().id.to_raw(),
-        &default_discussion.id.to_raw(),
+        &user.id.as_ref().unwrap().key_to_string(),
+        &default_discussion.key_to_string(),
         Some(PostType::Public),
         CursorPagination {
             order_by: None,
@@ -129,8 +133,8 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         ctx: &ctx,
     }
     .get_by_disc(
-        &user.id.as_ref().unwrap().id.to_raw(),
-        &default_discussion.id.to_raw(),
+        &user.id.as_ref().unwrap().key_to_string(),
+        &default_discussion.key_to_string(),
         Some(PostType::Public),
         CursorPagination {
             order_by: None,
@@ -147,8 +151,8 @@ test_with_server!(get_latest, |server, ctx_state, config| {
         ctx: &ctx,
     }
     .get_by_disc(
-        &user.id.as_ref().unwrap().id.to_raw(),
-        &default_discussion.id.to_raw(),
+        &user.id.as_ref().unwrap().key_to_string(),
+        &default_discussion.key_to_string(),
         Some(PostType::Public),
         CursorPagination {
             order_by: None,
@@ -359,7 +363,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
-        let comm_id = format!("community:{}", user.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user.id.as_ref().unwrap().key_to_string());
         let create_response = server
             .post("/api/discussions")
             .add_header("Cookie", format!("jwt={}", token))
@@ -389,7 +393,7 @@ test_with_server!(
     create_post_for_post_in_private_disc,
     |server, ctx_state, config| {
         let (server, user, _, token) = create_fake_login_test_user(&server).await;
-        let comm_id = format!("community:{}", user.id.as_ref().unwrap().id.to_string());
+        let comm_id = format!("community:{}", user.id.as_ref().unwrap().key_to_string());
 
         let create_response = server
             .post("/api/discussions")

@@ -33,7 +33,7 @@ impl UserNotificationsRepository {
         DEFINE FIELD IF NOT EXISTS event       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS title       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<{USER_TABLE_NAME}>;
-        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications FLEXIBLE TYPE option<object>;
+        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications TYPE option<object> FLEXIBLE;
         DEFINE FIELD IF NOT EXISTS created_at  ON TABLE notifications TYPE datetime DEFAULT time::now();
 
         DEFINE TABLE IF NOT EXISTS user_notifications TYPE RELATION IN local_user OUT notifications ENFORCED SCHEMAFULL PERMISSIONS NONE;
@@ -79,7 +79,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             };
             
             COMMIT TRANSACTION;
-            RETURN $notification;
+            RETURN {id: $notification.id, event: $notification.event, title: $notification.title, created_by: $notification.created_by, metadata: $notification.metadata, created_at: $notification.created_at, is_read: false};
 
         "#;
 
@@ -124,7 +124,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
 
         let fields = UserNotificationView::get_fields();
         let query = format!(
-            "SELECT out.{{{fields}}}, out.created_at as created_at, is_read as out.is_read
+            "SELECT {fields}
              FROM user_notifications
              WHERE in=$user AND out.created_at < <datetime>$start {is_read_query} {types_query}
              ORDER BY created_at DESC
@@ -143,7 +143,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
                 source: e.to_string(),
             })?;
 
-        let data = res.take::<Vec<UserNotificationView>>((0, "out"))?;
+        let data = res.take::<Vec<UserNotificationView>>(0)?;
         Ok(data)
     }
 
@@ -152,7 +152,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .client
             .query("UPDATE user_notifications SET is_read=$is_read WHERE out=$id AND in=$user_id")
             .bind(("id", RecordId::new("notifications", id)))
-            .bind(("user_id", RecordId::new(USER_TABLE_NAME, user_id)))
+            .bind(("user_id", get_str_thing(user_id)?))
             .bind(("is_read", true))
             .await
             .map_err(|e| AppError::SurrealDb {

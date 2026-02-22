@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use crate::helpers::post_helpers::create_fake_reply;

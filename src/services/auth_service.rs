@@ -408,7 +408,7 @@ where
             .await?;
 
         self.verification_code_service
-            .delete(&verification_data.id)
+            .delete(&record_id_key_to_string(&verification_data.id.as_ref().unwrap().key))
             .await?;
 
         Ok(())

@@ -27,8 +27,6 @@ impl TryFrom<&str> for SystemTags {
 
 #[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct Tag {
-    #[serde(alias = "id")]
-    #[serde(deserialize_with = "deserialize_thing_or_string_id")]
     pub name: String,
 }
 
