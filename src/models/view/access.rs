@@ -7,30 +7,31 @@ use crate::entities::task_request::TaskRequestType;
 use crate::entities::{access_user::AccessUser, community::discussion_entity::DiscussionType};
 use crate::middleware::utils::db_utils::{ViewFieldSelector, ViewRelateField};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct DiscussionAccessView {
-    pub id: Thing,
+    pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
-    pub created_by: Thing,
+    pub created_by: RecordId,
     pub users: Vec<AccessUser>,
 }
 
 impl DiscussionAccessView {
-    pub fn get_user_ids(&self) -> Vec<Thing> {
+    pub fn get_user_ids(&self) -> Vec<RecordId> {
         self.users
             .iter()
             .map(|user| user.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 
-    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+    pub fn get_by_role(&self, role: &str) -> Vec<RecordId> {
         self.users
             .iter()
             .filter(|u| u.role == role)
             .map(|u| u.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 }
 
@@ -46,9 +47,10 @@ impl ViewRelateField for DiscussionAccessView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SurrealValue)]
 pub struct PostAccessView {
-    pub id: Thing,
+    pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
     pub discussion: DiscussionAccessView,
     pub users: Vec<AccessUser>,
@@ -57,19 +59,19 @@ pub struct PostAccessView {
 }
 
 impl PostAccessView {
-    pub fn get_user_ids(&self) -> Vec<Thing> {
+    pub fn get_user_ids(&self) -> Vec<RecordId> {
         self.users
             .iter()
             .map(|user| user.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 
-    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+    pub fn get_by_role(&self, role: &str) -> Vec<RecordId> {
         self.users
             .iter()
             .filter(|u| u.role == role)
             .map(|u| u.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 }
 
@@ -80,28 +82,29 @@ impl ViewFieldSelector for PostAccessView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct TaskAccessView {
-    pub id: Thing,
+    pub id: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
     pub post: Option<PostAccessView>,
     pub discussion: Option<DiscussionAccessView>,
     pub users: Vec<AccessUser>,
 }
 impl TaskAccessView {
-    pub fn get_user_ids(&self) -> Vec<Thing> {
+    pub fn get_user_ids(&self) -> Vec<RecordId> {
         self.users
             .iter()
             .map(|user| user.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 
-    pub fn get_by_role(&self, role: &str) -> Vec<Thing> {
+    pub fn get_by_role(&self, role: &str) -> Vec<RecordId> {
         self.users
             .iter()
             .filter(|u| u.role == role)
             .map(|u| u.user.clone())
-            .collect::<Vec<Thing>>()
+            .collect::<Vec<RecordId>>()
     }
 }
 
@@ -109,14 +112,14 @@ impl ViewFieldSelector for TaskAccessView {
     fn get_select_query_fields() -> String {
         let disc_fields = DiscussionAccessView::get_fields();
         format!(
-            "id, type, <-{ACCESS_TABLE_NAME}.* as users, 
-                IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{ 
-                        id, 
+            "id, type, <-{ACCESS_TABLE_NAME}.* as users,
+                IF record::tb(belongs_to) = '{POST_TABLE_NAME}' THEN belongs_to.{{
+                        id,
                         type,
                         tasks_nr,
                         media_links,
                         users: <-{ACCESS_TABLE_NAME}.*,
-                        discussion: belongs_to.{{{disc_fields}}} 
+                        discussion: belongs_to.{{{disc_fields}}}
                 }} END AS post,
                 IF record::tb(belongs_to) = '{DISC_TABLE_NAME}' THEN belongs_to.{{{disc_fields}}} END AS discussion"
         )

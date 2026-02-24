@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use super::{gateway_transaction_entity, wallet_entity};
 use crate::database::client::Db;
+use crate::database::query_builder::SurrealQueryBuilder;
 use crate::entities::wallet::wallet_entity::check_transaction_custom_error;
 use crate::middleware;
 use crate::middleware::error::CtxError;
@@ -15,24 +16,25 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 use wallet_entity::{CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET};
 
-#[derive(Debug, Deserialize)]
+use crate::database::surrdb_utils::record_id_to_raw;
+
+#[derive(Debug, Deserialize, SurrealValue)]
 pub struct TransferCurrencyResponse {
-    pub tx_in_id: Thing,
-    pub tx_out_id: Thing,
+    pub tx_in_id: RecordId,
+    pub tx_out_id: RecordId,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct CurrencyTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    pub wallet: Thing,
-    pub with_wallet: Thing,
+    pub id: Option<RecordId>,
+    pub wallet: RecordId,
+    pub with_wallet: RecordId,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub gateway_tx: Option<Thing>,
+    pub gateway_tx: Option<RecordId>,
     pub currency: CurrencySymbol,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amount_in: Option<i64>,
@@ -41,10 +43,12 @@ pub struct CurrencyTransaction {
     pub balance: i64,
     pub created_at: DateTime<Utc>,
     pub description: Option<String>,
+    #[surreal(rename = "type")]
     pub r#type: Option<TransactionType>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum TransactionType {
     Withdraw,
     Deposit,
@@ -120,15 +124,15 @@ impl<'a> BalanceTransactionDbService<'a> {
 
     pub async fn transfer_task_reward(
         &self,
-        wallet_from: &Thing,
-        wallet_to: &Thing,
+        wallet_from: &RecordId,
+        wallet_to: &RecordId,
         amount: i64,
         currency: &CurrencySymbol,
-        task_user_id: &Thing,
+        task_user_id: &RecordId,
         description: Option<String>,
     ) -> CtxResult<()> {
         let uniq = "id";
-        let query = self.db.query("BEGIN");
+        let query = SurrealQueryBuilder::new("BEGIN");
         let tx_qry = Self::build_transfer_qry(
             query,
             wallet_from,
@@ -143,24 +147,26 @@ impl<'a> BalanceTransactionDbService<'a> {
         .query(format!(
             "UPDATE $task_user_id SET reward_tx=${uniq}_tx_in_id"
         ))
-        .query("COMMIT")
-        .bind(("task_user_id", task_user_id.clone()));
+        .bind_var("task_user_id", task_user_id.clone());
 
-        let _ = tx_qry.await?.check()?;
+        let tx_qry_final = tx_qry.query("COMMIT");
+
+        let mut res = tx_qry_final.into_db_query(self.db).await?;
+        check_transaction_custom_error(&mut res)?;
         Ok(())
     }
 
     pub async fn transfer_currency(
         &self,
-        wallet_from: &Thing,
-        wallet_to: &Thing,
+        wallet_from: &RecordId,
+        wallet_to: &RecordId,
         amount: i64,
         currency: &CurrencySymbol,
         description: Option<String>,
         tx_type: TransactionType,
     ) -> CtxResult<TransferCurrencyResponse> {
         let uniq = "id";
-        let query = self.db.query("BEGIN");
+        let query = SurrealQueryBuilder::new("BEGIN");
 
         let tx_qry = Self::build_transfer_qry(
             query,
@@ -178,9 +184,9 @@ impl<'a> BalanceTransactionDbService<'a> {
         ))
         .query("COMMIT");
 
-        let mut res = tx_qry.await?;
+        let mut res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut res)?;
-        let index = res.num_statements() - 1;
+        let index = res.num_statements() - 2;
         Ok(res
             .take::<Option<TransferCurrencyResponse>>(index)?
             .unwrap())
@@ -188,7 +194,7 @@ impl<'a> BalanceTransactionDbService<'a> {
 
     pub async fn user_transaction_list(
         &self,
-        wallet_id: &Thing,
+        wallet_id: &RecordId,
         tx_type: Option<TransactionType>,
         pagination: Option<Pagination>,
     ) -> CtxResult<Vec<CurrencyTransactionView>> {
@@ -198,7 +204,7 @@ impl<'a> BalanceTransactionDbService<'a> {
             Some(ref v) => IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "wallet".to_string(),
-                    val: wallet_id.to_raw(),
+                    val: record_id_to_raw(wallet_id),
                     rec: true,
                 },
                 IdentIdName::ColumnIdent {
@@ -209,7 +215,7 @@ impl<'a> BalanceTransactionDbService<'a> {
             ]),
             None => IdentIdName::ColumnIdent {
                 column: "wallet".to_string(),
-                val: wallet_id.to_raw(),
+                val: record_id_to_raw(wallet_id),
                 rec: true,
             },
         };
@@ -225,12 +231,12 @@ impl<'a> BalanceTransactionDbService<'a> {
 
     pub(crate) async fn create_init_record(
         &self,
-        wallet_id: &Thing,
+        wallet_id: &RecordId,
         currency: CurrencySymbol,
     ) -> CtxResult<CurrencyTransaction> {
         let mut res = self.db.query(format!("INSERT INTO {TABLE_NAME} {{ wallet: $wallet, with_wallet: $with_wallet, currency: $currency, balance: 0 }}"))
             .bind(( "wallet", wallet_id.clone()))
-            .bind(( "with_wallet",  Thing::from((WALLET_TABLE, "init_wallet"))))
+            .bind(( "with_wallet", RecordId::new(WALLET_TABLE, "init_wallet")))
             .bind(( "currency",  currency))
             .await
             .map_err(CtxError::from(self.ctx))?;
@@ -245,18 +251,18 @@ impl<'a> BalanceTransactionDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
 
-    pub(crate) fn build_transfer_qry<'b>(
-        query: Query<'b, surrealdb::engine::any::Any>,
-        wallet_from: &Thing,
-        wallet_to: &Thing,
+    pub(crate) fn build_transfer_qry(
+        query: SurrealQueryBuilder,
+        wallet_from: &RecordId,
+        wallet_to: &RecordId,
         amount: i64,
         currency: &CurrencySymbol,
-        gateway_tx: Option<Thing>,
+        gateway_tx: Option<RecordId>,
         description: Option<String>,
         tx_type: TransactionType,
         uniq: &str,
-    ) -> Query<'b, surrealdb::engine::any::Any> {
-        let mut qry = query
+    ) -> SurrealQueryBuilder {
+        query
         .query(format!(
             "
             LET ${uniq}_lock_id = time::now() + 10s;
@@ -282,13 +288,13 @@ impl<'a> BalanceTransactionDbService<'a> {
                 amount_out: ${uniq}_tx_amt,
                 balance: ${uniq}_updated_from_balance,
                 gateway_tx: ${uniq}_gateway_tx_id,
-                lock_tx: ${uniq}_lock_tx_id,
+
                 description: ${uniq}_description,
                 type: ${uniq}_tx_type
             }} RETURN id;
             LET ${uniq}_tx_out_id = ${uniq}_tx_out[0].id;
             UPDATE ${uniq}_w_from_id SET transaction_head[${uniq}_currency] = ${uniq}_tx_out_id, lock_id = NONE;
-    
+
             LET ${uniq}_w_to = SELECT * FROM ONLY ${uniq}_w_to_id FETCH transaction_head[${uniq}_currency];
             LET ${uniq}_balance_to = ${uniq}_w_to.transaction_head[${uniq}_currency].balance OR 0;
 
@@ -300,31 +306,27 @@ impl<'a> BalanceTransactionDbService<'a> {
                 amount_in: ${uniq}_tx_amt,
                 balance: ${uniq}_balance_to + ${uniq}_tx_amt,
                 gateway_tx: ${uniq}_gateway_tx_id,
-                lock_tx: ${uniq}_lock_tx_id,
+
                 description: ${uniq}_description,
                 type: ${uniq}_tx_type
             }} RETURN id;
             LET ${uniq}_tx_in_id = ${uniq}_tx_in[0].id;
             UPDATE ${uniq}_w_to_id SET transaction_head[${uniq}_currency] = ${uniq}_tx_in_id, lock_id = NONE;
         "
-        ));
-
-        qry = qry
-            .bind((format!("{uniq}_tx_type"), tx_type))
-            .bind((format!("{uniq}_w_from_id"), wallet_from.clone()))
-            .bind((format!("{uniq}_w_to_id"), wallet_to.clone()))
-            .bind((format!("{uniq}_amt"), amount))
-            .bind((format!("{uniq}_currency"), currency.clone()))
-            .bind((
-                format!("{uniq}_app_gateway_wallet_id"),
-                APP_GATEWAY_WALLET.clone(),
-            ))
-            .bind((format!("{uniq}_gateway_tx_id"), gateway_tx))
-            .bind((
-                format!("{uniq}_description"),
-                description.unwrap_or_default(),
-            ));
-
-        qry
+        ))
+        .bind_var(format!("{uniq}_tx_type"), tx_type)
+        .bind_var(format!("{uniq}_w_from_id"), wallet_from.clone())
+        .bind_var(format!("{uniq}_w_to_id"), wallet_to.clone())
+        .bind_var(format!("{uniq}_amt"), amount)
+        .bind_var(format!("{uniq}_currency"), currency.clone())
+        .bind_var(
+            format!("{uniq}_app_gateway_wallet_id"),
+            APP_GATEWAY_WALLET.clone(),
+        )
+        .bind_var(format!("{uniq}_gateway_tx_id"), gateway_tx)
+        .bind_var(
+            format!("{uniq}_description"),
+            description.unwrap_or_default(),
+        )
     }
 }

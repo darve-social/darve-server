@@ -11,6 +11,7 @@ use post_entity::{Post, PostDbService};
 use serde::{Deserialize, Serialize};
 
 use crate::access::post::PostAccess;
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::entities::community::post_entity::{self};
 use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::user_auth::local_user_entity;
@@ -279,7 +280,7 @@ async fn create_reply(
         .replies
         .create(
             post.id.clone(),
-            user.id.as_ref().unwrap().id.to_raw().as_ref(),
+            record_id_key_to_string(&user.id.as_ref().unwrap().key).as_ref(),
             &reply_input.content,
         )
         .await?;

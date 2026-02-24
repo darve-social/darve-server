@@ -7,7 +7,7 @@ use crate::middleware::error::{AppError, AppResult};
 use crate::middleware::utils::db_utils::{Pagination, QryOrder, ViewFieldSelector};
 use crate::models::view::reply::ReplyView;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct RepliesRepository {
@@ -39,22 +39,19 @@ impl RepliesRepository {
 
     pub async fn create(
         &self,
-        belongs_to: Thing,
+        belongs_to: RecordId,
         user_id: &str,
         content: &str,
     ) -> AppResult<Reply> {
         let mut res = self
             .client
-            .query("BEGIN")
-            .query(format!("INSERT INTO {REPLY_TABLE_NAME} {{id:rand::ulid(), belongs_to: $belongs_to, created_by: $user, content: $content }};"))
-            .query("UPDATE $belongs_to SET replies_nr+=1;")
-           .query("COMMIT")
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .query(format!("BEGIN; INSERT INTO {REPLY_TABLE_NAME} {{id:rand::ulid(), belongs_to: $belongs_to, created_by: $user, content: $content }}; UPDATE $belongs_to SET replies_nr+=1; COMMIT;"))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("belongs_to", belongs_to))
             .bind(("content", content.to_string()))
             .await?;
 
-        let record = res.take::<Option<Reply>>(0)?;
+        let record = res.take::<Option<Reply>>(1)?;
 
         Ok(record.unwrap())
     }
@@ -62,7 +59,7 @@ impl RepliesRepository {
     pub async fn get(
         &self,
         user_id: &str,
-        belongs_to: Thing,
+        belongs_to: RecordId,
         pagination: Pagination,
     ) -> AppResult<Vec<ReplyView>> {
         let order_dir = pagination.order_dir.unwrap_or(QryOrder::DESC).to_string();
@@ -78,7 +75,7 @@ impl RepliesRepository {
                 .as_str(),
             )
             .bind(("belongs_to", belongs_to))
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
             .await?

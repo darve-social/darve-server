@@ -10,13 +10,14 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
-#[derive(Debug, Deserialize, Serialize)]
+use surrealdb::types::{RecordId, SurrealValue};
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct PostView {
-    pub id: Thing,
+    pub id: RecordId,
     pub created_by: UserView,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
@@ -25,7 +26,7 @@ pub struct PostView {
     pub replies_nr: i64,
     pub tasks_nr: u64,
     pub likes_nr: i64,
-    pub liked_by: Option<Vec<Thing>>,
+    pub liked_by: Option<Vec<RecordId>>,
     pub users: Option<Vec<AccessUser>>,
     pub reply_to: Option<Box<PostView>>,
 }
@@ -74,9 +75,9 @@ impl ViewRelateField for PostView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct PostUsersView {
-    pub id: Thing,
+    pub id: RecordId,
     pub users: Option<Vec<AccessUserView>>,
 }
 
@@ -92,19 +93,21 @@ impl ViewRelateField for PostUsersView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct PostUserStatusView {
     pub status: PostUserStatus,
     #[serde(rename = "out")]
-    pub user: Thing,
+    #[surreal(rename = "out")]
+    pub user: RecordId,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct LatestPostView {
-    pub id: Thing,
+    pub id: RecordId,
     pub created_by: UserView,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
-    pub belongs_to: Thing,
+    pub belongs_to: RecordId,
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,

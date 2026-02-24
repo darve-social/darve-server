@@ -10,38 +10,41 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::{Id, Thing};
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use wallet_entity::{
     CurrencySymbol, WalletDbService, APP_GATEWAY_WALLET, TABLE_NAME as WALLET_TABLE_NAME,
 };
 
 use crate::database::client::Db;
-use crate::database::surrdb_utils::get_entity_list;
+use crate::database::query_builder::SurrealQueryBuilder;
+use crate::database::surrdb_utils::{get_entity_list, record_id_to_raw};
 use crate::entities::user_auth::local_user_entity;
 use crate::entities::wallet::balance_transaction_entity::{self, TransactionType};
 use crate::entities::wallet::wallet_entity::{self, check_transaction_custom_error, DARVE_WALLET};
 use crate::middleware;
 use crate::middleware::utils::db_utils::Pagination;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayTransaction {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
+    pub id: Option<RecordId>,
     pub amount: i64,
     pub currency: CurrencySymbol,
     pub external_tx_id: String,
-    pub user: Thing,
-    pub withdraw_wallet: Option<Thing>,
+    pub user: RecordId,
+    pub withdraw_wallet: Option<RecordId>,
     pub status: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[surreal(rename = "type")]
     pub r#type: TransactionType,
-    pub fee_tx: Option<Thing>,
+    pub fee_tx: Option<RecordId>,
     pub fee_amount: Option<u64>,
     #[serde(default)]
     pub timelines: Vec<GatewayTransactionTimeline>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
+#[surreal(untagged)]
 pub enum GatewayTransactionStatus {
     Pending,
     Completed,
@@ -60,7 +63,7 @@ impl Display for GatewayTransactionStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayTransactionTimeline {
     pub status: GatewayTransactionStatus,
     pub date: DateTime<Utc>,
@@ -89,7 +92,7 @@ impl<'a> GatewayTransactionDbService<'a> {
     DEFINE FIELD IF NOT EXISTS fee_amount ON TABLE {TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS timelines ON TABLE {TABLE_NAME} TYPE array<{{ status: string, date: datetime }}>;
-        
+
     DEFINE INDEX IF NOT EXISTS user_idx ON TABLE {TABLE_NAME} COLUMNS user;
     DEFINE INDEX IF NOT EXISTS type_idx ON TABLE {TABLE_NAME} COLUMNS type;
     DEFINE INDEX IF NOT EXISTS status_idx ON TABLE {TABLE_NAME} COLUMNS status;
@@ -104,12 +107,12 @@ impl<'a> GatewayTransactionDbService<'a> {
 
     pub async fn user_deposit_start(
         &self,
-        id: Thing,
-        user: Thing,
+        id: RecordId,
+        user: RecordId,
         amount: i64,
         currency: CurrencySymbol,
         external_tx_id: String,
-    ) -> CtxResult<Thing> {
+    ) -> CtxResult<RecordId> {
         let _ = self
             .db
             .query(format!(
@@ -140,12 +143,12 @@ impl<'a> GatewayTransactionDbService<'a> {
     // creates gatewayTransaction
     pub async fn user_deposit_tx(
         &self,
-        gateway_tx: Thing,
+        gateway_tx: RecordId,
         external_tx_id: String,
         amount: i64,
         currency_symbol: CurrencySymbol,
         description: Option<String>,
-    ) -> CtxResult<Thing> {
+    ) -> CtxResult<RecordId> {
         let tx = self.get(IdentIdName::Id(gateway_tx)).await?;
 
         if tx.external_tx_id != external_tx_id {
@@ -157,8 +160,8 @@ impl<'a> GatewayTransactionDbService<'a> {
         let user_wallet = WalletDbService::get_user_wallet_id(&tx.user);
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
-        let fund_tx_id = Thing::from((TABLE_NAME, Id::ulid()));
-        let query = self.db.query("BEGIN");
+        let fund_tx_id = RecordId::new(TABLE_NAME, RecordIdKey::rand());
+        let query = SurrealQueryBuilder::new("BEGIN");
 
         let tx_qry = BalanceTransactionDbService::build_transfer_qry(
             query,
@@ -172,24 +175,24 @@ impl<'a> GatewayTransactionDbService<'a> {
             "",
         )
         .query(format!(
-            "UPDATE $_gateway_tx_id SET 
+            "UPDATE $_gateway_tx_id SET
                     status=$_gateway_tx_status,
                     external_tx_id=$_gateway_ext_tx,
                     timelines+=[{{ status: $_gateway_tx_status, date: time::now() }}]"
         ))
         .query("COMMIT")
-        .bind(("_gateway_tx_id", tx.id.as_ref().unwrap().clone()))
-        .bind(("_gateway_ext_tx", external_tx_id))
-        .bind(("_gateway_tx_status", GatewayTransactionStatus::Completed));
+        .bind_var("_gateway_tx_id", tx.id.as_ref().unwrap().clone())
+        .bind_var("_gateway_ext_tx", external_tx_id)
+        .bind_var("_gateway_tx_status", GatewayTransactionStatus::Completed);
 
-        let mut fund_res = tx_qry.await?;
+        let mut fund_res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut fund_res)?;
         Ok(tx.id.as_ref().unwrap().clone())
     }
 
     pub async fn user_withdraw_tx_start(
         &self,
-        user: &Thing,
+        user: &RecordId,
         amount: u64,
         description: Option<String>,
         withdraw_fee: f64,
@@ -201,7 +204,7 @@ impl<'a> GatewayTransactionDbService<'a> {
         let id = Self::generate_id();
         let fee_amount = (amount as f64 * withdraw_fee) as u64;
 
-        let query = self.db.query("BEGIN");
+        let query = SurrealQueryBuilder::new("BEGIN");
         let mut tx_qry = BalanceTransactionDbService::build_transfer_qry(
             query,
             &user_wallet,
@@ -229,23 +232,23 @@ impl<'a> GatewayTransactionDbService<'a> {
                 timelines: [{{ status: $status, date: time::now() }}]
             }};
             LET $fund_tx_id = $fund_tx[0].id;
-            $fund_tx;"
+            RETURN $fund_tx[0];"
             ))
             .query("COMMIT")
-            .bind(("id", id))
-            .bind(("fund_amt", amount))
-            .bind(("user", user.clone()))
-            .bind(("external_tx_id", "".to_string()))
-            .bind(("currency", currency))
-            .bind(("fee_amount", fee_amount))
-            .bind(("withdraw_wallet", wallet_to.clone()))
-            .bind(("type", TransactionType::Withdraw))
-            .bind(("status", GatewayTransactionStatus::Pending));
+            .bind_var("id", id)
+            .bind_var("fund_amt", amount)
+            .bind_var("user", user.clone())
+            .bind_var("external_tx_id", "".to_string())
+            .bind_var("currency", currency)
+            .bind_var("fee_amount", fee_amount)
+            .bind_var("withdraw_wallet", wallet_to.clone())
+            .bind_var("type", TransactionType::Withdraw)
+            .bind_var("status", GatewayTransactionStatus::Pending);
 
-        let mut fund_res = tx_qry.await?;
+        let mut fund_res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut fund_res)?;
 
-        let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 1)?;
+        let res: Option<GatewayTransaction> = fund_res.take(fund_res.num_statements() - 2)?;
 
         res.ok_or(self.ctx.to_ctx_error(AppError::Generic {
             description: "Error in withdraw tx".to_string(),
@@ -254,7 +257,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
     pub async fn user_withdraw_tx_revert(
         &self,
-        withdraw_tx_id: Thing,
+        withdraw_tx_id: RecordId,
         description: Option<String>,
     ) -> CtxResult<GatewayTransaction> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
@@ -266,7 +269,7 @@ impl<'a> GatewayTransactionDbService<'a> {
                     ident: "withdraw_wallet".to_string(),
                 })?;
         let user_wallet = WalletDbService::get_user_wallet_id(&withdraw_tx.user);
-        let query = self.db.query("BEGIN");
+        let query = SurrealQueryBuilder::new("BEGIN");
         let mut tx_qry = BalanceTransactionDbService::build_transfer_qry(
             query,
             wallet_from,
@@ -281,10 +284,10 @@ impl<'a> GatewayTransactionDbService<'a> {
         tx_qry = tx_qry
             .query("UPDATE $_withdraw_tx_id SET status=$_withdraw_tx_status, timelines+=[{{ status: $_withdraw_tx_status, date: time::now() }}]")
             .query("COMMIT")
-            .bind(("_withdraw_tx_id", withdraw_tx_id))
-            .bind(("_withdraw_tx_status", GatewayTransactionStatus::Failed));
+            .bind_var("_withdraw_tx_id", withdraw_tx_id)
+            .bind_var("_withdraw_tx_status", GatewayTransactionStatus::Failed);
 
-        let mut fund_res = tx_qry.await?;
+        let mut fund_res = tx_qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut fund_res)?;
 
         Ok(withdraw_tx)
@@ -292,7 +295,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
     pub async fn user_withdraw_tx_complete(
         &self,
-        withdraw_tx_id: Thing,
+        withdraw_tx_id: RecordId,
     ) -> CtxResult<GatewayTransaction> {
         let withdraw_tx = self.get(IdentIdName::Id(withdraw_tx_id.clone())).await?;
 
@@ -308,7 +311,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             description: "Fee amount does not exist".to_string(),
         })?;
         let amount = withdraw_tx.amount - fee as i64;
-        let query = self.db.query("BEGIN");
+        let query = SurrealQueryBuilder::new("BEGIN");
         let mut qry = BalanceTransactionDbService::build_transfer_qry(
             query,
             &wallet_from,
@@ -342,10 +345,10 @@ impl<'a> GatewayTransactionDbService<'a> {
             timelines+=[{{ status: $_withdraw_tx_status, date: time::now() }}]"
             ))
             .query("COMMIT")
-            .bind(("_withdraw_tx_id", withdraw_tx_id))
-            .bind(("_withdraw_tx_status", GatewayTransactionStatus::Completed));
+            .bind_var("_withdraw_tx_id", withdraw_tx_id)
+            .bind_var("_withdraw_tx_status", GatewayTransactionStatus::Completed);
 
-        let mut fund_res = qry.await?;
+        let mut fund_res = qry.into_db_query(self.db).await?;
         check_transaction_custom_error(&mut fund_res)?;
         Ok(withdraw_tx)
     }
@@ -358,7 +361,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
     pub async fn get_by_user(
         &self,
-        user: &Thing,
+        user: &RecordId,
         status: Option<GatewayTransactionStatus>,
         r#type: Option<TransactionType>,
         pagination: Option<Pagination>,
@@ -366,13 +369,13 @@ impl<'a> GatewayTransactionDbService<'a> {
         let ident = match (status, r#type) {
             (None, None) => IdentIdName::ColumnIdent {
                 column: "user".to_string(),
-                val: user.to_raw(),
+                val: record_id_to_raw(user),
                 rec: true,
             },
             (None, Some(ref t)) => IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "user".to_string(),
-                    val: user.to_raw(),
+                    val: record_id_to_raw(user),
                     rec: true,
                 },
                 IdentIdName::ColumnIdent {
@@ -384,7 +387,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             (Some(ref s), None) => IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "user".to_string(),
-                    val: user.to_raw(),
+                    val: record_id_to_raw(user),
                     rec: true,
                 },
                 IdentIdName::ColumnIdent {
@@ -396,7 +399,7 @@ impl<'a> GatewayTransactionDbService<'a> {
             (Some(ref s), Some(ref t)) => IdentIdName::ColumnIdentAnd(vec![
                 IdentIdName::ColumnIdent {
                     column: "user".to_string(),
-                    val: user.to_raw(),
+                    val: record_id_to_raw(user),
                     rec: true,
                 },
                 IdentIdName::ColumnIdent {
@@ -423,7 +426,7 @@ impl<'a> GatewayTransactionDbService<'a> {
 
     pub async fn get_count_by_user(
         &self,
-        user: &Thing,
+        user: &RecordId,
         status: Option<GatewayTransactionStatus>,
         r#type: Option<TransactionType>,
     ) -> CtxResult<u64> {
@@ -450,11 +453,11 @@ impl<'a> GatewayTransactionDbService<'a> {
         Ok(count.unwrap_or_default())
     }
 
-    pub fn generate_id() -> Thing {
-        Thing::from((TABLE_NAME, Id::ulid()))
+    pub fn generate_id() -> RecordId {
+        RecordId::new(TABLE_NAME, RecordIdKey::rand())
     }
 
-    pub fn unknown_endowment_user_id(&self) -> Thing {
-        Thing::try_from((USER_TABLE, "unrecognized_user_endowment_id")).expect("is valid")
+    pub fn unknown_endowment_user_id(&self) -> RecordId {
+        RecordId::new(USER_TABLE, "unrecognized_user_endowment_id")
     }
 }

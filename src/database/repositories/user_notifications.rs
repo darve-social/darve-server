@@ -14,7 +14,7 @@ use crate::{
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct UserNotificationsRepository {
@@ -33,7 +33,7 @@ impl UserNotificationsRepository {
         DEFINE FIELD IF NOT EXISTS event       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS title       ON TABLE notifications TYPE string;
         DEFINE FIELD IF NOT EXISTS created_by  ON TABLE notifications TYPE record<{USER_TABLE_NAME}>;
-        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications FLEXIBLE TYPE option<object>;
+        DEFINE FIELD IF NOT EXISTS metadata    ON TABLE notifications TYPE option<object> FLEXIBLE;
         DEFINE FIELD IF NOT EXISTS created_at  ON TABLE notifications TYPE datetime DEFAULT time::now();
 
         DEFINE TABLE IF NOT EXISTS user_notifications TYPE RELATION IN local_user OUT notifications ENFORCED SCHEMAFULL PERMISSIONS NONE;
@@ -60,8 +60,8 @@ impl UserNotificationsInterface for UserNotificationsRepository {
     ) -> Result<UserNotification, AppError> {
         let receiver_things = receivers
             .iter()
-            .map(|id| Thing::from((USER_TABLE_NAME, id.as_str())))
-            .collect::<Vec<Thing>>();
+            .map(|id| RecordId::new(USER_TABLE_NAME, id.as_str()))
+            .collect::<Vec<RecordId>>();
 
         let query = r#"
             BEGIN TRANSACTION;
@@ -79,7 +79,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             };
             
             COMMIT TRANSACTION;
-            RETURN $notification;
+            RETURN {id: $notification.id, event: $notification.event, title: $notification.title, created_by: $notification.created_by, metadata: $notification.metadata, created_at: $notification.created_at, is_read: false};
 
         "#;
 
@@ -88,7 +88,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
             .query(query)
             .bind(("event", n_type.to_string()))
             .bind(("title", title.to_string()))
-            .bind(("created_by", Thing::from((USER_TABLE_NAME, creator))))
+            .bind(("created_by", RecordId::new(USER_TABLE_NAME, creator)))
             .bind(("metadata", metadata))
             .bind(("receivers", receiver_things))
             .await
@@ -124,7 +124,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
 
         let fields = UserNotificationView::get_fields();
         let query = format!(
-            "SELECT out.{{{fields}}}, out.created_at as created_at, is_read as out.is_read
+            "SELECT {fields}
              FROM user_notifications
              WHERE in=$user AND out.created_at < <datetime>$start {is_read_query} {types_query}
              ORDER BY created_at DESC
@@ -133,7 +133,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let mut res = self
             .client
             .query(&query)
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("start", options.start))
             .bind(("limit", options.limit))
             .bind(("is_read", options.is_read))
@@ -143,7 +143,7 @@ impl UserNotificationsInterface for UserNotificationsRepository {
                 source: e.to_string(),
             })?;
 
-        let data = res.take::<Vec<UserNotificationView>>((0, "out"))?;
+        let data = res.take::<Vec<UserNotificationView>>(0)?;
         Ok(data)
     }
 
@@ -151,8 +151,8 @@ impl UserNotificationsInterface for UserNotificationsRepository {
         let _ = self
             .client
             .query("UPDATE user_notifications SET is_read=$is_read WHERE out=$id AND in=$user_id")
-            .bind(("id", Thing::from(("notifications", id))))
-            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("id", RecordId::new("notifications", id)))
+            .bind(("user_id", get_str_thing(user_id)?))
             .bind(("is_read", true))
             .await
             .map_err(|e| AppError::SurrealDb {

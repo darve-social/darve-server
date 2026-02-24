@@ -5,6 +5,7 @@ use crate::database::table_names::REPLY_TABLE_NAME;
 use crate::entities::community::post_entity::PostDbService;
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::like::LikesRepositoryInterface;
+use crate::database::surrdb_utils::{record_id_key_to_string, record_id_to_raw};
 use crate::middleware;
 use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
 use crate::middleware::error::AppError;
@@ -57,16 +58,16 @@ async fn like(
     let reply = ctx_state
         .db
         .replies
-        .get_by_id(&reply_thing.id.to_raw())
+        .get_by_id(&record_id_key_to_string(&reply_thing.key))
         .await?;
 
     let mut belongs_to = reply.belongs_to.clone();
 
-    if belongs_to.tb == REPLY_TABLE_NAME {
+    if belongs_to.table.as_str() == REPLY_TABLE_NAME {
         belongs_to = ctx_state
             .db
             .replies
-            .get_by_id(&belongs_to.id.to_raw())
+            .get_by_id(&record_id_key_to_string(&belongs_to.key))
             .await?
             .belongs_to;
     }
@@ -77,7 +78,7 @@ async fn like(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&record_id_to_raw(&belongs_to), None)
         .await?;
 
     let likes = body.count.unwrap_or(1);
@@ -135,16 +136,16 @@ async fn unlike(
     let reply = ctx_state
         .db
         .replies
-        .get_by_id(&reply_thing.id.to_raw())
+        .get_by_id(&record_id_key_to_string(&reply_thing.key))
         .await?;
 
     let mut belongs_to = reply.belongs_to.clone();
 
-    if belongs_to.tb == REPLY_TABLE_NAME {
+    if belongs_to.table.as_str() == REPLY_TABLE_NAME {
         belongs_to = ctx_state
             .db
             .replies
-            .get_by_id(&belongs_to.id.to_raw())
+            .get_by_id(&record_id_key_to_string(&belongs_to.key))
             .await?
             .belongs_to;
     }
@@ -155,7 +156,7 @@ async fn unlike(
     };
 
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&record_id_to_raw(&belongs_to), None)
         .await?;
 
     if !PostAccess::new(&post).can_like(&user) {
@@ -194,7 +195,7 @@ async fn create_reply(
     let comment = state
         .db
         .replies
-        .get_by_id(&comment_thing.id.to_raw())
+        .get_by_id(&record_id_key_to_string(&comment_thing.key))
         .await?;
 
     let post_db_service = PostDbService {
@@ -202,7 +203,7 @@ async fn create_reply(
         ctx: &auth_data.ctx,
     };
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&comment.belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&record_id_to_raw(&comment.belongs_to), None)
         .await?;
 
     if !PostAccess::new(&post).can_create_reply_for_reply(&user) {
@@ -214,7 +215,7 @@ async fn create_reply(
         .replies
         .create(
             comment.id,
-            user.id.as_ref().unwrap().id.to_raw().as_ref(),
+            record_id_key_to_string(&user.id.as_ref().unwrap().key).as_ref(),
             &reply_input.content,
         )
         .await?;
@@ -257,7 +258,7 @@ async fn get_replies(
     let comment = state
         .db
         .replies
-        .get_by_id(&comment_thing.id.to_raw())
+        .get_by_id(&record_id_key_to_string(&comment_thing.key))
         .await?;
 
     let post_db_service = PostDbService {
@@ -265,7 +266,7 @@ async fn get_replies(
         ctx: &auth_data.ctx,
     };
     let post = post_db_service
-        .get_view_by_id::<PostAccessView>(&comment.belongs_to.to_raw(), None)
+        .get_view_by_id::<PostAccessView>(&record_id_to_raw(&comment.belongs_to), None)
         .await?;
 
     if !PostAccess::new(&post).can_view(&user) {

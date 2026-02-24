@@ -4,11 +4,11 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct UserView {
-    pub id: Thing,
+    pub id: RecordId,
     pub username: String,
     pub full_name: Option<String>,
     pub birth_date: Option<String>,
@@ -45,7 +45,7 @@ impl ViewFieldSelector for UserView {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoggedUserView {
-    pub id: Thing,
+    pub id: RecordId,
     pub username: String,
     pub full_name: Option<String>,
     pub birth_date: Option<String>,

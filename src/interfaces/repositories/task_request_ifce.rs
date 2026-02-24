@@ -1,5 +1,5 @@
 use crate::{
-    database::repository_traits::RepositoryCore,
+    database::{query_builder::SurrealQueryBuilder, repository_traits::RepositoryCore},
     entities::{
         task_request::{TaskForReward, TaskRequestCreate, TaskRequestStatus, TaskRequestType},
         task_request_user::TaskParticipantStatus,
@@ -11,27 +11,26 @@ use crate::{
 };
 use async_trait::async_trait;
 use serde::Deserialize;
-use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 #[async_trait]
 pub trait TaskRequestRepositoryInterface: RepositoryCore {
     /// Build a create query for a task request (used in transactions)
-    fn build_create_query<'b>(
+    fn build_create_query(
         &self,
-        query: Query<'b, surrealdb::engine::any::Any>,
+        query: SurrealQueryBuilder,
         record: &TaskRequestCreate,
-    ) -> Query<'b, surrealdb::engine::any::Any>;
+    ) -> SurrealQueryBuilder;
 
     /// Get task requests by post IDs
-    async fn get_by_posts<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_posts<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        posts: Vec<Thing>,
-        user: Thing,
+        posts: Vec<RecordId>,
+        user: RecordId,
     ) -> Result<Vec<T>, surrealdb::Error>;
 
     /// Get task requests by public discussion
-    async fn get_by_public_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_public_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -42,7 +41,7 @@ pub trait TaskRequestRepositoryInterface: RepositoryCore {
     ) -> Result<Vec<T>, surrealdb::Error>;
 
     /// Get task requests by private discussion
-    async fn get_by_private_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_private_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         disc_id: &str,
         user_id: &str,
@@ -53,7 +52,7 @@ pub trait TaskRequestRepositoryInterface: RepositoryCore {
     ) -> Result<Vec<T>, surrealdb::Error>;
 
     /// Get task requests by user and discussion
-    async fn get_by_user_and_disc<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_user_and_disc<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         user_id: &str,
         disc_id: &str,
@@ -61,18 +60,18 @@ pub trait TaskRequestRepositoryInterface: RepositoryCore {
     ) -> Result<Vec<T>, surrealdb::Error>;
 
     /// Get task requests by user participation
-    async fn get_by_user<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_user<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        user: &Thing,
+        user: &RecordId,
         status: Option<TaskParticipantStatus>,
         is_ended: Option<bool>,
         pagination: Pagination,
     ) -> Result<Vec<T>, surrealdb::Error>;
 
     /// Get task requests created by user
-    async fn get_by_creator<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_creator<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
-        user: Thing,
+        user: RecordId,
         pagination: Pagination,
     ) -> Result<Vec<T>, surrealdb::Error>;
 
@@ -92,7 +91,7 @@ pub trait TaskRequestRepositoryInterface: RepositoryCore {
     /// Get all tasks ready for payment
     async fn get_ready_for_payment(&self) -> Result<Vec<TaskForReward>, surrealdb::Error>;
 
-    async fn get_by_id<T: for<'de> Deserialize<'de> + ViewFieldSelector + Send>(
+    async fn get_by_id<T: for<'de> Deserialize<'de> + SurrealValue + ViewFieldSelector + Send>(
         &self,
         id: &str,
     ) -> AppResult<T>;

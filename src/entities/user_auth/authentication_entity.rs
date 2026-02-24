@@ -1,10 +1,8 @@
-use std::str::FromStr;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use strum::EnumString;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 use crate::middleware;
 use crate::{
@@ -15,16 +13,17 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct CreateAuthInput {
-    pub local_user: Thing,
+    pub local_user: RecordId,
     pub token: String,
     pub auth_type: AuthType,
     pub passkey_json: Option<String>,
     pub metadata: Option<Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, EnumString)]
+#[derive(Clone, Debug, Serialize, Deserialize, EnumString, SurrealValue)]
+#[surreal(untagged)]
 pub enum AuthType {
     PASSWORD,
     PASSKEY,
@@ -34,10 +33,10 @@ pub enum AuthType {
     TWITCH,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct Authentication {
-    pub id: Thing,
-    pub local_user: Thing,
+    pub id: RecordId,
+    pub local_user: RecordId,
     pub auth_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passkey_json: Option<String>,
@@ -85,11 +84,13 @@ impl<'a> AuthenticationDbService<'a> {
         user: String,
         auth: AuthType,
     ) -> CtxResult<Option<Authentication>> {
+        let user_record = RecordId::parse_simple(&user)
+            .unwrap_or_else(|_| RecordId::new(TABLE_NAME, user.as_str()));
         let mut res = self
             .db
             .query("SELECT * FROM type::table($table) WHERE local_user=<record>$user AND auth_type=$auth_type;")
             .bind(("table", TABLE_NAME))
-            .bind(("user", Thing::from_str(&user).unwrap()))
+            .bind(("user", user_record))
             .bind(("auth_type", auth))
             .await?;
 
@@ -111,7 +112,7 @@ impl<'a> AuthenticationDbService<'a> {
         Ok(res.take::<Option<Authentication>>(0)?)
     }
 
-    pub async fn get_by_user(&self, user: Thing) -> CtxResult<Vec<Authentication>> {
+    pub async fn get_by_user(&self, user: RecordId) -> CtxResult<Vec<Authentication>> {
         let mut res = self
             .db
             .query("SELECT * FROM type::table($table) WHERE local_user=<record>$user AND auth_type=$a_type;")
@@ -136,7 +137,7 @@ impl<'a> AuthenticationDbService<'a> {
                 "UPDATE type::table($table) SET token=$value, metadata=$metadata WHERE local_user=<record>$user AND auth_type=$auth_type;",
             )
             .bind(("table", TABLE_NAME))
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id ))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("auth_type", auth_type))
             .bind(("value", token))
             .bind(("metadata", metadata))

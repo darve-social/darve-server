@@ -1,3 +1,4 @@
+use crate::database::surrdb_utils::record_id_to_raw;
 use crate::entities::user_notification::UserNotificationEvent;
 use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::{
@@ -54,7 +55,7 @@ async fn read(
     let _ = state
         .db
         .user_notifications
-        .read(&notification_id, &user.id.to_raw())
+        .read(&notification_id, &record_id_to_raw(&user))
         .await?;
 
     Ok(())
@@ -68,7 +69,7 @@ async fn read_all(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<()>
     .get_ctx_user_thing()
     .await?;
 
-    let _ = state.db.user_notifications.read_all(&user.to_raw()).await?;
+    let _ = state.db.user_notifications.read_all(&record_id_to_raw(&user)).await?;
 
     Ok(())
 }
@@ -152,7 +153,7 @@ async fn sse(
     .get_ctx_user_thing()
     .await?;
 
-    let user_id = user.id.to_raw();
+    let user_id = record_id_to_raw(&user);
     let indicator = Arc::new(UserPresenceGuard::new(state.clone(), user_id.clone()));
 
     let get_unread_count_ev = {

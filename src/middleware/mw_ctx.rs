@@ -14,7 +14,7 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 use tokio::sync::broadcast;
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,8 +33,8 @@ pub struct AppEventUsetStatus {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEventMetadata {
-    pub discussion_id: Option<Thing>,
-    pub post_id: Option<Thing>,
+    pub discussion_id: Option<RecordId>,
+    pub post_id: Option<RecordId>,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct AppEvent {

@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity;
@@ -12,11 +13,11 @@ use crate::helpers::post_helpers::{create_fake_post, create_post};
 use community_entity::CommunityDbService;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 struct DiscussionUserView {
-    pub latest_post: Option<Thing>,
+    pub latest_post: Option<RecordId>,
     pub nr_unread: u32,
 }
 
@@ -64,7 +65,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user1.id.as_ref().unwrap().id.to_raw().as_str(),
+            user1.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -80,7 +81,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user2.id.as_ref().unwrap().id.to_raw().as_str(),
+            user2.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -96,7 +97,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            user3.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -111,7 +112,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user4.id.as_ref().unwrap().id.to_raw().as_str(),
+            user4.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -127,7 +128,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user5.id.as_ref().unwrap().id.to_raw().as_str(),
+            user5.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -162,7 +163,7 @@ test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            user3.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -208,7 +209,7 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user2.id.as_ref().unwrap().id.to_raw().as_str(),
+            user2.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -255,7 +256,7 @@ test_with_server!(
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
-                user1.id.as_ref().unwrap().id.to_raw().as_str(),
+                user1.id.as_ref().unwrap().key_to_string().as_str(),
                 PAGINATION,
                 false,
                 None,
@@ -298,7 +299,7 @@ test_with_server!(
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
-                user2.id.as_ref().unwrap().id.to_raw().as_str(),
+                user2.id.as_ref().unwrap().key_to_string().as_str(),
                 PAGINATION,
                 false,
                 None,
@@ -313,7 +314,7 @@ test_with_server!(
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
-                user1.id.as_ref().unwrap().id.to_raw().as_str(),
+                user1.id.as_ref().unwrap().key_to_string().as_str(),
                 PAGINATION,
                 false,
                 None,
@@ -328,7 +329,7 @@ test_with_server!(
             .db
             .discussion_users
             .get_by_user::<DiscussionUserView>(
-                user3.id.as_ref().unwrap().id.to_raw().as_str(),
+                user3.id.as_ref().unwrap().key_to_string().as_str(),
                 PAGINATION,
                 false,
                 None,
@@ -380,7 +381,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user2.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -395,7 +396,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user1.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -410,7 +411,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user3.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -462,7 +463,7 @@ test_with_server!(
 //         server
 //             .post(&format!(
 //                 "/api/posts/{}/remove_users",
-//                 private_post.id.to_raw()
+//                 private_post.key_to_string()
 //             ))
 //             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
 //             .await
@@ -472,7 +473,7 @@ test_with_server!(
 //         //     .db
 //         //     .discussion_users
 //         //     .get_by_user::<DiscussionUserView>(
-//         //         user2.id.as_ref().unwrap().id.to_raw().as_str(),
+//         //         user2.id.as_ref().unwrap().key_to_string().as_str(),
 //         //         PAGINATION,
 //         //         false,
 //         //         None,
@@ -487,7 +488,7 @@ test_with_server!(
 //         //     .db
 //         //     .discussion_users
 //         //     .get_by_user::<DiscussionUserView>(
-//         //         user1.id.as_ref().unwrap().id.to_raw().as_str(),
+//         //         user1.id.as_ref().unwrap().key_to_string().as_str(),
 //         //         PAGINATION,
 //         //         false,
 //         //         None,
@@ -505,7 +506,7 @@ test_with_server!(
 //         //     .db
 //         //     .discussion_users
 //         //     .get_by_user::<DiscussionUserView>(
-//         //         user3.id.as_ref().unwrap().id.to_raw().as_str(),
+//         //         user3.id.as_ref().unwrap().key_to_string().as_str(),
 //         //         PAGINATION,
 //         //         false,
 //         //         None,
@@ -558,7 +559,7 @@ test_with_server!(
 //         let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
 //         server
-//             .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
+//             .post(&format!("/api/posts/{}/read", private_post.key_to_string()))
 //             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
 //             .add_header("Cookie", format!("jwt={}", token2))
 //             .await
@@ -567,7 +568,7 @@ test_with_server!(
 //         server
 //             .post(&format!(
 //                 "/api/posts/{}/remove_users",
-//                 private_post.id.to_raw()
+//                 private_post.key_to_string()
 //             ))
 //             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
 //             .await
@@ -577,7 +578,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user2.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user2.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -592,7 +593,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user1.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user1.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -607,7 +608,7 @@ test_with_server!(
 //             .db
 //             .discussion_users
 //             .get_by_user::<DiscussionUserView>(
-//                 user3.id.as_ref().unwrap().id.to_raw().as_str(),
+//                 user3.id.as_ref().unwrap().key_to_string().as_str(),
 //                 PAGINATION,
 //                 false,
 //                 None,
@@ -655,7 +656,7 @@ test_with_server!(
 //     let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
 
 //     server
-//         .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
+//         .post(&format!("/api/posts/{}/read", private_post.key_to_string()))
 //         .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
 //         .add_header("Cookie", format!("jwt={}", token2))
 //         .await
@@ -665,7 +666,7 @@ test_with_server!(
 //         .db
 //         .discussion_users
 //         .get_by_user::<DiscussionUserView>(
-//             user2.id.as_ref().unwrap().id.to_raw().as_str(),
+//             user2.id.as_ref().unwrap().key_to_string().as_str(),
 //             PAGINATION,
 //             false,
 //             None,
@@ -683,7 +684,7 @@ test_with_server!(
 //         .db
 //         .discussion_users
 //         .get_by_user::<DiscussionUserView>(
-//             user1.id.as_ref().unwrap().id.to_raw().as_str(),
+//             user1.id.as_ref().unwrap().key_to_string().as_str(),
 //             PAGINATION,
 //             false,
 //             None,
@@ -701,7 +702,7 @@ test_with_server!(
 //         .db
 //         .discussion_users
 //         .get_by_user::<DiscussionUserView>(
-//             user3.id.as_ref().unwrap().id.to_raw().as_str(),
+//             user3.id.as_ref().unwrap().key_to_string().as_str(),
 //             PAGINATION,
 //             false,
 //             None,
@@ -777,7 +778,7 @@ test_with_server!(search_by_username, |server, ctx_state, config| {
     //     .db
     //     .discussion_users
     //     .get_by_user::<DiscussionUserView>(
-    //         user1.id.as_ref().unwrap().id.to_raw().as_str(),
+    //         user1.id.as_ref().unwrap().key_to_string().as_str(),
     //         PAGINATION,
     //         false,
     //         None,
@@ -790,7 +791,7 @@ test_with_server!(search_by_username, |server, ctx_state, config| {
     //     .db
     //     .discussion_users
     //     .get_by_user::<DiscussionUserView>(
-    //         user1.id.as_ref().unwrap().id.to_raw().as_str(),
+    //         user1.id.as_ref().unwrap().key_to_string().as_str(),
     //         PAGINATION,
     //         false,
     //         Some(user2.username[0..5].to_string()),
@@ -853,7 +854,7 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            user3.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             None,
@@ -864,7 +865,7 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
     assert_eq!(disc_user1.len(), 2);
 
     server
-        .post(format!("/api/discussions/{}/alias", disc_id).as_str())
+        .post(format!("/api/discussions/{}/alias", disc_id.to_raw()).as_str())
         .json(&json!({"alias": "Friends"}))
         .await
         .assert_status_success();
@@ -873,7 +874,7 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            user3.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             Some("Mate".to_string()),
@@ -886,7 +887,7 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
         .db
         .discussion_users
         .get_by_user::<DiscussionUserView>(
-            user3.id.as_ref().unwrap().id.to_raw().as_str(),
+            user3.id.as_ref().unwrap().key_to_string().as_str(),
             PAGINATION,
             false,
             Some("Friends".to_string()),

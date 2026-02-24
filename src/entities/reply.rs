@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct Reply {
-    pub id: Thing,
-    pub belongs_to: Thing,
-    pub created_by: Thing,
+    pub id: RecordId,
+    pub belongs_to: RecordId,
+    pub created_by: RecordId,
     pub content: String,
     pub likes_nr: u32,
     pub replies_nr: u32,

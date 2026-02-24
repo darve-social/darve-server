@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 use darve_server::entities::wallet::balance_transaction_entity::{
     CurrencyTransaction, TransactionType,
 };
@@ -10,7 +11,8 @@ use darve_server::entities::wallet::wallet_entity::{
 };
 use darve_server::middleware::ctx::Ctx;
 use darve_server::middleware::error::AppError;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
+
 
 use crate::helpers::create_fake_login_test_user;
 
@@ -192,10 +194,7 @@ test_with_server!(withdraw_revert, |server, ctx_state, config| {
     };
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            user.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", user.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
 

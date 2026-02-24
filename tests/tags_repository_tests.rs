@@ -1,8 +1,9 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::entities::community::discussion_entity::DiscussionDbService;
-use darve_server::entities::community::post_entity::Post;
+use darve_server::models::view::post::PostView;
 use darve_server::interfaces::repositories::tags::TagsRepositoryInterface;
 use darve_server::middleware::utils::db_utils::Pagination;
 use darve_server::middleware::utils::string_utils::get_str_thing;
@@ -71,7 +72,7 @@ test_with_server!(test_get_by_tag, |server, ctx_state, config| {
         order_by: None,
         order_dir: None,
     };
-    let results: Vec<Post> = ctx_state
+    let results: Vec<PostView> = ctx_state
         .db
         .tags
         .get_by_tag("frontend", pagination)
@@ -80,7 +81,7 @@ test_with_server!(test_get_by_tag, |server, ctx_state, config| {
 
     assert_eq!(results.len(), 1);
     let result = results.first().unwrap();
-    assert_eq!(result.id.as_ref().unwrap().to_raw(), entity.id);
+    assert_eq!(result.id.to_raw(), entity.id);
 });
 
 test_with_server!(test_get_tags_empty, |_server, ctx_state, config| {

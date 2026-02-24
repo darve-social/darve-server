@@ -1,9 +1,9 @@
+use surrealdb::types::{RecordId, SurrealValue};
 use std::sync::Arc;
 
-use crate::utils::validate_utils::deserialize_thing_or_string;
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess, task::TaskAccess},
-    database::{client::Db, table_names::TASK_REQUEST_TABLE_NAME},
+    database::{client::Db, query_builder::SurrealQueryBuilder, surrdb_utils::record_id_to_raw, table_names::TASK_REQUEST_TABLE_NAME},
     entities::{
         access_user::AccessUser,
         community::{
@@ -54,24 +54,24 @@ use crate::{
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+
 use validator::Validate;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, SurrealValue)]
 pub struct TaskView {
-    #[serde(deserialize_with = "deserialize_thing_or_string")]
-    pub id: String,
-    pub wallet_id: Thing,
+    pub id: RecordId,
+    pub wallet_id: RecordId,
     pub request_txt: String,
     pub reward_type: RewardType,
     pub currency: CurrencySymbol,
+    #[surreal(rename = "type")]
     pub r#type: TaskRequestType,
     pub donors: Vec<TaskDonor>,
     pub participants: Vec<TaskParticipant>,
     pub acceptance_period: u64,
     pub delivery_period: u64,
     pub created_at: DateTime<Utc>,
-    pub related_to: Option<Thing>,
+    pub related_to: Option<RecordId>,
     pub status: TaskRequestStatus,
 }
 
@@ -87,7 +87,7 @@ impl ViewFieldSelector for TaskView {
         wallet_id,
         created_at,
         status,
-        ->task_relate.out[0] as related_to,
+        array::first(->task_relate.out) as related_to,
         ->task_donor.*.{id, transaction, amount, user: out} as donors,
         ->task_participant.{id:record::id(id),task:record::id(in),user:record::id(out),status, timelines} as participants"
             .to_string()
@@ -398,7 +398,7 @@ where
             .find(|p| &p.user == donor.id.as_ref().unwrap());
 
         let user_wallet = WalletDbService::get_user_wallet_id(donor.id.as_ref().unwrap());
-        let mut query = self.db.query("BEGIN");
+        let mut query = SurrealQueryBuilder::new("BEGIN");
         match participant {
             Some(p) => {
                 if let Some(ref tx) = p.transaction {
@@ -434,7 +434,7 @@ where
 
                 query = self.task_donors_repository.build_update_query(
                     query,
-                    &p.id.as_ref().unwrap().id.to_raw(),
+                    &crate::database::surrdb_utils::record_id_key_to_string(&p.id.as_ref().unwrap().key),
                     "$donate_tx_out_id",
                     data.amount as u64,
                     &task.currency.to_string(),
@@ -464,10 +464,10 @@ where
             }
         };
 
-        let mut res = query.query("RETURN $task_donor;").query("COMMIT").await?;
+        let mut res = query.query("RETURN $task_donor;").query("COMMIT").into_db_query(self.db).await?;
         check_transaction_custom_error(&mut res)?;
 
-        let response: Option<TaskDonor> = res.take(0)?;
+        let response: Option<TaskDonor> = res.take(res.num_statements() - 2)?;
 
         if participant.is_none() {
             let _ = self
@@ -524,10 +524,11 @@ where
 
         let _ = self.try_to_process_reward(&task).await;
 
+        let task_id_raw = record_id_to_raw(&task.id);
         self.access_repository
             .remove_by_user(
                 user.id.as_ref().unwrap().clone(),
-                [task.id.as_ref()].to_vec(),
+                [task_id_raw.as_str()].to_vec(),
             )
             .await?;
 
@@ -596,7 +597,7 @@ where
             None => {
                 let result = self
                     .task_participants_repository
-                    .create(&task.id, &user_id, TaskParticipantStatus::Accepted.as_str())
+                    .create(&record_id_to_raw(&task.id), &user_id, TaskParticipantStatus::Accepted.as_str())
                     .await
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
@@ -680,7 +681,7 @@ where
                 &format!(
                     "{}_{}_{}",
                     user_id,
-                    task_view.id.id.to_raw(),
+                    crate::database::surrdb_utils::record_id_key_to_string(&task_view.id.key),
                     file.file_name
                 ),
                 file.content_type.as_deref(),
@@ -749,7 +750,7 @@ where
                 &user,
                 &task_view,
                 &link,
-                task_participant_result.post.map(|p| p.to_raw()),
+                task_participant_result.post.map(|p| record_id_to_raw(&p)),
             )
             .await?;
 
@@ -761,8 +762,11 @@ where
             .tasks_repository
             .get_ready_for_payment()
             .await
-            .map_err(|e| AppError::SurrealDb {
-                source: e.to_string(),
+            .map_err(|e| {
+                eprintln!("DEBUG get_ready_for_payment ERROR: {:?}", e);
+                AppError::SurrealDb {
+                    source: e.to_string(),
+                }
             })?;
         join_all(tasks.into_iter().map(|t| self.process_reward(t))).await;
         Ok(())
@@ -775,7 +779,7 @@ where
 
         let task = self
             .tasks_repository
-            .get_ready_for_payment_by_id(&task.id)
+            .get_ready_for_payment_by_id(&record_id_to_raw(&task.id))
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
@@ -840,7 +844,7 @@ where
                 .filter(|u| u.reward_tx.is_none())
                 .collect();
 
-            let task_donors = task.donors.iter().map(|d| &d.id).collect::<Vec<&Thing>>();
+            let task_donors = task.donors.iter().map(|d| &d.id).collect::<Vec<&RecordId>>();
 
             let amount: u64 = task.balance.unwrap() as u64 / task_users.len() as u64;
             for task_user in task_users {
@@ -887,14 +891,15 @@ where
         participants: Vec<&LocalUser>,
         r#type: TaskRequestType,
         data: TaskRequestInput,
-        belongs_to: Thing,
+        belongs_to: RecordId,
         increase_tasks_nr_for_belongs: bool,
     ) -> CtxResult<TaskRequestEntity> {
         let offer_currency = CurrencySymbol::USD;
         let user_thing = user.id.as_ref().unwrap();
-        let mut query = self.db.query("BEGIN");
+        let mut query = SurrealQueryBuilder::new("BEGIN");
 
-        let id = surrealdb::sql::Id::ulid();
+        let id = surrealdb::types::RecordIdKey::rand();
+        let id_str = crate::database::surrdb_utils::record_id_key_to_string(&id);
         let task_data = TaskRequestCreate {
             belongs_to,
             r#type,
@@ -908,8 +913,8 @@ where
                 .unwrap_or(self.default_period_seconds),
             delivery_period: data.delivery_period.unwrap_or(self.default_period_seconds),
             increase_tasks_nr_for_belongs,
-            task_id: Thing::from((TASK_REQUEST_TABLE_NAME, id.clone())),
-            wallet_id: Thing::from((WALLET_TABLE_NAME, id)),
+            task_id: RecordId::new(TASK_REQUEST_TABLE_NAME, id_str.as_str()),
+            wallet_id: RecordId::new(WALLET_TABLE_NAME, id_str.as_str()),
         };
 
         query = self.tasks_repository.build_create_query(query, &task_data);
@@ -929,10 +934,12 @@ where
                 "donate",
             );
 
+            let task_id_raw = crate::database::surrdb_utils::record_id_to_raw(&task_data.task_id);
+            let user_key = crate::database::surrdb_utils::record_id_key_to_string(&user_thing.key);
             query = self.task_donors_repository.build_create_query(
                 query,
-                &task_data.task_id.to_raw().as_ref(),
-                &user_thing.id.to_raw(),
+                task_id_raw.as_str(),
+                user_key.as_str(),
                 "$donate_tx_out_id",
                 amount as u64,
                 &task_data.currency.to_string(),
@@ -942,23 +949,24 @@ where
         let participant_ids = participants
             .into_iter()
             .map(|u| u.id.as_ref().unwrap().clone())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if !participant_ids.is_empty() {
+            let task_id_raw = crate::database::surrdb_utils::record_id_to_raw(&task_data.task_id);
             query = self.task_participants_repository.build_create_query(
                 query,
-                &task_data.task_id.to_raw(),
+                task_id_raw.as_str(),
                 participant_ids
                     .iter()
-                    .map(|id| id.id.to_raw())
+                    .map(|id| crate::database::surrdb_utils::record_id_key_to_string(&id.key))
                     .collect::<Vec<String>>(),
                 TaskParticipantStatus::Requested.as_str(),
             );
         };
 
-        let mut res = query.query("RETURN $task;").query("COMMIT").await?;
+        let mut res = query.query("RETURN $task;").query("COMMIT").into_db_query(self.db).await?;
         check_transaction_custom_error(&mut res)?;
-        let task: Option<TaskRequestEntity> = res.take(0)?;
+        let task: Option<TaskRequestEntity> = res.take(res.num_statements() - 2)?;
         let task = task.unwrap();
 
         if !participant_ids.is_empty() {
@@ -1001,7 +1009,7 @@ where
             .participants
             .iter()
             .filter_map(|id| get_str_thing(id).ok())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if ids.is_empty() {
             return Ok(vec![]);

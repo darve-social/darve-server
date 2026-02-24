@@ -6,7 +6,7 @@ use crate::interfaces::repositories::nickname::NicknamesRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct NicknamesRepository {
@@ -40,13 +40,11 @@ impl NicknamesRepositoryInterface for NicknamesRepository {
         let _ = self
             .client
             .query(format!(
-                "LET $res=(UPDATE $in->{NICKNAME_TABLE_NAME} SET name=$name WHERE out=$out)[0].id;"
+                "LET $res=(UPDATE $in->{NICKNAME_TABLE_NAME} SET name=$name WHERE out=$out)[0].id; \
+                IF $res = NONE THEN RELATE $in->{NICKNAME_TABLE_NAME}->$out SET name=$name END;"
             ))
-            .query(format!(
-                "IF $res = NONE THEN RELATE $in->{NICKNAME_TABLE_NAME}->$out SET name=$name END;"
-            ))
-            .bind(("in", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("out", Thing::from((USER_TABLE_NAME, to_user_id))))
+            .bind(("in", RecordId::new(USER_TABLE_NAME, user_id)))
+            .bind(("out", RecordId::new(USER_TABLE_NAME, to_user_id)))
             .bind(("name", name))
             .await?;
         Ok(())
@@ -56,8 +54,8 @@ impl NicknamesRepositoryInterface for NicknamesRepository {
         let _ = self
             .client
             .query(format!("DELETE $in->{NICKNAME_TABLE_NAME} WHERE out=$out;"))
-            .bind(("in", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("out", Thing::from((USER_TABLE_NAME, to_user_id))))
+            .bind(("in", RecordId::new(USER_TABLE_NAME, user_id)))
+            .bind(("out", RecordId::new(USER_TABLE_NAME, to_user_id)))
             .await?;
 
         Ok(())
@@ -66,11 +64,11 @@ impl NicknamesRepositoryInterface for NicknamesRepository {
     async fn get_by_user(&self, user_id: &str) -> AppResult<Vec<Nickname>> {
         let mut res = self
             .client
-            .query(format!("SELECT * FROM $in->{NICKNAME_TABLE_NAME} "))
-            .bind(("in", Thing::from((USER_TABLE_NAME, user_id))))
+            .query(format!("SELECT record::id(out) AS user_id, name FROM {NICKNAME_TABLE_NAME} WHERE in=$user_in"))
+            .bind(("user_in", RecordId::new(USER_TABLE_NAME, user_id)))
             .await?;
 
-        let data: Vec<Nickname> = res.take(0)?;
+        let data: Vec<Nickname> = res.take(0).map_err(|e| AppError::SurrealDb { source: e.to_string() })?;
 
         Ok(data)
     }

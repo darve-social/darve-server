@@ -8,7 +8,8 @@ use axum::{
     routing::post,
     Router,
 };
-use surrealdb::sql::Thing;
+
+use surrealdb::types::RecordId;
 
 use crate::{
     entities::wallet::gateway_transaction_entity::GatewayTransactionDbService,
@@ -50,8 +51,8 @@ async fn handle_webhook(
 
     match event.event_type {
         EventType::PaymentPayoutItemSucceeded => {
-            let batch_id: &str = &event.resource.sender_batch_id.unwrap();
-            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let batch_id = event.resource.sender_batch_id.unwrap();
+            let batch_thing = RecordId::parse_simple(&batch_id).expect("parse thing error");
             let db_service = GatewayTransactionDbService {
                 db: &state.db.client,
                 ctx: &ctx,
@@ -70,7 +71,7 @@ async fn handle_webhook(
         EventType::PaymentPayoutBatchDenied => {
             let batch_header = event.resource.batch_header.unwrap();
             let batch_id = batch_header.sender_batch_header.sender_batch_id;
-            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let batch_thing = RecordId::parse_simple(&batch_id).expect("parse thing error");
             let db_service = GatewayTransactionDbService {
                 db: &state.db.client,
                 ctx: &ctx,
@@ -108,8 +109,8 @@ async fn handle_webhook(
                 .await;
         }
         _ => {
-            let batch_id: &str = &event.resource.sender_batch_id.unwrap();
-            let batch_thing = Thing::try_from(batch_id).expect("parse thing error");
+            let batch_id = event.resource.sender_batch_id.unwrap();
+            let batch_thing = RecordId::parse_simple(&batch_id).expect("parse thing error");
             let db_service = GatewayTransactionDbService {
                 db: &state.db.client,
                 ctx: &ctx,

@@ -6,7 +6,7 @@ use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct AccessRepository {
@@ -19,7 +19,7 @@ impl AccessRepository {
     }
     pub(in crate::database) async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
-    
+
     DEFINE TABLE IF NOT EXISTS {ACCESS_TABLE_NAME} TYPE RELATION IN {USER_TABLE_NAME} ENFORCED SCHEMAFULL PERMISSIONS NONE;
     DEFINE INDEX IF NOT EXISTS in_out_unique_idx ON {ACCESS_TABLE_NAME} FIELDS in, out UNIQUE;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {ACCESS_TABLE_NAME} TYPE datetime DEFAULT time::now();
@@ -37,7 +37,7 @@ impl AccessRepository {
 
 #[async_trait]
 impl AccessRepositoryInterface for AccessRepository {
-    async fn add(&self, users: Vec<Thing>, entities: Vec<&str>, role: String) -> AppResult<()> {
+    async fn add(&self, users: Vec<RecordId>, entities: Vec<&str>, role: String) -> AppResult<()> {
         let mut things = Vec::with_capacity(entities.len());
         for id in entities {
             things.push(get_thing(id).map_err(|e| AppError::SurrealDb {
@@ -58,7 +58,7 @@ impl AccessRepositoryInterface for AccessRepository {
         Ok(())
     }
 
-    async fn update(&self, user: Thing, entity: &str, role: String) -> AppResult<()> {
+    async fn update(&self, user: RecordId, entity: &str, role: String) -> AppResult<()> {
         let thing = get_thing(entity).map_err(|e| AppError::SurrealDb {
             source: e.to_string(),
         })?;
@@ -76,7 +76,7 @@ impl AccessRepositoryInterface for AccessRepository {
         Ok(())
     }
 
-    async fn remove_by_user(&self, user: Thing, entities: Vec<&str>) -> AppResult<()> {
+    async fn remove_by_user(&self, user: RecordId, entities: Vec<&str>) -> AppResult<()> {
         let mut things = Vec::with_capacity(entities.len());
         for id in entities {
             things.push(get_thing(id).map_err(|e| AppError::SurrealDb {
@@ -96,7 +96,7 @@ impl AccessRepositoryInterface for AccessRepository {
         Ok(())
     }
 
-    async fn remove_by_entity(&self, entity: &str, users: Vec<Thing>) -> AppResult<()> {
+    async fn remove_by_entity(&self, entity: &str, users: Vec<RecordId>) -> AppResult<()> {
         let thing = get_thing(entity).map_err(|e| AppError::SurrealDb {
             source: e.to_string(),
         })?;

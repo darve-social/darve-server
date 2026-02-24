@@ -11,7 +11,7 @@ use middleware::{
     error::{AppError, CtxError, CtxResult},
 };
 use serde::{Deserialize, Serialize, Serializer};
-use surrealdb::sql::{Id, Thing};
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use validator::Validate;
 
 use crate::database::client::Db;
@@ -23,16 +23,20 @@ use crate::models::view::post::PostView;
 
 use super::discussion_entity;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum PostType {
     Public,
     Private,
     Idea,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, SurrealValue)]
+#[surreal(untagged)]
 pub enum PostUserStatus {
+    #[surreal(value = 0)]
     Delivered,
+    #[surreal(value = 1)]
     Seen,
 }
 
@@ -65,9 +69,9 @@ impl<'de> Deserialize<'de> for PostUserStatus {
 pub struct Post {
     // id is ULID for sorting by time
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
-    pub belongs_to: Thing,
-    pub created_by: Thing,
+    pub id: Option<RecordId>,
+    pub belongs_to: RecordId,
+    pub created_by: RecordId,
     pub title: String,
     pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,20 +83,21 @@ pub struct Post {
     pub tasks_nr: u64,
     pub likes_nr: i64,
     pub r#type: PostType,
-    pub reply_to: Option<Thing>,
+    pub reply_to: Option<RecordId>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, SurrealValue)]
 pub struct CreatePost {
-    pub id: Thing,
-    pub belongs_to: Thing,
-    pub created_by: Thing,
+    pub id: RecordId,
+    pub belongs_to: RecordId,
+    pub created_by: RecordId,
     pub title: String,
     pub content: Option<String>,
     pub media_links: Option<Vec<String>>,
+    #[surreal(rename = "type")]
     pub r#type: PostType,
-    pub delivered_for_task: Option<Thing>,
-    pub reply_to: Option<Thing>,
+    pub delivered_for_task: Option<RecordId>,
+    pub reply_to: Option<RecordId>,
 }
 
 pub struct PostDbService<'a> {
@@ -140,13 +145,13 @@ impl<'a> PostDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         post_id: &str,
         current_user_id: Option<&str>,
     ) -> CtxResult<T> {
         let fields = T::get_select_query_fields();
-        let user = current_user_id.map(|id| Thing::from((TABLE_COL_USER, id)));
+        let user = current_user_id.map(|id| RecordId::new(TABLE_COL_USER, id));
         let mut res = self
             .db
             .query(format!("SELECT {fields} FROM $post"))
@@ -187,7 +192,7 @@ impl<'a> PostDbService<'a> {
         let fields = PostView::get_select_query_fields();
 
         let query = format!(
-            "SELECT {fields} FROM {TABLE_NAME} 
+            "SELECT {fields} FROM {TABLE_NAME}
             WHERE belongs_to=$disc {query_by_id} {query_by_type} AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
             ORDER BY id {order_dir} LIMIT $limit;"
         );
@@ -199,8 +204,8 @@ impl<'a> PostDbService<'a> {
             .bind(("cursor", pag.cursor))
             .bind(("filter_by_type", filter_by_type))
             .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
-            .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("disc", RecordId::new(TABLE_COL_DISCUSSION, disc_id)))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
             .await?;
 
         let posts = res.take::<Vec<PostView>>(0)?;
@@ -219,8 +224,8 @@ impl<'a> PostDbService<'a> {
             None => "",
         };
         let query = format!(
-            "count(SELECT id FROM {TABLE_NAME} WHERE 
-                belongs_to=$disc {query_by_type} 
+            "count(SELECT id FROM {TABLE_NAME} WHERE
+                belongs_to=$disc {query_by_type}
                 AND (type IN $public_post_types OR $user IN <-{ACCESS_TABLE_NAME}.in)
             )"
         );
@@ -230,8 +235,8 @@ impl<'a> PostDbService<'a> {
             .query(query)
             .bind(("filter_by_type", filter_by_type))
             .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
-            .bind(("disc", Thing::from((TABLE_COL_DISCUSSION, disc_id))))
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("disc", RecordId::new(TABLE_COL_DISCUSSION, disc_id)))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
             .await?;
 
         let posts = res.take::<Option<u64>>(0)?;
@@ -254,17 +259,17 @@ impl<'a> PostDbService<'a> {
             ORDER BY id {order_dir} LIMIT $limit START $start;"
         );
 
+        let full_query = format!(
+            "LET $user_ids = SELECT VALUE record::id(out) FROM $user->{FOLLOW_TABLE_NAME}; {query}"
+        );
         let mut res = self
             .db
-            .query(format!(
-                "LET $user_ids = SELECT VALUE record::id(out) FROM $user->{FOLLOW_TABLE_NAME};"
-            ))
-            .query(query)
+            .query(full_query)
             .bind(("limit", pag.count))
             .bind(("start", pag.start))
             .bind(("types", types))
             .bind(("public_post_types", vec![PostType::Public, PostType::Idea]))
-            .bind(("user", Thing::from((TABLE_COL_USER, user_id))))
+            .bind(("user", RecordId::new(TABLE_COL_USER, user_id)))
             .await?;
 
         let posts = res.take::<Vec<PostView>>(res.num_statements() - 1)?;
@@ -285,7 +290,7 @@ impl<'a> PostDbService<'a> {
         let mut res = self
             .db
             .query(query)
-            .bind(("tag", Thing::from((TAG_TABLE_NAME, tag))))
+            .bind(("tag", RecordId::new(TAG_TABLE_NAME, tag)))
             .bind(("public_types", vec![PostType::Public, PostType::Idea]))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
@@ -299,13 +304,8 @@ impl<'a> PostDbService<'a> {
     pub async fn delete(&self, post_id: &str) -> AppResult<()> {
         let _ = self
             .db
-            .query("BEGIN TRANSACTION;")
-            .query("LET $reply_ids = (SELECT VALUE id FROM reply WHERE belongs_to = $post);")
-            .query("DELETE reply WHERE belongs_to IN $reply_ids;")
-            .query("DELETE reply WHERE belongs_to = $post;")
-            .query("DELETE $post WHERE tasks_nr = 0;")
-            .query("COMMIT TRANSACTION;")
-            .bind(("post", Thing::from((TABLE_NAME, post_id))))
+            .query("BEGIN TRANSACTION; LET $reply_ids = (SELECT VALUE id FROM reply WHERE belongs_to = $post); DELETE reply WHERE belongs_to IN $reply_ids; DELETE reply WHERE belongs_to = $post; DELETE $post WHERE tasks_nr = 0; COMMIT TRANSACTION;")
+            .bind(("post", RecordId::new(TABLE_NAME, post_id)))
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
@@ -328,8 +328,8 @@ impl<'a> PostDbService<'a> {
         Ok(data.unwrap())
     }
 
-    pub fn get_new_post_thing() -> Thing {
+    pub fn get_new_post_thing() -> RecordId {
         // id is ULID for sorting by time
-        Thing::from((TABLE_NAME.to_string(), Id::ulid()))
+        RecordId::new(TABLE_NAME, RecordIdKey::rand())
     }
 }

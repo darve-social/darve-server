@@ -1,3 +1,4 @@
+use surrealdb::types::RecordId;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::access::base::role::Role;
@@ -11,6 +12,7 @@ use crate::entities::community::discussion_entity::{
 use crate::interfaces::repositories::access::AccessRepositoryInterface;
 use crate::interfaces::repositories::discussion_user::DiscussionUserRepositoryInterface;
 use crate::interfaces::repositories::user_notifications::UserNotificationsInterface;
+use crate::database::surrdb_utils::{record_id_key_to_string, record_id_to_raw};
 use crate::middleware::utils::db_utils::{record_exist_all, Pagination};
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::models::view::access::DiscussionAccessView;
@@ -28,7 +30,7 @@ use crate::{
     },
 };
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+
 use validator::Validate;
 
 #[derive(Deserialize, Serialize, Validate)]
@@ -117,7 +119,7 @@ where
         }
 
         self.discussion_repository
-            .update(&disc.id.id.to_raw(), &data.title.unwrap_or("".to_string()))
+            .update(&record_id_key_to_string(&disc.id.key), &data.title.unwrap_or("".to_string()))
             .await?;
 
         Ok(())
@@ -140,7 +142,7 @@ where
         }
 
         self.discussion_users
-            .update_alias(&disc.id.id.to_raw(), user_id, data)
+            .update_alias(&record_id_key_to_string(&disc.id.key), user_id, data)
             .await?;
 
         Ok(())
@@ -151,7 +153,7 @@ where
         user_id: &str,
         disc_id: &str,
         new_user_ids: Vec<String>,
-    ) -> CtxResult<Vec<Thing>> {
+    ) -> CtxResult<Vec<RecordId>> {
         if new_user_ids.is_empty() {
             return Err(AppError::Generic {
                 description: "no users present".to_string(),
@@ -174,18 +176,19 @@ where
             .users
             .into_iter()
             .map(|u| u.user)
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         let new_users = user_ids
             .into_iter()
             .filter(|id| !disc_user_ids.contains(id))
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
-        let disc_id = disc.id.id.to_raw();
+        let disc_id = record_id_key_to_string(&disc.id.key);
+        let disc_raw = record_id_to_raw(&disc.id);
         self.access_repository
             .add(
                 new_users.clone(),
-                vec![&disc.id.to_raw()],
+                vec![disc_raw.as_str()],
                 Role::Member.to_string(),
             )
             .await?;
@@ -209,7 +212,7 @@ where
             }));
         }
         let user = self.user_repository.get_by_id(&user_id).await?;
-        let user_id_str = user.id.as_ref().unwrap().to_raw();
+        let user_id_str = record_id_to_raw(user.id.as_ref().unwrap());
 
         if remove_user_ids.contains(&user_id_str) {
             return Err(self.ctx.to_ctx_error(AppError::Generic {
@@ -228,11 +231,12 @@ where
         let user_things = remove_user_ids
             .iter()
             .filter_map(|u| get_str_thing(u).ok())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
-        let disc_id = disc.id.id.to_raw();
+        let disc_id = record_id_key_to_string(&disc.id.key);
+        let disc_raw = record_id_to_raw(&disc.id);
         self.access_repository
-            .remove_by_entity(disc.id.to_raw().as_ref(), user_things.clone())
+            .remove_by_entity(disc_raw.as_ref(), user_things.clone())
             .await?;
 
         let _ = self.discussion_users.remove(&disc_id, user_things).await?;
@@ -266,7 +270,7 @@ where
         }
 
         self.discussion_repository
-            .get_by_id_with_user::<DiscussionView>(&disc.id.id.to_raw(), user_id)
+            .get_by_id_with_user::<DiscussionView>(&record_id_key_to_string(&disc.id.key), user_id)
             .await
     }
 
@@ -285,7 +289,7 @@ where
 
         let private_discussion_user_ids = match data.chat_user_ids {
             Some(ids) => {
-                let user_id_str = user.id.as_ref().unwrap().to_raw();
+                let user_id_str = record_id_to_raw(user.id.as_ref().unwrap());
                 let user_ids = ids
                     .into_iter()
                     .filter(|u| u != &user_id_str)
@@ -301,7 +305,7 @@ where
                     .as_ref()
                     .unwrap()
                     .iter()
-                    .map(|id| id.id.to_raw())
+                    .map(|id| record_id_key_to_string(&id.key))
                     .collect::<Vec<String>>();
 
                 ids.push(user_id.to_string());
@@ -312,10 +316,11 @@ where
                 ids.join("").hash(&mut hasher);
                 let hash_id = hasher.finish();
 
-                let id = Thing::from((DISC_TABLE_NAME, format!("{:x}", hash_id).as_str()));
+                let id = RecordId::new(DISC_TABLE_NAME, format!("{:x}", hash_id).as_str());
+                let id_raw = record_id_to_raw(&id);
                 let res = self
                     .discussion_repository
-                    .get_view_by_id::<DiscussionView>(&id.to_raw())
+                    .get_view_by_id::<DiscussionView>(&id_raw)
                     .await;
 
                 if let Ok(disc) = res {
@@ -373,10 +378,11 @@ where
             })
             .await?;
 
+        let disc_raw = record_id_to_raw(&disc.id);
         self.access_repository
             .add(
                 [user.id.as_ref().unwrap().clone()].to_vec(),
-                [disc.id.to_raw().as_ref()].to_vec(),
+                [disc_raw.as_str()].to_vec(),
                 owner_role.to_string(),
             )
             .await?;
@@ -385,7 +391,7 @@ where
             self.access_repository
                 .add(
                     user_ids.clone(),
-                    [disc.id.to_raw().as_ref()].to_vec(),
+                    [disc_raw.as_str()].to_vec(),
                     Role::Member.to_string(),
                 )
                 .await?;
@@ -394,8 +400,9 @@ where
                 .on_created_discussion(&user, &disc.id, &user_ids)
                 .await;
             user_ids.push(user.id.as_ref().unwrap().clone());
+            let disc_key = record_id_key_to_string(&disc.id.key);
             self.discussion_users
-                .create(&disc.id.id.to_raw(), user_ids)
+                .create(&disc_key, user_ids)
                 .await?;
         }
         Ok(disc)

@@ -251,7 +251,7 @@ async fn forgot_password_start(
         &state.twitch_service,
     );
 
-    let _ = auth_service.forgot_password(body).await?;
+    auth_service.forgot_password(body).await?;
     Ok((StatusCode::OK).into_response())
 }
 

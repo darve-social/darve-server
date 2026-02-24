@@ -1,14 +1,13 @@
 use super::super::table_names::POST_USER_TABLE_NAME;
 use crate::database::client::Db;
+use crate::database::query_builder::SurrealQueryBuilder;
 use crate::entities::community::post_entity::{PostUserStatus, TABLE_NAME as POST_TABLE_NAME};
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::interfaces::repositories::post_user::PostUserRepositoryInterface;
 use crate::middleware::error::{AppError, AppResult};
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::engine::any;
-use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct PostUserRepository {
@@ -36,7 +35,7 @@ impl PostUserRepository {
 
 #[async_trait]
 impl PostUserRepositoryInterface for PostUserRepository {
-    async fn update(&self, user: Thing, post: Thing, status: u8) -> AppResult<()> {
+    async fn update(&self, user: RecordId, post: RecordId, status: u8) -> AppResult<()> {
         let _ = self
             .client
             .query(format!(
@@ -50,7 +49,7 @@ impl PostUserRepositoryInterface for PostUserRepository {
         Ok(())
     }
 
-    async fn create(&self, user: Thing, post: Thing, status: u8) -> AppResult<()> {
+    async fn create(&self, user: RecordId, post: RecordId, status: u8) -> AppResult<()> {
         let _ = self
             .client
             .query(format!(
@@ -64,15 +63,16 @@ impl PostUserRepositoryInterface for PostUserRepository {
         Ok(())
     }
 
-    fn build_upsert_query<'b>(
+    fn build_upsert_query(
         &self,
-        query: Query<'b, any::Any>,
-        user: Thing,
-        post: Thing,
+        query: SurrealQueryBuilder,
+        user: RecordId,
+        post: RecordId,
         status: u8,
-    ) -> Query<'b, any::Any> {
-        query.query(format!(
-            "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
+    ) -> SurrealQueryBuilder {
+        query
+            .query(format!(
+                "LET $edge = (SELECT id, status FROM $post->{POST_USER_TABLE_NAME} WHERE out = $user LIMIT 1);
              LET $is_upserted = IF $edge[0] {{
                  IF $edge[0].status == $status {{
                      false
@@ -84,13 +84,13 @@ impl PostUserRepositoryInterface for PostUserRepository {
                  RELATE $post->{POST_USER_TABLE_NAME}->$user SET status = $status;
                  true
              }};"
-        ))
-        .bind(("post", post))
-        .bind(("user", user))
-        .bind(("status", status))
+            ))
+            .bind_var("post", post)
+            .bind_var("user", user)
+            .bind_var("status", status)
     }
 
-    async fn get(&self, user: Thing, post: Thing) -> AppResult<Option<PostUserStatus>> {
+    async fn get(&self, user: RecordId, post: RecordId) -> AppResult<Option<PostUserStatus>> {
         let mut res = self
             .client
             .query(format!(
@@ -103,7 +103,7 @@ impl PostUserRepositoryInterface for PostUserRepository {
         Ok(status)
     }
 
-    async fn remove(&self, user: Thing, posts: Vec<Thing>) -> AppResult<()> {
+    async fn remove(&self, user: RecordId, posts: Vec<RecordId>) -> AppResult<()> {
         let _ = self
             .client
             .query(format!(

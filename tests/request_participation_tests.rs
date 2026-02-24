@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 use axum::http::StatusCode;
 use axum_test::multipart::MultipartForm;
 use darve_server::entities::community::community_entity;
@@ -64,7 +65,7 @@ test_with_server!(
 
         let post_name = "post title Name 1".to_string();
         let create_post = server
-            .post(format!("/api/discussions/{community_discussion_id}/posts").as_str())
+            .post(format!("/api/discussions/{}/posts", community_discussion_id.to_raw()).as_str())
             .multipart(
                 MultipartForm::new()
                     .add_text("title", post_name.clone())
@@ -121,7 +122,7 @@ test_with_server!(
         let task = post_tasks.get(0).unwrap();
         let offer0 = task.donors.get(0).unwrap();
 
-        assert_eq!(created_task.id, task.id);
+        assert_eq!(created_task.id, task.id.to_raw());
 
         assert_eq!(offer0.amount.clone(), user2_offer_amt as i64);
         assert_eq!(task.created_by.username, username2);
@@ -160,7 +161,7 @@ test_with_server!(
         endow_user_response.assert_status_success();
 
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
@@ -191,7 +192,7 @@ test_with_server!(
         // change amount to 33 by sending another participation req
         let user3_offer_amt: i64 = 100;
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
@@ -231,7 +232,7 @@ test_with_server!(
         assert_eq!(balance.balance_usd, 0);
 
         let participate_response = server
-            .post(format!("/api/tasks/{}/donor", task.id).as_str())
+            .post(format!("/api/tasks/{}/donor", task.id.to_raw()).as_str())
             .json(&TaskRequestOfferInput { amount: 100 })
             .add_header("Accept", "application/json")
             .await;
@@ -268,7 +269,7 @@ test_with_server!(
 
         // accept received task
         let accept_response = server
-            .post(format!("/api/tasks/{}/accept", received_task.id).as_str())
+            .post(format!("/api/tasks/{}/accept", received_task.id.to_raw()).as_str())
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -287,7 +288,7 @@ test_with_server!(
         // assert_eq!(received_task.status, TaskStatus::Accepted.to_string());
 
         let task_participant =
-            task_helpers::success_deliver_task(&server, &received_task.id, &user0_token)
+            task_helpers::success_deliver_task(&server, &received_task.id.to_raw(), &user0_token)
                 .await
                 .unwrap();
         assert!(task_participant.result.unwrap().post.is_some());
@@ -336,7 +337,7 @@ test_with_server!(
             let ts = tx_v.created_at.timestamp();
             println!(
                 "for {} with {} in {:?} out {:?} after tx balance={}",
-                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+                tx_v.wallet.id.to_raw(), tx_v.with_wallet.id.to_raw(), tx_v.amount_in, tx_v.amount_out, tx_v.balance
             );
             assert_eq!(ts <= prev_val, true);
             ts
@@ -356,7 +357,7 @@ test_with_server!(
             let ts = tx_v.created_at.timestamp();
             println!(
                 "for {} with {} in {:?} out {:?} after tx balance={}",
-                tx_v.wallet.id, tx_v.with_wallet.id, tx_v.amount_in, tx_v.amount_out, tx_v.balance
+                tx_v.wallet.id.to_raw(), tx_v.with_wallet.id.to_raw(), tx_v.amount_in, tx_v.amount_out, tx_v.balance
             );
             assert_eq!(ts <= prev_val, true);
             ts

@@ -14,6 +14,7 @@ use serde_json::json;
 use crate::helpers::create_fake_login_test_user;
 
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 test_with_server!(
     try_to_create_public_task_to_public_discussion_by_user,
@@ -178,7 +179,7 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
     server
         .post(&format!(
             "/api/tasks/{}/accept",
-            super_tasks.first().unwrap().id
+            super_tasks.first().unwrap().id.to_raw()
         ))
         .add_header("Accept", "application/json")
         .await

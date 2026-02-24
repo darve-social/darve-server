@@ -2,7 +2,7 @@ mod helpers;
 
 use darve_server::entities::user_auth::local_user_entity;
 use darve_server::middleware;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 use crate::helpers::create_login_test_user;
 use local_user_entity::LocalUserDbService;
@@ -31,7 +31,7 @@ test_with_server!(user_query, |server, ctx_state, config| {
     assert_eq!(user.username, username.clone());
 
     let user = db_service
-        .get(IdentIdName::Id(Thing::from(("local_user", "not_existing"))))
+        .get(IdentIdName::Id(RecordId::new("local_user", "not_existing")))
         .await;
     assert_eq!(user.is_err(), true);
 });

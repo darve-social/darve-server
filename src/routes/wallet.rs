@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::database::surrdb_utils::record_id_to_raw;
 use crate::entities::user_auth::local_user_entity::{self};
 use crate::entities::wallet::balance_transaction_entity::TransactionType;
 use crate::entities::wallet::gateway_transaction_entity::{
@@ -225,7 +226,7 @@ async fn withdraw(
     let paypal_amount = ((data.amount - fee) as f64) / 100.00;
     let res = paypal
         .send_money(
-            &gateway_tx.id.as_ref().unwrap().to_raw(),
+            &record_id_to_raw(gateway_tx.id.as_ref().unwrap()),
             user.email_verified.as_ref().unwrap(),
             paypal_amount,
             &CurrencySymbol::USD.to_string(),
@@ -283,7 +284,7 @@ async fn deposit(
     .await?;
     println!(
         "User ID retrieved: {:?}",
-        user.id.as_ref().unwrap().to_raw()
+        record_id_to_raw(user.id.as_ref().unwrap())
     );
 
     let acc_id = AccountId::from_str(&state.stripe_platform_account.as_str()).map_err(|e1| {
@@ -299,8 +300,8 @@ async fn deposit(
     let id = GatewayTransactionDbService::generate_id();
 
     let mut metadata = HashMap::with_capacity(4);
-    metadata.insert("tx_id".to_string(), id.to_raw());
-    metadata.insert("user_id".to_string(), user.id.as_ref().unwrap().to_raw());
+    metadata.insert("tx_id".to_string(), record_id_to_raw(&id));
+    metadata.insert("user_id".to_string(), record_id_to_raw(user.id.as_ref().unwrap()));
     metadata.insert("amount".to_string(), amt.to_string());
     metadata.insert("action".to_string(), product_title.clone());
 

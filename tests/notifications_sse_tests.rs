@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::middleware::mw_ctx::AppEventType;
@@ -181,9 +182,9 @@ test_with_server!(
         let (_, user2, _password2, _token2) = create_fake_login_test_user(&server).await;
         let (_, user3, _password3, _token3) = create_fake_login_test_user(&server).await;
 
-        let user1_id = user1.id.unwrap().id.to_raw();
-        let user2_id = user2.id.unwrap().id.to_raw();
-        let user3_id = user3.id.unwrap().id.to_raw();
+        let user1_id = user1.id.unwrap().key_to_string();
+        let user2_id = user2.id.unwrap().key_to_string();
+        let user3_id = user3.id.unwrap().key_to_string();
 
         // Create concurrent presence guards
         let guard1 = UserPresenceGuard::new(ctx_state.clone(), user1_id.clone());

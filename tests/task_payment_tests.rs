@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use std::time::Duration;
 
@@ -23,16 +24,16 @@ use fake::{faker, Fake};
 use helpers::post_helpers::create_fake_post;
 use serde::Deserialize;
 use serde_json::json;
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, SurrealValue)]
 struct TaskView {
     pub balance: i64,
     pub status: TaskRequestStatus,
 }
 
 #[allow(dead_code)]
-async fn get_task_view(task_thing: Thing, db: &Db) -> TaskView {
+async fn get_task_view(task_thing: RecordId, db: &Db) -> TaskView {
     let mut res = db
         .query("SELECT *, wallet_id.transaction_head.USD.balance as balance FROM $id;")
         .bind(("id", task_thing.clone()))
@@ -43,7 +44,7 @@ async fn get_task_view(task_thing: Thing, db: &Db) -> TaskView {
 }
 
 #[allow(dead_code)]
-async fn wait_for(task_thing: Thing, db: &Db) {
+async fn wait_for(task_thing: RecordId, db: &Db) {
     let _ = db
         .query("UPDATE $id SET due_at=time::now();")
         .bind(("id", task_thing.clone()))
@@ -132,7 +133,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+        let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -140,32 +141,23 @@ test_with_server!(
         };
 
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant1.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant1.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
 
         assert_eq!(balance.balance_usd, 33);
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant2.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant2.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
 
         assert_eq!(balance.balance_usd, 33);
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant3.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant3.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 33);
-        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+        let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
         let task = get_task_view(task_thing, &state.db.client).await;
         assert_eq!(task.status, TaskRequestStatus::Completed);
         assert_eq!(task.balance, 1);
@@ -242,7 +234,7 @@ test_with_server!(
             .await
             .unwrap();
 
-        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+        let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
         let wallet_service = WalletDbService {
             db: &state.db.client,
@@ -250,28 +242,19 @@ test_with_server!(
         };
 
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant1.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant1.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
 
         assert_eq!(balance.balance_usd, 50);
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant2.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant2.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
 
         assert_eq!(balance.balance_usd, 50);
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant3.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant3.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, 0);
@@ -317,7 +300,7 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+    let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -326,20 +309,14 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     };
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", participant.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
 
     assert_eq!(balance.balance_usd, 0);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            user0.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", user0.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, start_wallet_amount);
@@ -407,7 +384,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+    let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -416,29 +393,20 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     };
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", participant.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
 
     assert_eq!(balance.balance_usd, 0);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor0.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor0.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor0_amount);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor1.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor1.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor1_amount);
@@ -569,7 +537,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
-    let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+    let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
     wait_for(task_thing.clone(), &state.db.client).await;
 
     let wallet_service = WalletDbService {
@@ -578,56 +546,38 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     };
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", participant.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
 
     assert_eq!(balance.balance_usd, 0);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor0.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor0.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor0_amount);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor1.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor1.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor1_amount);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor2.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor2.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor2_amount);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor3.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor3.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor3_amount);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor4.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor4.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor4_amount);
@@ -700,7 +650,7 @@ test_with_server!(
         let _ = task_helpers::success_deliver_task(&server, &task_id, &ptoken)
             .await
             .unwrap();
-        let task_thing = Thing::try_from(task_id.as_str()).unwrap();
+        let task_thing = RecordId::parse_simple(task_id.as_str()).unwrap();
         wait_for(task_thing.clone(), &state.db.client).await;
 
         let wallet_service = WalletDbService {
@@ -709,29 +659,20 @@ test_with_server!(
         };
 
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                participant.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", participant.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
 
         assert_eq!(balance.balance_usd, donor0_task_amount + donor1_task_amount);
 
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                donor0.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", donor0.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, donor0_amount - donor0_task_amount);
 
         let balance = wallet_service
-            .get_balance(&Thing::from((
-                "wallet",
-                donor1.id.as_ref().unwrap().id.to_raw().as_str(),
-            )))
+            .get_balance(&RecordId::new("wallet", donor1.id.as_ref().unwrap().key_to_string()))
             .await
             .unwrap();
         assert_eq!(balance.balance_usd, donor1_amount - donor1_task_amount);
@@ -786,20 +727,14 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
     };
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            participant.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", participant.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
 
     assert_eq!(balance.balance_usd, 0);
 
     let balance = wallet_service
-        .get_balance(&Thing::from((
-            "wallet",
-            donor0.id.as_ref().unwrap().id.to_raw().as_str(),
-        )))
+        .get_balance(&RecordId::new("wallet", donor0.id.as_ref().unwrap().key_to_string()))
         .await
         .unwrap();
     assert_eq!(balance.balance_usd, donor0_amount);

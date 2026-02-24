@@ -1,10 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{Array, Number, Object, RecordId, SurrealValue, Value};
 
 use crate::database::client::Db;
 use crate::database::repositories::verification_code_repo::VERIFICATION_CODE_TABLE_NAME;
-use crate::database::surrdb_utils::{get_entity, get_str_id_thing};
+use crate::database::surrdb_utils::{get_entity, get_str_id_thing, record_id_to_raw};
 use crate::entities::user_auth::authentication_entity::{AuthType, Authentication};
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::middleware;
@@ -19,16 +19,17 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum UserRole {
     Admin,
     User,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 pub struct LocalUser {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Thing>,
+    pub id: Option<RecordId>,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<String>,
@@ -75,7 +76,7 @@ impl LocalUser {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct UpdateUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bio: Option<Option<String>>,
@@ -100,7 +101,7 @@ pub struct UpdateUser {
 #[allow(dead_code)]
 #[derive(Deserialize)]
 struct UsernameView {
-    id: Thing,
+    id: RecordId,
     username: String,
 }
 
@@ -117,6 +118,34 @@ pub struct LocalUserDbService<'a> {
 
 pub const TABLE_NAME: &str = "local_user";
 
+fn json_null_to_surreal_none(v: serde_json::Value) -> Value {
+    match v {
+        serde_json::Value::Null => Value::None,
+        serde_json::Value::Bool(b) => Value::Bool(b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::Number(Number::Int(i))
+            } else if let Some(f) = n.as_f64() {
+                Value::Number(Number::Float(f))
+            } else {
+                Value::String(n.to_string())
+            }
+        }
+        serde_json::Value::String(s) => Value::String(s),
+        serde_json::Value::Array(arr) => {
+            let items: Vec<Value> = arr.into_iter().map(json_null_to_surreal_none).collect();
+            Value::Array(Array::from(items))
+        }
+        serde_json::Value::Object(obj) => {
+            let map: std::collections::BTreeMap<String, Value> = obj
+                .into_iter()
+                .map(|(k, v)| (k, json_null_to_surreal_none(v)))
+                .collect();
+            Value::Object(Object::from(map))
+        }
+    }
+}
+
 impl<'a> LocalUserDbService<'a> {
     pub fn get_table_name() -> &'static str {
         TABLE_NAME
@@ -124,14 +153,14 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn mutate_db(&self) -> Result<(), AppError> {
         let sql = format!("
     DEFINE TABLE IF NOT EXISTS {TABLE_NAME} SCHEMAFULL;
-        // EMAIL is already verified  
+        // EMAIL is already verified
     DEFINE FIELD IF NOT EXISTS email_verified ON TABLE {TABLE_NAME} TYPE option<string>;// VALUE string::lowercase($value) ASSERT string::is::email($value);
     DEFINE FIELD IF NOT EXISTS username ON TABLE {TABLE_NAME} TYPE string VALUE string::lowercase($value);
     DEFINE FIELD IF NOT EXISTS full_name ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS birth_date ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS phone ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS bio ON TABLE {TABLE_NAME} TYPE option<string>;
-    DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<set<string>>;
+    DEFINE FIELD IF NOT EXISTS social_links ON TABLE {TABLE_NAME} TYPE option<array<string>>;
     DEFINE FIELD IF NOT EXISTS image_uri ON TABLE {TABLE_NAME} TYPE option<string>;
     DEFINE FIELD IF NOT EXISTS is_otp_enabled ON TABLE {TABLE_NAME} TYPE bool DEFAULT false;
     DEFINE FIELD IF NOT EXISTS otp_secret ON TABLE {TABLE_NAME} TYPE option<string>;
@@ -141,10 +170,10 @@ impl<'a> LocalUserDbService<'a> {
 
     DEFINE INDEX IF NOT EXISTS local_user_username_idx ON TABLE {TABLE_NAME} COLUMNS username UNIQUE;
     DEFINE INDEX IF NOT EXISTS local_user_email_verified_idx ON TABLE {TABLE_NAME} COLUMNS email_verified UNIQUE;
-  
+
     DEFINE ANALYZER IF NOT EXISTS ascii TOKENIZERS class FILTERS lowercase,ascii;
-    DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
-    DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS username_txt_idx ON TABLE {TABLE_NAME} COLUMNS username FULLTEXT ANALYZER ascii BM25 HIGHLIGHTS;
+    DEFINE INDEX IF NOT EXISTS full_name_txt_idx ON TABLE {TABLE_NAME} COLUMNS full_name FULLTEXT ANALYZER ascii BM25 HIGHLIGHTS;
 
 ");
         let local_user_mutation = self.db.query(sql).await?;
@@ -156,7 +185,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_ctx_user_thing(&self) -> CtxResult<Thing> {
+    pub async fn get_ctx_user_thing(&self) -> CtxResult<RecordId> {
         let created_by = self.ctx.user_id()?;
         let user_id = get_string_thing(created_by.clone())?;
         let existing_id = self.exists(IdentIdName::Id(user_id.clone())).await?;
@@ -177,7 +206,7 @@ impl<'a> LocalUserDbService<'a> {
     pub async fn exists(&self, ident: IdentIdName) -> CtxResult<Option<String>> {
         exists_entity(self.db, TABLE_NAME.to_string(), &ident)
             .await
-            .map(|r| r.map(|o| o.to_raw()))
+            .map(|r| r.map(|o| record_id_to_raw(&o)))
     }
 
     pub async fn get(&self, ident: IdentIdName) -> CtxResult<LocalUser> {
@@ -190,17 +219,15 @@ impl<'a> LocalUserDbService<'a> {
         user_id: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY $user;")
-            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
-            .query("RETURN { user: $u, auth: $a };")
-            .bind(("user", Thing::from((TABLE_NAME, user_id)))).bind(("auth_type", auth_type )).await?;
+        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY $user; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
+            .bind(("user", RecordId::new(TABLE_NAME, user_id))).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: user_id.to_string(),
             })?;
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
@@ -210,17 +237,15 @@ impl<'a> LocalUserDbService<'a> {
         email: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE email_verified=$email;")
-            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
-            .query("RETURN { user: $u, auth: $a};")
+        let mut res  = self.db.query("LET $u = (SELECT * FROM local_user WHERE email_verified=$email LIMIT 1)[0]; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
             .bind(("email", email.to_string())).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: email.to_string(),
             })?;
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
@@ -230,25 +255,23 @@ impl<'a> LocalUserDbService<'a> {
         username: &str,
         auth_type: AuthType,
     ) -> CtxResult<(LocalUser, Option<Authentication>)> {
-        let mut res  = self.db.query("LET $u = SELECT * FROM ONLY local_user WHERE username=$username;")
-            .query("LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END;")
-            .query("RETURN { user: $u, auth: $a };")
+        let mut res  = self.db.query("LET $u = (SELECT * FROM local_user WHERE username=$username LIMIT 1)[0]; LET $a = IF $u != NONE THEN (SELECT * FROM authentication WHERE local_user=$u.id AND auth_type=$auth_type LIMIT 1)[0] ELSE NONE END; RETURN $u; RETURN $a;")
             .bind(("username", username.to_string())).bind(("auth_type", auth_type )).await?;
 
-        let user = res
-            .take::<Option<LocalUser>>((res.num_statements() - 1, "user"))?
+        let num = res.num_statements();
+        let user = res.take::<Option<LocalUser>>(num - 2)?
             .ok_or(AppError::EntityFailIdNotFound {
                 ident: username.to_string(),
             })?;
 
-        let auth = res.take::<Option<Authentication>>((res.num_statements() - 1, "auth"))?;
+        let auth = res.take::<Option<Authentication>>(num - 1)?;
 
         Ok((user, auth))
     }
 
     // param id is a id of the thing
     pub async fn get_by_id(&self, id: &str) -> CtxResult<LocalUser> {
-        let ident = IdentIdName::Id(Thing::from((TABLE_NAME, id)));
+        let ident = IdentIdName::Id(RecordId::new(TABLE_NAME, id));
         let opt = get_entity::<LocalUser>(&self.db, TABLE_NAME, &ident).await?;
         with_not_found_err(opt, self.ctx, &ident.to_string().as_str())
     }
@@ -258,7 +281,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(record_exists(self.db, &get_str_id_thing(TABLE_NAME, id)?).await?)
     }
 
-    pub async fn get_by_ids(&self, ids: Vec<Thing>) -> CtxResult<Vec<LocalUser>> {
+    pub async fn get_by_ids(&self, ids: Vec<RecordId>) -> CtxResult<Vec<LocalUser>> {
         let mut res = self
             .db
             .query(format!("SELECT * FROM {TABLE_NAME} WHERE id IN $users;"))
@@ -293,14 +316,14 @@ impl<'a> LocalUserDbService<'a> {
         Ok(data)
     }
 
-    pub async fn search<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn search<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         find: String,
         pag: Pagination,
     ) -> CtxResult<Vec<T>> {
         let field = T::get_select_query_fields();
         let qry = format!(
-            "SELECT {} FROM {TABLE_NAME} WHERE username ~ $find OR full_name ~ $find 
+            "SELECT {} FROM {TABLE_NAME} WHERE string::contains(string::lowercase(username), string::lowercase($find)) OR string::contains(string::lowercase(full_name ?? ''), string::lowercase($find))
              LIMIT $limit START $start;",
             field
         );
@@ -316,7 +339,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(res)
     }
 
-    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_view<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,
     ) -> CtxResult<T> {
@@ -331,11 +354,17 @@ impl<'a> LocalUserDbService<'a> {
     }
 
     pub async fn update(&self, user_id: &str, record: UpdateUser) -> CtxResult<LocalUser> {
-        let user: Option<LocalUser> = self.db.update((TABLE_NAME, user_id)).merge(record).await?;
+        // Serialize using serde to respect #[serde(skip_serializing_if = "Option::is_none")]
+        // then convert json null → SurrealDB NONE so option<T> schema fields accept it
+        let json_value = serde_json::to_value(&record).map_err(|e| AppError::Generic {
+            description: e.to_string(),
+        })?;
+        let surreal_value = json_null_to_surreal_none(json_value);
+        let user: Option<LocalUser> = self.db.update((TABLE_NAME, user_id)).merge(surreal_value).await?;
         Ok(user.unwrap())
     }
 
-    pub async fn add_credits(&self, user: Thing, value: u16) -> CtxResult<u64> {
+    pub async fn add_credits(&self, user: RecordId, value: u16) -> CtxResult<u64> {
         let mut res = self
             .db
             .query("UPDATE $user SET credits += $credits RETURN credits;")
@@ -346,7 +375,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(data.unwrap())
     }
 
-    pub async fn remove_credits(&self, user: Thing, value: u16) -> CtxResult<u64> {
+    pub async fn remove_credits(&self, user: RecordId, value: u16) -> CtxResult<u64> {
         let mut res = self
             .db
             .query("UPDATE $user SET credits = math::max([0, credits-$credits]) RETURN credits;")
@@ -361,7 +390,7 @@ impl<'a> LocalUserDbService<'a> {
         let _ = self
             .db
             .query("UPDATE $user SET last_seen=time::now();")
-            .bind(("user", Thing::from((TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(TABLE_NAME, user_id)))
             .await?
             .check()?;
         Ok(())
@@ -373,7 +402,7 @@ impl<'a> LocalUserDbService<'a> {
         Ok(res.unwrap_or(0))
     }
 
-    pub async fn set_user_email(&self, user_id: Thing, verified_email: String) -> CtxResult<()> {
+    pub async fn set_user_email(&self, user_id: RecordId, verified_email: String) -> CtxResult<()> {
         let qry = format!(
             "
             BEGIN TRANSACTION;

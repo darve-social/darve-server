@@ -7,7 +7,7 @@ use crate::{
     middleware::error::AppError,
 };
 use async_trait::async_trait;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 pub const VERIFICATION_CODE_TABLE_NAME: &str = "verification_code";
 
@@ -40,7 +40,7 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         user_id: &str,
         use_for: VerificationCodeFor,
     ) -> Result<VerificationCodeEntity, surrealdb::Error> {
-        let user_thing = Thing::from((USER_TABLE_NAME, user_id));
+        let user_thing = RecordId::new(USER_TABLE_NAME, user_id);
         let qry = format!(
             "SELECT * FROM {VERIFICATION_CODE_TABLE_NAME} WHERE user = $user_id AND use_for = $use_for;"
         );
@@ -54,9 +54,10 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         let data: Option<VerificationCodeEntity> = res.take(0)?;
         match data {
             Some(v) => Ok(v),
-            None => Err(surrealdb::Error::from(surrealdb::error::Db::IdNotFound {
-                rid: format!("user_id={user_id} use_for={use_for:?}"),
-            })),
+            None => Err(surrealdb::Error::not_found(
+                format!("user_id={user_id} use_for={use_for:?}"),
+                None,
+            )),
         }
     }
 
@@ -89,22 +90,21 @@ impl VerificationCodeRepositoryInterface for Repository<VerificationCodeEntity> 
         let mut res = self
             .client
             .query(qry)
-            .bind(("user_id", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user_id", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("code", code.to_string()))
             .bind(("email", email.to_string()))
             .bind(("use_for", use_for))
             .await?;
 
         let data: VerificationCodeEntity = res
-            .take::<Option<VerificationCodeEntity>>(1)?
+            .take::<Option<VerificationCodeEntity>>(2)?
             .expect("record created");
 
         Ok(data)
     }
 
     async fn delete(&self, code_id: &str) -> Result<(), surrealdb::Error> {
-        let id = self.get_thing(code_id);
-        let _: Option<VerificationCodeEntity> = self.client.delete((id.tb, id.id.to_raw())).await?;
+        let _: Option<VerificationCodeEntity> = self.client.delete((VERIFICATION_CODE_TABLE_NAME, code_id)).await?;
         Ok(())
     }
 }

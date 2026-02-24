@@ -1,27 +1,27 @@
 use async_trait::async_trait;
-use surrealdb::{engine::any, method::Query};
 
 use crate::{
+    database::query_builder::SurrealQueryBuilder,
     entities::task_request_user::{TaskParticipant, TaskParticipantResult},
     middleware::utils::db_utils::Pagination,
 };
 
 #[async_trait]
 pub trait TaskParticipantsRepositoryInterface {
-    fn build_create_query<'b>(
+    fn build_create_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         task_id: &str,
         user_ids: Vec<String>,
         status: &str,
-    ) -> Query<'b, any::Any>;
-    fn build_update_query<'b>(
+    ) -> SurrealQueryBuilder;
+    fn build_update_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         id: &str,
         status: &str,
         result: Option<&TaskParticipantResult>,
-    ) -> Query<'b, any::Any>;
+    ) -> SurrealQueryBuilder;
     async fn create(
         &self,
         task_id: &str,

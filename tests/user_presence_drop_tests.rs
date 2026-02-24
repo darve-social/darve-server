@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use crate::helpers::create_fake_login_test_user;
 use darve_server::{
@@ -154,7 +155,7 @@ test_with_server!(
     |server, ctx_state, config| {
         // Create a test user
         let (_, user, _password, _token) = create_fake_login_test_user(&server).await;
-        let user_id = user.id.unwrap().id.to_raw();
+        let user_id = user.id.unwrap().key_to_string();
 
         // Create presence guard
         let guard = UserPresenceGuard::new(ctx_state.clone(), user_id.clone());

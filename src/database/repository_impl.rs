@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::{marker::PhantomData, string::String};
-use surrealdb::sql::{Id, Thing};
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use surrealdb::Error;
 
 #[derive(Debug)]
@@ -20,7 +20,7 @@ pub struct Repository<E> {
 }
 
 #[async_trait]
-impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryConn
+impl<E: Serialize + for<'de> serde::Deserialize<'de> + SurrealValue + Send + Sync + 'static> RepositoryConn
     for Repository<E>
 {
     type Connection = Arc<Db>;
@@ -38,7 +38,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
 }
 
 #[async_trait]
-impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> RepositoryCore
+impl<E: Serialize + for<'de> serde::Deserialize<'de> + SurrealValue + Send + Sync + 'static> RepositoryCore
     for Repository<E>
 {
     async fn item_create(
@@ -77,8 +77,8 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         surrdb_utils::count_records(self.client.as_ref(), self.table_name.as_ref()).await
     }
 
-    fn get_thing(&self, id: &str) -> Thing {
-        Thing::from((self.table_name.as_ref(), id))
+    fn get_thing(&self, id: &str) -> RecordId {
+        RecordId::new(self.table_name.as_str(), id)
     }
 
     async fn list_by_ident(
@@ -95,7 +95,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         .await
     }
 
-    async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<Thing, Self::Error> {
+    async fn item_ident_exists(&self, ident: &IdentIdName) -> Result<RecordId, Self::Error> {
         surrdb_utils::exists_entity(self.client.as_ref(), self.table_name.as_ref(), ident).await
     }
 
@@ -103,7 +103,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         surrdb_utils::exists_by_thing(self.client.as_ref(), &self.get_thing(id)).await
     }
 
-    async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<Thing>, Self::Error> {
+    async fn items_exist_all(&self, record_ids: Vec<&str>) -> Result<Vec<RecordId>, Self::Error> {
         let thing_strs = record_ids
             .into_iter()
             .map(|id| format!("{}:{}", self.table_name, id))
@@ -111,7 +111,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         surrdb_utils::record_exist_all(self.client.as_ref(), thing_strs).await
     }
 
-    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+    async fn list_view_by_ident<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
         &self,
         ident: &IdentIdName,
         pagination: Option<Pagination>,
@@ -124,7 +124,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
         )
         .await
     }
-    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + ViewFieldSelector>(
+    async fn item_view_by_ident<T: for<'a> Deserialize<'a> + SurrealValue + ViewFieldSelector>(
         &self,
         ident: &IdentIdName,
     ) -> Result<Option<T>, Error> {
@@ -134,7 +134,7 @@ impl<E: Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static> Re
 }
 
 #[async_trait]
-impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Sync + 'static>
+impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + SurrealValue + Send + Sync + 'static>
     RepositoryEntityId for Repository<E>
 {
     async fn update_entity(
@@ -143,9 +143,7 @@ impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Syn
     ) -> Result<Self::QueryResultItem, Self::Error> {
         let id_str = entity
             .id_str()
-            .ok_or(Self::Error::from(surrealdb::error::Db::IdInvalid {
-                value: "no id set".to_string(),
-            }))?;
+            .ok_or(Self::Error::validation("no id set".to_string(), None))?;
         let res: Option<Self::QueryResultItem> = self
             .client
             .update((&self.table_name, id_str))
@@ -159,14 +157,21 @@ impl<E: EntityWithId + Serialize + for<'de> serde::Deserialize<'de> + Send + Syn
         record: Self::QueryResultItem,
     ) -> Result<Self::QueryResultItem, Self::Error> {
         let id = if let Some(id) = record.id_str() {
-            Id::from(id)
+            RecordIdKey::from(id.to_string())
         } else {
-            Id::rand()
+            RecordIdKey::rand()
+        };
+
+        let id_str = match &id {
+            RecordIdKey::String(s) => s.clone(),
+            RecordIdKey::Number(n) => n.to_string(),
+            RecordIdKey::Uuid(u) => u.to_string(),
+            _ => String::new(),
         };
 
         let res: Option<Self::QueryResultItem> = self
             .client
-            .upsert((self.table_name.clone(), id.to_raw()))
+            .upsert((self.table_name.clone(), id_str))
             .content(record)
             .await?;
         Ok(res.unwrap())
@@ -180,7 +185,7 @@ pub struct RepositoryView<E> {
     _phantom: PhantomData<E>,
 }
 #[async_trait]
-impl<E: for<'de> serde::Deserialize<'de> + Send + Sync + 'static + ViewFieldSelector> RepositoryConn
+impl<E: for<'de> serde::Deserialize<'de> + SurrealValue + Send + Sync + 'static + ViewFieldSelector> RepositoryConn
     for RepositoryView<E>
 {
     type Connection = Arc<Db>;
@@ -198,7 +203,7 @@ impl<E: for<'de> serde::Deserialize<'de> + Send + Sync + 'static + ViewFieldSele
 }
 
 #[async_trait]
-impl<E: for<'de> serde::Deserialize<'de> + Send + Sync + 'static + ViewFieldSelector>
+impl<E: for<'de> serde::Deserialize<'de> + SurrealValue + Send + Sync + 'static + ViewFieldSelector>
     RepositoryEntityView for RepositoryView<E>
 {
     async fn list_view(

@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 use validator::Validate;
 
 use crate::database::client::Db;
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::entities::community::discussion_entity::DiscussionType;
 use crate::middleware;
 use crate::middleware::utils::string_utils::get_str_thing;
@@ -13,11 +14,11 @@ use middleware::{
     error::{AppError, CtxResult},
 };
 
-#[derive(Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate, SurrealValue)]
 pub struct Community {
-    pub id: Thing,
+    pub id: RecordId,
     pub created_at: DateTime<Utc>,
-    pub created_by: Thing,
+    pub created_by: RecordId,
 }
 
 pub struct CommunityDbService<'a> {
@@ -55,27 +56,32 @@ impl<'a> CommunityDbService<'a> {
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
 
-    pub async fn create_profile(&self, disc_id: Thing, user_id: Thing) -> CtxResult<Community> {
+    pub async fn create_profile(&self, disc_id: RecordId, user_id: RecordId) -> CtxResult<Community> {
         let community_id = CommunityDbService::get_profile_community_id(&user_id);
 
+        let community_id_str = format!(
+            "{}:{}",
+            community_id.table.as_str(),
+            record_id_key_to_string(&community_id.key)
+        );
         let mut result = self
             .db
-            .query("BEGIN TRANSACTION;")
-            .query("CREATE $disc SET belongs_to=$community, created_by=$user, type=$type")
-            .query("RETURN CREATE $community SET created_by=$user;")
-            .query("COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; CREATE $disc SET belongs_to=$community, created_by=$user, type=$type; RETURN CREATE $community SET created_by=$user; COMMIT TRANSACTION;")
             .bind(("user", user_id))
             .bind(("disc", disc_id))
             .bind(("type", DiscussionType::Public))
             .bind(("community", community_id.clone()))
             .await?;
-        let comm = result.take::<Option<Community>>(0)?;
+        let comm = result.take::<Option<Community>>(2)?;
         Ok(comm.ok_or(AppError::EntityFailIdNotFound {
-            ident: community_id.to_raw(),
+            ident: community_id_str,
         })?)
     }
 
-    pub fn get_profile_community_id(user_id: &Thing) -> Thing {
-        Thing::from((Self::get_table_name().to_string(), user_id.id.to_raw()))
+    pub fn get_profile_community_id(user_id: &RecordId) -> RecordId {
+        RecordId::new(
+            Self::get_table_name(),
+            record_id_key_to_string(&user_id.key),
+        )
     }
 }

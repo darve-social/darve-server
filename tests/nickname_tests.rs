@@ -1,4 +1,5 @@
 mod helpers;
+use crate::helpers::RecordIdExt;
 
 use darve_server::entities::nickname::Nickname;
 use helpers::create_fake_login_test_user;
@@ -24,7 +25,7 @@ test_with_server!(test_set_and_get_nickname, |server, ctx_state, config| {
     // Create two users
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
-    let user2_id = user2.id.as_ref().unwrap().id.to_raw();
+    let user2_id = user2.id.as_ref().unwrap().key_to_string();
 
     // Set a nickname for user2 by user1
     let nickname_data = json!({
@@ -55,7 +56,7 @@ test_with_server!(test_update_nickname, |server, ctx_state, config| {
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
 
-    let user2_id = user2.id.as_ref().unwrap().id.to_raw();
+    let user2_id = user2.id.as_ref().unwrap().key_to_string();
     // Set initial nickname
     let nickname_data = json!({
         "nickname": "Initial Nickname"
@@ -98,7 +99,7 @@ test_with_server!(test_remove_nickname, |server, ctx_state, config| {
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
 
-    let user2_id = user2.id.as_ref().unwrap().id.to_raw();
+    let user2_id = user2.id.as_ref().unwrap().key_to_string();
     // Set a nickname first
     let nickname_data = json!({
         "nickname": "Temporary Nickname"
@@ -168,7 +169,7 @@ test_with_server!(
         let response = server
             .post(&format!(
                 "/api/users/{}/nickname",
-                user2.id.as_ref().unwrap().id.to_raw()
+                user2.id.as_ref().unwrap().key_to_string()
             ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
@@ -184,7 +185,7 @@ test_with_server!(
         let response = server
             .post(&format!(
                 "/api/users/{}/nickname",
-                user2.id.as_ref().unwrap().id.to_raw()
+                user2.id.as_ref().unwrap().key_to_string()
             ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
@@ -221,9 +222,9 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
     let (server, user4, _, _) = create_fake_login_test_user(&server).await;
     let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
 
-    let user2_id = user2.id.as_ref().unwrap().id.to_raw();
-    let user3_id = user3.id.as_ref().unwrap().id.to_raw();
-    let user4_id = user4.id.as_ref().unwrap().id.to_raw();
+    let user2_id = user2.id.as_ref().unwrap().key_to_string();
+    let user3_id = user3.id.as_ref().unwrap().key_to_string();
+    let user4_id = user4.id.as_ref().unwrap().key_to_string();
 
     // Set nicknames for multiple users
     let nickname_data_2 = json!({
@@ -288,8 +289,8 @@ test_with_server!(
         let (server, user3, _, _) = create_fake_login_test_user(&server).await;
         let (server, _user1, _pwd1, _token1) = create_fake_login_test_user(&server).await;
 
-        let user2_id = user2.id.as_ref().unwrap().id.to_raw();
-        let user3_id = user3.id.as_ref().unwrap().id.to_raw();
+        let user2_id = user2.id.as_ref().unwrap().key_to_string();
+        let user3_id = user3.id.as_ref().unwrap().key_to_string();
         // Initial state - no nicknames
         let response = server
             .get("/api/users/current/nicknames")

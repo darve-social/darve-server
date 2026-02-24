@@ -10,11 +10,11 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, SurrealValue)]
 pub struct CurrencyTransactionView {
-    pub id: Thing,
+    pub id: RecordId,
     pub wallet: WalletView,
     pub with_wallet: WalletView,
     pub balance: i64,
@@ -23,6 +23,7 @@ pub struct CurrencyTransactionView {
     pub amount_out: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub description: Option<String>,
+    #[surreal(rename = "type")]
     pub r#type: Option<TransactionType>,
     pub fee: Option<u64>,
     pub gateway_tx: Option<GatewayTransaction>,
@@ -34,20 +35,20 @@ impl ViewFieldSelector for CurrencyTransactionView {
             "id,
             wallet.{{ 
                 id,
-                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
-                user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
+                task: type::record('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
+                user: type::record('{USER_TABLE_NAME}', record::id(id)).*
             }} as wallet,
             with_wallet.{{ 
                 id,
-                task: type::thing('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
-                user: type::thing('{USER_TABLE_NAME}', record::id(id)).*
+                task: type::record('{TASK_REQUEST_TABLE_NAME}', record::id(id)).*,
+                user: type::record('{USER_TABLE_NAME}', record::id(id)).*
             }} as with_wallet,
         balance,
         amount_in,
         amount_out,
         currency,
         description,
-        gateway_tx.* as gateway_tx,
+        IF gateway_tx != NONE THEN gateway_tx.* ELSE NONE END as gateway_tx,
         fee_amount as fee, 
         type,
         created_at"
@@ -55,9 +56,9 @@ impl ViewFieldSelector for CurrencyTransactionView {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, SurrealValue)]
 pub struct WalletView {
-    pub id: Thing,
+    pub id: RecordId,
     pub user: Option<UserView>,
     pub task: Option<TaskRequestEntity>,
 }

@@ -1,8 +1,9 @@
+use surrealdb::types::RecordId;
 use std::sync::Arc;
 
 use crate::{
     access::{base::role::Role, discussion::DiscussionAccess, post::PostAccess},
-    database::client::Db,
+    database::{client::Db, surrdb_utils::{record_id_key_to_string, record_id_to_raw}},
     entities::{
         community::{
             discussion_entity::{DiscussionDbService, DiscussionType},
@@ -43,7 +44,7 @@ use crate::{
 use axum_typed_multipart::{FieldData, TryFromMultipart};
 use futures::future::join_all;
 use serde::Deserialize;
-use surrealdb::sql::Thing;
+
 use tempfile::NamedTempFile;
 use tokio::sync::broadcast::Sender;
 use validator::Validate;
@@ -220,13 +221,13 @@ where
             .users
             .into_iter()
             .map(|u| u.user)
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         let new_members = members
             .into_iter()
             .filter(|u| !post_user_ids.contains(u.id.as_ref().unwrap()))
             .map(|u| u.id.as_ref().unwrap().clone())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if new_members.is_empty() {
             return Ok(());
@@ -236,7 +237,7 @@ where
             .access_repository
             .add(
                 new_members,
-                vec![post.id.to_raw().as_ref()],
+                vec![record_id_to_raw(&post.id).as_ref()],
                 Role::Member.to_string(),
             )
             .await?;
@@ -251,7 +252,7 @@ where
         user_ids: Vec<String>,
     ) -> CtxResult<()> {
         let user = self.users_repository.get_by_id(user_id).await?;
-        let user_id_str = user.id.as_ref().unwrap().to_raw();
+        let user_id_str = record_id_to_raw(user.id.as_ref().unwrap());
         if user_ids.contains(&user_id_str) {
             return Err(AppError::Generic {
                 description: "Owner of the post can not remove yourself".to_string(),
@@ -272,18 +273,18 @@ where
         let user_things = user_ids
             .into_iter()
             .filter_map(|v| get_str_thing(&v).ok())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         let post_user_ids = post
             .users
             .into_iter()
             .map(|u| u.user)
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         let remove_members = user_things
             .into_iter()
             .filter(|u| post_user_ids.contains(u))
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if remove_members.is_empty() {
             return Ok(());
@@ -291,17 +292,17 @@ where
 
         let disc_users = remove_members
             .iter()
-            .map(|id| id.id.to_raw())
+            .map(|id| record_id_key_to_string(&id.key))
             .collect::<Vec<String>>();
 
         let _ = self
             .access_repository
-            .remove_by_entity(post.id.to_raw().as_ref(), remove_members)
+            .remove_by_entity(record_id_to_raw(&post.id).as_ref(), remove_members)
             .await?;
 
         let updated_discs_users = self
             .discussion_users
-            .update_latest_post(&post.discussion.id.id.to_raw(), disc_users)
+            .update_latest_post(&record_id_key_to_string(&post.discussion.id.key), disc_users)
             .await?;
         let _ = self
             .notification_service
@@ -339,8 +340,8 @@ where
         let items = self
             .posts_repository
             .get_by_disc(
-                &user.id.as_ref().unwrap().id.to_raw(),
-                &disc.id.id.to_raw(),
+                &record_id_key_to_string(&user.id.as_ref().unwrap().key),
+                &record_id_key_to_string(&disc.id.key),
                 query.filter_by_type,
                 pag,
             )
@@ -368,8 +369,8 @@ where
         let count = self
             .posts_repository
             .get_count(
-                &user.id.as_ref().unwrap().id.to_raw(),
-                &disc.id.id.to_raw(),
+                &record_id_key_to_string(&user.id.as_ref().unwrap().key),
+                &record_id_key_to_string(&disc.id.key),
                 filter_by_type,
             )
             .await?;
@@ -419,7 +420,7 @@ where
         let media_links = if let Some(file) = post_data.file {
             let file_name = format!(
                 "{}_{}",
-                post_data.id.to_raw().replace(":", "_"),
+                record_id_to_raw(&post_data.id).replace(":", "_"),
                 file.file_name
             );
             let result = self
@@ -472,11 +473,12 @@ where
             }
         };
 
+        let post_view_id_raw = record_id_to_raw(&post_view.id);
         let _ = self
             .access_repository
             .add(
                 vec![user.id.as_ref().unwrap().clone()],
-                vec![&post_view.id.to_raw()],
+                vec![&post_view_id_raw],
                 Role::Owner.to_string(),
             )
             .await?;
@@ -490,14 +492,14 @@ where
                     Some(u.id.as_ref().unwrap().clone())
                 }
             })
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if !member_ids.is_empty() {
             let _ = self
                 .access_repository
                 .add(
                     member_ids.clone(),
-                    vec![&post_view.id.to_raw()],
+                    vec![&post_view_id_raw],
                     Role::Member.to_string(),
                 )
                 .await?;
@@ -506,22 +508,22 @@ where
         let disc_all_users = match post_data.r#type {
             PostType::Private => member_ids
                 .iter()
-                .map(|id| id.id.to_raw())
+                .map(|id| record_id_key_to_string(&id.key))
                 .chain(std::iter::once(user_id.to_string()))
                 .collect::<Vec<String>>(),
             _ => disc
                 .get_user_ids()
                 .iter()
-                .map(|id| id.id.to_raw())
+                .map(|id| record_id_key_to_string(&id.key))
                 .collect::<Vec<String>>(),
         };
 
         let updated_discs_users = self
             .discussion_users
             .set_new_latest_post(
-                &post_view.belongs_to.id.to_raw(),
+                &record_id_key_to_string(&post_view.belongs_to.key),
                 disc_all_users.iter().map(|id| id).collect::<Vec<&String>>(),
-                &post_view.id.id.to_raw(),
+                &record_id_key_to_string(&post_view.id.key),
                 disc_all_users
                     .iter()
                     .filter(|id| id.as_str() != user_id)
@@ -577,15 +579,15 @@ where
             return Err(AppError::Forbidden.into());
         }
 
-        self.posts_repository.delete(&post.id.id.to_raw()).await?;
+        self.posts_repository.delete(&record_id_key_to_string(&post.id.key)).await?;
 
         if post.discussion.r#type == DiscussionType::Private {
-            let disc_id = post.discussion.id.id.to_raw();
+            let disc_id = record_id_key_to_string(&post.discussion.id.key);
             let users = post
                 .discussion
                 .users
                 .into_iter()
-                .map(|u| u.user.id.to_raw())
+                .map(|u| record_id_key_to_string(&u.user.key))
                 .collect::<Vec<String>>();
             self.discussion_users
                 .update_latest_post(&disc_id, users)
@@ -636,7 +638,7 @@ where
         let user_things = user_ids
             .iter()
             .filter_map(|u| get_str_thing(&u).ok())
-            .collect::<Vec<Thing>>();
+            .collect::<Vec<RecordId>>();
 
         if user_things.is_empty() {
             return Err(AppError::Forbidden.into());
@@ -663,7 +665,7 @@ where
         if data.reply_to.is_some() {
             let _ = self
                 .posts_repository
-                .get_view_by_id::<PostAccessView>(&data.reply_to.as_ref().unwrap().to_raw(), None)
+                .get_view_by_id::<PostAccessView>(&record_id_to_raw(data.reply_to.as_ref().unwrap()), None)
                 .await
                 .map_err(|_| AppError::Generic {
                     description: "Reply to post not found".to_string(),
@@ -682,12 +684,12 @@ where
 }
 #[derive(Debug)]
 struct PostCreationData {
-    id: Thing,
+    id: RecordId,
     tags: Vec<String>,
     file: Option<FileUpload>,
     members: Vec<LocalUser>,
     r#type: PostType,
     content: Option<String>,
     title: String,
-    reply_to: Option<Thing>,
+    reply_to: Option<RecordId>,
 }

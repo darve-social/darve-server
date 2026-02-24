@@ -1,4 +1,5 @@
 use crate::{
+    database::surrdb_utils::record_id_to_raw,
     entities::user_auth::{authentication_entity::AuthType, local_user_entity::UpdateUser},
     middleware::{
         auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
@@ -168,7 +169,7 @@ async fn otp_validate(
 
     let token = state
         .jwt
-        .create_by_login(&user.id.as_ref().unwrap().to_raw())
+        .create_by_login(&record_id_to_raw(user.id.as_ref().unwrap()))
         .map_err(|e| AppError::Generic {
             description: e.to_string(),
         })?;

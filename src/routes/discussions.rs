@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::access::discussion::DiscussionAccess;
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::entities::community::discussion_entity::{self, DiscussionType};
 use crate::entities::community::post_entity::PostType;
 use crate::entities::task_request::TaskRequestEntity;
@@ -228,8 +229,8 @@ async fn get_tasks(
             .db
             .task_request
             .get_by_private_disc::<TaskRequestView>(
-                &disc.id.id.to_raw(),
-                &user.id.as_ref().unwrap().id.to_raw(),
+                &record_id_key_to_string(&disc.id.key),
+                &record_id_key_to_string(&user.id.as_ref().unwrap().key),
                 None,
                 None,
                 None,
@@ -243,8 +244,8 @@ async fn get_tasks(
             .db
             .task_request
             .get_by_public_disc::<TaskRequestView>(
-                &disc.id.id.to_raw(),
-                &user.id.as_ref().unwrap().id.to_raw(),
+                &record_id_key_to_string(&disc.id.key),
+                &record_id_key_to_string(&user.id.as_ref().unwrap().key),
                 None,
                 None,
                 None,
@@ -307,10 +308,10 @@ async fn create_post(
         &ctx_state.db.discussion_users,
     );
 
-    let post = post_service
+    let post_result = post_service
         .create(&auth_data.user_thing_id(), &discussion_id, input_value)
-        .await?;
-    Ok(Json(post))
+        .await;
+    Ok(Json(post_result?))
 }
 
 async fn get_posts(

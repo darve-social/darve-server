@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::entities::verification_code::VerificationCodeFor;
 use crate::interfaces::repositories::verification_code_ifce::VerificationCodeRepositoryInterface;
 use crate::{
@@ -161,7 +162,7 @@ where
         let verification_data = self
             .verification_code_service
             .get(
-                &user.id.as_ref().expect("exists").id.to_raw(),
+                &record_id_key_to_string(&user.id.as_ref().expect("exists").key),
                 VerificationCodeFor::SetPassword,
                 &code,
             )
@@ -180,7 +181,7 @@ where
             .await?;
 
         self.verification_code_service
-            .delete(&verification_data.id)
+            .delete(&record_id_key_to_string(&verification_data.id.as_ref().unwrap().key))
             .await?;
 
         Ok(())
@@ -220,7 +221,7 @@ where
             .update_token(user_id, AuthType::PASSWORD, hash, None)
             .await?;
 
-        self.verification_code_service.delete(&code.id).await?;
+        self.verification_code_service.delete(&record_id_key_to_string(&code.id.as_ref().unwrap().key)).await?;
 
         Ok(())
     }

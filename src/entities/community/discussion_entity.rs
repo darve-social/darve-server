@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::sql::Thing;
+use surrealdb::types::{RecordId, SurrealValue};
 
 use middleware::utils::db_utils::{
     get_entity_view, with_not_found_err, IdentIdName, ViewFieldSelector,
@@ -11,6 +11,7 @@ use middleware::{
 };
 
 use crate::database::client::Db;
+use crate::database::surrdb_utils::record_id_key_to_string;
 use crate::database::table_names::ACCESS_TABLE_NAME;
 use crate::entities::user_auth::local_user_entity::TABLE_NAME as USER_TABLE_NAME;
 use crate::middleware;
@@ -19,22 +20,24 @@ use crate::middleware::utils::string_utils::get_str_thing;
 
 use super::{community_entity, post_entity};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
 pub enum DiscussionType {
     Private,
     Public,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct Discussion {
-    pub id: Thing,
-    pub belongs_to: Thing,
+    pub id: RecordId,
+    pub belongs_to: RecordId,
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_uri: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub created_by: Thing,
+    pub created_by: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
 }
 
@@ -43,13 +46,14 @@ impl Discussion {
         self.id == DiscussionDbService::get_profile_discussion_id(&self.created_by)
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, SurrealValue)]
 pub struct CreateDiscussionEntity {
-    pub id: Option<Thing>,
-    pub belongs_to: Thing,
+    pub id: Option<RecordId>,
+    pub belongs_to: RecordId,
     pub title: String,
     pub image_uri: Option<String>,
-    pub created_by: Thing,
+    pub created_by: RecordId,
+    #[surreal(rename = "type")]
     pub r#type: DiscussionType,
 }
 
@@ -85,23 +89,33 @@ impl<'a> DiscussionDbService<'a> {
         Ok(())
     }
 
-    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_view_by_id<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         id: &str,
     ) -> CtxResult<T> {
         let thing = get_str_thing(id)?;
-        let ident = IdentIdName::Id(thing);
-        self.get_view(ident).await
+        let fields = T::get_select_query_fields();
+        let mut res = self
+            .db
+            .query(format!("SELECT {fields} FROM $disc"))
+            .bind(("disc", thing))
+            .await?;
+        let data = res.take::<Option<T>>(0)?;
+        data.ok_or_else(|| {
+            self.ctx.to_ctx_error(AppError::EntityFailIdNotFound {
+                ident: id.to_string(),
+            })
+        })
     }
 
-    pub async fn get_view<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_view<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         ident_id_name: IdentIdName,
     ) -> CtxResult<T> {
         let opt = get_entity_view::<T>(self.db, TABLE_NAME.to_string(), &ident_id_name).await?;
         with_not_found_err(opt, self.ctx, &ident_id_name.to_string().as_str())
     }
-    pub async fn get_by_id_with_user<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_by_id_with_user<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         id: &str,
         user_id: &str,
@@ -111,8 +125,8 @@ impl<'a> DiscussionDbService<'a> {
         let mut res = self
             .db
             .query(query)
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
-            .bind(("disc", Thing::from((TABLE_NAME, id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
+            .bind(("disc", RecordId::new(TABLE_NAME, id)))
             .await?;
         let data = res.take::<Option<T>>(0)?;
         Ok(data.ok_or(AppError::EntityFailIdNotFound {
@@ -120,7 +134,7 @@ impl<'a> DiscussionDbService<'a> {
         })?)
     }
 
-    pub async fn get_by_type<T: for<'b> Deserialize<'b> + ViewFieldSelector>(
+    pub async fn get_by_type<T: for<'b> Deserialize<'b> + SurrealValue + ViewFieldSelector>(
         &self,
         user_id: &str,
         disc_type: Option<DiscussionType>,
@@ -143,7 +157,7 @@ impl<'a> DiscussionDbService<'a> {
         let mut res = self
             .db
             .query(query)
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("disc_type", disc_type))
             .bind(("limit", pagination.count))
             .bind(("start", pagination.start))
@@ -167,7 +181,7 @@ impl<'a> DiscussionDbService<'a> {
         let disc = self
             .db
             .query("UPDATE $disc SET title=$title")
-            .bind(("disc", Thing::from((TABLE_NAME, disc_id))))
+            .bind(("disc", RecordId::new(TABLE_NAME, disc_id)))
             .bind(("title", title.to_string()))
             .await
             .map_err(CtxError::from(self.ctx))?
@@ -178,7 +192,7 @@ impl<'a> DiscussionDbService<'a> {
         })?)
     }
 
-    pub fn get_profile_discussion_id(user_id: &Thing) -> Thing {
-        Thing::from((TABLE_NAME.to_string(), format!("{}", user_id.id.to_raw())))
+    pub fn get_profile_discussion_id(user_id: &RecordId) -> RecordId {
+        RecordId::new(TABLE_NAME, record_id_key_to_string(&user_id.key))
     }
 }

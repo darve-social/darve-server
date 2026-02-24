@@ -1,4 +1,5 @@
 use crate::database::client::Db;
+use crate::database::query_builder::SurrealQueryBuilder;
 use crate::database::surrdb_utils::get_thing;
 use crate::database::table_names::TASK_REQUEST_TABLE_NAME;
 use crate::entities::task_donor::TaskDonor;
@@ -9,9 +10,7 @@ use crate::interfaces::repositories::task_donors::TaskDonorsRepositoryInterface;
 use crate::middleware::error::AppError;
 use async_trait::async_trait;
 use std::sync::Arc;
-use surrealdb::engine::any;
-use surrealdb::method::Query;
-use surrealdb::sql::Thing;
+use surrealdb::types::RecordId;
 
 #[derive(Debug)]
 pub struct TaskDonorsRepository {
@@ -52,56 +51,58 @@ impl TaskDonorsRepository {
 
 #[async_trait]
 impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
-    fn build_create_query<'b>(
+    fn build_create_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         task_id: &str,
         user_id: &str,
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Query<'b, any::Any> {
+    ) -> SurrealQueryBuilder {
         query
             .query(format!(
-                "LET $task_donor=RELATE $_task_donor_task_id->{}->$_task_donor_user_id SET
+                "LET $task_donor=(RELATE $_task_donor_task_id->{}->$_task_donor_user_id SET
                 amount=$_task_donor_amount,
                 transaction={tx_id},
-                currency=$_task_donor_currency;",
+                currency=$_task_donor_currency
+                RETURN id, out AS user, transaction, amount, currency, votes)[0];",
                 self.table_name
             ))
-            .bind((
+            .bind_var(
                 "_task_donor_user_id",
-                Thing::from((USER_TABLE_NAME, user_id)),
-            ))
-            .bind((
+                RecordId::new(USER_TABLE_NAME, user_id),
+            )
+            .bind_var(
                 "_task_donor_task_id",
                 get_thing(task_id).expect("Task id invalid"),
-            ))
-            .bind(("_task_donor_amount", amount))
-            .bind(("_task_donor_currency", currency.to_string()))
+            )
+            .bind_var("_task_donor_amount", amount)
+            .bind_var("_task_donor_currency", currency.to_string())
     }
 
-    fn build_update_query<'b>(
+    fn build_update_query(
         &self,
-        query: Query<'b, any::Any>,
+        query: SurrealQueryBuilder,
         id: &str,
         tx_id: &str,
         amount: u64,
         currency: &str,
-    ) -> Query<'b, any::Any> {
+    ) -> SurrealQueryBuilder {
         query
             .query(format!(
-                "LET $task_donor=UPDATE $_task_donor_id SET
+                "LET $task_donor=(UPDATE $_task_donor_id SET
                 amount=$_task_donor_amount,
                 transaction={tx_id},
-                currency=$_task_donor_currency;"
+                currency=$_task_donor_currency
+                RETURN id, out AS user, transaction, amount, currency, votes)[0];"
             ))
-            .bind((
+            .bind_var(
                 "_task_donor_id",
-                Thing::from((self.table_name.as_ref(), id)),
-            ))
-            .bind(("_task_donor_amount", amount))
-            .bind(("_task_donor_currency", currency.to_string()))
+                RecordId::new(self.table_name, id),
+            )
+            .bind_var("_task_donor_amount", amount)
+            .bind_var("_task_donor_currency", currency.to_string())
     }
 
     async fn create(
@@ -120,10 +121,10 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
         let mut res = self
             .client
             .query(sql)
-            .bind(("user", Thing::from((USER_TABLE_NAME, user_id))))
+            .bind(("user", RecordId::new(USER_TABLE_NAME, user_id)))
             .bind(("task", get_thing(task_id).expect("Task id invalid")))
             .bind(("amount", amount))
-            .bind(("tx_id", Thing::from((TRANSACTION_TABLE_NAME, tx_id))))
+            .bind(("tx_id", RecordId::new(TRANSACTION_TABLE_NAME, tx_id)))
             .bind(("currency", currency.to_string()))
             .await
             .map_err(|e| e.to_string())?;
@@ -146,9 +147,9 @@ impl TaskDonorsRepositoryInterface for TaskDonorsRepository {
         let mut res = self
             .client
             .query(query)
-            .bind(("id", Thing::from((self.table_name.as_ref(), id))))
+            .bind(("id", RecordId::new(self.table_name, id)))
             .bind(("amount", amount))
-            .bind(("tx_id", Thing::from((TRANSACTION_TABLE_NAME, tx_id))))
+            .bind(("tx_id", RecordId::new(TRANSACTION_TABLE_NAME, tx_id)))
             .bind(("currency", currency.to_string()))
             .await
             .map_err(|e| e.to_string())?;
