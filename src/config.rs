@@ -29,6 +29,9 @@ pub struct AppConfig {
     pub paypal_client_id: String,
     pub paypal_client_key: String,
     pub support_email: String,
+    pub twitch_client_id: String,
+    pub twitch_client_secret: String,
+    pub twitch_redirect_uri: String,
 }
 
 impl AppConfig {
@@ -97,6 +100,9 @@ impl AppConfig {
         let paypal_client_id = std::env::var("PAYPAL_CLIENT_ID").unwrap_or("".to_string());
         let paypal_client_key = std::env::var("PAYPAL_CLIENT_KEY").unwrap_or("".to_string());
         let support_email = std::env::var("SUPPORT_EMAIL").unwrap_or("".to_string());
+        let twitch_client_id = std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string());
+        let twitch_client_secret = std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string());
+        let twitch_redirect_uri = std::env::var("TWITCH_REDIRECT_URI").unwrap_or("".to_string());
 
         Self {
             db_namespace,
@@ -126,6 +132,9 @@ impl AppConfig {
             paypal_client_id,
             paypal_client_key,
             support_email,
+            twitch_client_id,
+            twitch_client_secret,
+            twitch_redirect_uri,
         }
     }
 }

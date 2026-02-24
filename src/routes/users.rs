@@ -13,7 +13,10 @@ use crate::{
         post::PostView,
         user::{LoggedUserView, UserView},
     },
-    utils::{file::convert::build_profile_file_name, validate_utils::validate_social_links},
+    utils::{
+        file::convert::build_profile_file_name, validate_utils::validate_social_links,
+        verification::twitch::TwitchTokenResponse,
+    },
 };
 
 use axum::{
@@ -85,6 +88,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/users/status", get(get_users_status))
         .route("/api/users/{user_id}/nickname", post(set_nickname))
         .route("/api/users/current/nicknames", get(get_nicknames))
+        .route("/api/users/current/twitch_token", get(get_twitch_token))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -751,4 +755,51 @@ async fn get_nicknames(
         .await?;
 
     Ok(Json(nicknames))
+}
+
+async fn get_twitch_token(
+    auth_data: AuthWithLoginAccess,
+    State(state): State<Arc<CtxState>>,
+) -> CtxResult<Json<String>> {
+    let user_db_service = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+    let current_user = user_db_service
+        .get_by_id(&auth_data.user_thing_id())
+        .await?;
+    let auth_service = AuthenticationDbService {
+        db: &state.db.client,
+        ctx: &auth_data.ctx,
+    };
+
+    let data = auth_service
+        .get_by_auth_type(current_user.id.as_ref().unwrap().to_raw(), AuthType::TWITCH)
+        .await?
+        .ok_or(AppError::AuthenticationFail)?
+        .metadata
+        .ok_or(AppError::AuthenticationFail)?;
+
+    let data: TwitchTokenResponse =
+        serde_json::from_value(data).map_err(|_| AppError::AuthenticationFail)?;
+
+    let token = state
+        .twitch_service
+        .refresh_token(&data)
+        .await
+        .map_err(|_| AppError::AuthenticationFail)?;
+
+    let access_token = token.access_token.clone();
+    if token.access_token != access_token {
+        auth_service
+            .update_token(
+                &auth_data.user_thing_id(),
+                AuthType::TWITCH,
+                access_token.clone(),
+                Some(serde_json::to_value(&token).map_err(|_| AppError::AuthenticationFail)?),
+            )
+            .await?;
+    }
+
+    Ok(Json(access_token))
 }

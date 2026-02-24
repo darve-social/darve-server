@@ -27,6 +27,7 @@ use crate::{
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
+        .route("/api/auth/sign_with_twitch", post(sign_by_twitch))
         .route("/api/auth/sign_with_facebook", post(sign_by_fb))
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
         .route("/api/auth/sign_with_google", post(sign_by_google))
@@ -43,9 +44,40 @@ pub fn routes() -> Router<Arc<CtxState>> {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+struct GetTwitchRequest {
+    code: String,
+}
+async fn sign_by_twitch(
+    State(state): State<Arc<CtxState>>,
+    ctx: Ctx,
+    query: Json<GetTwitchRequest>,
+) -> CtxResult<Response> {
+    let auth_service = AuthService::new(
+        &state.db.client,
+        &ctx,
+        &state.jwt,
+        state.email_sender.clone(),
+        state.verification_code_ttl,
+        &state.db.verification_code,
+        &state.db.access,
+        state.file_storage.clone(),
+        &state.twitch_service,
+    );
+
+    let (token, user, has_password) = auth_service.sign_by_twitch(&query.code).await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),
+    )
+        .into_response())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct SocialSignInput {
     token: String,
 }
+
 async fn sign_by_fb(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
@@ -60,6 +92,7 @@ async fn sign_by_fb(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let (token, user, has_password) = auth_service.sign_by_facebook(&body.token).await?;
@@ -85,6 +118,7 @@ async fn sign_by_apple(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
     let (token, user, has_password) = auth_service
         .register_login_by_apple(&body.token, &state.apple_mobile_client_id)
@@ -111,6 +145,7 @@ async fn sign_by_google(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let (token, user, has_password) = auth_service
@@ -145,6 +180,7 @@ async fn signin(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let (token, user) = auth_service.login_password(body).await?;
@@ -178,6 +214,7 @@ async fn signup(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let (token, user) = auth_service.register_password(body, None).await?;
@@ -211,6 +248,7 @@ async fn forgot_password_start(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let _ = auth_service.forgot_password(body).await?;
@@ -231,6 +269,7 @@ async fn forgot_password_confirm(
         &state.db.verification_code,
         &state.db.access,
         state.file_storage.clone(),
+        &state.twitch_service,
     );
 
     let _ = auth_service.reset_password(body).await?;
