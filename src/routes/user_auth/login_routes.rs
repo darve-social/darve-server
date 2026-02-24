@@ -17,10 +17,12 @@ use utils::template_utils::ProfileFormPage;
 
 use crate::middleware::mw_ctx::CtxState;
 use crate::{middleware, utils};
+use crate::utils::template_utils::TwitchLoginPage;
 
 pub fn routes() -> Router<Arc<CtxState>> {
     Router::new()
         .route("/login", get(login_form))
+        .route("/login/twitch", get(login_twitch))
         .route("/logout", get(logout_page))
 }
 
@@ -90,6 +92,20 @@ async fn logout_page(
         None,
         None,
     );
+
+    Ok(Html(data.render().unwrap()).into_response())
+}
+
+async fn login_twitch(
+    ctx: Ctx,
+    Query(mut qry): Query<HashMap<String, String>>,
+) -> CtxResult<Response> {
+    let next = qry.remove("next");
+    if next.is_some() && ctx.user_id().is_ok() {
+        return Ok(Redirect::temporary(next.unwrap().as_str()).into_response());
+    }
+
+    let data = TwitchLoginPage{};
 
     Ok(Html(data.render().unwrap()).into_response())
 }

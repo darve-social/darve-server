@@ -12,6 +12,7 @@ pub struct ProfileFormPage {
     pub(crate) form: Box<dyn DynTemplate>,
 }
 
+
 impl ProfileFormPage {
     pub fn new(
         form: Box<dyn DynTemplate>,
@@ -28,4 +29,16 @@ impl ProfileFormPage {
             form,
         }
     }
+}
+
+#[allow(dead_code)]
+#[derive(Template)]
+#[template(path = "auth/login.html")]
+pub struct TwitchLoginPage {
+    // theme_name: String,
+    // window_title: String,
+    // nav_top_title: String,
+    // header_title: String,
+    // footer_text: String,
+    // pub(crate) form: Box<dyn DynTemplate>,
 }

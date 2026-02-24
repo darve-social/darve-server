@@ -42,6 +42,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::database::client::Database;
 use crate::entities::wallet::gateway_transaction_entity::GatewayTransactionDbService;
+use crate::routes::pages_ui::instant_donation;
 
 pub async fn create_default_profiles(ctx_state: &CtxState, password: &str) {
     let c = Ctx::new(Ok("create_drave_profiles".parse().unwrap()), false);
@@ -129,6 +130,7 @@ pub fn main_router(
         .merge(editor_tags::routes())
         .merge(reply::routes())
         .merge(admin::routes())
+        .merge(instant_donation::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
         .layer(

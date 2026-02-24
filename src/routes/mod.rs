@@ -15,3 +15,4 @@ pub mod user_otp;
 pub mod users;
 pub mod wallet;
 pub mod webhooks;
+pub mod pages_ui;
