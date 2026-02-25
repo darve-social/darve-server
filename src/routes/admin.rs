@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     entities::user_auth::local_user_entity::LocalUserDbService,
-    middleware::{auth_with_login_access::AuthWithLoginAccess, error::CtxResult, mw_ctx::CtxState},
+    middleware::{bearer_auth::BearerAuth, error::CtxResult, mw_ctx::CtxState},
     models::view::task::TaskRequestView,
 };
 
@@ -12,7 +12,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 }
 
 async fn get_tasks(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let user_id = auth_data.user_thing_id();

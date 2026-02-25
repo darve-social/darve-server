@@ -46,6 +46,7 @@ impl Repository<TaskRequestEntity> {
     DEFINE FIELD IF NOT EXISTS due_at ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime;
     DEFINE FIELD IF NOT EXISTS acceptance_period ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE number;
     DEFINE FIELD IF NOT EXISTS delivery_period ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE number;
+    DEFINE FIELD IF NOT EXISTS goal_amount ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE option<number>;
     DEFINE FIELD IF NOT EXISTS wallet_id ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE record<{WALLET_TABLE_NAME}>;
     DEFINE FIELD IF NOT EXISTS created_at ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime DEFAULT time::now()  VALUE $before OR time::now();
     DEFINE FIELD IF NOT EXISTS r_updated ON TABLE {TASK_REQUEST_TABLE_NAME} TYPE datetime DEFAULT time::now() VALUE time::now();
@@ -86,6 +87,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
                     type=$_task_type,
                     acceptance_period=$_task_acceptance_period,
                     due_at=$_task_due_at,
+                    goal_amount=$_task_goal_amount,
                     status=$_task_status;"
             ));
 
@@ -104,6 +106,7 @@ impl TaskRequestRepositoryInterface for Repository<TaskRequestEntity> {
             .bind(("_task_type", record.r#type.clone()))
             .bind(("_task_acceptance_period", record.acceptance_period))
             .bind(("_task_status", TaskRequestStatus::Init))
+            .bind(("_task_goal_amount", record.goal_amount))
             .bind(("_task_due_at", Datetime::from(due_at.unwrap())))
             .bind(("_task_wallet_id", record.wallet_id.clone()))
             .bind(("_task_id", record.task_id.clone()));

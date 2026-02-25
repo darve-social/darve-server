@@ -17,7 +17,7 @@ use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
@@ -65,7 +65,7 @@ pub struct GetPostsResponse {
 }
 
 async fn create_task(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(post_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
@@ -95,7 +95,7 @@ async fn create_task(
 }
 
 async fn get_post_tasks(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
@@ -156,7 +156,7 @@ pub struct PostLikeResponse {
 }
 
 async fn like(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<PostLikeData>,
@@ -180,7 +180,7 @@ async fn like(
 }
 
 async fn unlike(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<PostLikeResponse>> {
@@ -209,7 +209,7 @@ pub struct GetRepliesQuery {
 
 async fn get_replies(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     Query(query): Query<GetRepliesQuery>,
 ) -> CtxResult<Json<Vec<ReplyView>>> {
@@ -251,7 +251,7 @@ async fn get_replies(
 
 async fn create_reply(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<ReplyInput>,
 ) -> CtxResult<Json<ReplyView>> {
@@ -314,7 +314,7 @@ struct PostMember {
 }
 
 async fn add_members(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<PostMember>,
@@ -337,7 +337,7 @@ async fn add_members(
 }
 
 async fn remove_members(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<PostMember>,
@@ -360,7 +360,7 @@ async fn remove_members(
 }
 
 async fn get_members(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<Vec<UserView>>> {
@@ -384,7 +384,7 @@ async fn get_members(
 async fn post_mark_as_deliver(
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
 ) -> CtxResult<()> {
     let service = PostUserService::new(
         &state,
@@ -407,7 +407,7 @@ async fn post_mark_as_deliver(
 async fn post_mark_as_read(
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
 ) -> CtxResult<()> {
     let service = PostUserService::new(
         &state,
@@ -426,7 +426,7 @@ async fn post_mark_as_read(
 }
 
 async fn get_post(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(post_id): Path<String>,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<FullPostView>> {
@@ -448,7 +448,7 @@ async fn get_post(
 }
 
 async fn delete_post(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(post_id): Path<String>,
 ) -> CtxResult<()> {

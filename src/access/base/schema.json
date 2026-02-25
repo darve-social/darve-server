@@ -155,7 +155,8 @@
                   "permissions": [
                     "VIEW",
                     "EDIT",
-                    "ACCEPT_TASK"
+                    "ACCEPT_TASK",
+                    "REJECT_TASK"
                   ]
                 },
                 "PARTICIPANT": {

@@ -7,7 +7,7 @@ use crate::{
     interfaces::repositories::{
         discussion_user::DiscussionUserRepositoryInterface, nickname::NicknamesRepositoryInterface,
     },
-    middleware::{auth_with_login_access::AuthWithLoginAccess, utils::db_utils::Pagination},
+    middleware::{bearer_auth::BearerAuth, ctx::Ctx, utils::db_utils::Pagination},
     models::view::{
         discussion_user::DiscussionUserView,
         post::PostView,
@@ -88,7 +88,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/users/status", get(get_users_status))
         .route("/api/users/{user_id}/nickname", post(set_nickname))
         .route("/api/users/current/nicknames", get(get_nicknames))
-        .route("/api/users/current/twitch_token", get(get_twitch_token))
+        .route("/api/users/current/twitch", get(get_twitch))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -100,7 +100,7 @@ struct SetPasswordInput {
 }
 
 async fn start_set_password(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Response> {
     let user_service = UserService::new(
@@ -125,7 +125,7 @@ async fn start_set_password(
 }
 
 async fn start_update_password(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Response> {
     let user_service = UserService::new(
@@ -150,7 +150,7 @@ async fn start_update_password(
 }
 
 async fn set_password(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<SetPasswordInput>,
 ) -> CtxResult<Response> {
@@ -186,7 +186,7 @@ struct ResetPasswordInput {
 }
 
 async fn reset_password(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<ResetPasswordInput>,
 ) -> CtxResult<String> {
@@ -222,7 +222,7 @@ pub struct EmailVerificationStartInput {
     pub email: String,
 }
 async fn email_verification_start(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationStartInput>,
 ) -> CtxResult<()> {
@@ -248,7 +248,6 @@ async fn email_verification_start(
 }
 
 #[derive(Debug, Deserialize, Validate)]
-
 pub struct EmailVerificationConfirmInput {
     #[validate(email)]
     pub email: String,
@@ -257,7 +256,7 @@ pub struct EmailVerificationConfirmInput {
 }
 
 async fn email_verification_confirm(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EmailVerificationConfirmInput>,
 ) -> CtxResult<()> {
@@ -290,7 +289,7 @@ pub struct GetFollowerPostsQuery {
 }
 
 async fn get_following_posts(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetFollowerPostsQuery>,
 ) -> CtxResult<Json<Vec<PostView>>> {
@@ -450,7 +449,7 @@ impl ProfileSettingsFormInput {
 }
 async fn update_user(
     State(ctx_state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     mut multipart: Multipart,
 ) -> CtxResult<Json<LoggedUserView>> {
     let form = ProfileSettingsFormInput::try_from_multipart(&mut multipart).await?;
@@ -559,7 +558,7 @@ pub struct SearchInput {
 }
 
 async fn search_users(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Query(form_value): Query<SearchInput>,
 ) -> CtxResult<Json<Vec<UserView>>> {
@@ -588,12 +587,13 @@ async fn search_users(
 }
 
 async fn get_user(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<LoggedUserView>> {
+    let ctx = Ctx::new(Ok(auth_data.user_id.clone()), false);
     let local_user_db_service = LocalUserDbService {
         db: &ctx_state.db.client,
-        ctx: &auth_data.ctx,
+        ctx: &ctx,
     };
 
     let (user, auth) = local_user_db_service
@@ -611,7 +611,7 @@ struct GetPostsQuery {
 }
 
 async fn get_latest_posts(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetPostsQuery>,
 ) -> CtxResult<Json<Vec<DiscussionUserView>>> {
@@ -657,7 +657,7 @@ struct GetUsersStatusQuery {
 }
 
 async fn get_users_status(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     ExtractQuery(query): ExtractQuery<GetUsersStatusQuery>,
 ) -> CtxResult<Json<Vec<UserStatus>>> {
@@ -693,7 +693,7 @@ struct SetNicknameData {
 }
 
 async fn set_nickname(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     ExPath(user_id): ExPath<String>,
     State(state): State<Arc<CtxState>>,
     Json(body): Json<SetNicknameData>,
@@ -737,7 +737,7 @@ async fn set_nickname(
 }
 
 async fn get_nicknames(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<Vec<Nickname>>> {
     let user_db_service = LocalUserDbService {
@@ -757,31 +757,40 @@ async fn get_nicknames(
     Ok(Json(nicknames))
 }
 
-async fn get_twitch_token(
-    auth_data: AuthWithLoginAccess,
+#[derive(Debug, Deserialize, Serialize)]
+struct UserTwitchInfo {
+    access_token: String,
+    user_id: String,
+}
+
+async fn get_twitch(
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
-) -> CtxResult<Json<String>> {
+) -> CtxResult<Json<UserTwitchInfo>> {
+    let ctx = Ctx::new(Ok(auth_data.user_id.clone()), false);
     let user_db_service = LocalUserDbService {
         db: &state.db.client,
-        ctx: &auth_data.ctx,
+        ctx: &ctx,
     };
     let current_user = user_db_service
         .get_by_id(&auth_data.user_thing_id())
         .await?;
     let auth_service = AuthenticationDbService {
         db: &state.db.client,
-        ctx: &auth_data.ctx,
+        ctx: &ctx,
     };
 
-    let data = auth_service
+    let authentication = auth_service
         .get_by_auth_type(current_user.id.as_ref().unwrap().to_raw(), AuthType::TWITCH)
         .await?
-        .ok_or(AppError::AuthenticationFail)?
+        .ok_or(AppError::AuthenticationFail)?;
+
+    let auth_metadata = authentication
         .metadata
         .ok_or(AppError::AuthenticationFail)?;
 
     let data: TwitchTokenResponse =
-        serde_json::from_value(data).map_err(|_| AppError::AuthenticationFail)?;
+        serde_json::from_value(auth_metadata).map_err(|_| AppError::AuthenticationFail)?;
 
     let token = state
         .twitch_service
@@ -801,5 +810,8 @@ async fn get_twitch_token(
             .await?;
     }
 
-    Ok(Json(access_token))
+    Ok(Json(UserTwitchInfo {
+        access_token,
+        user_id: authentication.token,
+    }))
 }

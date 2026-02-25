@@ -6,7 +6,7 @@ use crate::entities::community::post_entity::PostDbService;
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::like::LikesRepositoryInterface;
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::db_utils::Pagination;
 use crate::middleware::utils::extractor_utils::JsonOrFormValidated;
@@ -40,7 +40,7 @@ pub struct LikeResponse {
 }
 
 async fn like(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(reply_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
     Json(body): Json<PostLikeData>,
@@ -119,7 +119,7 @@ async fn like(
 }
 
 async fn unlike(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(reply_id): Path<String>,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<LikeResponse>> {
@@ -180,7 +180,7 @@ pub struct ReplyInput {
 
 async fn create_reply(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(comment_id): Path<String>,
     JsonOrFormValidated(reply_input): JsonOrFormValidated<ReplyInput>,
 ) -> CtxResult<Json<ReplyView>> {
@@ -242,7 +242,7 @@ pub struct GetRepliesQuery {
 
 async fn get_replies(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(comment_id): Path<String>,
     Query(query): Query<GetRepliesQuery>,
 ) -> CtxResult<Json<Vec<ReplyView>>> {
