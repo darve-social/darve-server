@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::error::{AppError, AppResult, CtxError, CtxResult};
 use crate::middleware::mw_ctx::{CtxState, JWT_KEY};
+use crate::utils::jwt::TokenType;
 use askama::Template;
 use axum::{
     extract::{FromRequestParts, State},
@@ -9,6 +10,7 @@ use axum::{
     response::Html,
 };
 use axum_extra::extract::cookie::CookieJar;
+use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use reqwest::StatusCode;
 use serde::Serialize;
 
@@ -95,12 +97,21 @@ impl FromRequestParts<Arc<CtxState>> for Ctx {
         let jwt_user_id: Result<String, AppError> = match cookies.get(JWT_KEY) {
             Some(cookie) => match app_state
                 .jwt
-                .decode_by_type(cookie.value(), crate::utils::jwt::TokenType::Login)
+                .decode_by_type(cookie.value(), TokenType::Login)
             {
                 Ok(claims) => Ok(claims.auth),
                 Err(_) => Err(AppError::AuthFailNoJwtCookie),
             },
-            None => Err(AppError::AuthFailNoJwtCookie),
+            None => match parts.headers.typed_get::<Authorization<Bearer>>() {
+                Some(token) => match app_state
+                    .jwt
+                    .decode_by_type(token.token(), TokenType::Login)
+                {
+                    Ok(claims) => Ok(claims.auth),
+                    Err(_) => Err(AppError::AuthFailNoJwtCookie),
+                },
+                None => Err(AppError::AuthFailNoJwtCookie),
+            },
         };
 
         Ok(Ctx::new(jwt_user_id, prefers_html))

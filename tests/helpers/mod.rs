@@ -12,23 +12,6 @@ use fake::{faker, Fake};
 use serde_json::Value;
 
 #[allow(dead_code)]
-pub async fn create_login_test_user(
-    server: &TestServer,
-    username: String,
-) -> (&TestServer, String) {
-    let data = MultipartForm::new()
-        .add_text("username", username.as_str())
-        .add_text("password", "some3242paSs#$");
-
-    let create_user = &server.post("/api/register").multipart(data).await;
-
-    create_user.assert_status_success();
-    let auth_response = create_user.json::<Value>();
-    let user = serde_json::from_value::<LocalUser>(auth_response["user"].clone()).unwrap();
-    (server, user.id.unwrap().to_raw())
-}
-
-#[allow(dead_code)]
 pub async fn create_fake_login_test_user(
     server: &TestServer,
 ) -> (&TestServer, LocalUser, String, String) {

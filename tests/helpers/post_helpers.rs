@@ -15,10 +15,12 @@ pub async fn create_post(
     server: &TestServer,
     discussion_id: &Thing,
     data: MultipartForm,
+    token: &str,
 ) -> TestResponse {
     server
         .post(format!("/api/discussions/{discussion_id}/posts").as_str())
         .multipart(data)
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
 }
@@ -67,9 +69,10 @@ pub async fn create_fake_post(
     discussion_id: &Thing,
     topic_id: Option<Thing>,
     tags: Option<Vec<String>>,
+    token: &str,
 ) -> CreateFakePostResponse {
     let data = build_fake_post(topic_id, tags);
-    let create_post = create_post(&server, &discussion_id, data).await;
+    let create_post = create_post(&server, &discussion_id, data, token).await;
     let post = create_post.json::<PostView>();
     let _ = create_post.assert_status_success();
 
@@ -80,11 +83,12 @@ pub async fn create_fake_post(
 }
 
 #[allow(dead_code)]
-pub async fn create_fake_reply(server: &TestServer, post_id: &str) -> ReplyView {
+pub async fn create_fake_reply(server: &TestServer, post_id: &str, token: &str) -> ReplyView {
     let content = faker::lorem::en::Sentence(7..20).fake::<String>();
     let reply = server
         .post(format!("/api/posts/{post_id}/replies").as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "content": content  }))
         .await;
     reply.assert_status_success();
@@ -96,6 +100,7 @@ pub async fn create_fake_post_with_large_file(
     server: &TestServer,
     _: &CtxState,
     discussion_id: &Thing,
+    token: &str,
 ) {
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/test_image_20mb.jpg").unwrap();
@@ -103,7 +108,7 @@ pub async fn create_fake_post_with_large_file(
         .file_name("test_image_20mb.jpg")
         .mime_type("image/jpeg");
     data = data.add_part("file_1", part);
-    let response = create_post(&server, &discussion_id, data).await;
+    let response = create_post(&server, &discussion_id, data, token).await;
 
     response.assert_status_success();
 }
@@ -113,6 +118,7 @@ pub async fn create_fake_post_with_file(
     server: &TestServer,
     _: &CtxState,
     discussion_id: &Thing,
+    token: &str,
 ) -> String {
     let mut data = build_fake_post(None, None);
     let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();
@@ -122,7 +128,7 @@ pub async fn create_fake_post_with_file(
         .mime_type("image/jpeg");
 
     data = data.add_part("file_1", part);
-    let response = create_post(&server, &discussion_id, data).await;
+    let response = create_post(&server, &discussion_id, data, token).await;
     let _ = response.assert_status_success();
     let post = response.json::<PostView>();
     post.id.to_raw()
@@ -133,19 +139,22 @@ pub async fn create_post_like(
     server: &TestServer,
     post_id: &str,
     count: Option<u8>,
+    token: &str,
 ) -> TestResponse {
     server
         .post(format!("/api/posts/{post_id}/like").as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": count }))
         .await
 }
 
 #[allow(dead_code)]
-pub async fn delete_post_like(server: &TestServer, post_id: &str) -> TestResponse {
+pub async fn delete_post_like(server: &TestServer, post_id: &str, token: &str) -> TestResponse {
     server
         .delete(format!("/api/posts/{post_id}/unlike").as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
 }
 
@@ -154,18 +163,21 @@ pub async fn create_reply_like(
     server: &TestServer,
     reply_id: &str,
     count: Option<u8>,
+    token: &str,
 ) -> TestResponse {
     server
         .post(format!("/api/replies/{reply_id}/like").as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": count }))
         .await
 }
 
 #[allow(dead_code)]
-pub async fn delete_reply_like(server: &TestServer, reply_id: &str) -> TestResponse {
+pub async fn delete_reply_like(server: &TestServer, reply_id: &str, token: &str) -> TestResponse {
     server
         .delete(format!("/api/replies/{reply_id}/unlike").as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
 }

@@ -9,7 +9,7 @@ use darve_server::services::discussion_service::CreateDiscussion;
 use serde_json::json;
 
 test_with_server!(create_reply, |server, ctx_state, config| {
-    let (server, user_ident, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user_ident, _, token) = create_fake_login_test_user(&server).await;
     let comm_id = CommunityDbService::get_profile_community_id(&user_ident.id.as_ref().unwrap());
     let create_response = server
         .post("/api/discussions")
@@ -20,6 +20,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
             chat_user_ids: None,
             private_discussion_users_final: false,
         })
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     create_response.assert_status_success();
@@ -29,7 +30,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
     let comm_discussion_id = comm_disc_thing.to_raw();
     assert_eq!(comm_discussion_id.len() > 0, true);
 
-    let created_post = create_fake_post(server, &comm_disc_thing, None, None).await;
+    let created_post = create_fake_post(server, &comm_disc_thing, None, None, &token).await;
 
     let post_uri = &created_post.uri.clone();
 
@@ -38,6 +39,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "contentttt222".to_string(),
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     dbg!(&create_response);
@@ -47,6 +49,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "contentttt222".to_string(),
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -55,6 +58,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "contentttt222".to_string(),
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -63,6 +67,7 @@ test_with_server!(create_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "contentttt222".to_string(),
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 

@@ -38,7 +38,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
     let (server, user3, _, _) = create_fake_login_test_user(&server).await;
     let (server, user4, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user5, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user5, _, token) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user5.id.as_ref().unwrap());
     let create_response = server
@@ -57,6 +57,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
             private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_response.assert_status_ok();
 
@@ -142,7 +143,7 @@ test_with_server!(on_create_private_discussion, |server, ctx_state, config| {
 });
 
 test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
-    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, token) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
     let create_response = server
@@ -155,6 +156,7 @@ test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_response.assert_status_ok();
 
@@ -176,7 +178,7 @@ test_with_server!(on_create_public_discussion, |server, ctx_state, config| {
 test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
     let create_response = server
@@ -189,11 +191,14 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
 
-    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
+    let _post = create_fake_post(&server, &disc_id, None, None, &token3)
+        .await
+        .id;
 
     let create_response = server
         .post(format!("/api/discussions/{}/chat_users", disc_id.to_raw()).as_str())
@@ -201,6 +206,7 @@ test_with_server!(on_add_users_to_discussion, |server, ctx_state, config| {
             "user_ids": vec![user2.id.as_ref().unwrap().to_raw()]
         }))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_ok();
 
@@ -225,7 +231,7 @@ test_with_server!(
     on_remove_users_from_discussion,
     |server, ctx_state, config| {
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-        let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
         let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
         let create_response = server
@@ -238,6 +244,7 @@ test_with_server!(
                 private_discussion_users_final: false,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token3))
             .await;
         create_response.assert_status_ok();
         let disc_id = create_response.json::<Discussion>().id;
@@ -248,6 +255,7 @@ test_with_server!(
                 "user_ids": vec![user1.id.as_ref().unwrap().to_raw()]
             }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token3))
             .await;
         create_response.assert_status_ok();
 
@@ -272,7 +280,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user1, _, _) = create_fake_login_test_user(&server).await;
         let (server, user2, _, _) = create_fake_login_test_user(&server).await;
-        let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
         let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
         let create_response = server
@@ -289,10 +297,13 @@ test_with_server!(
                 private_discussion_users_final: false,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token3))
             .await;
         create_response.assert_status_ok();
         let disc_id = create_response.json::<Discussion>().id;
-        let post = create_fake_post(&server, &disc_id, None, None).await.id;
+        let post = create_fake_post(&server, &disc_id, None, None, &token3)
+            .await
+            .id;
 
         let disc_user2 = ctx_state
             .db
@@ -560,7 +571,7 @@ test_with_server!(
 //         server
 //             .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
 //             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
-//             .add_header("Cookie", format!("jwt={}", token2))
+//             .add_header("Authorization", format!("Bearer {}", token2))
 //             .await
 //             .assert_status_success();
 
@@ -657,7 +668,7 @@ test_with_server!(
 //     server
 //         .post(&format!("/api/posts/{}/read", private_post.id.to_raw()))
 //         .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()]}))
-//         .add_header("Cookie", format!("jwt={}", token2))
+//         .add_header("Authorization", format!("Bearer {}", token2))
 //         .await
 //         .assert_status_success();
 
@@ -720,7 +731,7 @@ test_with_server!(
 test_with_server!(search_by_username, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
     let (server, user2, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
     let create_response = server
@@ -737,10 +748,13 @@ test_with_server!(search_by_username, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
-    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
+    let _post = create_fake_post(&server, &disc_id, None, None, &token3)
+        .await
+        .id;
 
     let data = MultipartForm::new()
         .add_text("title", "Test discussion users: create ptivate post")
@@ -748,7 +762,7 @@ test_with_server!(search_by_username, |server, ctx_state, config| {
         .add_text("users", user1.id.as_ref().unwrap().to_raw())
         .add_text("users", user2.id.as_ref().unwrap().to_raw());
 
-    create_post(server, &disc_id, data)
+    create_post(server, &disc_id, data, &token3)
         .await
         .assert_status_forbidden();
 
@@ -803,7 +817,7 @@ test_with_server!(search_by_username, |server, ctx_state, config| {
 
 test_with_server!(search_by_alias, |server, ctx_state, config| {
     let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-    let (server, user3, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user3, _, token3) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user3.id.as_ref().unwrap());
     let create_response = server
@@ -816,15 +830,18 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
-    let _post = create_fake_post(&server, &disc_id, None, None).await.id;
+    let _post = create_fake_post(&server, &disc_id, None, None, &token3)
+        .await
+        .id;
 
     let data = MultipartForm::new()
         .add_text("title", "Test discussion users: create ptivate post")
         .add_text("content", "content");
-    create_post(server, &disc_id, data)
+    create_post(server, &disc_id, data, &token3)
         .await
         .assert_status_success();
 
@@ -838,16 +855,17 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
             private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_ok();
     let disc_id = create_response.json::<Discussion>().id;
-    create_fake_post(&server, &disc_id, None, None).await;
+    create_fake_post(&server, &disc_id, None, None, &token3).await;
 
     let data = MultipartForm::new()
         .add_text("title", "Test discussion users")
         .add_text("content", "content");
 
-    create_post(server, &disc_id, data).await;
+    create_post(server, &disc_id, data, &token3).await;
 
     let disc_user1 = ctx_state
         .db
@@ -866,6 +884,7 @@ test_with_server!(search_by_alias, |server, ctx_state, config| {
     server
         .post(format!("/api/discussions/{}/alias", disc_id).as_str())
         .json(&json!({"alias": "Friends"}))
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await
         .assert_status_success();
 

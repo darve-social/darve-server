@@ -16,13 +16,14 @@ use darve_server::{
 test_with_server!(
     test_post_mark_as_deliver_success,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let discussion_id =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-        let fake_post = create_fake_post(&server, &discussion_id, None, None).await;
+        let fake_post = create_fake_post(&server, &discussion_id, None, None, &token).await;
 
         let response = server
             .post(&format!("/api/posts/{}/deliver", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -44,8 +45,11 @@ test_with_server!(
 test_with_server!(
     test_post_mark_as_deliver_post_not_found,
     |server, ctx_state, config| {
-        let (_, _, _, _) = create_fake_login_test_user(&server).await;
-        let response = server.post("/api/posts/post:nonexistent/deliver").await;
+        let (_, _, _, token) = create_fake_login_test_user(&server).await;
+        let response = server
+            .post("/api/posts/post:nonexistent/deliver")
+            .add_header("Authorization", format!("Bearer {}", token))
+            .await;
         response.assert_status_not_found();
     }
 );
@@ -54,21 +58,23 @@ test_with_server!(
     test_post_mark_as_read_success,
     |server, ctx_state, config| {
         // Create a test user
-        let (_, user, _password, _) = create_fake_login_test_user(&server).await;
+        let (_, user, _password, token) = create_fake_login_test_user(&server).await;
 
         let discussion_id =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-        let fake_post = create_fake_post(&server, &discussion_id, None, None).await;
+        let fake_post = create_fake_post(&server, &discussion_id, None, None, &token).await;
 
         // First, create a post_user relation by calling deliver
         let deliver_response = server
             .post(&format!("/api/posts/{}/deliver", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         deliver_response.assert_status_success();
 
         // Now call the read endpoint
         let response = server
             .post(&format!("/api/posts/{}/read", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -89,13 +95,14 @@ test_with_server!(
 test_with_server!(
     test_post_mark_as_read_without_prior_deliver,
     |server, ctx_state, config| {
-        let (_, user, _password, _token) = create_fake_login_test_user(&server).await;
+        let (_, user, _password, token) = create_fake_login_test_user(&server).await;
         let discussion_id =
             DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
-        let fake_post = create_fake_post(&server, &discussion_id, None, None).await;
+        let fake_post = create_fake_post(&server, &discussion_id, None, None, &token).await;
 
         let response = server
             .post(&format!("/api/posts/{}/read", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -116,8 +123,11 @@ test_with_server!(
 test_with_server!(
     test_post_mark_as_read_post_not_found,
     |server, ctx_state, config| {
-        let (_, _, _, _) = create_fake_login_test_user(&server).await;
-        let response = server.post("/api/posts/post:nonexistent/read").await;
+        let (_, _, _, token) = create_fake_login_test_user(&server).await;
+        let response = server
+            .post("/api/posts/post:nonexistent/read")
+            .add_header("Authorization", format!("Bearer {}", token))
+            .await;
 
         response.assert_status_not_found();
     }
@@ -126,8 +136,11 @@ test_with_server!(
 test_with_server!(
     test_post_mark_as_read_invalid_post_id,
     |server, ctx_state, config| {
-        let (_, _, _, _) = create_fake_login_test_user(&server).await;
-        let response = server.post("/api/posts/invalid_id_format/read").await;
+        let (_, _, _, token) = create_fake_login_test_user(&server).await;
+        let response = server
+            .post("/api/posts/invalid_id_format/read")
+            .add_header("Authorization", format!("Bearer {}", token))
+            .await;
         response.assert_status_failure();
     }
 );
@@ -136,21 +149,23 @@ test_with_server!(
     test_post_deliver_and_read_sequence,
     |server, ctx_state, config| {
         // Create a test user
-        let (_, user, _password, _) = create_fake_login_test_user(&server).await;
+        let (_, user, _password, token) = create_fake_login_test_user(&server).await;
 
         let discussion_id =
             DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
-        let fake_post = create_fake_post(&server, &discussion_id, None, None).await;
+        let fake_post = create_fake_post(&server, &discussion_id, None, None, &token).await;
 
         // 1. First mark as delivered
         let deliver_response = server
             .post(&format!("/api/posts/{}/deliver", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         deliver_response.assert_status_success();
 
         // 2. Then mark as read
         let read_response = server
             .post(&format!("/api/posts/{}/read", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         read_response.assert_status_success();
 
@@ -178,7 +193,7 @@ test_with_server!(
 
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&CreateDiscussion {
                 community_id: comm_id.to_raw(),
                 title: "The Discussion".to_string(),
@@ -186,22 +201,25 @@ test_with_server!(
                 chat_user_ids: vec![user0.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: false,
             })
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
 
         let discussion_id = create_response.json::<Discussion>().id;
 
-        let fake_post = create_fake_post(&server, &discussion_id, None, None).await;
+        let fake_post = create_fake_post(&server, &discussion_id, None, None, &token).await;
 
         // 1. First mark as delivered
         let deliver_response = server
             .post(&format!("/api/posts/{}/deliver", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         deliver_response.assert_status_success();
 
         // 2. Then mark as read
         let read_response = server
             .post(&format!("/api/posts/{}/read", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         read_response.assert_status_success();
 
@@ -218,12 +236,13 @@ test_with_server!(
 
         let deliver_response = server
             .post(&format!("/api/posts/{}/deliver", fake_post.id))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         deliver_response.assert_status_forbidden();
 
         let latest_posts = server
             .get("/api/users/current/latest_posts")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .json::<Vec<DiscussionUserView>>();
         let users_status = latest_posts

@@ -129,7 +129,7 @@ macro_rules! test_with_server {
                 routes_all,
                 TestServerConfig {
                     transport: None,
-                    save_cookies: true,
+                    save_cookies: false,
                     expect_success_by_default: false,
                     restrict_requests_with_http_schema: false,
                     default_content_type: None,

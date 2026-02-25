@@ -28,21 +28,22 @@ use helpers::post_helpers::{create_fake_post, create_fake_post_with_file};
 use middleware::ctx::Ctx;
 
 test_with_server!(create_post_test, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
 
     let posts = server
         .get(&format!(
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -52,7 +53,7 @@ test_with_server!(create_post_test, |server, ctx_state, config| {
 test_with_server!(
     create_post_with_the_same_name,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let user_ident = user.id.as_ref().unwrap().to_raw();
 
         let result =
@@ -63,27 +64,28 @@ test_with_server!(
             .add_text("title", title)
             .add_text("content", "content");
 
-        let response = helpers::post_helpers::create_post(server, &result, data).await;
+        let response = helpers::post_helpers::create_post(server, &result, data, &token).await;
 
         response.assert_status_success();
 
         let data_1 = MultipartForm::new()
             .add_text("title", title)
             .add_text("content", "content");
-        let response_1 = helpers::post_helpers::create_post(server, &result, data_1).await;
+        let response_1 = helpers::post_helpers::create_post(server, &result, data_1, &token).await;
 
         response_1.assert_status_success();
     }
 );
 
 test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let result = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
-    let _ = create_fake_post_with_large_file(server, &ctx_state, &result).await;
-    let _ = create_fake_post_with_file(server, &ctx_state, &result).await;
+    let _ = create_fake_post_with_large_file(server, &ctx_state, &result, &token).await;
+    let _ = create_fake_post_with_file(server, &ctx_state, &result, &token).await;
 
     let posts = server
         .get(&format!("/api/discussions/{}/posts", result.to_raw()))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -93,16 +95,16 @@ test_with_server!(create_post_with_file_test, |server, ctx_state, config| {
 });
 
 test_with_server!(get_latest, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let ctx = Ctx::new(Ok(user_ident.clone()), false);
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
     let default_discussion = DiscussionDbService::get_profile_discussion_id(&user_thing_id);
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
 
     let result = PostDbService {
         db: &ctx_state.db.client,
@@ -163,11 +165,11 @@ test_with_server!(get_latest, |server, ctx_state, config| {
 });
 
 test_with_server!(create_post_with_tags, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
     let tags = vec![
         "tag0".to_string(),
         "tag1".to_string(),
@@ -182,6 +184,7 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
         &default_discussion,
         None,
         Some(Vec::from(&tags[0..5])),
+        &token,
     )
     .await;
 
@@ -190,6 +193,7 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
@@ -219,25 +223,34 @@ test_with_server!(create_post_with_tags, |server, ctx_state, config| {
 });
 
 test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
     let tags = vec!["tag".to_string(), "tag1".to_string()];
 
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
     let _ = create_fake_post(
         server,
         &default_discussion,
         None,
         Some(vec![tags[0].clone()]),
+        &token,
     )
     .await;
-    let _ = create_fake_post(server, &default_discussion, None, Some(tags.clone())).await;
+    let _ = create_fake_post(
+        server,
+        &default_discussion,
+        None,
+        Some(tags.clone()),
+        &token,
+    )
+    .await;
     let _ = create_fake_post(
         server,
         &default_discussion,
         None,
         Some(vec!["non_of_them".to_string()]),
+        &token,
     )
     .await;
 
@@ -246,6 +259,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
     assert_eq!(posts.len(), 4);
@@ -300,6 +314,7 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
     assert_eq!(posts.len(), 4);
@@ -308,11 +323,11 @@ test_with_server!(filter_posts_by_tag, |server, ctx_state, config| {
 test_with_server!(
     try_to_create_without_content_and_file,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let default_discussion =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
         let data = MultipartForm::new().add_text("title", "Hello");
-        let response = create_post(server, &default_discussion, data).await;
+        let response = create_post(server, &default_discussion, data, &token).await;
 
         response.assert_status_failure();
         assert!(response.text().contains("Empty content and missing file"))
@@ -320,7 +335,7 @@ test_with_server!(
 );
 
 test_with_server!(create_post_idea_test, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
@@ -330,7 +345,7 @@ test_with_server!(create_post_idea_test, |server, ctx_state, config| {
         .add_text("is_idea", true)
         .add_text("content", "Sadasdas");
 
-    let res = create_post(server, &default_discussion, data).await;
+    let res = create_post(server, &default_discussion, data, &token).await;
     res.assert_status_ok();
 
     let posts = server
@@ -338,6 +353,7 @@ test_with_server!(create_post_idea_test, |server, ctx_state, config| {
             "/api/discussions/{}/posts?filter_by_type=Idea",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -348,6 +364,7 @@ test_with_server!(create_post_idea_test, |server, ctx_state, config| {
             "/api/discussions/{}/posts?filter_by_type=Public",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -362,7 +379,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -370,6 +387,7 @@ test_with_server!(
                 chat_user_ids: vec![user.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: false,
             })
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -380,7 +398,7 @@ test_with_server!(
             .add_text("is_idea", true)
             .add_text("content", "Sadasdas");
 
-        let res = create_post(server, &disc.id, data).await;
+        let res = create_post(server, &disc.id, data, &token).await;
         res.assert_status_forbidden();
     }
 );
@@ -393,7 +411,7 @@ test_with_server!(
 
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -401,6 +419,7 @@ test_with_server!(
                 chat_user_ids: vec![user.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: false,
             })
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -410,14 +429,14 @@ test_with_server!(
             .add_text("title", "Hello")
             .add_text("content", "Sadasdas");
 
-        let res = create_post(server, &disc.id, data).await;
+        let res = create_post(server, &disc.id, data, &token).await;
         res.assert_status_ok();
         let post = res.json::<PostView>();
         let data = MultipartForm::new()
             .add_text("title", "Post for post")
             .add_text("content", "Sadasdas")
             .add_text("reply_to", post.id.to_raw());
-        let res = create_post(server, &disc.id, data).await;
+        let res = create_post(server, &disc.id, data, &token).await;
         res.assert_status_ok();
         let post_1 = res.json::<PostView>();
 
@@ -431,21 +450,21 @@ test_with_server!(
 test_with_server!(
     try_to_create_post_for_post_in_private_disc,
     |server, ctx_state, config| {
-        let (server, user, _, _token) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
 
         let data = MultipartForm::new()
             .add_text("title", "Hello")
             .add_text("content", "Sadasdas");
 
-        let res = create_post(server, &disc_id, data).await;
+        let res = create_post(server, &disc_id, data, &token).await;
         res.assert_status_ok();
         let post = res.json::<PostView>();
         let data = MultipartForm::new()
             .add_text("title", "Post for post")
             .add_text("content", "Sadasdas")
             .add_text("reply_to", post.id.to_raw());
-        let res = create_post(server, &disc_id, data).await;
+        let res = create_post(server, &disc_id, data, &token).await;
         res.assert_status_forbidden();
     }
 );
@@ -457,28 +476,28 @@ test_with_server!(
         let user_disc_id =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-        let (server, _, _, _) = create_fake_login_test_user(&server).await;
+        let (server, _, _, other_token) = create_fake_login_test_user(&server).await;
 
         let data = MultipartForm::new()
             .add_text("title", "Hello")
             .add_text("is_idea", true)
             .add_text("content", "Sadasdas");
 
-        let res = create_post(server, &user_disc_id, data).await;
+        let res = create_post(server, &user_disc_id, data, &other_token).await;
         res.assert_status_forbidden();
     }
 );
 
 test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
 
     let data = MultipartForm::new()
         .add_text("title", faker::name::en::Name().fake::<String>())
@@ -488,7 +507,7 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let _ = create_post(server, &default_discussion, data).await;
+    let _ = create_post(server, &default_discussion, data, &token).await;
 
     let data = MultipartForm::new()
         .add_text("title", faker::name::en::Name().fake::<String>())
@@ -498,7 +517,7 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let _ = create_post(server, &default_discussion, data).await;
+    let _ = create_post(server, &default_discussion, data, &token).await;
 
     let data = MultipartForm::new()
         .add_text("title", faker::name::en::Name().fake::<String>())
@@ -508,13 +527,14 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let _ = create_post(server, &default_discussion, data).await;
+    let _ = create_post(server, &default_discussion, data, &token).await;
 
     let posts = server
         .get(&format!(
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -525,6 +545,7 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
             "/api/discussions/{}/posts?filter_by_type=Public",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -535,6 +556,7 @@ test_with_server!(get_posts_by_filter, |server, ctx_state, config| {
             "/api/discussions/{}/posts?filter_by_type=Idea",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
 
@@ -549,7 +571,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
     let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
     let disc = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&CreateDiscussion {
             community_id: comm_id.to_raw(),
             title: "The Discussion".to_string(),
@@ -561,18 +583,19 @@ test_with_server!(get_latest_posts, |server, state, config| {
             .into(),
             private_discussion_users_final: false,
         })
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .json::<Discussion>();
     let disc_id = disc.id;
-    let _ = create_fake_post(server, &disc_id, None, None).await;
-    let _ = create_fake_post(server, &disc_id, None, None).await;
-    let _ = create_fake_post(server, &disc_id, None, None).await;
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let _ = create_fake_post(server, &disc_id, None, None, &token).await;
+    let _ = create_fake_post(server, &disc_id, None, None, &token).await;
+    let _ = create_fake_post(server, &disc_id, None, None, &token).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token).await;
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     latest_posts.assert_status_success();
@@ -583,7 +606,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     latest_posts.assert_status_success();
@@ -593,7 +616,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
     assert_eq!(posts[0].latest_post.as_ref().unwrap().id.to_raw(), post.id);
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     latest_posts.assert_status_success();
@@ -606,11 +629,13 @@ test_with_server!(get_latest_posts, |server, state, config| {
         .add_text("title", "Hello")
         .add_text("content", "content");
 
-    let private_post = create_post(server, &disc_id, data).await.json::<PostView>();
+    let private_post = create_post(server, &disc_id, data, &token)
+        .await
+        .json::<PostView>();
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     latest_posts.assert_status_success();
@@ -621,7 +646,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
 
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     latest_posts.assert_status_success();
@@ -631,7 +656,7 @@ test_with_server!(get_latest_posts, |server, state, config| {
     assert_eq!(posts[0].latest_post.as_ref().unwrap().id, private_post.id);
     let latest_posts = server
         .get("/api/users/current/latest_posts")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     latest_posts.assert_status_success();
@@ -642,15 +667,18 @@ test_with_server!(get_latest_posts, |server, state, config| {
 });
 
 test_with_server!(get_post_by_id_test, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
     // Create a test post
-    let created_post = create_fake_post(server, &default_discussion, None, None).await;
+    let created_post = create_fake_post(server, &default_discussion, None, None, &token).await;
 
     // Test successful retrieval
-    let response = server.get(&format!("/api/posts/{}", created_post.id)).await;
+    let response = server
+        .get(&format!("/api/posts/{}", created_post.id))
+        .add_header("Authorization", format!("Bearer {}", token))
+        .await;
 
     response.assert_status_ok();
     let post_view = response.json::<PostView>();
@@ -662,10 +690,13 @@ test_with_server!(get_post_by_id_test, |server, ctx_state, config| {
 test_with_server!(
     get_post_by_id_not_found_test,
     |server, ctx_state, config| {
-        let (server, _, _, _) = create_fake_login_test_user(&server).await;
+        let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
         let fake_post_id = "post:nonexistent";
-        let response = server.get(&format!("/api/posts/{}", fake_post_id)).await;
+        let response = server
+            .get(&format!("/api/posts/{}", fake_post_id))
+            .add_header("Authorization", format!("Bearer {}", token))
+            .await;
 
         response.assert_status_not_found();
     }
@@ -674,36 +705,44 @@ test_with_server!(
 test_with_server!(
     try_to_create_post_with_system_tags,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let default_discussion =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-        let _ = create_fake_post(server, &default_discussion, None, None).await;
+        let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
         let tags = vec![
             SystemTags::Delivery.as_str().to_string(),
             "tag6".to_string(),
         ];
         let post_data = build_fake_post(None, Some(tags));
-        let res = create_post(server, &default_discussion, post_data).await;
+        let res = create_post(server, &default_discussion, post_data, &token).await;
         res.assert_status_failure();
         assert!(res.text().contains("Tag contains forbidden symbol"))
     }
 );
 
 test_with_server!(tags_must_be_lowercase, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let _ = create_fake_post(server, &default_discussion, None, None).await;
+    let _ = create_fake_post(server, &default_discussion, None, None, &token).await;
     let tags = vec!["Rust".to_string(), "tag1".to_string()];
-    let _ = create_fake_post(server, &default_discussion, None, Some(tags.clone())).await;
+    let _ = create_fake_post(
+        server,
+        &default_discussion,
+        None,
+        Some(tags.clone()),
+        &token,
+    )
+    .await;
 
     let posts = server
         .get(&format!(
             "/api/discussions/{}/posts",
             default_discussion.to_raw()
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);

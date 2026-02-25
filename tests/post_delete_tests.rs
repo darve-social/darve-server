@@ -19,17 +19,17 @@ test_with_server!(delete_post_test, |server, ctx_state, config| {
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let post = create_fake_post(server, &default_discussion, None, None).await;
+    let post = create_fake_post(server, &default_discussion, None, None, &token).await;
 
     let response = server
         .delete(&format!("/api/posts/{}", post.id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     response.assert_status_ok();
     let post_response = server
         .get(&format!("/api/posts/{}", post.id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     post_response.assert_status_not_found();
@@ -41,12 +41,13 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
     let default_discussion =
         DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-    let post = create_fake_post(server, &default_discussion, None, None).await;
+    let post = create_fake_post(server, &default_discussion, None, None, &token).await;
     let create_comment_response = server
         .post(format!("/api/posts/{}/replies", post.id).as_str())
         .json(&json!({
             "content": "This is a comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     let comment_1 = create_comment_response.json::<ReplyView>();
@@ -56,6 +57,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "This is a reply to the comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -64,6 +66,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "This is a reply to the comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -72,6 +75,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "This is a comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     let comment_2 = create_comment_response.json::<ReplyView>();
@@ -81,6 +85,7 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "This is a reply to the comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -89,18 +94,19 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
         .json(&json!({
             "content": "This is a reply to the comment.",
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
 
     let response = server
         .delete(&format!("/api/posts/{}", post.id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_ok();
     server
         .get(&format!("/api/posts/{}", post.id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await
         .assert_status_not_found();
 
@@ -155,15 +161,15 @@ test_with_server!(delete_post_and_all_reply, |server, ctx_state, config| {
 test_with_server!(
     try_to_delete_post_by_non_discussion_owner,
     |server, ctx_state, config| {
-        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let default_discussion =
             DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &default_discussion, None, None).await;
+        let post = create_fake_post(server, &default_discussion, None, None, &token1).await;
         let (server, _, _, token2) = create_fake_login_test_user(&server).await;
 
         let response = server
             .delete(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         response.assert_status_forbidden();
@@ -177,7 +183,7 @@ test_with_server!(
 
         let response = server
             .delete("/api/posts/post:not_a_real_id")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_not_found();
@@ -188,16 +194,16 @@ test_with_server!(
     try_to_delete_post_by_not_discussion_owner,
     |server, ctx_state, config| {
         let (server, _, _, user_token) = create_fake_login_test_user(&server).await;
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, user2_token) = create_fake_login_test_user(&server).await;
 
         let default_discussion =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-        let post = create_fake_post(server, &default_discussion, None, None).await;
+        let post = create_fake_post(server, &default_discussion, None, None, &user2_token).await;
 
         server
             .delete(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", user_token))
+            .add_header("Authorization", format!("Bearer {}", user_token))
             .await
             .assert_status_forbidden();
     }
@@ -213,12 +219,12 @@ test_with_server!(
             .json("")
             .await;
 
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, user_token) = create_fake_login_test_user(&server).await;
 
         let default_discussion =
             DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
-        let post = create_fake_post(server, &default_discussion, None, None).await;
+        let post = create_fake_post(server, &default_discussion, None, None, &user_token).await;
 
         server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -227,14 +233,14 @@ test_with_server!(
                 "participants": vec![user.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .add_header("Accept", "application/json")
             .await
             .assert_status_ok();
 
         server
             .delete(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .await
             .assert_status_forbidden();
     }
@@ -251,7 +257,7 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .json("")
         .await;
-    let post = create_fake_post(server, &default_discussion, None, None).await;
+    let post = create_fake_post(server, &default_discussion, None, None, &user_token).await;
 
     let task_response = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -260,14 +266,14 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
             "participants": vec![user1.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", user_token))
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .add_header("Accept", "application/json")
         .await;
     let task = task_response.json::<TaskRequestEntity>();
 
     server
         .post(&format!("/api/tasks/{}/accept", task.id))
-        .add_header("Cookie", format!("jwt={}", user1_token))
+        .add_header("Authorization", format!("Bearer {}", user1_token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -278,13 +284,13 @@ test_with_server!(try_to_delete_delivery_post, |server, ctx_state, config| {
 
     server
         .delete(&format!("/api/posts/{}", post.id))
-        .add_header("Cookie", format!("jwt={}", user_token))
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .await
         .assert_status_forbidden();
     let delivery_post = task_participant.result.unwrap().post.unwrap();
     server
         .delete(&format!("/api/posts/{}", delivery_post.to_raw()))
-        .add_header("Cookie", format!("jwt={}", user1_token))
+        .add_header("Authorization", format!("Bearer {}", user1_token))
         .await
         .assert_status_forbidden();
 });
@@ -305,21 +311,22 @@ test_with_server!(
                 chat_user_ids: vec![user.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: true,
             })
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .add_header("Accept", "application/json")
             .await;
         create_response.assert_status_ok();
         let disc_id = create_response.json::<Discussion>().id;
-        let post_1 = create_fake_post(server, &disc_id, None, None).await;
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post_1 = create_fake_post(server, &disc_id, None, None, &user1_token).await;
+        let post = create_fake_post(server, &disc_id, None, None, &user1_token).await;
         server
             .delete(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .await
             .assert_status_ok();
 
         server
             .get(&format!("/api/posts/{}", post.id))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .await
             .assert_status_not_found();
 

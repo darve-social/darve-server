@@ -18,7 +18,7 @@ mod helpers;
 test_with_server!(
     try_to_create_public_task_to_public_discussion_by_user,
     |server, ctx_state, config| {
-        let (_, user, _password, _) = create_fake_login_test_user(&server).await;
+        let (_, user, _password, token) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
 
         let content = faker::lorem::en::Sentence(7..20).fake::<String>();
@@ -26,6 +26,7 @@ test_with_server!(
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({"content": content}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_forbidden();
     }
@@ -35,7 +36,7 @@ test_with_server!(
     try_to_create_private_task_to_public_discussion_by_user,
     |server, ctx_state, config| {
         let (_, patricipant, _password, _) = create_fake_login_test_user(&server).await;
-        let (_, user, _password, _) = create_fake_login_test_user(&server).await;
+        let (_, user, _password, token) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap());
 
         let content = faker::lorem::en::Sentence(7..20).fake::<String>();
@@ -43,6 +44,7 @@ test_with_server!(
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({ "content": content, "participants":  vec![patricipant.id.as_ref().unwrap().to_raw()] }))
             .add_header("Accept", "application/json")
+          .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_forbidden();
     }
@@ -58,12 +60,13 @@ test_with_server!(
         let admins = user_repository.get_by_role(UserRole::Admin).await.unwrap();
         let admin = admins.first().unwrap();
         let disc_id = DiscussionDbService::get_profile_discussion_id(admin.id.as_ref().unwrap());
-        let (_, _, _password, _) = create_fake_login_test_user(&server).await;
+        let (_, _, _password, token) = create_fake_login_test_user(&server).await;
         let content = faker::lorem::en::Sentence(7..20).fake::<String>();
         server
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({"content": content}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_forbidden();
     }
@@ -79,15 +82,17 @@ test_with_server!(
         let admin = admins.first().unwrap();
         let comm_id = CommunityDbService::get_profile_community_id(admin.id.as_ref().unwrap());
 
-        server
+        let login_response = server
             .post("/api/login")
             .add_header("Accept", "application/json")
             .json(&serde_json::json!({
                 "username_or_email": admin.username,
                 "password": config.init_server_password
             }))
-            .await
-            .assert_status_success();
+            .await;
+
+        let json_response = login_response.json::<serde_json::Value>();
+        let token = json_response["token"].as_str().unwrap();
         server
             .post("/api/discussions")
             .json(&CreateDiscussion {
@@ -98,6 +103,7 @@ test_with_server!(
                 private_discussion_users_final: false,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_forbidden();
     }
@@ -113,15 +119,17 @@ test_with_server!(
         let admins = user_repository.get_by_role(UserRole::Admin).await.unwrap();
         let admin = admins.first().unwrap();
 
-        server
+        let login_response = server
             .post("/api/login")
             .add_header("Accept", "application/json")
             .json(&serde_json::json!({
                 "username_or_email": admin.username,
                 "password": config.init_server_password
             }))
-            .await
-            .assert_status_success();
+            .await;
+
+        let json_response = login_response.json::<serde_json::Value>();
+        let token = json_response["token"].as_str().unwrap();
         let disc_id = DiscussionDbService::get_profile_discussion_id(admin.id.as_ref().unwrap());
 
         let content = faker::lorem::en::Sentence(7..20).fake::<String>();
@@ -129,6 +137,7 @@ test_with_server!(
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({"content": content}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_success();
     }
@@ -159,9 +168,10 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
         .await
         .assert_status_success();
 
-    let (_, _, _password, _) = create_fake_login_test_user(&server).await;
+    let (_, _, _password, user_token) = create_fake_login_test_user(&server).await;
     let res = server
         .get("/api/admin/tasks")
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .add_header("Accept", "application/json")
         .await;
     res.assert_status_success();
@@ -181,6 +191,7 @@ test_with_server!(get_admins_tasks_by_user, |server, ctx_state, config| {
             super_tasks.first().unwrap().id
         ))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .await
         .assert_status_success();
 });
@@ -213,7 +224,7 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
     let (_, _user1, _user1_pwd, user1_token) = create_fake_login_test_user(&server).await;
     let res = server
         .get("/api/admin/tasks")
-        .add_header("Cookie", format!("jwt={}", user_token))
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .add_header("Accept", "application/json")
         .await;
     res.assert_status_success();
@@ -233,7 +244,7 @@ test_with_server!(get_admins_tasks_by_user_1, |server, ctx_state, config| {
     assert_eq!(weekly_tasks.len(), 3);
     let res = server
         .get("/api/admin/tasks")
-        .add_header("Cookie", format!("jwt={}", user1_token))
+        .add_header("Authorization", format!("Bearer {}", user1_token))
         .add_header("Accept", "application/json")
         .await;
     res.assert_status_success();
