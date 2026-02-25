@@ -4,7 +4,7 @@ use crate::interfaces::repositories::user_notifications::{
     GetNotificationOptions, UserNotificationsInterface,
 };
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::mw_ctx::AppEventType;
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder;
@@ -83,7 +83,7 @@ struct GetNotificationsQuery {
 }
 
 async fn get_notifications(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     ExQuery(query): ExQuery<GetNotificationsQuery>,
 ) -> CtxResult<Json<Vec<UserNotificationView>>> {
@@ -122,7 +122,7 @@ struct GetCountQuery {
 
 async fn get_count(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Query(query): Query<GetCountQuery>,
 ) -> CtxResult<Json<u64>> {
     let _ = LocalUserDbService {
@@ -143,7 +143,7 @@ async fn get_count(
 
 async fn sse(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
 ) -> CtxResult<Sse<impl Stream<Item = Result<Event, Infallible>>>> {
     let user = LocalUserDbService {
         db: &state.db.client,

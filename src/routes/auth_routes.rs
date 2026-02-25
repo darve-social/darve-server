@@ -10,14 +10,10 @@ use axum_typed_multipart::TypedMultipart;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tower_cookies::{Cookie, Cookies};
 
 use crate::{
     middleware::{
-        ctx::Ctx,
-        error::CtxResult,
-        mw_ctx::{CtxState, JWT_KEY},
-        utils::extractor_utils::JsonOrFormValidated,
+        ctx::Ctx, error::CtxResult, mw_ctx::CtxState, utils::extractor_utils::JsonOrFormValidated,
     },
     models::view::user::LoggedUserView,
     services::auth_service::{
@@ -65,7 +61,6 @@ async fn sign_by_twitch(
     );
 
     let (token, user, has_password) = auth_service.sign_by_twitch(&query.code).await?;
-
     Ok((
         StatusCode::OK,
         Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),
@@ -168,7 +163,6 @@ async fn sign_by_google(
 async fn signin(
     State(state): State<Arc<CtxState>>,
     ctx: Ctx,
-    cookies: Cookies,
     JsonOrFormValidated(body): JsonOrFormValidated<AuthLoginInput>,
 ) -> CtxResult<Response> {
     let auth_service = AuthService::new(
@@ -185,13 +179,6 @@ async fn signin(
 
     let (token, user) = auth_service.login_password(body).await?;
 
-    cookies.add(
-        Cookie::build((JWT_KEY, token.clone()))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
-            .path("/")
-            .http_only(true)
-            .into(), //.finish(),
-    );
     Ok((
         StatusCode::OK,
         Json(json!({"token": token, "user": LoggedUserView::from((user, true)) })),
@@ -201,7 +188,6 @@ async fn signin(
 
 async fn signup(
     State(state): State<Arc<CtxState>>,
-    cookies: Cookies,
     ctx: Ctx,
     TypedMultipart(body): TypedMultipart<AuthRegisterInput>,
 ) -> CtxResult<Response> {
@@ -218,14 +204,6 @@ async fn signup(
     );
 
     let (token, user) = auth_service.register_password(body, None).await?;
-
-    cookies.add(
-        Cookie::build((JWT_KEY, token.clone()))
-            // if not set, the path defaults to the path from which it was called - prohibiting gql on root if login is on /api
-            .path("/")
-            .http_only(true)
-            .into(), //.finish(),
-    );
 
     Ok((
         StatusCode::OK,

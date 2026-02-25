@@ -114,6 +114,7 @@ pub struct TaskRequestInput {
     pub acceptance_period: Option<u64>,
     #[validate(range(min = 1))]
     pub delivery_period: Option<u64>,
+    pub goal_amount: Option<u64>,
 }
 
 pub struct TaskService<'a, TR, T, N, P, A, TG>
@@ -508,19 +509,29 @@ where
             .get_by_id::<TaskView>(&task_id)
             .await?;
 
+        println!("Task for reject: {:?}", task);
+        if task.status != TaskRequestStatus::Init {
+            return Err(AppError::Forbidden.into());
+        }
+
         let task_user = task.participants.iter().find(|v| v.user == user_id);
 
-        let result = self
-            .task_participants_repository
-            .update(
-                &task_user.as_ref().unwrap().id,
-                TaskParticipantStatus::Rejected.as_str(),
-                None,
-            )
-            .await
-            .map_err(|_| AppError::SurrealDb {
-                source: format!("reject_task"),
-            })?;
+        let result = match task_user {
+            Some(value) => self
+                .task_participants_repository
+                .update(&value.id, TaskParticipantStatus::Rejected.as_str(), None)
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?,
+            None => self
+                .task_participants_repository
+                .create(&task.id, &user_id, TaskParticipantStatus::Rejected.as_str())
+                .await
+                .map_err(|e| AppError::SurrealDb {
+                    source: e.to_string(),
+                })?,
+        };
 
         let _ = self.try_to_process_reward(&task).await;
 
@@ -910,6 +921,7 @@ where
             increase_tasks_nr_for_belongs,
             task_id: Thing::from((TASK_REQUEST_TABLE_NAME, id.clone())),
             wallet_id: Thing::from((WALLET_TABLE_NAME, id)),
+            goal_amount: data.goal_amount,
         };
 
         query = self.tasks_repository.build_create_query(query, &task_data);

@@ -8,7 +8,7 @@ use crate::entities::wallet::gateway_transaction_entity::{
 };
 use crate::entities::wallet::{balance_transaction_entity, wallet_entity};
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::error::{AppError, CtxResult};
 use crate::middleware::mw_ctx::CtxState;
 use crate::middleware::utils::db_utils::QryOrder::{self};
@@ -50,7 +50,7 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
 }
 
 pub async fn get_user_balance(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
 ) -> CtxResult<Html<String>> {
     let user_service = LocalUserDbService {
@@ -73,7 +73,7 @@ pub struct GetGatewayWalletCountQuery {
 }
 
 pub async fn gateway_wallet_count(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Query(params): Query<GetGatewayWalletCountQuery>,
 ) -> CtxResult<Json<u64>> {
@@ -103,7 +103,7 @@ pub struct GetGatewayWalletHistoryQuery {
 }
 
 pub async fn gateway_wallet_history(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Query(params): Query<GetGatewayWalletHistoryQuery>,
 ) -> CtxResult<Json<Vec<GatewayTransaction>>> {
@@ -139,7 +139,7 @@ pub struct GetWalletHistoryQuery {
 }
 
 pub async fn get_wallet_history(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Query(params): Query<GetWalletHistoryQuery>,
 ) -> CtxResult<Json<Vec<CurrencyTransactionView>>> {
@@ -271,7 +271,7 @@ struct EndowmentData {
 }
 
 async fn deposit(
-    user_auth: AuthWithLoginAccess,
+    user_auth: BearerAuth,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<EndowmentData>,
 ) -> CtxResult<Json<String>> {

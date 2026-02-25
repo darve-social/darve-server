@@ -1,8 +1,6 @@
 use crate::{
     entities::user_auth::{authentication_entity::AuthType, local_user_entity::UpdateUser},
-    middleware::{
-        auth_with_login_access::AuthWithLoginAccess, auth_with_otp_access::AuthWithOtpAccess,
-    },
+    middleware::{auth_with_otp_access::AuthWithOtpAccess, bearer_auth::BearerAuth},
     models::view::user::LoggedUserView,
     utils::totp::{Totp, TotpResponse},
 };
@@ -38,7 +36,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 }
 
 async fn otp_verification(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Json(data): Json<OtpVerificationData>,
 ) -> CtxResult<Json<bool>> {
@@ -77,10 +75,7 @@ async fn otp_verification(
     Ok(Json(true))
 }
 
-async fn otp_disable(
-    auth_data: AuthWithLoginAccess,
-    State(state): State<Arc<CtxState>>,
-) -> CtxResult<()> {
+async fn otp_disable(auth_data: BearerAuth, State(state): State<Arc<CtxState>>) -> CtxResult<()> {
     let user_id = auth_data.user_thing_id();
     let local_user_db_service = LocalUserDbService {
         db: &state.db.client,
@@ -108,7 +103,7 @@ async fn otp_disable(
 }
 
 async fn otp_enable(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<TotpResponse>> {
     let local_user_db_service = LocalUserDbService {

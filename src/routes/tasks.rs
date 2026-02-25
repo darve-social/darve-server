@@ -3,7 +3,7 @@ use crate::entities::task_request_user::{TaskParticipant, TaskParticipantStatus}
 use crate::entities::user_auth::local_user_entity;
 use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::task::{TaskRequestView, TaskViewForParticipant};
 use crate::services::notification_service::NotificationService;
@@ -58,7 +58,7 @@ struct GetTaskByToUserQuery {
 }
 async fn user_requests_received(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Query(query): Query<GetTaskByToUserQuery>,
 ) -> CtxResult<Json<Vec<TaskViewForParticipant>>> {
     let user_id = LocalUserDbService {
@@ -99,7 +99,7 @@ struct GetTaskByCreatorQuery {
 
 async fn user_requests_given(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Query(query): Query<GetTaskByCreatorQuery>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
     let from_user = LocalUserDbService {
@@ -128,7 +128,7 @@ async fn user_requests_given(
 
 async fn reject_task_request(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(task_id): Path<String>,
 ) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
@@ -157,7 +157,7 @@ async fn reject_task_request(
 
 async fn accept_task_request(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(task_id): Path<String>,
 ) -> CtxResult<Json<TaskParticipant>> {
     let task_service = TaskService::new(
@@ -186,7 +186,7 @@ async fn accept_task_request(
 
 async fn upsert_donor(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(task_id): Path<String>,
     JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
 ) -> CtxResult<Json<TaskDonor>> {
@@ -221,7 +221,7 @@ async fn upsert_donor(
 }
 
 async fn get_task(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(task_id): Path<String>,
 ) -> CtxResult<Json<TaskRequestView>> {
@@ -256,7 +256,7 @@ struct TaskDeliveryData {
 
 async fn deliver_task(
     State(state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(task_id): Path<String>,
     TypedMultipart(data): TypedMultipart<TaskDeliveryData>,
 ) -> CtxResult<Json<TaskParticipant>> {

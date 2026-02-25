@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::entities::user_auth::{self};
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::error::AppError;
 use crate::middleware::utils::string_utils::get_str_thing;
 use crate::services::notification_service::NotificationService;
@@ -60,13 +60,13 @@ impl From<LocalUser> for UserItemView {
 
 async fn get_followers_count(
     State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: BearerAuth,
     Path(user_id): Path<String>,
 ) -> CtxResult<Json<u32>> {
     let user_id = get_str_thing(&user_id)?;
     let count = FollowDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .user_followers_number(user_id)
     .await?;
@@ -75,13 +75,13 @@ async fn get_followers_count(
 
 async fn get_following_count(
     State(ctx_state): State<Arc<CtxState>>,
-    ctx: Ctx,
+    auth_data: BearerAuth,
     Path(user_id): Path<String>,
 ) -> CtxResult<Json<u32>> {
     let user_id = get_str_thing(&user_id)?;
     let count = FollowDbService {
         db: &ctx_state.db.client,
-        ctx: &ctx,
+        ctx: &auth_data.ctx,
     }
     .user_following_number(user_id)
     .await?;
@@ -128,7 +128,7 @@ async fn get_following(
 
 async fn follow_user(
     State(ctx_state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<()> {
     let local_user_db_service = LocalUserDbService {
@@ -179,7 +179,7 @@ async fn follow_user(
 
 async fn unfollow_user(
     State(ctx_state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<()> {
     let user_id = LocalUserDbService {
@@ -199,7 +199,7 @@ async fn unfollow_user(
 }
 async fn remove_user(
     State(ctx_state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<()> {
     let user_id = LocalUserDbService {
@@ -220,7 +220,7 @@ async fn remove_user(
 
 async fn is_following_user(
     State(ctx_state): State<Arc<CtxState>>,
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(follow_user_id): Path<String>,
 ) -> CtxResult<Json<bool>> {
     let user_id = LocalUserDbService {

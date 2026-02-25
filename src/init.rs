@@ -37,7 +37,12 @@ use reqwest::StatusCode;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_cookies::CookieManagerLayer;
-use tower_http::{classify::ServerErrorsFailureClass, services::ServeDir, trace::TraceLayer};
+use tower_http::{
+    classify::ServerErrorsFailureClass,
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
 use tracing::{debug, error, info, warn};
 
 use crate::database::client::Database;
@@ -131,6 +136,12 @@ pub fn main_router(
         .merge(admin::routes())
         .with_state(ctx_state.clone())
         .layer(CookieManagerLayer::new())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &axum::http::Request<_>| {

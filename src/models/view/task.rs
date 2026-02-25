@@ -46,6 +46,7 @@ pub struct TaskRequestView {
     pub status: TaskRequestStatus,
     pub belongs_to: Thing,
     pub r#type: TaskRequestType,
+    pub goal_amount: Option<u64>,
 }
 
 impl ViewFieldSelector for TaskRequestView {
@@ -60,6 +61,7 @@ impl ViewFieldSelector for TaskRequestView {
         currency,
         status,
         type,
+        goal_amount,
         request_txt,
         created_by.* as created_by,
         ->task_participant.{ user: out.*, status, timelines, result } as participants,
@@ -73,6 +75,7 @@ impl ViewRelateField for TaskRequestView {
         "id,
         due_at,
         created_at,
+        goal_amount,
         delivery_period,
         acceptance_period,
         wallet_id,
@@ -106,6 +109,7 @@ pub struct TaskViewForParticipant {
     pub status: TaskRequestStatus,
     pub belongs_to: Thing,
     pub r#type: TaskRequestType,
+    pub goal_amount: Option<u64>,
 }
 
 impl TaskViewForParticipant {
@@ -147,6 +151,7 @@ impl TaskViewForParticipant {
             acceptance_period: view.acceptance_period,
             delivery_period: view.delivery_period,
             r#type: view.r#type,
+            goal_amount: view.goal_amount,
         }
     }
 }

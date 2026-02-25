@@ -380,18 +380,16 @@ where
     }
 
     pub async fn sign_by_twitch(&self, code: &str) -> CtxResult<(String, LocalUser, bool)> {
-        let twitch_token = self.twitch_service.exchange_code(code).await.map_err(|e| {
-            println!("Twitch exchange code error: {:?}", e);
-            self.ctx.to_ctx_error(AppError::AuthenticationFail)
-        })?;
+        let twitch_token = self
+            .twitch_service
+            .exchange_code(code)
+            .await
+            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
         let twitch_user = self
             .twitch_service
             .get_user(&twitch_token)
             .await
-            .map_err(|e| {
-                println!("Twitch get user error: {:?}", e);
-                self.ctx.to_ctx_error(AppError::AuthenticationFail)
-            })?;
+            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
         let res = self
             .get_user_id_by_social_auth(
                 AuthType::TWITCH,
@@ -407,7 +405,7 @@ where
                     .update_token(
                         &user.id.as_ref().unwrap().id.to_raw(),
                         AuthType::TWITCH,
-                        twitch_token.access_token,
+                        twitch_user.id,
                         Some(token_data),
                     )
                     .await?;
@@ -431,7 +429,7 @@ where
                         .register(
                             new_user,
                             AuthType::TWITCH,
-                            &twitch_token.access_token,
+                            &twitch_user.id,
                             Some(token_data),
                         )
                         .await?;

@@ -34,6 +34,7 @@ pub struct TaskRequestEntity {
 
     pub status: TaskRequestStatus,
     pub due_at: DateTime<Utc>,
+    pub goal_amount: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
@@ -76,6 +77,7 @@ pub struct TaskRequestCreate {
     pub acceptance_period: u64,
     pub delivery_period: u64,
     pub increase_tasks_nr_for_belongs: bool,
+    pub goal_amount: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]

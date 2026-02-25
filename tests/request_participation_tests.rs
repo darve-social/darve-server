@@ -103,6 +103,7 @@ test_with_server!(
                 content: offer_content.clone(),
                 acceptance_period: None,
                 delivery_period: None,
+                goal_amount: None,
             })
             .add_header("Accept", "application/json")
             .await;

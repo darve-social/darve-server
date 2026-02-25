@@ -7,7 +7,7 @@ use crate::entities::task_request::TaskRequestEntity;
 use crate::entities::user_auth::local_user_entity::LocalUserDbService;
 use crate::interfaces::repositories::task_request_ifce::TaskRequestRepositoryInterface;
 use crate::middleware;
-use crate::middleware::auth_with_login_access::AuthWithLoginAccess;
+use crate::middleware::bearer_auth::BearerAuth;
 use crate::middleware::utils::db_utils::{Pagination, QryOrder};
 use crate::models::view::access::DiscussionAccessView;
 use crate::models::view::discussion::DiscussionView;
@@ -22,7 +22,6 @@ use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use axum_typed_multipart::TypedMultipart;
 use discussion_entity::{Discussion, DiscussionDbService};
-use middleware::ctx::Ctx;
 
 use middleware::error::{AppError, CtxResult};
 use middleware::mw_ctx::CtxState;
@@ -60,14 +59,13 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
 }
 
 async fn create_discussion(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
-    ctx: Ctx,
     Json(data): Json<CreateDiscussion>,
 ) -> CtxResult<Json<Discussion>> {
     let disc_service = DiscussionService::new(
         &state,
-        &ctx,
+        &auth_data.ctx,
         &state.db.access,
         &state.db.discussion_users,
         &state.db.user_notifications,
@@ -88,7 +86,7 @@ pub struct GetDiscussionsQuery {
 }
 
 async fn get_discussions(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Query(query): Query<GetDiscussionsQuery>,
 ) -> CtxResult<Json<Vec<DiscussionView>>> {
@@ -117,7 +115,7 @@ struct DiscussionUsers {
 }
 
 async fn add_discussion_users(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
@@ -136,7 +134,7 @@ async fn add_discussion_users(
 }
 
 async fn delete_discussion_users(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
     JsonOrFormValidated(data): JsonOrFormValidated<DiscussionUsers>,
@@ -155,7 +153,7 @@ async fn delete_discussion_users(
 }
 
 async fn update_discussion(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateDiscussion>,
@@ -179,7 +177,7 @@ pub struct UpdateAliasData {
     pub alias: Option<String>,
 }
 async fn update_alias(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     Json(data): Json<UpdateAliasData>,
@@ -199,7 +197,7 @@ async fn update_alias(
 }
 
 async fn get_tasks(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
 ) -> CtxResult<Json<Vec<TaskRequestView>>> {
@@ -260,7 +258,7 @@ async fn get_tasks(
 }
 
 async fn create_task(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     Json(body): Json<TaskRequestInput>,
@@ -290,7 +288,7 @@ async fn create_task(
 }
 
 async fn create_post(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Path(discussion_id): Path<String>,
     TypedMultipart(input_value): TypedMultipart<PostInput>,
@@ -314,7 +312,7 @@ async fn create_post(
 }
 
 async fn get_posts(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Path(disc_id): Path<String>,
     Query(query): Query<GetPostsParams>,
@@ -339,7 +337,7 @@ async fn get_posts(
 }
 
 async fn get_discussion(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     Path(discussion_id): Path<String>,
     State(state): State<Arc<CtxState>>,
 ) -> CtxResult<Json<DiscussionView>> {
@@ -363,7 +361,7 @@ pub struct GetCountPostsParams {
 }
 
 async fn get_count_of_posts(
-    auth_data: AuthWithLoginAccess,
+    auth_data: BearerAuth,
     State(ctx_state): State<Arc<CtxState>>,
     Path(disc_id): Path<String>,
     Query(query): Query<GetCountPostsParams>,

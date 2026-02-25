@@ -4,29 +4,29 @@ use axum::{
     extract::{FromRequestParts, State},
     http::request::Parts,
 };
-use axum_extra::extract::CookieJar;
+use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 use reqwest::StatusCode;
 
-use super::ctx::Ctx;
-use crate::database::surrdb_utils::get_thing_id;
 use crate::{
-    middleware::mw_ctx::{CtxState, JWT_KEY},
+    middleware::{ctx::Ctx, mw_ctx::CtxState},
     utils::jwt::TokenType,
 };
 
-#[derive(Debug)]
-pub struct AuthWithLoginAccess {
+pub struct BearerAuth {
     pub user_id: String,
     pub ctx: Ctx,
 }
 
-impl AuthWithLoginAccess {
+impl BearerAuth {
     pub fn user_thing_id(&self) -> String {
-        get_thing_id(self.user_id.as_str()).to_string()
+        match self.user_id.find(":") {
+            None => self.user_id.clone(),
+            Some(ind) => (&self.user_id[ind + 1..]).to_string(),
+        }
     }
 }
 
-impl FromRequestParts<Arc<CtxState>> for AuthWithLoginAccess {
+impl FromRequestParts<Arc<CtxState>> for BearerAuth {
     type Rejection = StatusCode;
 
     async fn from_request_parts(
@@ -37,14 +37,12 @@ impl FromRequestParts<Arc<CtxState>> for AuthWithLoginAccess {
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let cookies = CookieJar::from_headers(&parts.headers);
-
-        match cookies.get(JWT_KEY) {
-            Some(cookie) => match app_state
+        match parts.headers.typed_get::<Authorization<Bearer>>() {
+            Some(token) => match app_state
                 .jwt
-                .decode_by_type(cookie.value(), TokenType::Login)
+                .decode_by_type(token.token(), TokenType::Login)
             {
-                Ok(claims) => Ok(AuthWithLoginAccess {
+                Ok(claims) => Ok(BearerAuth {
                     user_id: claims.auth.clone(),
                     ctx: Ctx::new(Ok(claims.auth), false),
                 }),
