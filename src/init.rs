@@ -201,5 +201,5 @@ pub fn main_router(
 
 async fn get_hc() -> Response {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    (StatusCode::OK, format!("v{}", VERSION)).into_response()
+    (StatusCode::OK, format!("Darve v{}", VERSION)).into_response()
 }
