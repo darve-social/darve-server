@@ -14,28 +14,29 @@ use darve_server::{
     routes::{community::profile_routes::ProfileView, users::SearchInput},
 };
 use helpers::{
-    create_fake_login_test_user, create_login_test_user,
+    create_fake_login_test_user,
     user_helpers::{self, get_user, update_current_user},
 };
 use middleware::ctx::Ctx;
-use serde_json::json;
+use serde_json::{json, Value};
 
 test_with_server!(search_users, |server, ctx_state, config| {
-    let username1 = "its_user_one".to_string();
-    let username2 = "its_user_two".to_string();
-    let username3 = "herodus".to_string();
-    let (server, _) = create_login_test_user(&server, username1.clone()).await;
-    let (server, _) = create_login_test_user(&server, username2.clone()).await;
-    let (server, _) = create_login_test_user(&server, username3.clone()).await;
+    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+
+    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, _, _, token) = create_fake_login_test_user(&server).await;
+    let username1 = user1.username.clone();
+    let username2 = user2.username.clone();
 
     let request = server
         .patch("/api/users/current")
         .multipart(
             MultipartForm::new()
                 .add_text("username", "username_new")
-                .add_text("full_name", "Full Name Userset"),
+                .add_text("full_name", "Full Name Usersssssset"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -43,10 +44,11 @@ test_with_server!(search_users, |server, ctx_state, config| {
     let res = user_helpers::search_users(
         &server,
         &SearchInput {
-            query: "rset".to_string(),
+            query: "sssssset".to_string(),
             start: None,
             count: None,
         },
+        &token,
     )
     .await;
     assert_eq!(res.len(), 1);
@@ -54,21 +56,11 @@ test_with_server!(search_users, |server, ctx_state, config| {
     let res = user_helpers::search_users(
         &server,
         &SearchInput {
-            query: "user".to_string(),
+            query: "username_new".to_string(),
             start: None,
             count: None,
         },
-    )
-    .await;
-    assert_eq!(res.len(), 3);
-
-    let res = user_helpers::search_users(
-        &server,
-        &SearchInput {
-            query: "Userse".to_string(),
-            start: None,
-            count: None,
-        },
+        &token,
     )
     .await;
     assert_eq!(res.len(), 1);
@@ -76,10 +68,23 @@ test_with_server!(search_users, |server, ctx_state, config| {
     let res = user_helpers::search_users(
         &server,
         &SearchInput {
-            query: "one".to_string(),
+            query: "Usersssss".to_string(),
             start: None,
             count: None,
         },
+        &token,
+    )
+    .await;
+    assert_eq!(res.len(), 1);
+
+    let res = user_helpers::search_users(
+        &server,
+        &SearchInput {
+            query: username1.clone(),
+            start: None,
+            count: None,
+        },
+        &token,
     )
     .await;
     assert_eq!(res.len(), 1);
@@ -91,6 +96,7 @@ test_with_server!(search_users, |server, ctx_state, config| {
             start: None,
             count: None,
         },
+        &token,
     )
     .await;
     assert_eq!(res.len(), 0);
@@ -98,46 +104,51 @@ test_with_server!(search_users, |server, ctx_state, config| {
     let res = user_helpers::search_users(
         &server,
         &SearchInput {
-            query: "its".to_string(),
+            query: username2.clone(),
             start: None,
             count: None,
         },
+        &token,
     )
     .await;
-    assert_eq!(res.len(), 2);
+    assert_eq!(res.len(), 1);
 
     let res = user_helpers::search_users(
         &server,
         &SearchInput {
-            query: "hero".to_string(),
+            query: "123123123".to_string(),
             start: None,
             count: None,
         },
+        &token,
     )
     .await;
     assert_eq!(res.len(), 0);
 
-    let (server, _) = create_login_test_user(&server, String::from("abcdtest")).await;
-    let (server, _) = create_login_test_user(&server, String::from("abcdtest1")).await;
-    let (server, _) = create_login_test_user(&server, String::from("abcdtest2")).await;
-    let (server, _) = create_login_test_user(&server, String::from("abcdtest3")).await;
-    let (server, _) = create_login_test_user(&server, String::from("abcdtest4")).await;
-    let res = user_helpers::search_users(
-        &server,
-        &SearchInput {
-            query: "tes".to_string(),
-            start: None,
-            count: None,
-        },
-    )
-    .await;
-    assert_eq!(res.len(), 5);
+    let (server, fake1, _, _) = create_fake_login_test_user(&server).await;
+    let (server, fake2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, fake3, _, _) = create_fake_login_test_user(&server).await;
+    let (server, fake4, _, _) = create_fake_login_test_user(&server).await;
+    let (server, fake5, _, _) = create_fake_login_test_user(&server).await;
+    for fake_user in [&fake1, &fake2, &fake3, &fake4, &fake5] {
+        let res = user_helpers::search_users(
+            &server,
+            &SearchInput {
+                query: fake_user.username.clone(),
+                start: None,
+                count: None,
+            },
+            &token,
+        )
+        .await;
+        assert_eq!(res.len(), 1);
+    }
 });
 
 test_with_server!(
     email_verification_and_confirmation,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let username = user.username;
         let user_id = user.id.clone().unwrap();
         let new_email = "asdasdasd@asdasd.com";
@@ -146,6 +157,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": "asasdasdas@asd.com"}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -158,6 +170,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": new_email}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -174,6 +187,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": code.clone(), "email": new_email }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -193,7 +207,7 @@ test_with_server!(
 test_with_server!(
     try_verification_email_with_already_verified_email,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
         let username = user.username;
         let user_id = user.id.clone().unwrap();
         let new_email = "asdasdasd@asdasd.com";
@@ -202,6 +216,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": "asasdasdas@asd.com"}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -214,6 +229,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": new_email}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -229,6 +245,7 @@ test_with_server!(
         let response = server
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": code.clone(), "email": new_email }))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -242,7 +259,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": new_email}))
             .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_failure();
@@ -253,13 +270,14 @@ test_with_server!(
 test_with_server!(
     email_confirmation_with_invalid_code,
     |server, ctx_state, config| {
-        let (server, _, _pwd, _) = create_fake_login_test_user(&server).await;
+        let (server, _, _pwd, token) = create_fake_login_test_user(&server).await;
         let new_email = "asdasdasd@asdasd.com";
 
         server
             .post("/api/users/current/email/verification/start")
             .json(&json!({ "email": new_email }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await
             .assert_status_success();
 
@@ -267,6 +285,7 @@ test_with_server!(
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": "123456", "email": new_email }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         response.assert_status_failure();
         response.text().contains("Start new verification");
@@ -274,6 +293,7 @@ test_with_server!(
         let response = server
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_failure();
@@ -282,6 +302,7 @@ test_with_server!(
         let response = server
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_failure();
@@ -290,6 +311,7 @@ test_with_server!(
         let response = server
             .post("/api/users/current/email/verification/confirm")
             .json(&json!({"code": "123456", "email": new_email }))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_failure();
@@ -300,9 +322,9 @@ test_with_server!(
 );
 
 test_with_server!(update_user_avatar, |server, ctx_state, config| {
-    let (_, local_user, _pwd, _) = create_fake_login_test_user(&server).await;
+    let (_, local_user, _pwd, token) = create_fake_login_test_user(&server).await;
 
-    let create_response = update_current_user(&server).await;
+    let create_response = update_current_user(&server, &token).await;
     create_response.assert_status_success();
 
     let get_response = get_user(&server, local_user.id.unwrap().to_raw().as_str()).await;
@@ -315,11 +337,12 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let new_password = "setPassword123";
 
     // Create and login user
-    let (server, user, _old_password, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _old_password, token) = create_fake_login_test_user(&server).await;
 
     let response = server
         .post("/api/users/current/set_password/start")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_failure();
 
@@ -336,6 +359,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let response = server
         .post("/api/users/current/set_password/start")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_failure();
     assert!(response.text().contains("User has already set a password"));
@@ -352,6 +376,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
     let response = server
         .post("/api/users/current/set_password/start")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_success();
 
@@ -371,6 +396,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
              "password": new_password,
              "code": user_code.code
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -388,6 +414,10 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
         .add_header("Accept", "application/json")
         .await;
     login_response.assert_status_success();
+    let token = login_response.json::<Value>();
+    let token = token.get("token").unwrap().as_str().unwrap().to_string();
+
+    // Try to set password again (should fail because user already has a password)
 
     // Test validation: password too short should fail
     let response = server
@@ -396,6 +426,7 @@ test_with_server!(set_user_password, |server, ctx_state, config| {
             "password": "123485",
             "code": "222222"
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
@@ -405,11 +436,12 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let new_password = "newPassword456";
 
     // Create and login user
-    let (server, user, password, _) = create_fake_login_test_user(&server).await;
+    let (server, user, password, token) = create_fake_login_test_user(&server).await;
 
     let response = server
         .post("/api/users/current/update_password/start")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_failure();
     assert!(response.text().contains("The user has not set email yet"));
@@ -425,6 +457,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
     let response = server
         .post("/api/users/current/update_password/start")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     response.assert_status_success();
     let user_code = ctx_state
@@ -439,12 +472,13 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
 
     // Try to update password with wrong old password
     let response = server
-        .post("/api/users/current/update_password/confrim")
+        .post("/api/users/current/update_password/confirm")
         .json(&serde_json::json!({
             "old_password": "wrongPassword",
             "new_password": new_password,
             "code": user_code
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
@@ -457,6 +491,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
             "new_password": new_password,
             "code": user_code.code
         }))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -488,8 +523,7 @@ test_with_server!(update_user_password, |server, ctx_state, config| {
 });
 
 test_with_server!(update_social_links, |server, ctx_state, config| {
-    let username1 = "its_user_one".to_string();
-    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+    let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
     let social_links = vec![
         "https://x.com/example".to_string(),
@@ -506,6 +540,7 @@ test_with_server!(update_social_links, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(multipart_form)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     request.assert_status_success();
     let user = request.json::<LocalUser>();
@@ -518,8 +553,7 @@ test_with_server!(update_social_links, |server, ctx_state, config| {
 test_with_server!(
     try_to_update_social_links_with_unsupported_domain,
     |server, ctx_state, config| {
-        let username1 = "its_user_one".to_string();
-        let (server, _) = create_login_test_user(&server, username1.clone()).await;
+        let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
         let social_links = vec![
             "https://asdasdas.com/example".to_string(),
@@ -536,6 +570,7 @@ test_with_server!(
             .patch("/api/users/current")
             .multipart(multipart_form)
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         request.assert_status_failure();
         assert!(request
@@ -547,8 +582,7 @@ test_with_server!(
 test_with_server!(
     try_to_update_social_links_with_couple_of_the_same_domain,
     |server, ctx_state, config| {
-        let username1 = "its_user_one".to_string();
-        let (server, _) = create_login_test_user(&server, username1.clone()).await;
+        let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
         let social_links = vec![
             "https://instagram.com".to_string(),
@@ -564,6 +598,7 @@ test_with_server!(
             .patch("/api/users/current")
             .multipart(multipart_form)
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         request.assert_status_failure();
@@ -573,8 +608,7 @@ test_with_server!(
     }
 );
 test_with_server!(set_empty_social_links, |server, ctx_state, config| {
-    let username1 = "its_user_one".to_string();
-    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+    let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
     let social_links = vec!["https://instagram.com".to_string()];
 
@@ -587,6 +621,7 @@ test_with_server!(set_empty_social_links, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(multipart_form)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -595,6 +630,7 @@ test_with_server!(set_empty_social_links, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(MultipartForm::new().add_text("social_links", ""))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -603,8 +639,7 @@ test_with_server!(set_empty_social_links, |server, ctx_state, config| {
 });
 
 test_with_server!(replace_social_links, |server, ctx_state, config| {
-    let username1 = "its_user_one".to_string();
-    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+    let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
     let social_links = vec!["https://instagram.com".to_string()];
 
@@ -617,6 +652,7 @@ test_with_server!(replace_social_links, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(multipart_form)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -625,6 +661,7 @@ test_with_server!(replace_social_links, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(MultipartForm::new().add_text("social_links", new_link))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -633,16 +670,16 @@ test_with_server!(replace_social_links, |server, ctx_state, config| {
 });
 
 test_with_server!(replace_image_url, |server, ctx_state, config| {
-    let username1 = "its_user_one".to_string();
-    let (server, _) = create_login_test_user(&server, username1.clone()).await;
+    let (server, _, _, token) = create_fake_login_test_user(&server).await;
 
-    let create_response = update_current_user(&server).await;
+    let create_response = update_current_user(&server, &token).await;
     create_response.assert_status_success();
 
     let request = server
         .patch("/api/users/current")
         .multipart(MultipartForm::new().add_text("image_url", ""))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -653,7 +690,7 @@ test_with_server!(replace_image_url, |server, ctx_state, config| {
 test_with_server!(
     set_none_fullname_and_birth_date,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
         assert!(user.full_name.is_some());
         assert!(user.birth_date.is_some());
@@ -665,6 +702,7 @@ test_with_server!(
                     .add_text("birth_date", ""),
             )
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         request.assert_status_success();
@@ -675,13 +713,14 @@ test_with_server!(
 );
 
 test_with_server!(update_bio, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     assert!(user.bio.is_none());
     let request = server
         .patch("/api/users/current")
         .multipart(MultipartForm::new().add_text("bio", "test"))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -691,6 +730,7 @@ test_with_server!(update_bio, |server, ctx_state, config| {
         .patch("/api/users/current")
         .multipart(MultipartForm::new().add_text("bio", ""))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();

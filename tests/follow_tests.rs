@@ -11,8 +11,8 @@ use follow_entity::FollowDbService;
 use middleware::ctx::Ctx;
 
 test_with_server!(get_user_followers, |server, ctx_state, config| {
-    let (server, user1, user1_pwd, _) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user1, user1_pwd, token1) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
     let user_ident1 = user1.id.as_ref().unwrap().to_raw();
     let username1 = user1.username.to_string();
     let username2 = user2.username.to_string();
@@ -40,6 +40,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .get(format!("/u/{}", username1.clone()).as_str())
         .add_header("Accept", "application/json")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     let created = profile1_response.json::<ProfileView>();
     assert_eq!(created.followers_nr, 0);
@@ -50,7 +51,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
         .post(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
-        .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     create_response.assert_status_success();
 
@@ -80,13 +81,14 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     assert_eq!(created.followers_nr, 1);
 
     //login as username3
-    let (server, user3, user3_pwd, _) = create_fake_login_test_user(server).await;
+    let (server, user3, _, token3) = create_fake_login_test_user(server).await;
     let username3 = user3.username;
     // follow u1
     let create_response = server
         .post(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
         .json("")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_success();
 
@@ -101,6 +103,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let profile1_response = server
         .get(format!("/u/{}", username1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     let created = profile1_response.json::<ProfileView>();
     assert_eq!(created.followers_nr, 2);
@@ -109,6 +112,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     create_response.assert_status_success();
 
@@ -116,6 +120,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get(format!("/api/users/{}/followers", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     let created = &create_response.json::<Vec<UserItemView>>();
     assert_eq!(created.len(), 2);
@@ -128,6 +133,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get(format!("/api/users/{}/following", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     let created = &create_response.json::<Vec<UserItemView>>();
     assert_eq!(created.len(), 0);
@@ -136,6 +142,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
@@ -163,6 +170,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
                 .add_text("content", "contentttt"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     create_post.assert_status_success();
     let _post = create_post.json::<PostView>();
@@ -170,6 +178,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let response = server
         .get(&format!("/api/discussions/{disc_id}/posts"))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     response.assert_status_success();
     let posts = response.json::<Vec<PostView>>();
@@ -177,41 +186,15 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     assert_eq!(posts.len(), 1);
     assert_eq!(posts[0].created_by.username, username1);
 
-    // login user3
-    server.get("/logout").await;
-    let login_response = server
-        .post("/api/login")
-        .json(&serde_json::json!({
-            "username_or_email": username3.clone(),
-            "password": user3_pwd.clone()
-        }))
-        .add_header("Accept", "application/json")
-        .await;
-    login_response.assert_status_success();
-
     // user3 get followers stream
     let create_response = server
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
 
     let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 1);
-
-    // login user1
-    server
-        .get("/logout")
-        .add_header("Accept", "application/json")
-        .await;
-    let login_response = server
-        .post("/api/login")
-        .json(&serde_json::json!({
-            "username_or_email": username1.clone(),
-            "password": user1_pwd.clone()
-        }))
-        .add_header("Accept", "application/json")
-        .await;
-    login_response.assert_status_success();
 
     // user1 post 2
     let post_name = "post title Name 2".to_string();
@@ -224,24 +207,15 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
                 .add_text("content", "contentttt22"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     create_post.assert_status_success();
-
-    // login user3
-    server.get("/logout").await;
-    let login_response = server
-        .post("/api/login")
-        .json(&serde_json::json!({
-            "username_or_email": username3.clone(),
-            "password": user3_pwd.clone()
-        }))
-        .await;
-    login_response.assert_status_success();
 
     // user3 get followers stream
     let create_response = server
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 2);
@@ -250,6 +224,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .delete(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     create_response.assert_status_success();
 
@@ -257,6 +232,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let profile1_response = server
         .get(format!("/u/{}", username1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     let created = profile1_response.json::<ProfileView>();
     assert_eq!(created.followers_nr, 1);
@@ -265,6 +241,7 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get(format!("/api/users/{}/followers", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     let created = &create_response.json::<Vec<UserItemView>>();
     assert_eq!(created.len(), 1);
@@ -273,19 +250,9 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
     let create_response = server
         .get(format!("/api/following/{}", user_ident1.clone()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     create_response.assert_status_success();
-
-    // login user1
-    server.get("/logout").await;
-    let login_response = server
-        .post("/api/login")
-        .json(&serde_json::json!({
-            "username_or_email": username1.clone(),
-            "password": user1_pwd.clone()
-        }))
-        .await;
-    login_response.assert_status_success();
 
     // user1 post 3
     let post_name = "post title Name 3".to_string();
@@ -298,25 +265,15 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
                 .add_text("content", "contentttt3"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     create_post.assert_status_success();
-
-    // login user3
-    server.get("/logout").await;
-    let login_response = server
-        .post("/api/login")
-        .json(&serde_json::json!({
-            "username_or_email": username3.clone(),
-            "password": user3_pwd.clone()
-        }))
-        .add_header("Accept", "application/json")
-        .await;
-    login_response.assert_status_success();
 
     // user3 get followers stream
     let create_response = server
         .get("/api/users/current/following/posts")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
     let posts = &create_response.json::<Vec<PostView>>();
     assert_eq!(posts.len(), 0);
@@ -324,10 +281,11 @@ test_with_server!(get_user_followers, |server, ctx_state, config| {
 
 test_with_server!(remove_followers, |server, ctx_state, config| {
     let (server, user1, __, token1) = create_fake_login_test_user(&server).await;
-    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token) = create_fake_login_test_user(&server).await;
     let create_response = server
         .post(format!("/api/following/{}", user1.id.as_ref().unwrap().to_raw()).as_str())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_response.assert_status_success();
 
@@ -337,9 +295,9 @@ test_with_server!(remove_followers, |server, ctx_state, config| {
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     is_following_response.assert_status_success();
-
     assert!(is_following_response.json::<bool>());
 
     let remove_response = server
@@ -347,7 +305,7 @@ test_with_server!(remove_followers, |server, ctx_state, config| {
             "/api/followers/{}",
             user2.id.as_ref().unwrap().to_raw()
         ))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     remove_response.assert_status_success();
@@ -357,6 +315,7 @@ test_with_server!(remove_followers, |server, ctx_state, config| {
             user1.id.as_ref().unwrap().to_raw()
         ))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     is_following_response.assert_status_success();
     assert_eq!(is_following_response.json::<bool>(), false);

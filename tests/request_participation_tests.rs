@@ -18,10 +18,9 @@ use darve_server::services::task_service::TaskRequestInput;
 use helpers::post_helpers::create_fake_post;
 use std::i64;
 
-use crate::helpers::{create_fake_login_test_user, create_login_test_user, task_helpers};
+use crate::helpers::{create_fake_login_test_user, task_helpers};
 use community_entity::CommunityDbService;
 use middleware::ctx::Ctx;
-use middleware::utils::string_utils::get_string_thing;
 use wallet_entity::WalletDbService;
 
 test_with_server!(
@@ -31,13 +30,10 @@ test_with_server!(
         // let user_ident3 = user3.id.as_ref().unwrap().to_raw();
         // let username3 = user3.username.to_string();
 
-        let username4 = "usnnnn4".to_string();
-
         // let (server, user1, _, _) = create_fake_login_test_user(&server).await;
 
-        let (server, user0, user0_pwd, user0_token) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, user0_token) = create_fake_login_test_user(&server).await;
         let user_ident0 = user0.id.as_ref().unwrap().to_raw();
-        let username0 = user0.username.to_string();
 
         ////////// user 0 creates post (user 2 creates task and user3 participates on this post for user 0 who delivers it, user4 tries to participates without enough funds)
 
@@ -54,6 +50,7 @@ test_with_server!(
                 chat_user_ids: None,
                 private_discussion_users_final: false,
             })
+            .add_header("Authorization", format!("Bearer {}", user0_token))
             .add_header("Accept", "application/json")
             .await;
         create_response.assert_status_success();
@@ -70,6 +67,7 @@ test_with_server!(
                     .add_text("title", post_name.clone())
                     .add_text("content", "contentttt"),
             )
+            .add_header("Authorization", format!("Bearer {}", user0_token))
             .add_header("Accept", "application/json")
             .await;
         let created_post = create_post.json::<PostView>();
@@ -78,7 +76,7 @@ test_with_server!(
 
         ////////// user 2 creates offer for user 0
 
-        let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, user2_token) = create_fake_login_test_user(&server).await;
         let username2 = user2.username;
 
         // endow user 2
@@ -88,6 +86,7 @@ test_with_server!(
                 "/test/api/deposit/{}/{}",
                 username2, user2_endow_amt
             ))
+            .add_header("Authorization", format!("Bearer {}", user2_token))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -105,6 +104,7 @@ test_with_server!(
                 delivery_period: None,
                 goal_amount: None,
             })
+            .add_header("Authorization", format!("Bearer {}", user2_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -113,6 +113,7 @@ test_with_server!(
 
         let post_tasks_req = server
             .get(&format!("/api/posts/{post_id}/tasks"))
+            .add_header("Authorization", format!("Bearer {}", user2_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -133,6 +134,7 @@ test_with_server!(
         // all tasks given by user
         let given_user_tasks_req = server
             .get("/api/tasks/given")
+            .add_header("Authorization", format!("Bearer {}", user2_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -143,9 +145,8 @@ test_with_server!(
 
         ////////// login user 3 and participate
 
-        let (server, user3, user3_pwd, _) = create_fake_login_test_user(&server).await;
+        let (server, user3, _, user3_token) = create_fake_login_test_user(&server).await;
         let user3_thing = user3.id.unwrap();
-        let username3 = user3.username.to_string();
 
         // endow user 3
         let user3_endow_amt: i64 = 100;
@@ -155,6 +156,7 @@ test_with_server!(
                 "/test/api/deposit/{}/{}",
                 user3.username, user3_endow_amt
             ))
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -165,6 +167,7 @@ test_with_server!(
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
         participate_response.assert_status_success();
@@ -179,6 +182,7 @@ test_with_server!(
         let post_tasks_req = server
             .get(format!("/api/posts/{}/tasks", post_id).as_str())
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .await;
 
         post_tasks_req.assert_status_success();
@@ -196,6 +200,7 @@ test_with_server!(
             .json(&TaskRequestOfferInput {
                 amount: user3_offer_amt as u64,
             })
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -210,6 +215,7 @@ test_with_server!(
 
         let post_tasks_req = server
             .get(format!("/api/posts/{}/tasks", post_id).as_str())
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -226,36 +232,27 @@ test_with_server!(
 
         // user4 tries to participate without balance and gets error
 
-        let (server, user_ident4) = create_login_test_user(&server, username4.clone()).await;
-        let user4_thing = get_string_thing(user_ident4).unwrap();
+        let (server, user4, _, user4_token) = create_fake_login_test_user(&server).await;
+        let user4_thing = user4.id.as_ref().unwrap().clone();
         let balance = wallet_service.get_user_balance(&user4_thing).await.unwrap();
         assert_eq!(balance.balance_usd, 0);
 
         let participate_response = server
             .post(format!("/api/tasks/{}/donor", task.id).as_str())
             .json(&TaskRequestOfferInput { amount: 100 })
+            .add_header("Authorization", format!("Bearer {}", user4_token))
             .add_header("Accept", "application/json")
             .await;
 
         participate_response.assert_status_failure();
         participate_response.assert_status(StatusCode::PAYMENT_REQUIRED);
 
-        ////////// login user 0 and check tasks
-
-        server.get("/logout").await;
-        let login_response = server
-            .post("/api/login")
-            .add_header("Accept", "application/json")
-            .json(&serde_json::json!({
-                "username_or_email": username0.clone(),
-                "password": user0_pwd.clone()
-            }))
-            .await;
-        login_response.assert_status_success();
+        ////////// user 0 checks tasks
 
         // check received tasks
         let received_post_tasks_req = server
             .get("/api/tasks/received")
+            .add_header("Authorization", format!("Bearer {}", user0_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -270,6 +267,7 @@ test_with_server!(
         // accept received task
         let accept_response = server
             .post(format!("/api/tasks/{}/accept", received_task.id).as_str())
+            .add_header("Authorization", format!("Bearer {}", user0_token))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -277,6 +275,7 @@ test_with_server!(
         // check task is accepted
         let received_post_tasks_req = server
             .get("/api/tasks/received")
+            .add_header("Authorization", format!("Bearer {}", user0_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -294,21 +293,10 @@ test_with_server!(
         assert!(task_participant.result.unwrap().post.is_some());
 
         // TODO -check notifications for other users-
-        // login user3 to check notifications
-        server.get("/logout").await;
-        let login_response = server
-            .post("/api/login")
-            .json(&serde_json::json!({
-                "username_or_email": username3.clone(),
-                "password": user3_pwd.clone()
-            }))
-            .add_header("Accept", "application/json")
-            .await;
-        login_response.assert_status_success();
-
-        // check user notifications
+        // check user3 notifications
         let notif_history_req = server
             .get("/api/notifications")
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -326,6 +314,7 @@ test_with_server!(
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
             .get("/api/wallet/history?start=0&count=20")
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
         transaction_history_response.assert_status_success();
@@ -346,6 +335,7 @@ test_with_server!(
         // check transaction history /api/user/wallet/history
         let transaction_history_response = server
             .get("/api/wallet/history?start=2&count=20")
+            .add_header("Authorization", format!("Bearer {}", user3_token))
             .add_header("Accept", "application/json")
             .await;
         transaction_history_response.assert_status_success();
@@ -379,6 +369,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
             chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
             private_discussion_users_final: false,
         })
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -391,19 +382,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
             chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
             private_discussion_users_final: false,
         })
-        .add_header("Accept", "application/json")
-        .await
-        .assert_status_success();
-
-    server
-        .post("/api/discussions")
-        .json(&CreateDiscussion {
-            community_id: comm_id.to_raw(),
-            title: "The Discussion".to_string(),
-            image_uri: None,
-            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
-            private_discussion_users_final: false,
-        })
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -417,13 +396,28 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
             chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
             private_discussion_users_final: false,
         })
+        .add_header("Authorization", format!("Bearer {}", token1))
+        .add_header("Accept", "application/json")
+        .await
+        .assert_status_success();
+
+    server
+        .post("/api/discussions")
+        .json(&CreateDiscussion {
+            community_id: comm_id.to_raw(),
+            title: "The Discussion".to_string(),
+            image_uri: None,
+            chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
+            private_discussion_users_final: false,
+        })
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
 
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -432,7 +426,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
     assert_eq!(notifications.len(), 4);
     let req = server
         .get("/api/notifications?count=1")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -441,7 +435,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
     assert_eq!(notifications.len(), 1);
     let req = server
         .get("/api/notifications?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -451,7 +445,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
 
@@ -462,7 +456,7 @@ test_with_server!(get_notifications, |server, ctx_state, config| {
 
 test_with_server!(set_read_notification, |server, ctx_state, config| {
     let (_, user, _password, token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap());
     let create_response = server
@@ -474,13 +468,14 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
             chat_user_ids: Some([user.id.as_ref().unwrap().to_raw()].to_vec()),
             private_discussion_users_final: false,
         })
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     create_response.assert_status_success();
 
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -491,14 +486,14 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
 
     let req = server
         .post(&format!("/api/notifications/{id}/read"))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();
 
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -511,7 +506,7 @@ test_with_server!(set_read_notification, |server, ctx_state, config| {
 
 test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
 
     let create_response = server
@@ -519,19 +514,19 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
             "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
     create_response.assert_status_success();
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
     let req = server
         .get("/api/notifications")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -541,14 +536,14 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
     let req = server
         .post(&format!("/api/notifications/read"))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();
 
     let req = server
         .get("/api/notifications?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -559,26 +554,26 @@ test_with_server!(set_read_all_notifications, |server, ctx_state, config| {
 
 test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
     let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
-    let (_, user1, _password, _token1) = create_fake_login_test_user(&server).await;
+    let (_, user1, _password, token1) = create_fake_login_test_user(&server).await;
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
     let create_response = server
         .post(&format!(
             "/api/following/{}",
             user1.id.as_ref().unwrap().to_raw()
         ))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
     create_response.assert_status_success();
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
-    let _ = create_fake_post(&server, &discussion_id, None, None).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
+    let _ = create_fake_post(&server, &discussion_id, None, None, &token1).await;
     let req = server
         .get("/api/notifications/count")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -588,7 +583,7 @@ test_with_server!(get_count_of_notifications, |server, ctx_state, config| {
 
     let req = server
         .get("/api/notifications/count?is_read=true")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     req.assert_status_success();

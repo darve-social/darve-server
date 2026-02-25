@@ -282,7 +282,7 @@ test_with_server!(
         let query_params = format!("user_ids={}&user_ids={}", user1_id, user2_id);
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -299,7 +299,7 @@ test_with_server!(
         // Check status again
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -318,7 +318,7 @@ test_with_server!(
         // Check status again
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -336,7 +336,7 @@ test_with_server!(
         // Immediate check - might still show online due to cleanup delay
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -350,7 +350,7 @@ test_with_server!(
 
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();

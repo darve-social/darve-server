@@ -17,10 +17,11 @@ use crate::helpers::create_fake_login_test_user;
 test_with_server!(
     try_to_withdraw_more_than_balance,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user.username, 100000))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .json("")
             .await;
@@ -48,10 +49,11 @@ test_with_server!(
 );
 
 test_with_server!(withdraw_complete, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let amount: u64 = 100000;
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, amount))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -134,11 +136,12 @@ test_with_server!(withdraw_complete, |server, ctx_state, config| {
 });
 
 test_with_server!(withdraw_revert, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let amount: u64 = 100000;
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, amount))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     let endow_response_text = endow_user_response.text();

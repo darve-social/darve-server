@@ -13,7 +13,7 @@ use discussion_entity::Discussion;
 use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(get_discussion_view, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
 
@@ -27,6 +27,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     let created = create_response.json::<Discussion>();
@@ -44,6 +45,7 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
                 .add_text("content", "contentttt111"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_post.assert_status_success();
 
@@ -56,13 +58,13 @@ test_with_server!(get_discussion_view, |server, ctx_state, config| {
                 .add_text("content", "contentttt222"),
         )
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_response2.assert_status_success();
 });
 
 test_with_server!(create_discussion, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
-
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let comm_id = CommunityDbService::get_profile_community_id(&user.id.as_ref().unwrap());
 
     let create_response = server
@@ -75,6 +77,7 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
             private_discussion_users_final: false,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     create_response.assert_status_success();
     let created = &create_response.json::<Discussion>();
@@ -84,9 +87,8 @@ test_with_server!(create_discussion, |server, ctx_state, config| {
 });
 
 test_with_server!(create_chat_discussion, |server, ctx_state, config| {
-    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-
-    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user1, _, _token1) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
 
     let comm_id = CommunityDbService::get_profile_community_id(user2.id.as_ref().unwrap());
     let create_response = server
@@ -99,12 +101,14 @@ test_with_server!(create_chat_discussion, |server, ctx_state, config| {
             private_discussion_users_final: true,
         })
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     create_response.assert_status_ok();
     let create_response = server
         .get("/api/discussions")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     create_response.assert_status_ok();
     let result = create_response.json::<Vec<DiscussionView>>();
@@ -131,9 +135,8 @@ test_with_server!(create_chat_discussion, |server, ctx_state, config| {
 test_with_server!(
     try_to_create_the_same_read_only,
     |server, ctx_state, config| {
-        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-
-        let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, _token1) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let comm_id =
             CommunityDbService::get_profile_community_id(&user1.id.as_ref().unwrap().clone());
         let create_response = server
@@ -146,6 +149,7 @@ test_with_server!(
                 private_discussion_users_final: true,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         create_response.assert_status_failure();
@@ -162,6 +166,7 @@ test_with_server!(
                 private_discussion_users_final: true,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         create_response.assert_status_ok();
@@ -177,6 +182,7 @@ test_with_server!(
                 private_discussion_users_final: true,
             })
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         create_response.assert_status_ok();
@@ -202,7 +208,7 @@ test_with_server!(
                 chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: true,
             })
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .await;
 
@@ -218,7 +224,7 @@ test_with_server!(
                 chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: true,
             })
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .await;
 
@@ -233,7 +239,7 @@ test_with_server!(
                 chat_user_ids: vec![user1.id.as_ref().unwrap().to_raw()].into(),
                 private_discussion_users_final: false,
             })
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .await;
 
@@ -251,7 +257,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user2.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -266,7 +272,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
 
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -284,7 +290,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     create_response.assert_status_ok();
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion 1".to_string(),
@@ -300,7 +306,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     let create_response = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     create_response.assert_status_ok();
@@ -310,7 +316,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     let create_response = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -320,7 +326,7 @@ test_with_server!(get_discussions, |server, ctx_state, config| {
     let create_response = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token3))
+        .add_header("Authorization", format!("Bearer {}", token3))
         .await;
 
     create_response.assert_status_ok();
@@ -337,7 +343,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -356,7 +362,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [] }))
             .await;
@@ -370,7 +376,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [] }))
             .await;
@@ -390,7 +396,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -409,7 +415,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
             "/api/discussions/{}/chat_users",
             result.id.to_raw()
         ))
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .add_header("Accept", "application/json")
         .json(&json!({ "user_ids": [user.id.as_ref().unwrap().to_raw()] }))
         .await;
@@ -421,7 +427,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
             "/api/discussions/{}/chat_users",
             result.id.to_raw()
         ))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
         .await;
@@ -431,7 +437,7 @@ test_with_server!(add_chat_users, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -458,7 +464,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -477,7 +483,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [] }))
             .await;
@@ -498,7 +504,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -517,7 +523,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
             .await;
@@ -529,7 +535,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()] }))
             .await;
@@ -545,7 +551,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -564,7 +570,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
             "/api/discussions/{}/chat_users",
             result.id.to_raw().replace(":", "%3A")
         ))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "user_ids": [user2.id.as_ref().unwrap().to_raw()] }))
         .await;
@@ -574,7 +580,7 @@ test_with_server!(remove_chat_users, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -596,7 +602,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -615,7 +621,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [user1.id.as_ref().unwrap().to_raw()] }))
             .await;
@@ -629,7 +635,7 @@ test_with_server!(
         let create_response: axum_test::TestResponse = server
             .get("/api/discussions?type=Private")
             .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         create_response.assert_status_ok();
@@ -652,7 +658,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -671,7 +677,7 @@ test_with_server!(
                 "/api/discussions/{}/chat_users",
                 result.id.to_raw().replace(":", "%3A")
             ))
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .json(&json!({ "user_ids": [] }))
             .await;
@@ -688,7 +694,7 @@ test_with_server!(try_update_by_not_owner, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -707,7 +713,7 @@ test_with_server!(try_update_by_not_owner, |server, ctx_state, config| {
             "/api/discussions/{}",
             result.id.to_raw().replace(":", "%3A")
         ))
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .add_header("Accept", "application/json")
         .json(&json!({ "title": "Hello "}))
         .await;
@@ -722,7 +728,7 @@ test_with_server!(update, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -742,7 +748,7 @@ test_with_server!(update, |server, ctx_state, config| {
             "/api/discussions/{}",
             disc_id.to_raw().replace(":", "%3A")
         ))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "title": "Hello"}))
         .await;
@@ -751,7 +757,7 @@ test_with_server!(update, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -770,7 +776,7 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -787,7 +793,7 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     let disc_id = result.id;
     let create_response = server
         .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "alias": "Hello"}))
         .await;
@@ -796,7 +802,7 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -809,7 +815,7 @@ test_with_server!(update_alias, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     create_response.assert_status_ok();
@@ -828,7 +834,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
     let create_response = server
         .post("/api/discussions")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&CreateDiscussion {
             community_id: comm_id.clone(),
             title: "The Discussion".to_string(),
@@ -845,7 +851,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     let disc_id = result.id;
     let create_response = server
         .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "alias": "Hello"}))
         .await;
@@ -854,7 +860,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -866,7 +872,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     assert_eq!(disc.alias, Some("Hello".to_string()));
     let create_response = server
         .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .json(&json!({ "alias": null}))
         .await;
@@ -875,7 +881,7 @@ test_with_server!(unset_update_alias, |server, ctx_state, config| {
     let create_response: axum_test::TestResponse = server
         .get("/api/discussions?type=Private")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     create_response.assert_status_ok();
@@ -895,7 +901,7 @@ test_with_server!(
         let disc_id = format!("discussion:{}", user2.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post(&format!("/api/discussions/{}/alias", disc_id))
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .add_header("Accept", "application/json")
             .json(&json!({ "alias": "Hello"}))
             .await;
@@ -914,7 +920,7 @@ test_with_server!(
         let comm_id = format!("community:{}", user1.id.as_ref().unwrap().id.to_string());
         let create_response = server
             .post("/api/discussions")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .json(&CreateDiscussion {
                 community_id: comm_id.clone(),
                 title: "The Discussion".to_string(),
@@ -931,7 +937,7 @@ test_with_server!(
         let disc_id = result.id;
         let create_response = server
             .post(&format!("/api/discussions/{}/alias", disc_id.to_raw()))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .json(&json!({ "alias": "Hello"}))
             .await;

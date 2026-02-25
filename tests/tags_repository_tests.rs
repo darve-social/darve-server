@@ -9,12 +9,13 @@ use darve_server::middleware::utils::string_utils::get_str_thing;
 use helpers::post_helpers::create_fake_post;
 
 test_with_server!(test_create_with_relate, |server, ctx_state, config| {
-    let (_, user, _, _) = create_fake_login_test_user(&server).await;
+    let (_, user, _, token) = create_fake_login_test_user(&server).await;
     let entity = create_fake_post(
         &server,
         &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
         None,
         None,
+        &token,
     )
     .await;
     let tags = vec!["rust".to_string(), "backend".to_string()];
@@ -48,12 +49,13 @@ test_with_server!(test_create_with_relate, |server, ctx_state, config| {
 });
 
 test_with_server!(test_get_by_tag, |server, ctx_state, config| {
-    let (_, user, _, _) = create_fake_login_test_user(&server).await;
+    let (_, user, _, token) = create_fake_login_test_user(&server).await;
     let entity = create_fake_post(
         &server,
         &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
         None,
         None,
+        &token,
     )
     .await;
     let tags = vec!["frontend".to_string(), "javascript".to_string()];
@@ -102,12 +104,13 @@ test_with_server!(test_get_tags_empty, |_server, ctx_state, config| {
 });
 
 test_with_server!(filter_tags_by_start_with, |server, ctx_state, config| {
-    let (_, user, _, _) = create_fake_login_test_user(&server).await;
+    let (_, user, _, token) = create_fake_login_test_user(&server).await;
     let entity = create_fake_post(
         &server,
         &DiscussionDbService::get_profile_discussion_id(user.id.as_ref().unwrap()),
         None,
         None,
+        &token,
     )
     .await;
     let tags = vec![

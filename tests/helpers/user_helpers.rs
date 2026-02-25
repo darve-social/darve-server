@@ -7,11 +7,12 @@ use axum_test::{
 use darve_server::{models::view::user::UserView, routes::users::SearchInput};
 
 #[allow(dead_code)]
-pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<UserView> {
+pub async fn search_users(server: &TestServer, input: &SearchInput, token: &str) -> Vec<UserView> {
     let request = server
         .get("/api/users")
         .add_query_param("query", input.query.clone())
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     request.assert_status_success();
@@ -19,7 +20,7 @@ pub async fn search_users(server: &TestServer, input: &SearchInput) -> Vec<UserV
 }
 
 #[allow(dead_code)]
-pub async fn update_current_user(server: &TestServer) -> TestResponse {
+pub async fn update_current_user(server: &TestServer, token: &str) -> TestResponse {
     let file = fs::read("tests/dummy/file_example_PNG_1MB.png").unwrap();
     let part = Part::bytes(file)
         .file_name("file_example_PNG_1MB.png")
@@ -29,6 +30,7 @@ pub async fn update_current_user(server: &TestServer) -> TestResponse {
     server
         .patch("/api/users/current")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token))
         .multipart(data)
         .await
 }

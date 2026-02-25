@@ -10,6 +10,7 @@ test_with_server!(test_get_nicknames_empty, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token))
         .await;
 
     response.assert_status_success();
@@ -35,6 +36,7 @@ test_with_server!(test_set_and_get_nickname, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&nickname_data)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -43,6 +45,7 @@ test_with_server!(test_set_and_get_nickname, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -65,6 +68,7 @@ test_with_server!(test_update_nickname, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&nickname_data)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -78,6 +82,7 @@ test_with_server!(test_update_nickname, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&updated_nickname_data)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -86,6 +91,7 @@ test_with_server!(test_update_nickname, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -108,6 +114,7 @@ test_with_server!(test_remove_nickname, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&nickname_data)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -116,6 +123,7 @@ test_with_server!(test_remove_nickname, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -135,6 +143,7 @@ test_with_server!(test_remove_nickname, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&remove_data)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -143,6 +152,7 @@ test_with_server!(test_remove_nickname, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -172,6 +182,7 @@ test_with_server!(
             ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
 
         response.assert_status_bad_request();
@@ -188,6 +199,7 @@ test_with_server!(
             ))
             .json(&nickname_data)
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
 
         response.assert_status_bad_request();
@@ -240,6 +252,7 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user2_id))
         .json(&nickname_data_2)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
     response.assert_status_success();
 
@@ -247,6 +260,7 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user3_id))
         .json(&nickname_data_3)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
     response.assert_status_success();
 
@@ -254,6 +268,7 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
         .post(&format!("/api/users/{}/nickname", user4_id))
         .json(&nickname_data_4)
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
     response.assert_status_success();
 
@@ -261,6 +276,7 @@ test_with_server!(test_multiple_nicknames, |server, ctx_state, config| {
     let response = server
         .get("/api/users/current/nicknames")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", _token1))
         .await;
 
     response.assert_status_success();
@@ -294,6 +310,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();
@@ -304,6 +321,7 @@ test_with_server!(
             .post(&format!("/api/users/{}/nickname", user2_id))
             .json(&json!({"nickname": "Friend One"}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
 
@@ -311,6 +329,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();
@@ -321,6 +340,7 @@ test_with_server!(
             .post(&format!("/api/users/{}/nickname", user3_id))
             .json(&json!({"nickname": "Friend Two"}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
 
@@ -328,6 +348,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();
@@ -338,6 +359,7 @@ test_with_server!(
             .post(&format!("/api/users/{}/nickname", user2_id))
             .json(&json!({"nickname": "Updated Friend"}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
 
@@ -345,6 +367,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();
@@ -355,6 +378,7 @@ test_with_server!(
             .post(&format!("/api/users/{}/nickname", user2_id))
             .json(&json!({"nickname": null}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
 
@@ -362,6 +386,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();
@@ -372,6 +397,7 @@ test_with_server!(
             .post(&format!("/api/users/{}/nickname", user3_id))
             .json(&json!({"nickname": null}))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
 
@@ -379,6 +405,7 @@ test_with_server!(
         let response = server
             .get("/api/users/current/nicknames")
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", _token1))
             .await;
         response.assert_status_success();
         let nicknames: Vec<Nickname> = response.json();

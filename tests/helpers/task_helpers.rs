@@ -27,7 +27,7 @@ pub async fn deliver_task(server: &TestServer, task_id: &str, user_token: &str) 
     server
         .post(&format!("/api/tasks/{}/deliver", task_id))
         .multipart(data)
-        .add_header("Cookie", format!("jwt={}", user_token))
+        .add_header("Authorization", format!("Bearer {}", user_token))
         .add_header("Accept", "application/json")
         .await
 }

@@ -201,7 +201,7 @@ test_with_server!(
             .add_query_param("user_ids", &user3_id)
             .add_query_param("user_ids", &user2_id)
             .add_query_param("user_ids", &user1_id)
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
         response.assert_status_success();
 

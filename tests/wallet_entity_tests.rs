@@ -8,15 +8,14 @@ use darve_server::{
 use middleware::utils::string_utils::get_string_thing;
 use serde_json::json;
 
-use crate::helpers::{create_fake_login_test_user, create_login_test_user};
+use crate::helpers::create_fake_login_test_user;
 
 test_with_server!(test_wallet_history, |server, ctx_state, config| {
-    // create 2 users with user1 and user2 names
-    let username1 = "userrr1".to_string();
+    // create 2 users
+    let (server, user1, _, _token) = create_fake_login_test_user(&server).await;
+    let user_ident1 = user1.id.unwrap().to_raw();
 
-    let (server, user_ident1) = create_login_test_user(&server, username1.clone()).await;
-
-    let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
     let username2 = user2.username.clone();
     let _ = get_string_thing(user_ident1.clone()).expect("user1");
 
@@ -35,6 +34,7 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/wallet/history")
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -45,7 +45,7 @@ test_with_server!(test_wallet_history, |server, ctx_state, config| {
 });
 
 test_with_server!(check_balance_too_low, |server, ctx_state, config| {
-    let (server, user2, ..) = create_fake_login_test_user(&server).await;
+    let (server, user2, _, token) = create_fake_login_test_user(&server).await;
 
     ctx_state
         .db
@@ -72,6 +72,7 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
 
     let res = server
         .post("/api/wallet/withdraw")
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "amount": 100 }))
         .await;
 
@@ -83,9 +84,10 @@ test_with_server!(check_balance_too_low, |server, ctx_state, config| {
 });
 
 test_with_server!(prod_balance_0, |server, ctx_state, config| {
-    let (_, _user, _password, _) = create_fake_login_test_user(&server).await;
+    let (_, _user, _password, token) = create_fake_login_test_user(&server).await;
     let response = server
         .get("/api/wallet/balance")
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -102,6 +104,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
             "/test/api/deposit/{}/{}",
             user.username, endow_amt
         ))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .json("")
         .await;
@@ -153,7 +156,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -164,7 +167,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history?type=Deposit")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -175,7 +178,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history?type=Withdraw")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -186,7 +189,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -197,7 +200,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history?status=Failed")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -208,7 +211,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_history_response = server
         .get("/api/gateway_wallet/history?status=Completed")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     transaction_history_response.assert_status_success();
@@ -218,7 +221,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_count_response = server
         .get("/api/gateway_wallet/count?status=Completed")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     transaction_count_response.assert_status_success();
     let count = transaction_count_response.json::<u64>();
@@ -226,7 +229,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_count_response = server
         .get("/api/gateway_wallet/count?status=Failed")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     transaction_count_response.assert_status_success();
     let count = transaction_count_response.json::<u64>();
@@ -234,7 +237,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_count_response = server
         .get("/api/gateway_wallet/count")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
     transaction_count_response.assert_status_success();
     let count = transaction_count_response.json::<u64>();
@@ -242,7 +245,7 @@ test_with_server!(test_gateway_wallet_history, |server, ctx_state, config| {
     let transaction_count_response = server
         .get("/api/gateway_wallet/count")
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     transaction_count_response.assert_status_success();
     let count = transaction_count_response.json::<u64>();

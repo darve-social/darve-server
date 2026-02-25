@@ -14,7 +14,7 @@ test_with_server!(test_otp_enable_success, |server, ctx_state, config| {
     // Enable OTP
     let response = server
         .post("/api/users/current/otp/enable")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     response.assert_status_success();
@@ -46,7 +46,7 @@ test_with_server!(
         // Enable OTP
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -60,7 +60,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&json!({ "token": totp_response.token}))
             .await;
 
@@ -98,7 +98,7 @@ test_with_server!(
         // Enable OTP first time
         let response1 = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         response1.assert_status_success();
         let otp1 = response1.json::<TotpResponse>();
@@ -106,7 +106,7 @@ test_with_server!(
         // Enable OTP second time - should still work and return same URL
         let response2 = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response2.assert_status_success();
@@ -136,7 +136,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
     // First enable OTP
     let response = server
         .post("/api/users/current/otp/enable")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     response.assert_status_success();
@@ -149,7 +149,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
     // Verification OTP
     let response = server
         .post("/api/users/current/otp/verification")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "token": totp_response.token}))
         .await;
 
@@ -170,7 +170,7 @@ test_with_server!(test_otp_disable_success, |server, ctx_state, config| {
     // Now disable OTP
     let disable_response = server
         .post("/api/users/current/otp/disable")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     disable_response.assert_status_success();
@@ -202,7 +202,7 @@ test_with_server!(
         // Disable OTP when it's not enabled (should still work)
         let response = server
             .post("/api/users/current/otp/disable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -229,7 +229,7 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
     // First enable OTP
     let response = server
         .post("/api/users/current/otp/enable")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
 
     response.assert_status_success();
@@ -243,7 +243,7 @@ test_with_server!(test_otp_validate_success, |server, ctx_state, config| {
     // Verification OTP
     let response = server
         .post("/api/users/current/otp/verification")
-        .add_header("Cookie", &format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "token": totp_response.token }))
         .await;
 
@@ -359,7 +359,7 @@ test_with_server!(
         // First enable OTP
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         response.assert_status_success();
         let otp = response.json::<TotpResponse>();
@@ -372,7 +372,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -406,7 +406,7 @@ test_with_server!(
         // First enable OTP
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         response.assert_status_success();
         let otp = response.json::<TotpResponse>();
@@ -419,7 +419,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -460,7 +460,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     // Step 1: Enable OTP
     let response = server
         .post("/api/users/current/otp/enable")
-        .add_header("Cookie", &format!("jwt={}", login_token))
+        .add_header("Authorization", format!("Bearer {}", login_token))
         .await;
     response.assert_status_success();
     let otp = response.json::<TotpResponse>();
@@ -473,7 +473,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     // Verification OTP
     let response = server
         .post("/api/users/current/otp/verification")
-        .add_header("Cookie", &format!("jwt={}", login_token))
+        .add_header("Authorization", format!("Bearer {}", login_token))
         .json(&json!({ "token": totp_response.token}))
         .await;
     response.assert_status_success();
@@ -519,7 +519,7 @@ test_with_server!(test_otp_flow_end_to_end, |server, ctx_state, config| {
     // Step 5: Disable OTP
     let disable_response = server
         .post("/api/users/current/otp/disable")
-        .add_header("Cookie", &format!("jwt={}", login_token))
+        .add_header("Authorization", format!("Bearer {}", login_token))
         .await;
     disable_response.assert_status_success();
 
@@ -539,7 +539,7 @@ test_with_server!(
         // First enable OTP
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         response.assert_status_success();
         response.assert_status_success();
@@ -553,7 +553,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -620,7 +620,7 @@ test_with_server!(
         // Step 2: Enable OTP while logged in
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .await;
 
         response.assert_status_success();
@@ -634,7 +634,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -709,7 +709,7 @@ test_with_server!(
         // Step 7: Verify the final token can be used for authenticated requests
         let test_auth_response = server
             .post("/api/users/current/otp/disable")
-            .add_header("Cookie", &format!("jwt={}", final_login_token))
+            .add_header("Authorization", format!("Bearer {}", final_login_token))
             .await;
 
         test_auth_response.assert_status_success();
@@ -742,7 +742,7 @@ test_with_server!(
 
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .await;
 
         response.assert_status_success();
@@ -756,7 +756,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -805,7 +805,7 @@ test_with_server!(
 
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .await;
         response.assert_status_success();
         let otp = response.json::<TotpResponse>();
@@ -818,7 +818,7 @@ test_with_server!(
         // Verification OTP
         let response = server
             .post("/api/users/current/otp/verification")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .json(&json!({ "token": totp_response.token}))
             .await;
         response.assert_status_success();
@@ -882,7 +882,7 @@ test_with_server!(
         // Verify this is a regular login token (can be used immediately)
         let test_response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .await;
 
         test_response.assert_status_success();
@@ -907,7 +907,7 @@ test_with_server!(
 
         let response = server
             .post("/api/users/current/otp/enable")
-            .add_header("Cookie", &format!("jwt={}", login_token))
+            .add_header("Authorization", format!("Bearer {}", login_token))
             .await;
 
         response.assert_status_success();

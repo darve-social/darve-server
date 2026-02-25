@@ -28,7 +28,7 @@ test_with_server!(test_get_users_status_basic, |server, ctx_state, config| {
 
     let response = server
         .get(&format!("/api/users/status?{}", query_params))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     response.assert_status_success();
@@ -74,7 +74,7 @@ test_with_server!(
         // Test with empty user_ids list
         let response = server
             .get("/api/users/status")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -100,7 +100,7 @@ test_with_server!(
 
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();
@@ -137,7 +137,7 @@ test_with_server!(
 
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -156,7 +156,7 @@ test_with_server!(
         // User1 should still be online (has another connection)
         let response = server
             .get(&format!("/api/users/status?user_ids={}", user1_id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -178,7 +178,7 @@ test_with_server!(
         // Verify user is online
         let response = server
             .get(&format!("/api/users/status?user_ids={}", user1_id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -191,7 +191,7 @@ test_with_server!(
         // Initially should still be online (due to 10-second cleanup delay)
         let response = server
             .get(&format!("/api/users/status?user_ids={}", user1_id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -204,7 +204,7 @@ test_with_server!(
 
         let response = server
             .get(&format!("/api/users/status?user_ids={}", user1_id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         response.assert_status_success();
@@ -232,7 +232,7 @@ test_with_server!(
 
         let response = server
             .get(&format!("/api/users/status?{}", query_params))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
 
         response.assert_status_success();

@@ -14,27 +14,28 @@ use helpers::post_helpers::{self, create_fake_post};
 use serde_json::json;
 
 test_with_server!(create_post_like, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let result =
         DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
 
-    let result = create_fake_post(server, &result, None, None).await;
+    let result = create_fake_post(server, &result, None, None, &token).await;
 
     // check like and number
-    let response = post_helpers::create_post_like(&server, &result.id, None).await;
+    let response = post_helpers::create_post_like(&server, &result.id, None, &token).await;
     response.assert_status_ok();
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 1);
 
     // check delete and count
-    let response = post_helpers::delete_post_like(&server, &result.id).await;
+    let response = post_helpers::delete_post_like(&server, &result.id, &token).await;
     response.assert_status_ok();
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 0);
 
     // throw if like post that does not exist
-    let response = post_helpers::create_post_like(&server, "post:that_does_not_exist", None).await;
+    let response =
+        post_helpers::create_post_like(&server, "post:that_does_not_exist", None, &token).await;
     response.assert_status_failure();
 });
 
@@ -48,11 +49,11 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
 
     server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_ok();
-    let post = create_fake_post(server, &result, None, None).await;
+    let post = create_fake_post(server, &result, None, None, &token).await;
 
     let task = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -62,14 +63,14 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
             "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .json::<TaskRequestEntity>();
 
     server
         .post(&format!("/api/tasks/{}/accept", task.id))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -81,7 +82,7 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": 4 }))
         .await;
 
@@ -93,12 +94,12 @@ test_with_server!(create_post_like_with_count, |server, ctx_state, config| {
 test_with_server!(try_gives_100_likes, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-    let post = create_fake_post(server, &result, None, None).await;
+    let post = create_fake_post(server, &result, None, None, &token).await;
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": 100 }))
         .await;
 
@@ -108,12 +109,12 @@ test_with_server!(try_gives_100_likes, |server, ctx_state, config| {
 test_with_server!(try_gives_1_likes, |server, ctx_state, config| {
     let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
-    let post = create_fake_post(server, &result, None, None).await;
+    let post = create_fake_post(server, &result, None, None, &token).await;
 
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": 1 }))
         .await;
 
@@ -130,11 +131,11 @@ test_with_server!(
 
         server
             .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await
             .assert_status_ok();
-        let post = create_fake_post(server, &result, None, None).await;
+        let post = create_fake_post(server, &result, None, None, &token).await;
 
         let task = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -144,14 +145,14 @@ test_with_server!(
                 "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await
             .json::<TaskRequestEntity>();
 
         server
             .post(&format!("/api/tasks/{}/accept", task.id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -162,7 +163,7 @@ test_with_server!(
         let response = server
             .post(format!("/api/posts/{}/like", post.id).as_str())
             .add_header("Accept", "application/json")
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .json(&json!({ "count": 8 }))
             .await;
 
@@ -178,11 +179,11 @@ test_with_server!(update_likes, |server, ctx_state, config| {
 
     server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .assert_status_ok();
-    let post = create_fake_post(server, &result, None, None).await;
+    let post = create_fake_post(server, &result, None, None, &token).await;
 
     let task = server
         .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -192,14 +193,14 @@ test_with_server!(update_likes, |server, ctx_state, config| {
             "content": faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await
         .json::<TaskRequestEntity>();
 
     server
         .post(&format!("/api/tasks/{}/accept", task.id))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await
         .assert_status_success();
@@ -211,7 +212,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": 4 }))
         .await;
 
@@ -222,7 +223,7 @@ test_with_server!(update_likes, |server, ctx_state, config| {
     let response = server
         .post(format!("/api/posts/{}/like", post.id).as_str())
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "count": 2 }))
         .await;
 
@@ -232,19 +233,19 @@ test_with_server!(update_likes, |server, ctx_state, config| {
 });
 
 test_with_server!(post_likes, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let disc =
         DiscussionDbService::get_profile_discussion_id(&get_string_thing(user_ident).unwrap());
-    let result = create_fake_post(server, &disc, None, None).await;
+    let result = create_fake_post(server, &disc, None, None, &token).await;
 
-    let response = post_helpers::create_post_like(&server, &result.id, None).await;
+    let response = post_helpers::create_post_like(&server, &result.id, None, &token).await;
     response.assert_status_ok();
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
     assert_eq!(likes_nr, 1);
 
-    let (server, user1, _, _) = create_fake_login_test_user(&server).await;
-    let response = post_helpers::create_post_like(&server, &result.id, None).await;
+    let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
+    let response = post_helpers::create_post_like(&server, &result.id, None, &token1).await;
     response.assert_status_ok();
     let likes_nr = response.json::<PostLikeResponse>().likes_count;
 
@@ -252,6 +253,7 @@ test_with_server!(post_likes, |server, ctx_state, config| {
 
     let posts = server
         .get(format!("/api/discussions/{}/posts", disc).as_str())
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await
         .json::<Vec<PostView>>();
 

@@ -20,7 +20,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -36,7 +36,7 @@ test_with_server!(
                 faker::lorem::en::Sentence(7..20).fake::<String>(),
             );
 
-        let res = create_post(server, &default_discussion, data).await;
+        let res = create_post(server, &default_discussion, data, &token1).await;
         let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
@@ -49,7 +49,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -64,7 +64,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -80,7 +80,7 @@ test_with_server!(
                 faker::lorem::en::Sentence(7..20).fake::<String>(),
             );
 
-        let res = create_post(server, &default_discussion, data).await;
+        let res = create_post(server, &default_discussion, data, &token1).await;
         let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
@@ -92,7 +92,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -105,7 +105,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -114,7 +114,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -130,7 +130,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let res = create_post(server, &default_discussion, data).await;
+    let res = create_post(server, &default_discussion, data, &token1).await;
     let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
@@ -141,7 +141,7 @@ test_with_server!(create_task, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
 
@@ -153,7 +153,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -162,7 +162,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -178,7 +178,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let res = create_post(server, &default_discussion, data).await;
+    let res = create_post(server, &default_discussion, data, &token1).await;
     let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
@@ -189,7 +189,7 @@ test_with_server!(try_create_task_not_owner, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -203,7 +203,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -212,7 +212,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -228,7 +228,7 @@ test_with_server!(
                 faker::lorem::en::Sentence(7..20).fake::<String>(),
             );
 
-        let res = create_post(server, &default_discussion, data).await;
+        let res = create_post(server, &default_discussion, data, &token1).await;
         let post = res.json::<PostView>();
 
         assert_eq!(post.r#type, PostType::Idea);
@@ -239,7 +239,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -252,6 +252,7 @@ test_with_server!(
                 "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
             }))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_forbidden();
@@ -263,7 +264,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -272,7 +273,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -288,7 +289,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let res = create_post(server, &default_discussion, data).await;
+    let res = create_post(server, &default_discussion, data, &token1).await;
     let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
@@ -299,7 +300,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
 
@@ -312,7 +313,7 @@ test_with_server!(donate_by_guest_create_task, |server, ctx_state, config| {
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -324,7 +325,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -340,7 +341,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             faker::lorem::en::Sentence(7..20).fake::<String>(),
         );
 
-    let res = create_post(server, &default_discussion, data).await;
+    let res = create_post(server, &default_discussion, data, &token).await;
     let post = res.json::<PostView>();
 
     assert_eq!(post.r#type, PostType::Idea);
@@ -351,7 +352,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -363,7 +364,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -375,7 +376,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
 
@@ -387,7 +388,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     tasks_request.assert_status_success();
@@ -401,7 +402,7 @@ test_with_server!(get_tasks_of_post, |server, ctx_state, config| {
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     tasks_request.assert_status_success();

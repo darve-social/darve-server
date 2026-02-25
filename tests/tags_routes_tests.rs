@@ -22,18 +22,18 @@ test_with_server!(get_tags_empty, |server, ctx_state, config| {
 test_with_server!(
     get_tags_after_creating_posts_with_tags,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
         let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
         // Create multiple posts with different tags
         let tags1 = vec!["rust".to_string(), "programming".to_string()];
-        let _ = create_fake_post(server, &result, None, Some(tags1)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags1), &token).await;
 
         let tags2 = vec!["javascript".to_string(), "web".to_string()];
-        let _ = create_fake_post(server, &result, None, Some(tags2)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags2), &token).await;
 
         let tags3 = vec!["rust".to_string(), "backend".to_string()];
-        let _ = create_fake_post(server, &result, None, Some(tags3)).await;
+        let _ = create_fake_post(server, &result, None, Some(tags3), &token).await;
 
         let response = server.get("/api/tags").await;
 
@@ -55,7 +55,7 @@ test_with_server!(
 );
 
 test_with_server!(get_tags_with_profile_posts, |server, ctx_state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let user_ident = user.id.as_ref().unwrap().to_raw();
     let user_thing_id = get_string_thing(user_ident).unwrap();
 
@@ -67,7 +67,7 @@ test_with_server!(get_tags_with_profile_posts, |server, ctx_state, config| {
         "personal".to_string(),
         "test".to_string(),
     ];
-    let _ = create_fake_post(server, &default_discussion, None, Some(tags)).await;
+    let _ = create_fake_post(server, &default_discussion, None, Some(tags), &token).await;
 
     let response = server.get("/api/tags").await;
 
@@ -87,7 +87,7 @@ test_with_server!(get_tags_with_profile_posts, |server, ctx_state, config| {
 test_with_server!(
     get_tags_with_special_characters,
     |server, ctx_state, config| {
-        let (server, user, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user, _, token) = create_fake_login_test_user(&server).await;
 
         let result = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
@@ -100,7 +100,7 @@ test_with_server!(
         ];
 
         let post_data = build_fake_post(None, Some(tags));
-        let response = create_post(server, &result, post_data).await;
+        let response = create_post(server, &result, post_data, &token).await;
         response.assert_status_failure();
         assert!(response.text().contains("Tag contains forbidden symbol"))
     }
@@ -109,15 +109,15 @@ test_with_server!(
 test_with_server!(
     get_tags_after_multiple_users,
     |server, ctx_state, config| {
-        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let result1 = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
         let tags1 = vec!["user1tag".to_string(), "shared".to_string()];
-        let _ = create_fake_post(server, &result1, None, Some(tags1)).await;
+        let _ = create_fake_post(server, &result1, None, Some(tags1), &token1).await;
 
-        let (server, user2, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let result2 = DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap());
         let tags2 = vec!["user2tag".to_string(), "shared".to_string()];
-        let _ = create_fake_post(server, &result2, None, Some(tags2)).await;
+        let _ = create_fake_post(server, &result2, None, Some(tags2), &token2).await;
 
         let response = server.get("/api/tags").await;
 
@@ -136,7 +136,7 @@ test_with_server!(
 );
 
 test_with_server!(get_sorted_by_most_likes, |server, state, config| {
-    let (server, user, _, _) = create_fake_login_test_user(&server).await;
+    let (server, user, _, token) = create_fake_login_test_user(&server).await;
     let discussion_id = DiscussionDbService::get_profile_discussion_id(&user.id.as_ref().unwrap());
 
     let post_0 = create_fake_post(
@@ -148,6 +148,7 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
             "rust".to_string(),
             "c_plus_plus".to_string(),
         ]),
+        &token,
     )
     .await;
 
@@ -161,20 +162,33 @@ test_with_server!(get_sorted_by_most_likes, |server, state, config| {
 
     assert_eq!(count, 100);
 
-    let post_1 =
-        create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
-    let post_2 =
-        create_fake_post(&server, &discussion_id, None, Some(vec!["js".to_string()])).await;
+    let post_1 = create_fake_post(
+        &server,
+        &discussion_id,
+        None,
+        Some(vec!["js".to_string()]),
+        &token,
+    )
+    .await;
+    let post_2 = create_fake_post(
+        &server,
+        &discussion_id,
+        None,
+        Some(vec!["js".to_string()]),
+        &token,
+    )
+    .await;
 
     let like_response = server
         .post(&format!("/api/posts/{}/like", post_0.id))
         .json(&json!({"count": 10}))
+        .add_header("Authorization", format!("Bearer {}", token))
         .await;
     like_response.assert_status_success();
 
-    let like_response = create_post_like(server, &post_1.id, None).await;
+    let like_response = create_post_like(server, &post_1.id, None, &token).await;
     like_response.assert_status_success();
-    let like_response = create_post_like(server, &post_2.id, None).await;
+    let like_response = create_post_like(server, &post_2.id, None, &token).await;
     like_response.assert_status_success();
 
     let response = server.get("/api/tags").await;

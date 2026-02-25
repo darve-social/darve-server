@@ -76,12 +76,13 @@ test_with_server!(
                 ]),
                 private_discussion_users_final: true,
             })
+            .add_header("Authorization", format!("Bearer {}", token0))
             .await;
         let disc = disc_res.json::<Discussion>().id;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -93,7 +94,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -101,7 +102,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .add_header("Authorization", format!("Bearer {}", p1_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -112,7 +113,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .add_header("Authorization", format!("Bearer {}", p2_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -123,7 +124,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p3_token))
+            .add_header("Authorization", format!("Bearer {}", p3_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -197,12 +198,14 @@ test_with_server!(
                 ]),
                 private_discussion_users_final: true,
             })
+            .add_header("Authorization", format!("Bearer {}", token0))
+            .add_header("Accept", "application/json")
             .await;
         let disc = disc_res.json::<Discussion>().id;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -214,7 +217,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -222,7 +225,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p1_token))
+            .add_header("Authorization", format!("Bearer {}", p1_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -233,7 +236,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", p2_token))
+            .add_header("Authorization", format!("Bearer {}", p2_token))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -286,14 +289,14 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
     let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc, None, None).await;
+    let post = create_fake_post(server, &disc, None, None, &token0).await;
     let start_wallet_amount = 1000;
     let endow_user_response = server
         .get(&format!(
             "/test/api/deposit/{}/{}",
             user0.username, start_wallet_amount
         ))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -306,14 +309,14 @@ test_with_server!(one_donor_and_has_not_delivered, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
     let task_id = task_request.json::<TaskRequestEntity>().id;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Authorization", format!("Bearer {}", ptoken))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -353,14 +356,14 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
     let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc, None, None).await;
+    let post = create_fake_post(server, &disc, None, None, &token0).await;
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
             "/test/api/deposit/{}/{}",
             donor0.username, donor0_amount
         ))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -373,7 +376,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -386,7 +389,7 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
             "/test/api/deposit/{}/{}",
             donor1.username, donor1_amount
         ))
-        .add_header("Cookie", format!("jwt={}", donor1_token))
+        .add_header("Authorization", format!("Bearer {}", donor1_token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -396,14 +399,14 @@ test_with_server!(two_donor_and_has_not_delivered, |server, state, config| {
             "amount": 100,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", donor1_token))
+        .add_header("Authorization", format!("Bearer {}", donor1_token))
         .add_header("Accept", "application/json")
         .await;
     participate_response.assert_status_success();
 
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Authorization", format!("Bearer {}", ptoken))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -452,14 +455,14 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
     let _task_handle = jobs::task_payment::run(state.clone(), Duration::from_secs(2)).await;
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc, None, None).await;
+    let post = create_fake_post(server, &disc, None, None, &token0).await;
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
             "/test/api/deposit/{}/{}",
             donor0.username, donor0_amount
         ))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -472,7 +475,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -485,7 +488,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "/test/api/deposit/{}/{}",
             donor1.username, donor1_amount
         ))
-        .add_header("Cookie", format!("jwt={}", donor1_token))
+        .add_header("Authorization", format!("Bearer {}", donor1_token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -495,7 +498,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "amount": donor1_amount,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", donor1_token))
+        .add_header("Authorization", format!("Bearer {}", donor1_token))
         .add_header("Accept", "application/json")
         .await;
     participate_response.assert_status_success();
@@ -507,6 +510,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "/test/api/deposit/{}/{}",
             donor2.username, donor2_amount
         ))
+        .add_header("Authorization", format!("Bearer {}", donor2_token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -516,7 +520,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "amount": donor2_amount,
             "currency": CurrencySymbol::USD.to_string(),
         }))
-        .add_header("Cookie", format!("jwt={}", donor2_token))
+        .add_header("Authorization", format!("Bearer {}", donor2_token))
         .add_header("Accept", "application/json")
         .await;
     participate_response.assert_status_success();
@@ -528,6 +532,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "/test/api/deposit/{}/{}",
             donor3.username, donor3_amount
         ))
+        .add_header("Authorization", format!("Bearer {}", donor3_token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -538,7 +543,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "currency": CurrencySymbol::USD.to_string(),
         }))
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", donor3_token))
+        .add_header("Authorization", format!("Bearer {}", donor3_token))
         .await;
     participate_response.assert_status_success();
 
@@ -549,6 +554,7 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "/test/api/deposit/{}/{}",
             donor4.username, donor4_amount
         ))
+        .add_header("Authorization", format!("Bearer {}", donor4_token))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -559,13 +565,13 @@ test_with_server!(five_donor_and_has_not_delivered, |server, state, config| {
             "currency": CurrencySymbol::USD.to_string(),
         }))
         .add_header("Accept", "application/json")
-        .add_header("Cookie", format!("jwt={}", donor4_token))
+        .add_header("Authorization", format!("Bearer {}", donor4_token))
         .await;
     participate_response.assert_status_success();
 
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", ptoken))
+        .add_header("Authorization", format!("Bearer {}", ptoken))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -642,14 +648,14 @@ test_with_server!(
         let (server, participant, _, ptoken) = create_fake_login_test_user(&server).await;
         let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
         let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc, None, None).await;
+        let post = create_fake_post(server, &disc, None, None, &token0).await;
         let donor0_amount = 1000;
         let endow_user_response = server
             .get(&format!(
                 "/test/api/deposit/{}/{}",
                 donor0.username, donor0_amount
             ))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -662,7 +668,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -674,7 +680,7 @@ test_with_server!(
                 "/test/api/deposit/{}/{}",
                 donor1.username, donor1_amount
             ))
-            .add_header("Cookie", format!("jwt={}", donor1_token))
+            .add_header("Authorization", format!("Bearer {}", donor1_token))
             .add_header("Accept", "application/json")
             .await;
         let donor1_task_amount = 100;
@@ -685,14 +691,14 @@ test_with_server!(
                 "amount": donor1_task_amount,
                 "currency": CurrencySymbol::USD.to_string(),
             }))
-            .add_header("Cookie", format!("jwt={}", donor1_token))
+            .add_header("Authorization", format!("Bearer {}", donor1_token))
             .add_header("Accept", "application/json")
             .await;
         participate_response.assert_status_success();
 
         let response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", ptoken))
+            .add_header("Authorization", format!("Bearer {}", ptoken))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -746,14 +752,14 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
 
     let (server, donor0, _, token0) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(&donor0.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc, None, None).await;
+    let post = create_fake_post(server, &disc, None, None, &token0).await;
     let donor0_amount = 1000;
     let endow_user_response = server
         .get(&format!(
             "/test/api/deposit/{}/{}",
             donor0.username, donor0_amount
         ))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -766,7 +772,7 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -775,7 +781,7 @@ test_with_server!(immediately_refund_on_reject, |server, state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -825,6 +831,7 @@ test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
             ),
             private_discussion_users_final: true,
         })
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
 
@@ -837,7 +844,7 @@ test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -846,14 +853,14 @@ test_with_server!(immediately_refund_on_reject_1, |server, state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
 
     let task_request = server
         .get(format!("/api/tasks/{}", task_id).as_str())
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();

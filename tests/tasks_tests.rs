@@ -37,11 +37,11 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -53,13 +53,13 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
     let task_request = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -74,7 +74,7 @@ test_with_server!(created_closed_task_request, |server, ctx_state, config| {
     assert_eq!(task_user.status, TaskParticipantStatus::Requested);
     let task_request = server
         .get("/api/tasks/given")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -91,11 +91,11 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -106,7 +106,7 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -114,14 +114,14 @@ test_with_server!(accepted_closed_task_request, |server, ctx_state, config| {
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
 
     let task_request = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -139,7 +139,7 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let task_request = server
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
@@ -147,7 +147,7 @@ test_with_server!(
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_forbidden();
@@ -159,11 +159,11 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -174,7 +174,7 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -182,28 +182,28 @@ test_with_server!(accepted_opened_task_request, |server, ctx_state, config| {
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_forbidden();
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_forbidden();
 
     let task_request = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -227,11 +227,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -242,7 +242,7 @@ test_with_server!(
                 "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -250,13 +250,13 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/reject", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -270,11 +270,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -285,7 +285,7 @@ test_with_server!(
                 "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -293,7 +293,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -304,7 +304,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -319,11 +319,11 @@ test_with_server!(
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -334,7 +334,7 @@ test_with_server!(
                  "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -342,7 +342,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -357,11 +357,11 @@ test_with_server!(
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -372,7 +372,7 @@ test_with_server!(
                 "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -380,7 +380,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -392,11 +392,11 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -407,7 +407,7 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -415,7 +415,7 @@ test_with_server!(rejected_closed_task_request, |server, ctx_state, config| {
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
@@ -426,10 +426,10 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(&user1.id.as_ref().unwrap());
 
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -440,7 +440,7 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -448,13 +448,13 @@ test_with_server!(rejected_opened_task_request, |server, ctx_state, config| {
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
     let task_request = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -473,11 +473,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -488,7 +488,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -496,7 +496,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -508,7 +508,7 @@ test_with_server!(
         assert!(task_participant.result.unwrap().post.is_some());
         let accept_response = server
             .post(&format!("/api/tasks/{}/reject", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -523,11 +523,11 @@ test_with_server!(
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -538,7 +538,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -546,7 +546,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/reject", task_id))
-            .add_header("Cookie", format!("jwt={}", token))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_failure();
@@ -558,11 +558,11 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -573,7 +573,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -581,7 +581,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
 
     let accept_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     accept_response.assert_status_success();
@@ -606,7 +606,7 @@ test_with_server!(delivered_task_request, |server, ctx_state, config| {
 
     let task_request = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -635,6 +635,7 @@ test_with_server!(
                 chat_user_ids: Some(vec![user0.id.as_ref().unwrap().to_raw()]),
                 private_discussion_users_final: false,
             })
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -642,7 +643,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -653,7 +654,7 @@ test_with_server!(
                 "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -661,7 +662,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -680,7 +681,7 @@ test_with_server!(
 
         let task_request = server
             .get("/api/tasks/received")
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -700,11 +701,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -715,7 +716,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -723,7 +724,7 @@ test_with_server!(
 
         let response = server
             .post(&format!("/api/tasks/{}/reject", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         response.assert_status_success();
@@ -740,11 +741,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -755,7 +756,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -773,11 +774,11 @@ test_with_server!(
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -785,10 +786,10 @@ test_with_server!(
             .post(format!("/api/posts/{}/tasks", post.id).as_str())
             .json(&json!({
                 "offer_amount": Some(100),
-            "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -805,14 +806,14 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
-    let post1 = create_fake_post(server, &disc_id, None, None).await;
-    let post2 = create_fake_post(server, &disc_id, None, None).await;
-    let post3 = create_fake_post(server, &disc_id, None, None).await;
+    let post1 = create_fake_post(server, &disc_id, None, None, &token1).await;
+    let post2 = create_fake_post(server, &disc_id, None, None, &token1).await;
+    let post3 = create_fake_post(server, &disc_id, None, None, &token1).await;
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -823,7 +824,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -831,7 +832,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_id = task_request.json::<TaskRequestEntity>().id;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -843,7 +844,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
             "participants": vec![user.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -851,7 +852,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let task_id = task_request.json::<TaskRequestEntity>().id;
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -863,7 +864,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
             "participants": vec![user.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -875,7 +876,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -883,14 +884,14 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/reject", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
 
     let response = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -899,7 +900,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let response = server
         .get("/api/tasks/received")
         .add_query_param("status", "Rejected")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -907,7 +908,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 0);
     let response = server
         .get("/api/tasks/received?status=Accepted")
-        .add_header("Cookie", format!("jwt={}", token))
+        .add_header("Authorization", format!("Bearer {}", token))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -916,7 +917,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
 
     let response = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -925,7 +926,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     let response = server
         .get("/api/tasks/received")
         .add_query_param("status", "Rejected")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -933,7 +934,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 1);
     let response = server
         .get("/api/tasks/received?status=Requested")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -941,7 +942,7 @@ test_with_server!(get_tasks, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 0);
     let response = server
         .get("/api/tasks/received?status=Accepted")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -953,11 +954,11 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -971,7 +972,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
             "delivery_period": 1,
             "acceptance_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -986,7 +987,7 @@ test_with_server!(try_to_acceptance_task_expired, |server, state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_failure();
@@ -999,11 +1000,11 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc, None, None).await;
+    let post = create_fake_post(server, &disc, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -1016,7 +1017,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -1024,7 +1025,7 @@ test_with_server!(try_to_delivery_task_expired, |server, state, config| {
 
     let response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     response.assert_status_success();
@@ -1047,11 +1048,11 @@ test_with_server!(
         let (server, user, _, _) = create_fake_login_test_user(&server).await;
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let disc = DiscussionDbService::get_profile_discussion_id(user0.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc, None, None).await;
+        let post = create_fake_post(server, &disc, None, None, &token0).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -1061,10 +1062,10 @@ test_with_server!(
             .json(&json!({
                 "offer_amount": Some(100),
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-            "participants": vec![user.id.as_ref().unwrap().to_raw()],
+                "participants": vec![user.id.as_ref().unwrap().to_raw()],
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -1075,7 +1076,7 @@ test_with_server!(
             ctx: &Ctx::new(Ok("".to_string()), false),
         };
 
-        let (server, user1, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
         let balance = wallet_service
             .get_user_balance(&user1.id.as_ref().unwrap())
             .await
@@ -1088,6 +1089,7 @@ test_with_server!(
                 "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
             }))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .add_header("Accept", "application/json")
             .await;
 
@@ -1111,6 +1113,7 @@ test_with_server!(
                 "chat_user_ids": [user2.id.as_ref().unwrap().to_raw()],
                 "private_discussion_users_final": false,
             }))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
 
@@ -1119,7 +1122,7 @@ test_with_server!(
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -1131,7 +1134,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -1140,14 +1143,14 @@ test_with_server!(
         let (server, user1, _, user1_token) = create_fake_login_test_user(&server).await;
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 10000))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
 
         let participate_response = server
             .post(&format!("/api/tasks/{}/donor", task_id))
-            .add_header("Cookie", format!("jwt={}", user1_token))
+            .add_header("Authorization", format!("Bearer {}", user1_token))
             .json(&json!({
                 "amount": 100,
                 "currency": CurrencySymbol::USD.to_string(),
@@ -1162,7 +1165,7 @@ test_with_server!(
 test_with_server!(
     try_to_create_task_in_profile_discussion,
     |server, state, config| {
-        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, token) = create_fake_login_test_user(&server).await;
         let disc_id =
             DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap().clone());
 
@@ -1173,6 +1176,7 @@ test_with_server!(
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
                 "delivery_period": 1,
             }))
+            .add_header("Authorization", format!("Bearer {}", token))
             .add_header("Accept", "application/json")
             .await;
         request.assert_status_failure();
@@ -1192,6 +1196,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
             "chat_user_ids": [user2.id.as_ref().unwrap().to_raw()],
             "private_discussion_users_final": false,
         }))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
 
@@ -1200,7 +1205,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user0.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -1212,7 +1217,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -1222,7 +1227,7 @@ test_with_server!(try_to_to_accept_without_access, |server, state, config| {
 
     let participate_response = server
         .post(&format!("/api/tasks/{}/accept", task_id))
-        .add_header("Cookie", format!("jwt={}", user1_token))
+        .add_header("Authorization", format!("Bearer {}", user1_token))
         .add_header("Accept", "application/json")
         .await;
     participate_response.assert_status_failure();
@@ -1233,11 +1238,11 @@ test_with_server!(get_expired_tasks, |server, state, config| {
     let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
     let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
     let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-    let post = create_fake_post(server, &disc_id, None, None).await;
+    let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
     let endow_user_response = server
         .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     endow_user_response.assert_status_success();
@@ -1247,10 +1252,10 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .json(&json!({
             "offer_amount": Some(100),
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
-           "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
 
@@ -1262,10 +1267,10 @@ test_with_server!(get_expired_tasks, |server, state, config| {
         .json(&json!({
             "offer_amount": Some(100),
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
-           "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+            "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
             "delivery_period": 1,
         }))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
@@ -1279,14 +1284,14 @@ test_with_server!(get_expired_tasks, |server, state, config| {
 
     let get_response = server
         .get("/api/tasks/received")
-        .add_header("Cookie", format!("jwt={token0}"))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .await;
     get_response.assert_status_success();
     let tasks = get_response.json::<Vec<TaskViewForParticipant>>();
     assert_eq!(tasks.len(), 2);
     let get_response = server
         .get("/api/tasks/received?is_ended=true")
-        .add_header("Cookie", format!("jwt={token0}"))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .await;
     get_response.assert_status_success();
     let tasks = get_response.json::<Vec<TaskViewForParticipant>>();
@@ -1300,11 +1305,11 @@ test_with_server!(
         let (server, _user2, _, token2) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -1315,14 +1320,14 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
 
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1332,7 +1337,7 @@ test_with_server!(
         assert_eq!(tasks.len(), 1);
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1342,7 +1347,7 @@ test_with_server!(
         assert_eq!(tasks.len(), 0);
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1367,12 +1372,12 @@ test_with_server!(
                 faker::lorem::en::Sentence(7..20).fake::<String>(),
             );
 
-        let res = create_post(server, &disc_id, data).await;
+        let res = create_post(server, &disc_id, data, &token1).await;
         let post = res.json::<PostView>();
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -1381,14 +1386,14 @@ test_with_server!(
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
 
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1398,7 +1403,7 @@ test_with_server!(
         assert_eq!(tasks.len(), 0);
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1408,7 +1413,7 @@ test_with_server!(
         assert_eq!(tasks.len(), 0);
         let given_tasks_response = server
             .get("/api/tasks/given")
-            .add_header("Cookie", format!("jwt={}", token2))
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         given_tasks_response.assert_status_success();
@@ -1432,6 +1437,7 @@ test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
                 "chat_user_ids": [user2.id.as_ref().unwrap().to_raw(), user0.id.as_ref().unwrap().to_raw()],
                 "private_discussion_users_final": false,
             }))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
 
@@ -1443,14 +1449,14 @@ test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
         .json(&json!({
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     task_request.assert_status_success();
 
     let given_tasks_response = server
         .get("/api/tasks/given")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .await;
 
     given_tasks_response.assert_status_success();
@@ -1458,7 +1464,7 @@ test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 1);
     let given_tasks_response = server
         .get("/api/tasks/given")
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .await;
 
     given_tasks_response.assert_status_success();
@@ -1466,7 +1472,7 @@ test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
     assert_eq!(tasks.len(), 0);
     let given_tasks_response = server
         .get("/api/tasks/given")
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
 
     given_tasks_response.assert_status_success();
@@ -1475,13 +1481,13 @@ test_with_server!(given_tasks_private_disc, |server, ctx_state, config| {
 
     server
         .delete(&format!("/api/discussions/{}/chat_users", disc_id.to_raw()))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .json(&json!({ "user_ids": [user0.id.as_ref().unwrap().to_raw()]}))
         .await
         .assert_status_success();
     let given_tasks_response = server
         .get("/api/tasks/given")
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .await;
 
     given_tasks_response.assert_status_success();
@@ -1495,11 +1501,11 @@ test_with_server!(
         let (server, user0, _, token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, token1) = create_fake_login_test_user(&server).await;
         let disc_id = DiscussionDbService::get_profile_discussion_id(user1.id.as_ref().unwrap());
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token1).await;
 
         let endow_user_response = server
             .get(&format!("/test/api/deposit/{}/{}", user1.username, 1000))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         endow_user_response.assert_status_success();
@@ -1510,7 +1516,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>()
             }))
-            .add_header("Cookie", format!("jwt={}", token1))
+            .add_header("Authorization", format!("Bearer {}", token1))
             .add_header("Accept", "application/json")
             .await;
         task_request.assert_status_success();
@@ -1518,7 +1524,7 @@ test_with_server!(
 
         let accept_response = server
             .post(&format!("/api/tasks/{}/accept", task_id))
-            .add_header("Cookie", format!("jwt={}", token0))
+            .add_header("Authorization", format!("Bearer {}", token0))
             .add_header("Accept", "application/json")
             .await;
         accept_response.assert_status_success();
@@ -1564,6 +1570,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
             "private_discussion_users_final": false,
         }))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     let disc_id = create_response.json::<Discussion>().id;
 
@@ -1573,13 +1580,14 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
             "content":faker::lorem::en::Sentence(7..20).fake::<String>()
         }))
         .add_header("Accept", "application/json")
+        .add_header("Authorization", format!("Bearer {}", token2))
         .await;
     task_request.assert_status_success();
     let task = task_request.json::<TaskRequestEntity>();
     let task_id = task.id;
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
-        .add_header("Cookie", format!("jwt={}", token0))
+        .add_header("Authorization", format!("Bearer {}", token0))
         .add_header("Accept", "application/json")
         .await;
     get_task_response.assert_status_success();
@@ -1588,7 +1596,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
-        .add_header("Cookie", format!("jwt={}", token2))
+        .add_header("Authorization", format!("Bearer {}", token2))
         .add_header("Accept", "application/json")
         .await;
     get_task_response.assert_status_success();
@@ -1597,7 +1605,7 @@ test_with_server!(get_task_by_id, |server, ctx_state, config| {
 
     let get_task_response = server
         .get(&format!("/api/tasks/{}", task_id))
-        .add_header("Cookie", format!("jwt={}", token1))
+        .add_header("Authorization", format!("Bearer {}", token1))
         .add_header("Accept", "application/json")
         .await;
     get_task_response.assert_status_forbidden();
@@ -1608,23 +1616,25 @@ test_with_server!(
     |server, ctx_state, config| {
         let (server, user0, _, _token0) = create_fake_login_test_user(&server).await;
         let (server, user1, _, _token1) = create_fake_login_test_user(&server).await;
-        let (server, user2, _, _token2) = create_fake_login_test_user(&server).await;
+        let (server, user2, _, token2) = create_fake_login_test_user(&server).await;
         let disc_id =
             DiscussionDbService::get_profile_discussion_id(&user2.id.as_ref().unwrap().clone());
-        let post_id = create_fake_post(server, &disc_id, None, None).await;
+        let post_id = create_fake_post(server, &disc_id, None, None, &token2).await;
 
         server
             .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
             .json(&json!({
                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-            "participants": vec![user1.id.as_ref().unwrap().to_raw()],
+                "participants": vec![user1.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await
             .assert_status_success();
 
         let get_post_res = server
             .get(format!("/api/posts/{}", &post_id.id).as_str())
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         get_post_res.assert_status_success();
@@ -1634,15 +1644,17 @@ test_with_server!(
         server
             .post(format!("/api/posts/{}/tasks", post_id.id).as_str())
             .json(&json!({
-                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await
             .assert_status_success();
 
         let get_post_res = server
             .get(format!("/api/posts/{}", &post_id.id).as_str())
+            .add_header("Authorization", format!("Bearer {}", token2))
             .await;
 
         get_post_res.assert_status_success();
@@ -1654,17 +1666,18 @@ test_with_server!(
 test_with_server!(
     try_to_create_task_for_youself_for_discussion,
     |server, state, config| {
-        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, token) = create_fake_login_test_user(&server).await;
         let disc_id =
             DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap().clone());
 
         let request = server
             .post(format!("/api/discussions/{}/tasks", disc_id.to_raw()).as_str())
             .json(&json!({
-                 "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
-             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
+                "content":faker::lorem::en::Sentence(7..20).fake::<String>(),
+                "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         request.assert_status_failure();
         request.assert_status(StatusCode::FORBIDDEN);
@@ -1674,11 +1687,11 @@ test_with_server!(
 test_with_server!(
     try_to_create_task_for_youself_for_post,
     |server, state, config| {
-        let (server, user0, _, _) = create_fake_login_test_user(&server).await;
+        let (server, user0, _, token) = create_fake_login_test_user(&server).await;
         let disc_id =
             DiscussionDbService::get_profile_discussion_id(&user0.id.as_ref().unwrap().clone());
 
-        let post = create_fake_post(server, &disc_id, None, None).await;
+        let post = create_fake_post(server, &disc_id, None, None, &token).await;
 
         let request = server
             .post(&format!("/api/posts/{}/tasks", post.id))
@@ -1687,6 +1700,7 @@ test_with_server!(
             "participants": vec![user0.id.as_ref().unwrap().to_raw()],
             }))
             .add_header("Accept", "application/json")
+            .add_header("Authorization", format!("Bearer {}", token))
             .await;
         request.assert_status_failure();
         request.assert_status(StatusCode::FORBIDDEN);
