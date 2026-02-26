@@ -509,7 +509,6 @@ where
             .get_by_id::<TaskView>(&task_id)
             .await?;
 
-        println!("Task for reject: {:?}", task);
         if task.status != TaskRequestStatus::Init {
             return Err(AppError::Forbidden.into());
         }
@@ -533,7 +532,7 @@ where
                 })?,
         };
 
-        let _ = self.try_to_process_reward(&task).await;
+        let _ = self.try_to_process_reward(&task_access_view).await;
 
         self.access_repository
             .remove_by_user(
@@ -747,7 +746,7 @@ where
                 source: e.to_string(),
             })?;
 
-        let _ = self.try_to_process_reward(&task).await;
+        let _ = self.try_to_process_reward(&task_view).await;
 
         join_all(task.donors.into_iter().map(|d| {
             self.users_repository
@@ -779,14 +778,19 @@ where
         Ok(())
     }
 
-    async fn try_to_process_reward(&self, task: &TaskView) -> AppResult<()> {
-        if task.r#type == TaskRequestType::Public {
+    async fn try_to_process_reward(&self, task: &TaskAccessView) -> AppResult<()> {
+        let is_idea_post = task
+            .post
+            .as_ref()
+            .map_or(false, |p| p.r#type == PostType::Idea);
+
+        if task.r#type == TaskRequestType::Public && !is_idea_post {
             return Ok(());
         }
 
         let task = self
             .tasks_repository
-            .get_ready_for_payment_by_id(&task.id)
+            .get_ready_for_payment_by_id(&task.id.to_raw())
             .await
             .map_err(|e| AppError::SurrealDb {
                 source: e.to_string(),
