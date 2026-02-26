@@ -31,7 +31,6 @@ pub struct AppConfig {
     pub support_email: String,
     pub twitch_client_id: String,
     pub twitch_client_secret: String,
-    pub twitch_redirect_uri: String,
 }
 
 impl AppConfig {
@@ -102,7 +101,6 @@ impl AppConfig {
         let support_email = std::env::var("SUPPORT_EMAIL").unwrap_or("".to_string());
         let twitch_client_id = std::env::var("TWITCH_CLIENT_ID").unwrap_or("".to_string());
         let twitch_client_secret = std::env::var("TWITCH_CLIENT_SECRET").unwrap_or("".to_string());
-        let twitch_redirect_uri = std::env::var("TWITCH_REDIRECT_URI").unwrap_or("".to_string());
 
         Self {
             db_namespace,
@@ -134,7 +132,6 @@ impl AppConfig {
             support_email,
             twitch_client_id,
             twitch_client_secret,
-            twitch_redirect_uri,
         }
     }
 }

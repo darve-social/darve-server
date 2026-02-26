@@ -65,7 +65,6 @@ macro_rules! test_with_server {
                     twitch_service: TwitchService::new(
                         config.twitch_client_id.clone(),
                         config.twitch_client_secret.clone(),
-                        config.twitch_redirect_uri.clone(),
                     ),
                 };
                 Arc::new(ctx_state)
@@ -101,7 +100,6 @@ macro_rules! test_with_server {
                 support_email: "".to_string(),
                 twitch_client_id: "".to_string(),
                 twitch_client_secret: "".to_string(),
-                twitch_redirect_uri: "".to_string(),
             };
 
             let $ctx_state = {
