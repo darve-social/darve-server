@@ -119,7 +119,6 @@ pub async fn create_ctx_state(db: Database, config: &AppConfig) -> Arc<CtxState>
         twitch_service: TwitchService::new(
             config.twitch_client_id.clone(),
             config.twitch_client_secret.clone(),
-            config.twitch_redirect_uri.clone(),
         ),
     };
     Arc::new(ctx_state)

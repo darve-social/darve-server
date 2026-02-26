@@ -26,19 +26,21 @@ pub struct TwitchTokenResponse {
 pub struct TwitchService {
     client_id: String,
     client_secret: String,
-    redirect_uri: String,
 }
 
 impl TwitchService {
-    pub fn new(client_id: String, client_secret: String, redirect_uri: String) -> Self {
+    pub fn new(client_id: String, client_secret: String) -> Self {
         Self {
             client_id,
             client_secret,
-            redirect_uri,
         }
     }
 
-    pub async fn exchange_code(&self, code: &str) -> Result<TwitchTokenResponse, String> {
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<TwitchTokenResponse, String> {
         let client = Client::new();
         let response = client
             .post("https://id.twitch.tv/oauth2/token")
@@ -47,7 +49,7 @@ impl TwitchService {
                 ("client_secret", self.client_secret.as_str()),
                 ("code", code),
                 ("grant_type", "authorization_code"),
-                ("redirect_uri", self.redirect_uri.as_str()),
+                ("redirect_uri", redirect_uri),
             ])
             .send()
             .await

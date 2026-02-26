@@ -42,6 +42,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
 #[derive(Debug, Deserialize, Serialize)]
 struct GetTwitchRequest {
     code: String,
+    redirect_uri: String,
 }
 async fn sign_by_twitch(
     State(state): State<Arc<CtxState>>,
@@ -60,7 +61,9 @@ async fn sign_by_twitch(
         &state.twitch_service,
     );
 
-    let (token, user, has_password) = auth_service.sign_by_twitch(&query.code).await?;
+    let (token, user, has_password) = auth_service
+        .sign_by_twitch(&query.code, &query.redirect_uri)
+        .await?;
     Ok((
         StatusCode::OK,
         Json(json!({"token": token, "user": LoggedUserView::from((user, has_password)) })),

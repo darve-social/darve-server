@@ -379,10 +379,14 @@ where
         }
     }
 
-    pub async fn sign_by_twitch(&self, code: &str) -> CtxResult<(String, LocalUser, bool)> {
+    pub async fn sign_by_twitch(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> CtxResult<(String, LocalUser, bool)> {
         let twitch_token = self
             .twitch_service
-            .exchange_code(code)
+            .exchange_code(code, redirect_uri)
             .await
             .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
         let twitch_user = self
