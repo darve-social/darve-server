@@ -159,6 +159,12 @@
                     "REJECT_TASK"
                   ]
                 },
+                "GUEST": {
+                  "permissions": [
+                    "VIEW",
+                    "DONATE"
+                  ]
+                },
                 "PARTICIPANT": {
                   "permissions": [
                     "VIEW",
