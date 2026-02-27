@@ -592,15 +592,6 @@ where
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
                     })?;
-
-                let _ = self
-                    .access_repository
-                    .update(
-                        user.id.as_ref().unwrap().clone(),
-                        task_id,
-                        Role::Participant.to_string(),
-                    )
-                    .await?;
                 result
             }
             None => {
@@ -611,17 +602,27 @@ where
                     .map_err(|e| AppError::SurrealDb {
                         source: e.to_string(),
                     })?;
-                let _ = self
-                    .access_repository
-                    .add(
-                        [user.id.as_ref().unwrap().clone()].to_vec(),
-                        [task_id].to_vec(),
-                        Role::Participant.to_string(),
-                    )
-                    .await?;
+
                 result
             }
         };
+
+        let _ = self
+            .access_repository
+            .remove_by_user(
+                user.id.as_ref().unwrap().clone(),
+                [task.id.as_ref()].to_vec(),
+            )
+            .await?;
+
+        let _ = self
+            .access_repository
+            .add(
+                [user.id.as_ref().unwrap().clone()].to_vec(),
+                [task_id].to_vec(),
+                Role::Participant.to_string(),
+            )
+            .await?;
 
         if task.status != TaskRequestStatus::InProgress {
             self.tasks_repository
