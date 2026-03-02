@@ -389,7 +389,7 @@ where
             .get_by_id::<TaskView>(&task_id)
             .await?;
 
-        if task.status != TaskRequestStatus::Init || data.amount <= 0 {
+        if !self.can_still_use(task.created_at, Some(task.acceptance_period)) || data.amount <= 0 {
             return Err(AppError::Forbidden.into());
         }
 
