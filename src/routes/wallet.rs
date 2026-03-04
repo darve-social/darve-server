@@ -471,6 +471,7 @@ async fn deposit_by_link(
     create_session.mode = Some(stripe::CheckoutSessionMode::Payment);
     create_session.success_url = Some(&data.success_url);
     create_session.cancel_url = Some(&data.cancel_url);
+    create_session.customer_email = user.email_verified.as_deref();
     create_session.line_items = Some(vec![CreateCheckoutSessionLineItems {
         price_data: Some(CreateCheckoutSessionLineItemsPriceData {
             currency: Currency::USD,
