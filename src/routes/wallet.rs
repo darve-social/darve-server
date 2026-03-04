@@ -496,10 +496,6 @@ async fn deposit_by_link(
             source: e.to_string(),
         })?;
 
-    println!(
-        "Stripe checkout session created: {:?}",
-        session.payment_link
-    );
     let _ = GatewayTransactionDbService {
         db: &state.db.client,
         ctx: &user_auth.ctx,
