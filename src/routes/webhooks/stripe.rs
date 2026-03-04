@@ -55,6 +55,7 @@ async fn handle_webhook(
     match payment_intent {
         Some(payment_intent) => {
             let amount_received = payment_intent.amount_received;
+
             if amount_received <= 0 {
                 return Ok("No amount received".into_response());
             }

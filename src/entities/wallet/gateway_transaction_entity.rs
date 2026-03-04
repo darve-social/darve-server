@@ -148,12 +148,12 @@ impl<'a> GatewayTransactionDbService<'a> {
     ) -> CtxResult<Thing> {
         let tx = self.get(IdentIdName::Id(gateway_tx)).await?;
 
-        if tx.external_tx_id != external_tx_id {
-            return Err(AppError::Generic {
-                description: "Payment id is not valid".to_string(),
-            }
-            .into());
-        }
+        // if tx.external_tx_id != external_tx_id {
+        //     return Err(AppError::Generic {
+        //         description: "Payment id is not valid".to_string(),
+        //     }
+        //     .into());
+        // }
         let user_wallet = WalletDbService::get_user_wallet_id(&tx.user);
 
         let gwy_wallet = APP_GATEWAY_WALLET.clone();
