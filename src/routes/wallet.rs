@@ -29,7 +29,11 @@ use middleware::utils::db_utils::Pagination;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use stripe::{AccountId, Client, CreatePaymentIntent, Currency};
+use stripe::{
+    AccountId, CheckoutSession, Client, CreateCheckoutSession, CreateCheckoutSessionLineItems,
+    CreateCheckoutSessionLineItemsPriceData, CreateCheckoutSessionLineItemsPriceDataProductData,
+    CreateCheckoutSessionPaymentIntentData, CreatePaymentIntent, Currency,
+};
 use validator::Validate;
 use wallet_entity::{CurrencySymbol, WalletDbService};
 
@@ -39,6 +43,7 @@ pub fn routes(is_development: bool) -> Router<Arc<CtxState>> {
         .route("/api/wallet/balance", get(get_user_balance))
         .route("/api/wallet/withdraw", post(withdraw))
         .route("/api/wallet/deposit", post(deposit))
+        .route("/api/wallet/deposit_by_link", post(deposit_by_link))
         .route("/api/gateway_wallet/history", get(gateway_wallet_history))
         .route("/api/gateway_wallet/count", get(gateway_wallet_count));
 
@@ -425,4 +430,89 @@ async fn test_deposit(
     .await?;
 
     Ok((StatusCode::OK, user1_bal.balance_usd.to_string()).into_response())
+}
+
+#[derive(Debug, Validate, Deserialize)]
+struct DepositByLinkData {
+    #[validate(range(min = 100))]
+    amount: u64,
+    success_url: String,
+    cancel_url: String,
+}
+
+async fn deposit_by_link(
+    user_auth: BearerAuth,
+    State(state): State<Arc<CtxState>>,
+    JsonOrFormValidated(data): JsonOrFormValidated<DepositByLinkData>,
+) -> CtxResult<Json<String>> {
+    let user = LocalUserDbService {
+        db: &state.db.client,
+        ctx: &user_auth.ctx,
+    }
+    .get_by_id(&user_auth.user_thing_id())
+    .await?;
+
+    let acc_id = AccountId::from_str(&state.stripe_platform_account.as_str()).map_err(|e| {
+        AppError::Stripe {
+            source: e.to_string(),
+        }
+    })?;
+    let client = Client::new(state.stripe_secret_key.clone()).with_stripe_account(acc_id);
+
+    let amt = data.amount as i64;
+    let id = GatewayTransactionDbService::generate_id();
+
+    let mut metadata = HashMap::with_capacity(3);
+    metadata.insert("tx_id".to_string(), id.to_raw());
+    metadata.insert("user_id".to_string(), user.id.as_ref().unwrap().to_raw());
+    metadata.insert("amount".to_string(), amt.to_string());
+
+    let mut create_session = CreateCheckoutSession::new();
+    create_session.mode = Some(stripe::CheckoutSessionMode::Payment);
+    create_session.success_url = Some(&data.success_url);
+    create_session.cancel_url = Some(&data.cancel_url);
+    create_session.line_items = Some(vec![CreateCheckoutSessionLineItems {
+        price_data: Some(CreateCheckoutSessionLineItemsPriceData {
+            currency: Currency::USD,
+            unit_amount: Some(amt),
+            product_data: Some(CreateCheckoutSessionLineItemsPriceDataProductData {
+                name: "Wallet Deposit".to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        quantity: Some(1),
+        ..Default::default()
+    }]);
+    create_session.payment_intent_data = Some(CreateCheckoutSessionPaymentIntentData {
+        metadata: Some(metadata),
+        ..Default::default()
+    });
+
+    let session = CheckoutSession::create(&client, create_session)
+        .await
+        .map_err(|e| AppError::Stripe {
+            source: e.to_string(),
+        })?;
+
+    println!(
+        "Stripe checkout session created: {:?}",
+        session.payment_link
+    );
+    let _ = GatewayTransactionDbService {
+        db: &state.db.client,
+        ctx: &user_auth.ctx,
+    }
+    .user_deposit_start(
+        id,
+        user.id.as_ref().unwrap().clone(),
+        amt,
+        CurrencySymbol::USD,
+        session.id.to_string(),
+    )
+    .await?;
+
+    Ok(Json(session.url.ok_or(AppError::Stripe {
+        source: "Stripe checkout session URL not returned".to_string(),
+    })?))
 }
