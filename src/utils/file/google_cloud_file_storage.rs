@@ -25,9 +25,10 @@ impl GoogleCloudFileStorage {
         } else {
             ClientConfig::default()
                 .with_credentials(
-                    CredentialsFile::new_from_file(cred.unwrap().to_string())
-                        .await
-                        .expect("Credentials file not found"),
+                    CredentialsFile::new().await.expect("Credentials GOOGLE_APPLICATION_CREDENTIALS_JSON not found in env"),
+                    // CredentialsFile::new_from_file(cred.unwrap().to_string())
+                    //     .await
+                    //     .expect("Credentials file not found"),
                 )
                 .await
                 .expect("Failed to load Google Cloud Storage credentials")
