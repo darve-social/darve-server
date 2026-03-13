@@ -492,6 +492,86 @@ where
         Ok(response.unwrap())
     }
 
+    pub async fn donate(
+        &self,
+        task_id: &str,
+        donor_id: &str,
+        data: TaskDonorData,
+    ) -> AppResult<TaskDonor> {
+        let task_view = self
+            .tasks_repository
+            .get_by_id::<TaskAccessView>(&task_id)
+            .await?;
+        let donor = self.users_repository.get_by_id(&donor_id).await?;
+
+        if !TaskAccess::new(&task_view).can_donate(&donor) {
+            return Err(AppError::Forbidden);
+        }
+
+        let task = self
+            .tasks_repository
+            .get_by_id::<TaskView>(&task_id)
+            .await?;
+
+        if !self.can_still_use(task.created_at, Some(task.acceptance_period)) || data.amount <= 0 {
+            return Err(AppError::Forbidden.into());
+        }
+
+        let participant = task
+            .donors
+            .iter()
+            .find(|p| &p.user == donor.id.as_ref().unwrap());
+
+        let user_wallet = WalletDbService::get_user_wallet_id(donor.id.as_ref().unwrap());
+        let mut query = self.db.query("BEGIN");
+        query = BalanceTransactionDbService::build_transfer_qry(
+            query,
+            &user_wallet,
+            &task.wallet_id,
+            data.amount as i64,
+            &task.currency,
+            None,
+            Some("Update donate".to_string()),
+            TransactionType::Donate,
+            "donate",
+        );
+
+        query = self.task_donors_repository.build_create_query(
+            query,
+            &task_id,
+            &donor_id,
+            "$donate_tx_out_id",
+            data.amount as u64,
+            &task.currency.to_string(),
+        );
+
+        let mut res = query.query("RETURN $task_donor;").query("COMMIT").await?;
+        check_transaction_custom_error(&mut res)?;
+
+        let response: Option<TaskDonor> = res.take(0)?;
+
+        if participant.is_none() {
+            let _ = self
+                .access_repository
+                .add(
+                    [donor.id.as_ref().unwrap().clone()].to_vec(),
+                    [task_id].to_vec(),
+                    Role::Donor.to_string(),
+                )
+                .await?;
+        }
+
+        self.notification_service
+            .on_donate_task(&donor, &task_view, data.amount, task.currency)
+            .await?;
+
+        self.notification_service
+            .on_update_balance(&donor.id.as_ref().unwrap())
+            .await?;
+
+        Ok(response.unwrap())
+    }
+
     pub async fn reject(&self, user_id: &str, task_id: &str) -> AppResult<TaskParticipant> {
         let user = self.users_repository.get_by_id(&user_id).await?;
 

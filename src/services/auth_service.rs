@@ -261,6 +261,26 @@ where
         Ok((token, user))
     }
 
+    pub async fn register_as_guest(&self) -> CtxResult<(String, LocalUser)> {
+        let mut guest_username = format!(
+            "guest_{}",
+            Uuid::new_v4().to_string().replace("-", "_")[..8].to_string()
+        );
+
+        while self.is_exists_by_username(guest_username.clone()).await {
+            guest_username = format!(
+                "guest_{}",
+                Uuid::new_v4().to_string().replace("-", "_")[..8].to_string()
+            );
+        }
+
+        let user = LocalUser::default(guest_username);
+        let guest_token = Uuid::new_v4().to_string();
+
+        self.register(user, AuthType::GUEST, &guest_token, None)
+            .await
+    }
+
     pub async fn register_login_by_apple(
         &self,
         token: &str,
