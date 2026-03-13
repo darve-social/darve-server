@@ -31,6 +31,7 @@ pub fn routes(upload_max_size_mb: u64) -> Router<Arc<CtxState>> {
         .route("/api/tasks/{task_id}/accept", post(accept_task_request))
         .route("/api/tasks/{task_id}/reject", post(reject_task_request))
         .route("/api/tasks/{task_id}/donor", post(upsert_donor))
+        .route("/api/tasks/{task_id}/donate", post(danate))
         .route(
             "/api/tasks/{task_id}/deliver",
             post(deliver_task).layer(DefaultBodyLimit::max(max_bytes_val)),
@@ -209,6 +210,42 @@ async fn upsert_donor(
 
     let donor = task_service
         .upsert_donor(
+            &task_id,
+            &auth_data.user_thing_id(),
+            TaskDonorData {
+                amount: data.amount,
+            },
+        )
+        .await?;
+
+    Ok(Json(donor))
+}
+
+async fn danate(
+    State(state): State<Arc<CtxState>>,
+    auth_data: BearerAuth,
+    Path(task_id): Path<String>,
+    JsonOrFormValidated(data): JsonOrFormValidated<TaskRequestOfferInput>,
+) -> CtxResult<Json<TaskDonor>> {
+    let task_service = TaskService::new(
+        &state.db.client,
+        &auth_data.ctx,
+        &state.db.task_request,
+        &state.db.task_donors,
+        &state.db.task_participants,
+        &state.db.access,
+        &state.db.tags,
+        NotificationService::new(
+            &state.db.client,
+            &auth_data.ctx,
+            &state.event_sender,
+            &state.db.user_notifications,
+        ),
+        state.file_storage.clone(),
+    );
+
+    let donor = task_service
+        .donate(
             &task_id,
             &auth_data.user_thing_id(),
             TaskDonorData {

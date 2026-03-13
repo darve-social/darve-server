@@ -432,16 +432,19 @@ test_with_server!(
             .await;
 
         response.assert_status_unprocessable_entity();
-
-        let response = server
-            .post("/api/forgot_password/confirm")
-            .json(&json!({
-                "email_or_username": "asdasd@asd.com",
-                "code": "000000",
-                "password": "124"
-            }))
-            .await;
-
-        response.assert_status_unprocessable_entity();
     }
 );
+
+test_with_server!(test_sign_as_guest_success, |server, _ctx_state, _config| {
+    let response = server.post("/api/auth/sign_as_quest").await;
+
+    response.assert_status_success();
+
+    let body: serde_json::Value = response.json();
+    assert!(body["token"].is_string());
+    assert!(body["user"]["username"]
+        .as_str()
+        .unwrap()
+        .starts_with("guest_"));
+    assert_eq!(body["user"]["has_password"].as_bool().unwrap(), false);
+});

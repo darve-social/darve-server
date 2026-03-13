@@ -32,6 +32,7 @@ pub enum AuthType {
     FACEBOOK,
     GOOGLE,
     TWITCH,
+    GUEST,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -28,6 +28,7 @@ pub fn routes() -> Router<Arc<CtxState>> {
         .route("/api/auth/sign_with_apple", post(sign_by_apple))
         .route("/api/auth/sign_with_google", post(sign_by_google))
         .route("/api/forgot_password/start", post(forgot_password_start))
+        .route("/api/auth/sign_as_quest", post(sign_as_quest))
         .route(
             "/api/forgot_password/confirm",
             post(forgot_password_confirm),
@@ -255,4 +256,26 @@ async fn forgot_password_confirm(
 
     let _ = auth_service.reset_password(body).await?;
     Ok((StatusCode::OK).into_response())
+}
+
+async fn sign_as_quest(State(state): State<Arc<CtxState>>, ctx: Ctx) -> CtxResult<Response> {
+    let auth_service = AuthService::new(
+        &state.db.client,
+        &ctx,
+        &state.jwt,
+        state.email_sender.clone(),
+        state.verification_code_ttl,
+        &state.db.verification_code,
+        &state.db.access,
+        state.file_storage.clone(),
+        &state.twitch_service,
+    );
+
+    let (token, user) = auth_service.register_as_guest().await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({"token": token, "user": LoggedUserView::from((user, false)) })),
+    )
+        .into_response())
 }

@@ -27,6 +27,8 @@ pub struct TaskRequestDonorView {
     pub id: Thing,
     pub user: UserView,
     pub amount: i64,
+    #[serde(alias = "r_created")]
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -65,7 +67,7 @@ impl ViewFieldSelector for TaskRequestView {
         request_txt,
         created_by.* as created_by,
         ->task_participant.{ user: out.*, status, timelines, result } as participants,
-        ->task_donor.{id, user: out.*, amount: transaction.amount_out} as donors"
+        ->task_donor.{id, user: out.*, amount: transaction.amount_out, r_created} as donors"
             .to_string()
     }
 }
@@ -86,7 +88,7 @@ impl ViewRelateField for TaskRequestView {
         request_txt,
         created_by:created_by.*,
         participants:->task_participant.{ user: out.*, status, timelines, result },
-        donors:->task_donor.{id, user: out.*, amount: transaction.amount_out}"
+        donors:->task_donor.{id, user: out.*, amount: transaction.amount_out, r_created}"
             .to_string()
     }
 }
