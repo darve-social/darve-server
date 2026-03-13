@@ -41,6 +41,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tempfile::NamedTempFile;
+use tracing::log;
 use utils::validate_utils::validate_birth_date;
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail};
@@ -388,7 +389,10 @@ where
             .twitch_service
             .exchange_code(code, redirect_uri)
             .await
-            .map_err(|_| self.ctx.to_ctx_error(AppError::AuthenticationFail))?;
+            .map_err(|e| {
+                log::error!("Twitch exchange code error: {}", e);
+                self.ctx.to_ctx_error(AppError::AuthenticationFail)
+            })?;
         let twitch_user = self
             .twitch_service
             .get_user(&twitch_token)
